@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -7,242 +6,202 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Check, X, HelpCircle, Clock, Users } from "lucide-react";
-import type { PlayerAvailability, DayOfWeek, AvailabilityOption } from "@shared/schema";
-import { dayOfWeek } from "@shared/schema";
+import { Users, TrendingUp, TrendingDown, AlertCircle } from "lucide-react";
+import type { DayOfWeek, AvailabilityOption, PlayerAvailability } from "@shared/schema";
 
-const DAYS: DayOfWeek[] = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
-const DAY_LABELS: Record<DayOfWeek, string> = {
-  monday: "Mon",
-  tuesday: "Tue",
-  wednesday: "Wed",
-  thursday: "Thu",
-  friday: "Fri",
-  saturday: "Sat",
-  sunday: "Sun",
-};
+const DAYS: DayOfWeek[] = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-interface GroupedAvailability {
-  [role: string]: {
-    [playerName: string]: {
-      [day: string]: AvailabilityOption;
-    };
-  };
+interface WeeklyAvailabilityOverviewProps {
+  scheduleData: PlayerAvailability[];
 }
 
-export function WeeklyAvailabilityOverview() {
-  const { data: schedule = [], isLoading } = useQuery<PlayerAvailability[]>({
-    queryKey: ["/api/schedule"],
-  });
+export function WeeklyAvailabilityOverview({ scheduleData }: WeeklyAvailabilityOverviewProps) {
+  const schedule = scheduleData || [];
 
-  const groupedByRole = schedule.reduce<GroupedAvailability>((acc, item) => {
-    const role = item.role || "Unassigned";
-    if (!acc[role]) acc[role] = {};
-    if (!acc[role][item.playerName]) {
-      acc[role][item.playerName] = {};
-    }
-    acc[role][item.playerName][item.dayOfWeek] = item.availability;
-    return acc;
-  }, {});
-
-  const getAvailabilityIcon = (availability: AvailabilityOption | undefined) => {
-    switch (availability) {
-      case "available":
-        return <Check className="h-3 w-3 text-green-400" />;
-      case "unavailable":
-        return <X className="h-3 w-3 text-red-400" />;
-      case "maybe":
-        return <HelpCircle className="h-3 w-3 text-yellow-400" />;
-      default:
-        return <span className="w-3 h-3" />;
-    }
-  };
-
-  const getAvailabilityColor = (availability: AvailabilityOption | undefined) => {
-    switch (availability) {
-      case "available":
-        return "bg-green-500/20 border-green-500/30";
-      case "unavailable":
-        return "bg-red-500/20 border-red-500/30";
-      case "maybe":
-        return "bg-yellow-500/20 border-yellow-500/30";
-      default:
-        return "bg-muted border-transparent";
-    }
-  };
-
-  const getRoleColor = (role: string) => {
-    switch (role.toLowerCase()) {
-      case "tank":
-        return "bg-blue-500/20 text-blue-400 border-blue-500/30";
-      case "dps":
-        return "bg-red-500/20 text-red-400 border-red-500/30";
-      case "support":
-        return "bg-green-500/20 text-green-400 border-green-500/30";
-      default:
-        return "bg-muted text-muted-foreground";
-    }
+  const getAvailabilityStatus = (availability: AvailabilityOption): "available" | "unavailable" | "unknown" => {
+    if (availability === "cannot") return "unavailable";
+    if (availability === "unknown") return "unknown";
+    return "available";
   };
 
   const calculateDaySummary = (day: DayOfWeek) => {
     let available = 0;
     let unavailable = 0;
-    let maybe = 0;
+    let unknown = 0;
 
-    Object.values(groupedByRole).forEach(players => {
-      Object.values(players).forEach(playerDays => {
-        const status = playerDays[day];
-        if (status === "available") available++;
-        else if (status === "unavailable") unavailable++;
-        else if (status === "maybe") maybe++;
+    schedule.forEach(player => {
+      const status = getAvailabilityStatus(player.availability[day]);
+      if (status === "available") available++;
+      else if (status === "unavailable") unavailable++;
+      else unknown++;
+    });
+
+    const total = schedule.length;
+    const availablePercent = total > 0 ? Math.round((available / total) * 100) : 0;
+
+    return { available, unavailable, unknown, total, availablePercent };
+  };
+
+  const calculateOverallStats = () => {
+    const totalSlots = schedule.length * 7;
+    let availableSlots = 0;
+
+    schedule.forEach(player => {
+      DAYS.forEach(day => {
+        const status = getAvailabilityStatus(player.availability[day]);
+        if (status === "available") availableSlots++;
       });
     });
 
-    return { available, unavailable, maybe };
+    const averageAvailability = totalSlots > 0 ? Math.round((availableSlots / totalSlots) * 100) : 0;
+
+    return { totalSlots, availableSlots, averageAvailability };
   };
 
-  if (isLoading) {
-    return (
-      <Card>
-        <CardContent className="py-8 text-center">
-          <Clock className="h-8 w-8 mx-auto mb-2 animate-spin text-muted-foreground" />
-          <p className="text-muted-foreground">Loading availability...</p>
-        </CardContent>
-      </Card>
-    );
-  }
+  const getCoverageStatus = (percent: number) => {
+    if (percent >= 80) return { text: "Excellent", color: "text-emerald-600 dark:text-emerald-400" };
+    if (percent >= 60) return { text: "Good", color: "text-cyan-600 dark:text-cyan-400" };
+    if (percent >= 40) return { text: "Needs Work", color: "text-amber-600 dark:text-amber-400" };
+    return { text: "Critical", color: "text-red-600 dark:text-red-400" };
+  };
 
-  const playerCount = new Set(schedule.map(s => s.playerName)).size;
+  const playerCount = schedule.length;
+
+  if (playerCount === 0) {
+    return null;
+  }
+  const overallStats = calculateOverallStats();
+  const coverageStatus = getCoverageStatus(overallStats.averageAvailability);
 
   return (
     <Card>
-      <CardHeader className="pb-3">
+      <CardHeader className="pb-4">
         <CardTitle className="flex items-center gap-2 text-lg">
           <Users className="h-5 w-5 text-primary" />
           Weekly Availability Overview
-          <Badge variant="outline" className="ml-2">
-            {playerCount} {playerCount === 1 ? "player" : "players"}
-          </Badge>
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          <div className="grid grid-cols-8 gap-1 text-xs">
-            <div className="font-semibold text-muted-foreground px-2 py-1">Player</div>
-            {DAYS.map(day => (
-              <div key={day} className="font-semibold text-center text-muted-foreground py-1">
-                {DAY_LABELS[day]}
-              </div>
-            ))}
+      <CardContent className="space-y-6">
+        <div className="grid grid-cols-3 gap-4">
+          <div className="p-4 rounded-lg bg-muted/50">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+              <Users className="h-4 w-4" />
+              Player-Day Slots
+            </div>
+            <div className="text-2xl font-bold">
+              {overallStats.availableSlots}/{overallStats.totalSlots}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Available slots (7 days × {playerCount} players)
+            </div>
           </div>
 
-          <div className="grid grid-cols-8 gap-1 text-xs border-b border-border pb-2 mb-2">
-            <div className="font-medium text-muted-foreground px-2">Summary</div>
-            {DAYS.map(day => {
-              const summary = calculateDaySummary(day);
-              return (
-                <TooltipProvider key={day}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="flex items-center justify-center gap-1">
-                        <span className="text-green-400">{summary.available}</span>
-                        <span className="text-muted-foreground">/</span>
-                        <span className="text-yellow-400">{summary.maybe}</span>
-                        <span className="text-muted-foreground">/</span>
-                        <span className="text-red-400">{summary.unavailable}</span>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <div className="text-sm">
-                        <div className="text-green-400">{summary.available} Available</div>
-                        <div className="text-yellow-400">{summary.maybe} Maybe</div>
-                        <div className="text-red-400">{summary.unavailable} Unavailable</div>
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              );
-            })}
+          <div className="p-4 rounded-lg bg-muted/50">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+              {overallStats.averageAvailability >= 50 ? (
+                <TrendingUp className="h-4 w-4 text-emerald-500" />
+              ) : (
+                <TrendingDown className="h-4 w-4 text-red-500" />
+              )}
+              Average Availability
+            </div>
+            <div className="text-2xl font-bold">
+              {overallStats.averageAvailability}%
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Across all days of week
+            </div>
           </div>
 
-          {Object.entries(groupedByRole).map(([role, players]) => (
-            <div key={role} className="space-y-1">
-              <div className="flex items-center gap-2 mb-2">
-                <Badge variant="outline" className={getRoleColor(role)}>
-                  {role}
-                </Badge>
-                <span className="text-xs text-muted-foreground">
-                  {Object.keys(players).length} {Object.keys(players).length === 1 ? "player" : "players"}
-                </span>
-              </div>
-              
-              {Object.entries(players).map(([playerName, availability]) => (
-                <div
-                  key={playerName}
-                  className="grid grid-cols-8 gap-1 items-center"
-                  data-testid={`row-player-${playerName}`}
-                >
-                  <div
-                    className="text-sm font-medium truncate px-2"
-                    title={playerName}
-                    data-testid={`text-player-name-${playerName}`}
-                  >
-                    {playerName}
-                  </div>
-                  {DAYS.map(day => {
-                    const status = availability[day];
-                    return (
-                      <TooltipProvider key={day}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div
-                              className={`flex items-center justify-center h-7 rounded border ${getAvailabilityColor(status)}`}
-                              data-testid={`cell-${playerName}-${day}`}
-                            >
-                              {getAvailabilityIcon(status)}
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p className="text-sm">
-                              {playerName}: {status || "Not set"} on {DAY_LABELS[day]}
-                            </p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    );
-                  })}
-                </div>
-              ))}
+          <div className="p-4 rounded-lg bg-muted/50">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+              <AlertCircle className="h-4 w-4" />
+              Status
             </div>
-          ))}
-
-          {Object.keys(groupedByRole).length === 0 && (
-            <div className="text-center py-8 text-muted-foreground">
-              <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No player availability data yet.</p>
-              <p className="text-sm mt-1">Add players and set their availability to see the overview here.</p>
+            <div className={`text-2xl font-bold ${coverageStatus.color}`}>
+              {coverageStatus.text}
             </div>
-          )}
+            <div className="text-xs text-muted-foreground">
+              Team coverage
+            </div>
+          </div>
         </div>
 
-        <div className="flex items-center justify-center gap-6 mt-6 pt-4 border-t border-border text-sm">
+        <div className="space-y-3">
+          <h4 className="font-medium text-sm text-muted-foreground">Daily Breakdown</h4>
+          {DAYS.map(day => {
+            const summary = calculateDaySummary(day);
+            const availableWidth = summary.total > 0 ? (summary.available / summary.total) * 100 : 0;
+            const unknownWidth = summary.total > 0 ? (summary.unknown / summary.total) * 100 : 0;
+            const unavailableWidth = summary.total > 0 ? (summary.unavailable / summary.total) * 100 : 0;
+
+            return (
+              <div key={day} className="flex items-center gap-4">
+                <div className="w-24 text-sm font-medium">{day}</div>
+                <div className="flex-1">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="flex h-6 w-full rounded overflow-hidden bg-slate-200 dark:bg-slate-700">
+                          {summary.available > 0 && (
+                            <div
+                              className="bg-emerald-500 flex items-center justify-center text-xs text-white font-medium"
+                              style={{ width: `${availableWidth}%` }}
+                            >
+                              {summary.available}
+                            </div>
+                          )}
+                          {summary.unknown > 0 && (
+                            <div
+                              className="bg-slate-400 dark:bg-slate-500 flex items-center justify-center text-xs text-white font-medium"
+                              style={{ width: `${unknownWidth}%` }}
+                            >
+                              {summary.unknown}
+                            </div>
+                          )}
+                          {summary.unavailable > 0 && (
+                            <div
+                              className="bg-red-500 flex items-center justify-center text-xs text-white font-medium"
+                              style={{ width: `${unavailableWidth}%` }}
+                            >
+                              {summary.unavailable}
+                            </div>
+                          )}
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <div className="text-sm">
+                          <div className="text-emerald-400">{summary.available} Available</div>
+                          <div className="text-slate-400">{summary.unknown} Unknown</div>
+                          <div className="text-red-400">{summary.unavailable} Unavailable</div>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+                <Badge 
+                  variant={summary.availablePercent >= 60 ? "default" : summary.availablePercent >= 40 ? "secondary" : "destructive"}
+                  className="w-14 justify-center"
+                >
+                  {summary.availablePercent}%
+                </Badge>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center justify-center gap-6 pt-4 border-t text-xs text-muted-foreground">
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-green-500/20 border border-green-500/30 flex items-center justify-center">
-              <Check className="h-2.5 w-2.5 text-green-400" />
-            </div>
-            <span className="text-muted-foreground">Available</span>
+            <div className="w-3 h-3 rounded bg-emerald-500" />
+            <span>Available</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-yellow-500/20 border border-yellow-500/30 flex items-center justify-center">
-              <HelpCircle className="h-2.5 w-2.5 text-yellow-400" />
-            </div>
-            <span className="text-muted-foreground">Maybe</span>
+            <div className="w-3 h-3 rounded bg-slate-400 dark:bg-slate-500" />
+            <span>Unknown</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-red-500/20 border border-red-500/30 flex items-center justify-center">
-              <X className="h-2.5 w-2.5 text-red-400" />
-            </div>
-            <span className="text-muted-foreground">Unavailable</span>
+            <div className="w-3 h-3 rounded bg-red-500" />
+            <span>Unavailable</span>
           </div>
         </div>
       </CardContent>

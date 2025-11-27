@@ -10,6 +10,9 @@ import EventDetails from "@/pages/EventDetails";
 import EventsResults from "@/pages/EventsResults";
 import EventsHistory from "@/pages/EventsHistory";
 import Stats from "@/pages/Stats";
+import OverallStats from "@/pages/OverallStats";
+import ScrimStats from "@/pages/ScrimStats";
+import TournamentStats from "@/pages/TournamentStats";
 import Players from "@/pages/Players";
 import Settings from "@/pages/Settings";
 import NotFound from "@/pages/not-found";
@@ -24,6 +27,9 @@ function Router() {
       <Route path="/results" component={EventsResults} />
       <Route path="/history" component={EventsHistory} />
       <Route path="/stats" component={Stats} />
+      <Route path="/stats/overall" component={OverallStats} />
+      <Route path="/stats/scrim" component={ScrimStats} />
+      <Route path="/stats/tournament" component={TournamentStats} />
       <Route path="/players" component={Players} />
       <Route path="/settings" component={Settings} />
       <Route component={NotFound} />
@@ -64,7 +70,7 @@ function PasswordGate({ onUnlock }: { onUnlock: () => void }) {
         {error && <p className="text-sm text-red-500">{error}</p>}
         <button
           type="submit"
-          className="w-full rounded px-3 py-2 bg-yellow-500 text-black font-semibold"
+          className="w-full rounded px-3 py-2 bg-primary text-primary-foreground font-semibold hover:bg-primary/90"
         >
           Unlock
         </button>

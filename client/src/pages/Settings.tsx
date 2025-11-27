@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Plus, Pencil, Trash2, Gamepad2, Map as MapIcon, ChevronDown, ChevronRight } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, Gamepad2, Map as MapIcon, ChevronDown, ChevronRight, RotateCcw } from "lucide-react";
 import type { GameMode, Map as MapType } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useForm } from "react-hook-form";
@@ -178,6 +178,31 @@ export default function Settings() {
     },
   });
 
+  const resetToDefaultsMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/reset-defaults");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/game-modes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/maps"] });
+      setToastMessage("Reset to Marvel Rivals defaults successfully");
+      setToastType("success");
+      setShowToast(true);
+    },
+    onError: (error: any) => {
+      setToastMessage(error.message || "Failed to reset to defaults");
+      setToastType("error");
+      setShowToast(true);
+    },
+  });
+
+  const handleResetToDefaults = () => {
+    if (confirm("This will delete all existing game modes and maps and replace them with Marvel Rivals defaults. Are you sure?")) {
+      resetToDefaultsMutation.mutate();
+    }
+  };
+
   const handleAddGameMode = () => {
     setEditingGameMode(undefined);
     gameModeForm.reset({ name: "" });
@@ -286,7 +311,7 @@ export default function Settings() {
               <Gamepad2 className="h-5 w-5 text-primary" />
               <CardTitle>Game Modes & Maps</CardTitle>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <Button onClick={handleAddGameMode} className="gap-2" data-testid="button-add-game-mode">
                 <Plus className="h-4 w-4" />
                 Add Game Mode
@@ -294,6 +319,16 @@ export default function Settings() {
               <Button onClick={() => handleAddMap()} variant="outline" className="gap-2" data-testid="button-add-map">
                 <Plus className="h-4 w-4" />
                 Add Map
+              </Button>
+              <Button
+                onClick={handleResetToDefaults}
+                variant="secondary"
+                className="gap-2"
+                disabled={resetToDefaultsMutation.isPending}
+                data-testid="button-reset-defaults"
+              >
+                <RotateCcw className="h-4 w-4" />
+                Reset to Marvel Rivals Defaults
               </Button>
             </div>
           </CardHeader>

@@ -8,8 +8,11 @@ import { PlayerManager } from "@/components/PlayerManager";
 import { SyncStatus } from "@/components/SyncStatus";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AvailabilityAnalytics } from "@/components/AvailabilityAnalytics";
+import { WeeklyAvailabilityOverview } from "@/components/WeeklyAvailabilityOverview";
 import { SimpleToast } from "@/components/SimpleToast";
-import { Save, Share2, Download, Calendar, Users, Trophy, Settings, History, BarChart3 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Save, Share2, Calendar, Users, Trophy, Settings, History, BarChart3, Swords, TrendingUp, Gamepad2 } from "lucide-react";
+import type { Event, Game } from "@shared/schema";
 import { startOfWeek, endOfWeek, format } from "date-fns";
 import type { PlayerAvailability, DayOfWeek, AvailabilityOption, RoleType } from "@shared/schema";
 import { dayOfWeek } from "@shared/schema";
@@ -31,6 +34,23 @@ export default function Home() {
   const { data: fetchedSchedule, isLoading } = useQuery<any>({
     queryKey: [`/api/schedule?weekStartDate=${scheduleId}&weekEndDate=${scheduleId}`],
   });
+
+  const { data: events = [] } = useQuery<Event[]>({
+    queryKey: ["/api/events"],
+  });
+
+  const { data: allGames = [] } = useQuery<(Game & { eventType: string })[]>({
+    queryKey: ["/api/games"],
+  });
+
+  const quickStats = {
+    totalEvents: events.length,
+    totalGames: allGames.length,
+    eventWins: events.filter(e => e.result === "win").length,
+    gameWins: allGames.filter(g => g.result === "win").length,
+    scrims: events.filter(e => e.eventType === "scrim").length,
+    tournaments: events.filter(e => e.eventType === "tournament").length,
+  };
 
   useEffect(() => {
     if (fetchedSchedule && fetchedSchedule.scheduleData?.players) {
@@ -180,10 +200,6 @@ export default function Home() {
     }
   };
 
-  const handleExport = () => {
-    window.print();
-  };
-
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-6 max-w-7xl">
@@ -246,7 +262,7 @@ export default function Home() {
                   History
                 </Button>
               </Link>
-              <Link href="/stats">
+              <Link href="/stats/overall">
                 <Button
                   variant="outline"
                   className="gap-2"
@@ -286,15 +302,6 @@ export default function Home() {
                 Share
               </Button>
               <Button
-                variant="outline"
-                onClick={handleExport}
-                className="gap-2"
-                data-testid="button-export"
-              >
-                <Download className="h-4 w-4" />
-                Export
-              </Button>
-              <Button
                 variant="default"
                 onClick={() => saveMutation.mutate()}
                 disabled={!hasChanges || saveMutation.isPending}
@@ -305,6 +312,87 @@ export default function Home() {
                 {saveMutation.isPending ? "Saving..." : "Save"}
               </Button>
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <Card className="border-primary/20">
+              <CardContent className="pt-4 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-primary/10">
+                    <Calendar className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold" data-testid="stat-total-events">{quickStats.totalEvents}</div>
+                    <div className="text-xs text-muted-foreground">Total Events</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-primary/20">
+              <CardContent className="pt-4 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-primary/10">
+                    <Gamepad2 className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold" data-testid="stat-total-games">{quickStats.totalGames}</div>
+                    <div className="text-xs text-muted-foreground">Total Games</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-emerald-500/20">
+              <CardContent className="pt-4 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-emerald-500/10">
+                    <TrendingUp className="h-5 w-5 text-emerald-500" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-emerald-500" data-testid="stat-event-wins">{quickStats.eventWins}</div>
+                    <div className="text-xs text-muted-foreground">Event Wins</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-emerald-500/20">
+              <CardContent className="pt-4 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-emerald-500/10">
+                    <Trophy className="h-5 w-5 text-emerald-500" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-emerald-500" data-testid="stat-game-wins">{quickStats.gameWins}</div>
+                    <div className="text-xs text-muted-foreground">Game Wins</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-secondary/20">
+              <CardContent className="pt-4 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-secondary/10">
+                    <Swords className="h-5 w-5 text-secondary" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold" data-testid="stat-scrims">{quickStats.scrims}</div>
+                    <div className="text-xs text-muted-foreground">Scrims</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-amber-500/20">
+              <CardContent className="pt-4 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-amber-500/10">
+                    <Trophy className="h-5 w-5 text-amber-500" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold" data-testid="stat-tournaments">{quickStats.tournaments}</div>
+                    <div className="text-xs text-muted-foreground">Tournaments</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           {isLoading ? (
@@ -323,6 +411,8 @@ export default function Home() {
                 onPlayerNameChange={handlePlayerNameChange}
                 isLoading={saveMutation.isPending}
               />
+
+              <WeeklyAvailabilityOverview scheduleData={scheduleData} />
 
               {scheduleData.length > 0 && (
                 <AvailabilityAnalytics scheduleData={scheduleData} />

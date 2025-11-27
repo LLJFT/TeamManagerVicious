@@ -316,6 +316,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GET /api/games - Aggregated games endpoint for stats pages
+  // Supports optional ?scope=scrim|tournament|all filter
+  app.get("/api/games", async (req, res) => {
+    try {
+      const scope = req.query.scope as string | undefined;
+      const gamesWithEventType = await storage.getAllGamesWithEventType(scope);
+      res.json(gamesWithEventType);
+    } catch (error: any) {
+      console.error('Error in GET /api/games:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
   app.post("/api/games", async (req, res) => {
     try {
       const validatedData = insertGameSchema.parse(req.body);
@@ -475,6 +488,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     } catch (error: any) {
       console.error('Error in DELETE /api/maps:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.post("/api/reset-defaults", async (req, res) => {
+    try {
+      await storage.resetToDefaults();
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('Error in POST /api/reset-defaults:', error);
       res.status(500).json({ error: error.message || "Internal server error" });
     }
   });

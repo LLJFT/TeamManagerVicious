@@ -1,0 +1,230 @@
+I want to update and improve the project based on the following requirements.
+Please read everything carefully — nothing should be removed or skipped.
+
+⸻
+
+1. New Theme (IMPORTANT)
+
+I want a complete theme/style change across the whole site.
+
+Theme requirements:
+	•	Modern
+	•	Bright
+	•	Energetic / motivational
+	•	Clean UI
+	•	Not dark-only and not depressing
+	•	Pick a color palette that fits the Marvel Rivals vibe but still stays happy and exciting
+	•	You can change backgrounds, buttons, tables, highlight colors… everything.
+
+Do NOT reuse:
+	•	The current Marvel (yellow/black) theme
+	•	The Call of Duty theme
+
+I want a new, fresh style that fits the project perfectly.
+
+⸻
+
+2. Availability Analytics (replace the entire current version)
+
+I want the same structure and layout as the gray Call of Duty version (the clean one), including:
+	•	“Most Available Day” section
+	•	“Recommended Training Times” section
+	•	Weekly bars
+	•	Clean list layout
+	•	Modern fonts and spacing
+
+BUT keep it adapted to the new theme.
+Do NOT copy the CoD colors. Only copy the layout + structure.
+
+⸻
+
+3. Add Weekly Availability Overview
+
+Like the CoD version:
+	•	Player-Day Slots
+	•	Average Availability
+	•	Team Coverage Status
+	•	Daily Breakdown (bars showing available / unavailable / unknown)
+
+Same UI and layout style, but adjusted to the new theme colors.
+
+⸻
+
+4. Game Modes & Maps System (big update)
+
+Game Modes (Marvel Rivals default):
+	1.	Domination
+	2.	Convoy
+	3.	Convergence
+
+Maps (each map belongs to a mode):
+
+Domination:
+	•	Birnin T’Challa
+	•	Celestial Husk
+	•	Hell’s Heaven
+	•	Krakoa
+
+Convoy:
+	•	Spider-Island
+	•	Yggdrasill Path
+	•	Midtown
+	•	Arakko
+
+Convergence:
+	•	Heart of Heaven
+	•	Hall of Djalia
+	•	Symbiotic Surface
+	•	Central Park
+
+Requirements:
+	•	I need full control to Add / Edit / Delete modes and maps.
+	•	Maps must always belong to a game mode.
+	•	In the event page:
+	•	The user must select Game Mode first, then the Maps dropdown updates to show only maps inside that mode.
+	•	In each event, we can play up to 9 games, so each game entry needs:
+	•	Mode
+	•	Map
+	•	Score
+	•	Result (Win / Loss / Draw)
+	•	Optional VOD link
+	•	Scoreboard Image upload
+
+Important:
+
+There is currently a bug where uploading a scoreboard image causes a runtime error. Please fix the upload completely so it works exactly like the CoD version.
+
+⸻
+
+5. Statistics System (Major Update)
+
+You misunderstood this part before, so here are the exact requirements:
+
+I want 3 completely separate statistics pages:
+	1.	Overall Events Statistics
+	2.	Scrim Statistics
+	3.	Tournament Statistics
+
+Each one should have the same structure, containing:
+
+A) Overall Stats (event-based):
+	•	Total events
+	•	Total wins / losses / draws
+	•	Win rate
+	•	And any other useful summaries
+
+Event wins should count as 1 win.
+
+Example:
+Event ended 3–1 → This counts as 1 win, not 3 wins.
+
+B) By Game Mode:
+
+For each game mode:
+	•	Games played
+	•	Wins / losses / draws
+	•	Win rate
+	•	Relevant stats
+
+C) By Map:
+
+Same as above but for maps:
+	•	Games played
+	•	Wins / losses / draws
+	•	Win rate
+
+Very important:
+
+I want stats from:
+	•	All events
+	•	Only scrims
+	•	Only tournaments
+
+Shown separately across the 3 dedicated pages.
+
+⸻
+
+6. History Page Update
+
+I want a history page similar to the CoD version:
+
+Requirements:
+	•	Shows all events with game breakdowns
+	•	Search bar (search by event name, type, date, opponent…)
+	•	Filtering (All / Scrim / Tournament)
+	•	Paginated (show only 15 events per page)
+	•	Each event should show:
+	•	Name
+	•	Type
+	•	Date
+	•	Games played
+	•	Score
+	•	Win/Loss
+	•	Notes
+
+⸻
+
+7. Settings Page Redesign
+
+I want the settings page to be clean, modern, and organized, similar to the CoD version:
+
+Sections:
+	•	Game Modes
+	•	Maps
+
+Each should have:
+	•	Add button
+	•	Edit button
+	•	Delete button
+	•	List view
+
+No mixing maps with modes. Keep them cleanly separated.
+
+⸻
+
+8. Scoreboard Image Upload (Fix Required)
+
+There is currently a runtime error every time I try to upload or edit a scoreboard image.
+
+Please fix the image upload system completely so:
+	•	Upload works
+	•	Edit works
+	•	Images display properly
+	•	No errors appear
+	•	Stored permanently
+
+⸻
+
+9. Data Persistence (VERY IMPORTANT)
+
+All data must:
+	•	Never delete itself
+	•	Never reset
+	•	Never expire
+	•	Be identical across all devices, browsers, and locations
+	•	Only change when I manually edit/delete something
+
+Do NOT use localStorage for anything.
+Everything must be stored in the backend database permanently.
+
+⸻
+
+10. Add Scrim Stats + Tournament Stats to Home Page (if space allows)
+
+If possible, add small quick-access shortcut cards for:
+	•	Overall Stats
+	•	Scrim Stats
+	•	Tournament Stats
+
+⸻
+
+11. Add Optional VOD Link Field in Game Form
+
+This is already partially added, but I want it finalized:
+	•	Optional VOD link per game in Games & Scoreboard
+
+⸻
+
+This is everything.
+
+Please complete all pending tasks and continue working based on the updated requirements above.

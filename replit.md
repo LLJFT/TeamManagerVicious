@@ -2,13 +2,31 @@
 
 ## Overview
 
-This application serves as a permanent team availability tracker for "The Vicious" Marvel Rivals esports team. Its core purpose is to enable team managers to track player availability for practice sessions across Tank, DPS, and Support roles. Key features include a persistent Monday-Sunday schedule, real-time synchronization with Google Sheets, inline editing, a dedicated events calendar for tournaments and scrims with comprehensive event details tracking, enhanced player management with personal information and attendance tracking, and a team notes messaging system. The design follows a Material Design aesthetic with a golden and black theme, aligning with Marvel Rivals branding. The project aims to provide a robust, year-round solution for esports team management.
+This application serves as a permanent team availability tracker for "The Vicious" Marvel Rivals esports team. Its core purpose is to enable team managers to track player availability for practice sessions across Tank, DPS, and Support roles. Key features include a persistent Monday-Sunday schedule, real-time synchronization with Google Sheets, inline editing, a dedicated events calendar for tournaments and scrims with comprehensive event details tracking, enhanced player management with personal information and attendance tracking, and a team notes messaging system. The design follows a modern, bright, and energetic theme with vibrant blues, teals, and coral accents for a clean, professional UI. The project aims to provide a robust, year-round solution for esports team management.
 
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
+
+- **Modern Theme & UI Improvements** (November 27, 2025): Complete redesign with bright, energetic theme
+  - New color scheme: Vibrant blues, teals, coral accents - no more dark/yellow Marvel theme
+  - Quick Stats cards on Home page: Total Events, Total Games, Event Wins, Game Wins, Scrims, Tournaments
+  - Weekly Availability Overview component integrated into Home page
+  - Removed Export button functionality
+  - Updated password gate button to use theme colors
+- **3 Separate Stats Pages** (November 27, 2025): Split statistics into dedicated pages
+  - `/stats/overall` - Combined performance across all events (Overall, By Mode, By Map tabs)
+  - `/stats/scrim` - Scrim-specific statistics (Overall, By Mode, By Map tabs)
+  - `/stats/tournament` - Tournament-specific statistics (Overall, By Mode, By Map tabs)
+  - Navigation links between all three stats pages
+  - Updated Home page Stats button to link to /stats/overall
+- **Reset to Marvel Rivals Defaults** (November 27, 2025): Settings page enhancement
+  - New "Reset to Marvel Rivals Defaults" button in Settings page
+  - Populates 3 default game modes: Domination, Convoy, Convergence
+  - Populates 12 default maps: 4 maps per mode (Birnin T'Challa, Celestial Husk, etc.)
+  - API endpoint: POST /api/reset-defaults
 
 - **Direct File Upload for Scoreboard Images** (November 3, 2025): Replaced URL input with direct file upload using Replit Object Storage
   - Implemented ObjectUploader component using Uppy v5.x with dashboard modal interface

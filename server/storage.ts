@@ -26,6 +26,7 @@ export interface IStorage {
   addTeamNote(note: InsertTeamNotes): Promise<TeamNotes>;
   deleteTeamNote(id: string): Promise<boolean>;
   getGamesByEventId(eventId: string): Promise<Game[]>;
+  getAllGamesWithEventType(scope?: string): Promise<(Game & { eventType: string })[]>;
   addGame(game: InsertGame): Promise<Game>;
   updateGame(id: string, game: Partial<InsertGame>): Promise<Game>;
   removeGame(id: string): Promise<boolean>;
@@ -38,6 +39,7 @@ export interface IStorage {
   addMap(map: InsertMap): Promise<Map>;
   updateMap(id: string, map: Partial<InsertMap>): Promise<Map>;
   removeMap(id: string): Promise<boolean>;
+  resetToDefaults(): Promise<void>;
 }
 
 export class DbStorage implements IStorage {
@@ -256,6 +258,33 @@ export class DbStorage implements IStorage {
       .where(eq(games.eventId, eventId));
   }
 
+  async getAllGamesWithEventType(scope?: string): Promise<(Game & { eventType: string })[]> {
+    const allGames = await db
+      .select({
+        id: games.id,
+        eventId: games.eventId,
+        gameCode: games.gameCode,
+        score: games.score,
+        imageUrl: games.imageUrl,
+        gameModeId: games.gameModeId,
+        mapId: games.mapId,
+        result: games.result,
+        link: games.link,
+        eventType: events.eventType,
+      })
+      .from(games)
+      .innerJoin(events, eq(games.eventId, events.id));
+
+    // Filter by scope if provided
+    if (scope === "scrim") {
+      return allGames.filter(g => g.eventType === "Scrim");
+    } else if (scope === "tournament") {
+      return allGames.filter(g => g.eventType === "Tournament");
+    }
+
+    return allGames;
+  }
+
   async addGame(insertGame: InsertGame): Promise<Game> {
     const inserted = await db
       .insert(games)
@@ -353,6 +382,49 @@ export class DbStorage implements IStorage {
       .returning();
 
     return deleted.length > 0;
+  }
+
+  async resetToDefaults(): Promise<void> {
+    await db.delete(maps);
+    await db.delete(gameModes);
+
+    const defaultModes = [
+      { name: "Domination" },
+      { name: "Convoy" },
+      { name: "Convergence" },
+    ];
+
+    const createdModes: GameMode[] = [];
+    for (const mode of defaultModes) {
+      const inserted = await db
+        .insert(gameModes)
+        .values(mode)
+        .returning();
+      createdModes.push(inserted[0]);
+    }
+
+    const dominationMode = createdModes.find(m => m.name === "Domination");
+    const convoyMode = createdModes.find(m => m.name === "Convoy");
+    const convergenceMode = createdModes.find(m => m.name === "Convergence");
+
+    const defaultMaps = [
+      { name: "Birnin T'Challa", gameModeId: dominationMode!.id },
+      { name: "Celestial Husk", gameModeId: dominationMode!.id },
+      { name: "Hell's Heaven", gameModeId: dominationMode!.id },
+      { name: "Krakoa", gameModeId: dominationMode!.id },
+      { name: "Spider-Islands", gameModeId: convoyMode!.id },
+      { name: "Yggdrasill Path", gameModeId: convoyMode!.id },
+      { name: "Midtown", gameModeId: convoyMode!.id },
+      { name: "Arakko", gameModeId: convoyMode!.id },
+      { name: "Heart of Heaven", gameModeId: convergenceMode!.id },
+      { name: "Hall of Djalia", gameModeId: convergenceMode!.id },
+      { name: "Symbiotic Surface", gameModeId: convergenceMode!.id },
+      { name: "Central Park", gameModeId: convergenceMode!.id },
+    ];
+
+    for (const map of defaultMaps) {
+      await db.insert(maps).values(map);
+    }
   }
 }
 
