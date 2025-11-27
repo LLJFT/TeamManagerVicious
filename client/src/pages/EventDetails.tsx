@@ -1,7 +1,7 @@
 import { useRoute, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { Event, EventResult, Game, InsertGame } from "@shared/schema";
+import type { Event, EventResult, Game, InsertGame, GameMode, Map as MapType } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Plus, Trash2, Save, Upload, Eye } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Save, Upload, Eye, ExternalLink, Gamepad2, Map as MapIcon } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
@@ -35,6 +35,10 @@ export default function EventDetails() {
   const [newGameCode, setNewGameCode] = useState("");
   const [newGameScore, setNewGameScore] = useState("");
   const [newGameImageUrl, setNewGameImageUrl] = useState("");
+  const [newGameModeId, setNewGameModeId] = useState("");
+  const [newGameMapId, setNewGameMapId] = useState("");
+  const [newGameResult, setNewGameResult] = useState<"win" | "loss" | "draw" | "">("");
+  const [newGameLink, setNewGameLink] = useState("");
   const [uploadingImageForNewGame, setUploadingImageForNewGame] = useState(false);
 
   const [editingGame, setEditingGame] = useState<Game | null>(null);
@@ -64,6 +68,28 @@ export default function EventDetails() {
     enabled: !!eventId,
   });
 
+  const { data: gameModes = [] } = useQuery<GameMode[]>({
+    queryKey: ["/api/game-modes"],
+  });
+
+  const { data: allMaps = [] } = useQuery<MapType[]>({
+    queryKey: ["/api/maps"],
+  });
+
+  const getMapsByMode = (modeId: string) => {
+    return allMaps.filter(map => map.gameModeId === modeId);
+  };
+
+  const getModeName = (modeId: string | null) => {
+    if (!modeId) return null;
+    return gameModes.find(m => m.id === modeId)?.name || null;
+  };
+
+  const getMapName = (mapId: string | null) => {
+    if (!mapId) return null;
+    return allMaps.find(m => m.id === mapId)?.name || null;
+  };
+
   const updateEventMutation = useMutation({
     mutationFn: async (data: { result: string; opponentName: string; notes: string }) => {
       const response = await apiRequest("PUT", `/api/events/${eventId}`, data);
@@ -92,9 +118,7 @@ export default function EventDetails() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "games"] });
-      setNewGameCode("");
-      setNewGameScore("");
-      setNewGameImageUrl("");
+      resetNewGameForm();
       setToastMessage("Game added successfully");
       setToastType("success");
       setShowToast(true);
@@ -205,7 +229,21 @@ export default function EventDetails() {
       gameCode: newGameCode,
       score: newGameScore,
       imageUrl: newGameImageUrl.trim() || undefined,
+      gameModeId: newGameModeId || undefined,
+      mapId: newGameMapId || undefined,
+      result: newGameResult || undefined,
+      link: newGameLink.trim() || undefined,
     });
+  };
+
+  const resetNewGameForm = () => {
+    setNewGameCode("");
+    setNewGameScore("");
+    setNewGameImageUrl("");
+    setNewGameModeId("");
+    setNewGameMapId("");
+    setNewGameResult("");
+    setNewGameLink("");
   };
 
   const handleUpdateGame = (game: Game) => {
@@ -216,8 +254,26 @@ export default function EventDetails() {
         gameCode: editingGame.gameCode,
         score: editingGame.score,
         imageUrl: editingGame.imageUrl || undefined,
+        gameModeId: editingGame.gameModeId || undefined,
+        mapId: editingGame.mapId || undefined,
+        result: editingGame.result || undefined,
+        link: editingGame.link || undefined,
       },
     });
+  };
+
+  const getGameResultBadge = (result: string | null) => {
+    if (!result) return null;
+    switch (result) {
+      case "win":
+        return <Badge variant="default">W</Badge>;
+      case "loss":
+        return <Badge variant="destructive">L</Badge>;
+      case "draw":
+        return <Badge variant="secondary">D</Badge>;
+      default:
+        return null;
+    }
   };
 
   const handleDeleteGame = (id: string) => {
@@ -399,9 +455,9 @@ export default function EventDetails() {
             <CardTitle>Games & Scoreboard</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
+            <div className="space-y-4">
               <label className="block text-sm font-medium">Add New Game</label>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <Input
                   value={newGameCode}
                   onChange={(e) => setNewGameCode(e.target.value)}
@@ -413,6 +469,57 @@ export default function EventDetails() {
                   onChange={(e) => setNewGameScore(e.target.value)}
                   placeholder="Score (e.g., 2-1)"
                   data-testid="input-new-game-score"
+                />
+                <Select
+                  value={newGameResult}
+                  onValueChange={(v) => setNewGameResult(v as "win" | "loss" | "draw")}
+                >
+                  <SelectTrigger data-testid="select-new-game-result">
+                    <SelectValue placeholder="Game Result" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="win">Win</SelectItem>
+                    <SelectItem value="loss">Loss</SelectItem>
+                    <SelectItem value="draw">Draw</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <Select
+                  value={newGameModeId}
+                  onValueChange={(v) => {
+                    setNewGameModeId(v);
+                    setNewGameMapId("");
+                  }}
+                >
+                  <SelectTrigger data-testid="select-new-game-mode">
+                    <SelectValue placeholder="Game Mode" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {gameModes.map((mode) => (
+                      <SelectItem key={mode.id} value={mode.id}>{mode.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={newGameMapId}
+                  onValueChange={setNewGameMapId}
+                  disabled={!newGameModeId}
+                >
+                  <SelectTrigger data-testid="select-new-game-map">
+                    <SelectValue placeholder={newGameModeId ? "Select Map" : "Select Mode First"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {getMapsByMode(newGameModeId).map((map) => (
+                      <SelectItem key={map.id} value={map.id}>{map.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  value={newGameLink}
+                  onChange={(e) => setNewGameLink(e.target.value)}
+                  placeholder="VOD Link (optional)"
+                  data-testid="input-new-game-link"
                 />
               </div>
               <div className="flex gap-2 flex-wrap">
@@ -452,9 +559,11 @@ export default function EventDetails() {
                 <table className="w-full">
                   <thead className="bg-muted">
                     <tr>
-                      <th className="p-3 text-left font-semibold">Game Code</th>
+                      <th className="p-3 text-left font-semibold">Game</th>
+                      <th className="p-3 text-left font-semibold">Mode / Map</th>
                       <th className="p-3 text-left font-semibold">Score</th>
-                      <th className="p-3 text-left font-semibold">Scoreboard Image</th>
+                      <th className="p-3 text-left font-semibold">Result</th>
+                      <th className="p-3 text-left font-semibold">Media</th>
                       <th className="p-3 text-left font-semibold">Actions</th>
                     </tr>
                   </thead>
@@ -468,10 +577,62 @@ export default function EventDetails() {
                               onChange={(e) =>
                                 setEditingGame({ ...editingGame, gameCode: e.target.value })
                               }
+                              className="w-24"
                               data-testid={`input-edit-code-${game.id}`}
                             />
                           ) : (
-                            <span data-testid={`text-game-code-${game.id}`}>{game.gameCode}</span>
+                            <span className="font-medium" data-testid={`text-game-code-${game.id}`}>{game.gameCode}</span>
+                          )}
+                        </td>
+                        <td className="p-3">
+                          {editingGame?.id === game.id ? (
+                            <div className="space-y-2">
+                              <Select
+                                value={editingGame.gameModeId || ""}
+                                onValueChange={(v) => setEditingGame({ ...editingGame, gameModeId: v, mapId: null })}
+                              >
+                                <SelectTrigger className="w-32">
+                                  <SelectValue placeholder="Mode" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {gameModes.map((mode) => (
+                                    <SelectItem key={mode.id} value={mode.id}>{mode.name}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <Select
+                                value={editingGame.mapId || ""}
+                                onValueChange={(v) => setEditingGame({ ...editingGame, mapId: v })}
+                                disabled={!editingGame.gameModeId}
+                              >
+                                <SelectTrigger className="w-32">
+                                  <SelectValue placeholder="Map" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {getMapsByMode(editingGame.gameModeId || "").map((map) => (
+                                    <SelectItem key={map.id} value={map.id}>{map.name}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              {getModeName(game.gameModeId) && (
+                                <div className="flex items-center gap-1.5 text-sm">
+                                  <Gamepad2 className="h-3 w-3 text-muted-foreground" />
+                                  <span>{getModeName(game.gameModeId)}</span>
+                                </div>
+                              )}
+                              {getMapName(game.mapId) && (
+                                <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                                  <MapIcon className="h-3 w-3" />
+                                  <span>{getMapName(game.mapId)}</span>
+                                </div>
+                              )}
+                              {!getModeName(game.gameModeId) && !getMapName(game.mapId) && (
+                                <span className="text-muted-foreground text-sm">—</span>
+                              )}
+                            </div>
                           )}
                         </td>
                         <td className="p-3">
@@ -481,6 +642,7 @@ export default function EventDetails() {
                               onChange={(e) =>
                                 setEditingGame({ ...editingGame, score: e.target.value })
                               }
+                              className="w-20"
                               data-testid={`input-edit-score-${game.id}`}
                             />
                           ) : (
@@ -489,37 +651,72 @@ export default function EventDetails() {
                         </td>
                         <td className="p-3">
                           {editingGame?.id === game.id ? (
-                            <div className="flex gap-2 flex-wrap">
-                              <ObjectUploader
-                                maxNumberOfFiles={1}
-                                maxFileSize={10485760}
-                                onGetUploadParameters={handleGetUploadURL}
-                                onComplete={handleImageUploadComplete}
-                                buttonVariant="outline"
-                                buttonSize="sm"
-                              >
-                                <Upload className="h-4 w-4 mr-2" onClick={() => setUploadingImageForGame(game.id)} />
-                                {editingGame.imageUrl ? "Change" : "Upload"}
-                              </ObjectUploader>
-                              {editingGame.imageUrl && (
-                                <Badge variant="outline" className="text-xs">
-                                  Uploaded
-                                </Badge>
-                              )}
-                            </div>
-                          ) : game.imageUrl ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setViewingImage(game.imageUrl || null)}
-                              data-testid={`button-view-image-${game.id}`}
+                            <Select
+                              value={editingGame.result || ""}
+                              onValueChange={(v) => setEditingGame({ ...editingGame, result: v })}
                             >
-                              <Eye className="h-4 w-4 mr-2" />
-                              View
-                            </Button>
+                              <SelectTrigger className="w-24">
+                                <SelectValue placeholder="Result" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="win">Win</SelectItem>
+                                <SelectItem value="loss">Loss</SelectItem>
+                                <SelectItem value="draw">Draw</SelectItem>
+                              </SelectContent>
+                            </Select>
                           ) : (
-                            <span className="text-muted-foreground text-sm">No image</span>
+                            getGameResultBadge(game.result) || <span className="text-muted-foreground text-sm">—</span>
                           )}
+                        </td>
+                        <td className="p-3">
+                          <div className="flex items-center gap-2">
+                            {editingGame?.id === game.id ? (
+                              <div className="space-y-2">
+                                <Input
+                                  value={editingGame.link || ""}
+                                  onChange={(e) => setEditingGame({ ...editingGame, link: e.target.value })}
+                                  placeholder="VOD Link"
+                                  className="w-32"
+                                />
+                                <div className="flex gap-2 flex-wrap">
+                                  <ObjectUploader
+                                    maxNumberOfFiles={1}
+                                    maxFileSize={10485760}
+                                    onGetUploadParameters={handleGetUploadURL}
+                                    onComplete={handleImageUploadComplete}
+                                    buttonVariant="outline"
+                                    buttonSize="sm"
+                                  >
+                                    <Upload className="h-4 w-4 mr-2" onClick={() => setUploadingImageForGame(game.id)} />
+                                    {editingGame.imageUrl ? "Change" : "Upload"}
+                                  </ObjectUploader>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                {game.imageUrl && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setViewingImage(game.imageUrl || null)}
+                                    data-testid={`button-view-image-${game.id}`}
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                {game.link && (
+                                  <a href={game.link} target="_blank" rel="noopener noreferrer">
+                                    <Button size="sm" variant="outline" data-testid={`button-vod-link-${game.id}`}>
+                                      <ExternalLink className="h-4 w-4" />
+                                    </Button>
+                                  </a>
+                                )}
+                                {!game.imageUrl && !game.link && (
+                                  <span className="text-muted-foreground text-sm">—</span>
+                                )}
+                              </>
+                            )}
+                          </div>
                         </td>
                         <td className="p-3">
                           <div className="flex gap-2 flex-wrap">

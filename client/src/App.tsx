@@ -8,7 +8,10 @@ import Home from "@/pages/Home";
 import Events from "@/pages/Events";
 import EventDetails from "@/pages/EventDetails";
 import EventsResults from "@/pages/EventsResults";
+import EventsHistory from "@/pages/EventsHistory";
+import Stats from "@/pages/Stats";
 import Players from "@/pages/Players";
+import Settings from "@/pages/Settings";
 import NotFound from "@/pages/not-found";
 import { useState, useEffect } from "react";
 
@@ -19,7 +22,10 @@ function Router() {
       <Route path="/events" component={Events} />
       <Route path="/events/:id" component={EventDetails} />
       <Route path="/results" component={EventsResults} />
+      <Route path="/history" component={EventsHistory} />
+      <Route path="/stats" component={Stats} />
       <Route path="/players" component={Players} />
+      <Route path="/settings" component={Settings} />
       <Route component={NotFound} />
     </Switch>
   );

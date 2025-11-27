@@ -9,7 +9,7 @@ import { SyncStatus } from "@/components/SyncStatus";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AvailabilityAnalytics } from "@/components/AvailabilityAnalytics";
 import { SimpleToast } from "@/components/SimpleToast";
-import { Save, Share2, Download, Calendar, Users, Trophy } from "lucide-react";
+import { Save, Share2, Download, Calendar, Users, Trophy, Settings, History, BarChart3 } from "lucide-react";
 import { startOfWeek, endOfWeek, format } from "date-fns";
 import type { PlayerAvailability, DayOfWeek, AvailabilityOption, RoleType } from "@shared/schema";
 import { dayOfWeek } from "@shared/schema";
@@ -236,6 +236,26 @@ export default function Home() {
                   Results
                 </Button>
               </Link>
+              <Link href="/history">
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  data-testid="button-history"
+                >
+                  <History className="h-4 w-4" />
+                  History
+                </Button>
+              </Link>
+              <Link href="/stats">
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  data-testid="button-stats"
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  Stats
+                </Button>
+              </Link>
               <Link href="/players">
                 <Button
                   variant="outline"
@@ -244,6 +264,16 @@ export default function Home() {
                 >
                   <Users className="h-4 w-4" />
                   Players
+                </Button>
+              </Link>
+              <Link href="/settings">
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  data-testid="button-settings"
+                >
+                  <Settings className="h-4 w-4" />
+                  Settings
                 </Button>
               </Link>
               <Button

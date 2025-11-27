@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertScheduleSchema, insertEventSchema, insertPlayerSchema, insertAttendanceSchema, insertTeamNotesSchema, insertGameSchema } from "@shared/schema";
+import { insertScheduleSchema, insertEventSchema, insertPlayerSchema, insertAttendanceSchema, insertTeamNotesSchema, insertGameSchema, insertGameModeSchema, insertMapSchema } from "@shared/schema";
 import { 
   readScheduleFromSheet, 
   writeScheduleToSheet, 
@@ -356,6 +356,125 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     } catch (error: any) {
       console.error('Error in DELETE /api/games:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.get("/api/game-modes", async (req, res) => {
+    try {
+      const gameModes = await storage.getAllGameModes();
+      res.json(gameModes);
+    } catch (error: any) {
+      console.error('Error in GET /api/game-modes:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.post("/api/game-modes", async (req, res) => {
+    try {
+      const validatedData = insertGameModeSchema.parse(req.body);
+      const gameMode = await storage.addGameMode(validatedData);
+      res.json(gameMode);
+    } catch (error: any) {
+      console.error('Error in POST /api/game-modes:', error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ error: "Invalid game mode data", details: error.errors });
+      }
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.put("/api/game-modes/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const validatedData = insertGameModeSchema.partial().parse(req.body);
+      const gameMode = await storage.updateGameMode(id, validatedData);
+      res.json(gameMode);
+    } catch (error: any) {
+      console.error('Error in PUT /api/game-modes:', error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ error: "Invalid game mode data", details: error.errors });
+      }
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.delete("/api/game-modes/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const success = await storage.removeGameMode(id);
+      if (success) {
+        res.json({ success: true });
+      } else {
+        res.status(404).json({ error: "Game mode not found" });
+      }
+    } catch (error: any) {
+      console.error('Error in DELETE /api/game-modes:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.get("/api/maps", async (req, res) => {
+    try {
+      const maps = await storage.getAllMaps();
+      res.json(maps);
+    } catch (error: any) {
+      console.error('Error in GET /api/maps:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.get("/api/game-modes/:gameModeId/maps", async (req, res) => {
+    try {
+      const { gameModeId } = req.params;
+      const maps = await storage.getMapsByGameModeId(gameModeId);
+      res.json(maps);
+    } catch (error: any) {
+      console.error('Error in GET /api/game-modes/:gameModeId/maps:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.post("/api/maps", async (req, res) => {
+    try {
+      const validatedData = insertMapSchema.parse(req.body);
+      const map = await storage.addMap(validatedData);
+      res.json(map);
+    } catch (error: any) {
+      console.error('Error in POST /api/maps:', error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ error: "Invalid map data", details: error.errors });
+      }
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.put("/api/maps/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const validatedData = insertMapSchema.partial().parse(req.body);
+      const map = await storage.updateMap(id, validatedData);
+      res.json(map);
+    } catch (error: any) {
+      console.error('Error in PUT /api/maps:', error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ error: "Invalid map data", details: error.errors });
+      }
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.delete("/api/maps/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const success = await storage.removeMap(id);
+      if (success) {
+        res.json({ success: true });
+      } else {
+        res.status(404).json({ error: "Map not found" });
+      }
+    } catch (error: any) {
+      console.error('Error in DELETE /api/maps:', error);
       res.status(500).json({ error: error.message || "Internal server error" });
     }
   });

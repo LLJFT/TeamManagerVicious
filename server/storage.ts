@@ -1,5 +1,5 @@
-import type { Player, InsertPlayer, Schedule, InsertSchedule, Setting, InsertSetting, Event, InsertEvent, Attendance, InsertAttendance, TeamNotes, InsertTeamNotes, Game, InsertGame } from "@shared/schema";
-import { players, schedules, settings, events, attendance, teamNotes, games } from "@shared/schema";
+import type { Player, InsertPlayer, Schedule, InsertSchedule, Setting, InsertSetting, Event, InsertEvent, Attendance, InsertAttendance, TeamNotes, InsertTeamNotes, Game, InsertGame, GameMode, InsertGameMode, Map, InsertMap } from "@shared/schema";
+import { players, schedules, settings, events, attendance, teamNotes, games, gameModes, maps } from "@shared/schema";
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
 
@@ -29,6 +29,15 @@ export interface IStorage {
   addGame(game: InsertGame): Promise<Game>;
   updateGame(id: string, game: Partial<InsertGame>): Promise<Game>;
   removeGame(id: string): Promise<boolean>;
+  getAllGameModes(): Promise<GameMode[]>;
+  addGameMode(gameMode: InsertGameMode): Promise<GameMode>;
+  updateGameMode(id: string, gameMode: Partial<InsertGameMode>): Promise<GameMode>;
+  removeGameMode(id: string): Promise<boolean>;
+  getAllMaps(): Promise<Map[]>;
+  getMapsByGameModeId(gameModeId: string): Promise<Map[]>;
+  addMap(map: InsertMap): Promise<Map>;
+  updateMap(id: string, map: Partial<InsertMap>): Promise<Map>;
+  removeMap(id: string): Promise<boolean>;
 }
 
 export class DbStorage implements IStorage {
@@ -270,6 +279,77 @@ export class DbStorage implements IStorage {
     const deleted = await db
       .delete(games)
       .where(eq(games.id, id))
+      .returning();
+
+    return deleted.length > 0;
+  }
+
+  async getAllGameModes(): Promise<GameMode[]> {
+    return await db.select().from(gameModes);
+  }
+
+  async addGameMode(insertGameMode: InsertGameMode): Promise<GameMode> {
+    const inserted = await db
+      .insert(gameModes)
+      .values(insertGameMode)
+      .returning();
+
+    return inserted[0];
+  }
+
+  async updateGameMode(id: string, updateData: Partial<InsertGameMode>): Promise<GameMode> {
+    const updated = await db
+      .update(gameModes)
+      .set(updateData)
+      .where(eq(gameModes.id, id))
+      .returning();
+
+    return updated[0];
+  }
+
+  async removeGameMode(id: string): Promise<boolean> {
+    const deleted = await db
+      .delete(gameModes)
+      .where(eq(gameModes.id, id))
+      .returning();
+
+    return deleted.length > 0;
+  }
+
+  async getAllMaps(): Promise<Map[]> {
+    return await db.select().from(maps);
+  }
+
+  async getMapsByGameModeId(gameModeId: string): Promise<Map[]> {
+    return await db
+      .select()
+      .from(maps)
+      .where(eq(maps.gameModeId, gameModeId));
+  }
+
+  async addMap(insertMap: InsertMap): Promise<Map> {
+    const inserted = await db
+      .insert(maps)
+      .values(insertMap)
+      .returning();
+
+    return inserted[0];
+  }
+
+  async updateMap(id: string, updateData: Partial<InsertMap>): Promise<Map> {
+    const updated = await db
+      .update(maps)
+      .set(updateData)
+      .where(eq(maps.id, id))
+      .returning();
+
+    return updated[0];
+  }
+
+  async removeMap(id: string): Promise<boolean> {
+    const deleted = await db
+      .delete(maps)
+      .where(eq(maps.id, id))
       .returning();
 
     return deleted.length > 0;
