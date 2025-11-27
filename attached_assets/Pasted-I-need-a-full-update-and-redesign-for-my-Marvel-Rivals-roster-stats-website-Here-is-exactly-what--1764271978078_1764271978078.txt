@@ -1,0 +1,224 @@
+I need a full update and redesign for my Marvel Rivals roster & stats website.
+Here is exactly what I want implemented — with nothing removed or simplified:
+
+⸻
+
+🎨 THEME & DESIGN
+	1.	Keep my Marvel site dark colors, but make the entire website use one unified theme.
+	•	No mixing different color styles.
+	•	Everything should look consistent, clean, modern, and professional.
+	2.	Update the Availability Analytics UI to match the structure of the gray version from my Call of Duty site.
+	•	Use MY Marvel colors, NOT the CoD theme.
+	3.	Add Weekly Availability Overview exactly like the gray version—but styled with my Marvel colors.
+
+⸻
+
+🎮 GAME MODES & MAPS SYSTEM
+
+A complete configuration page for:
+
+Game Modes (current Marvel Rivals modes):
+	•	Domination
+	•	Convoy
+	•	Convergence
+
+Maps for each mode:
+
+Domination Maps
+	1.	Birnin T’Challa
+	2.	Celestial Husk
+	3.	Hell’s Heaven
+	4.	Krakoa
+
+Convoy Maps
+	1.	Spider-Islans
+	2.	Yggdrasill Path
+	3.	Midtown
+	4.	Arakko
+
+Convergence Maps
+	1.	Heart of Heaven
+	2.	Hall of Djalia
+	3.	Symbiotic Surface
+	4.	Central Park
+
+Required Features:
+	•	I must be able to add / edit / delete any mode or map.
+	•	Maps must always belong to a game mode.
+	•	These modes/maps must appear everywhere across the site (scoreboard, stats, history).
+
+⸻
+
+📝 GAMES & SCOREBOARD
+	1.	Add Select Game Mode → Select Map
+	•	Map dropdown must depend on the selected mode.
+	2.	Each game inside an event must have:
+	•	Game Mode
+	•	Map
+	•	Score
+	•	Result: Win / Loss / Draw
+	•	Optional Link field (scrim link or YouTube for example)
+	3.	Fix image uploading:
+	•	It must work exactly like on my CoD site, where images attach correctly to the game result.
+
+⸻
+
+📊 STATS SYSTEM (FULL REBUILD)
+
+I want a complete Stats system consisting of multiple pages or tabs, whichever is easier for you:
+
+⸻
+
+1) Overall Team Stats
+
+Shows stats from all events combined, including:
+	•	Total events played
+	•	Total games played
+	•	Wins/Losses/Draws
+	•	Win rate
+	•	All accumulated statistics from all events
+
+⚠ Important clarification:
+
+Event wins vs Game wins
+	•	For Overall Event W/L:
+If an event ends 3–1 → count it as 1 win, not 3.
+	•	BUT for Game Mode / Map stats, I DO want you to count the individual games.
+	•	That means game win rate should reflect actual game wins.
+
+So:
+✔ Event W/L = 1–0
+✔ Game Mode W/L = 3–1
+
+⸻
+
+2) Stats filtered by event type
+
+I need separate full stats pages for:
+
+✔ All Events (combined)
+
+✔ Scrim Only
+
+✔ Tournament Only
+
+Each version must include:
+	•	Overall stats
+	•	By Game Mode stats
+	•	By Map stats
+	•	With their own event counts and win rates
+
+No problem if you create separate pages for each category.
+
+⸻
+
+3) By Game Mode
+
+For each mode:
+	•	Total games
+	•	Wins/Losses/Draws
+	•	Win rate
+	•	All accumulated mode-specific stats
+	•	Filterable by:
+	•	All Events
+	•	Scrim only
+	•	Tournament only
+
+⸻
+
+4) By Map
+
+For each map:
+	•	Total games
+	•	Wins/Losses
+	•	Win rate
+	•	Accumulated stats
+	•	Clicking the map expands to show all stats inside it
+	•	Filterable by:
+	•	All Events
+	•	Scrim only
+	•	Tournament only
+
+⸻
+
+📚 EVENTS HISTORY PAGE
+
+Add a page like my CoD “Events History,” with:
+	•	Event name
+	•	Event result
+	•	Type (Scrim/Tournament)
+	•	Opponent
+	•	Date & Time
+	•	Score summary
+	•	Expandable games list (accordion)
+	•	Each game shows:
+	•	Mode
+	•	Map
+	•	Score
+	•	Result
+	•	Optional link
+	•	Image (if uploaded)
+
+Pagination:
+	•	Show 15 events per page
+	•	Newest first
+	•	Next/Previous buttons
+
+Filters:
+	•	All events
+	•	Scrims only
+	•	Tournaments only
+	•	Search bar (event name, opponent, date, etc.)
+
+Everything must include correct dates.
+
+⸻
+
+🔒 DATA PERSISTENCE — MOST IMPORTANT
+
+This part is critical:
+
+I do NOT want anything to auto-delete or reset.
+
+Requirements:
+	•	All data must be permanently stored in a real database.
+	•	Works on all devices, browsers, and locations.
+	•	No expiration.
+	•	No clearing on inactivity.
+	•	Nothing resets unless I delete it manually.
+
+This includes:
+	•	Game modes
+	•	Maps
+	•	Events
+	•	Stats
+	•	Images
+	•	Availability schedules
+
+Everything must stay saved forever.
+
+⸻
+
+🗑 REMOVE UNUSED FEATURES
+	•	Remove Export
+	•	Remove Light Mode
+	•	Keep everything exclusively in the new dark Marvel theme.
+
+⸻
+
+🔗 REPOSITORIES
+
+This is the project you will modify:
+Marvel Rivals version:
+https://github.com/LLJFT/RivalsRosterScheduler
+
+Use the CoD version ONLY for structural inspiration:
+https://github.com/LLJFT/RosterScheduler
+Do NOT copy that site’s theme.
+
+⸻
+
+🎯 Final Notes
+	•	I want the entire website theme to stay consistent — do NOT mix different color palettes.
+	•	The new design must match my Marvel dark theme but keep the clean structure of the CoD site.
+	•	All features above are required exactly as written.
