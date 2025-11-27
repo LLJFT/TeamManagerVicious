@@ -16,12 +16,15 @@ Preferred communication style: Simple, everyday language.
   - Weekly Availability Overview component integrated into Home page
   - Removed Export button functionality
   - Updated password gate button to use theme colors
-- **3 Separate Stats Pages** (November 27, 2025): Split statistics into dedicated pages
+- **3 Separate Stats Pages with Optimized Data Fetching** (November 27, 2025): Split statistics into dedicated pages
   - `/stats/overall` - Combined performance across all events (Overall, By Mode, By Map tabs)
   - `/stats/scrim` - Scrim-specific statistics (Overall, By Mode, By Map tabs)
   - `/stats/tournament` - Tournament-specific statistics (Overall, By Mode, By Map tabs)
   - Navigation links between all three stats pages
   - Updated Home page Stats button to link to /stats/overall
+  - **Performance fix**: Consolidated GET /api/games endpoint with JOIN query returns games with eventType in single request
+  - Optional `scope` query parameter (?scope=scrim|tournament) for filtered results
+  - Eliminated N+1 fetch pattern (was making separate API call per event)
 - **Reset to Marvel Rivals Defaults** (November 27, 2025): Settings page enhancement
   - New "Reset to Marvel Rivals Defaults" button in Settings page
   - Populates 3 default game modes: Domination, Convoy, Convergence
