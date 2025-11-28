@@ -84,10 +84,25 @@ export default function EventsHistory() {
 
   const filteredEvents = events
     .filter(event => {
+      const eventDate = new Date(event.date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const isPastEvent = eventDate < today;
+      
+      const eventGames = allGames.filter(g => g.eventId === event.id);
+      const hasCompletedGames = eventGames.some(g => 
+        g.result === "win" || g.result === "loss" || g.result === "draw"
+      );
+      
+      if (!isPastEvent || !hasCompletedGames) {
+        return false;
+      }
+      
       const matchesSearch = searchTerm === "" ||
         event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (event.opponentName && event.opponentName.toLowerCase().includes(searchTerm.toLowerCase()));
-      const matchesType = eventTypeFilter === "all" || event.eventType === eventTypeFilter;
+      const matchesType = eventTypeFilter === "all" || 
+        event.eventType.toLowerCase() === eventTypeFilter.toLowerCase();
       const matchesResult = resultFilter === "all" || event.result === resultFilter;
       return matchesSearch && matchesType && matchesResult;
     })
@@ -140,13 +155,14 @@ export default function EventsHistory() {
   };
 
   const getEventTypeBadge = (type: string) => {
+    const typeLower = type.toLowerCase();
     const colors: Record<string, string> = {
       tournament: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
       scrim: "bg-blue-500/20 text-blue-400 border-blue-500/30",
       vod_review: "bg-purple-500/20 text-purple-400 border-purple-500/30",
     };
     return (
-      <Badge variant="outline" className={colors[type] || ""}>
+      <Badge variant="outline" className={colors[typeLower] || ""}>
         {type.replace("_", " ").replace(/\b\w/g, l => l.toUpperCase())}
       </Badge>
     );
