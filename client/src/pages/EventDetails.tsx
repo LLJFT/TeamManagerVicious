@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Plus, Trash2, Save, Upload, Eye, ExternalLink, Gamepad2, Map as MapIcon } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { ObjectUploader } from "@/components/ObjectUploader";
@@ -173,37 +173,58 @@ export default function EventDetails() {
     },
   });
 
+  const pendingNormalizedPathRef = useRef<string>("");
+  
   const handleGetUploadURL = async () => {
     const response = await fetch("/api/objects/upload", { method: "POST" });
     if (!response.ok) throw new Error("Failed to get upload URL");
-    const { uploadURL } = await response.json();
+    const { uploadURL, normalizedPath } = await response.json();
+    console.log('[EventDetails] Got upload URL and normalized path:', { uploadURL, normalizedPath });
+    pendingNormalizedPathRef.current = normalizedPath;
     return { method: "PUT" as const, url: uploadURL };
   };
 
   const handleImageUploadComplete = (result: UploadResult<Record<string, unknown>, Record<string, unknown>>) => {
+    console.log('[EventDetails] handleImageUploadComplete called');
+    console.log('[EventDetails] uploadingImageForNewGame:', uploadingImageForNewGame);
+    console.log('[EventDetails] uploadingImageForGame:', uploadingImageForGame);
+    console.log('[EventDetails] pendingNormalizedPathRef.current:', pendingNormalizedPathRef.current);
+    console.log('[EventDetails] result:', result);
+    
     if (result.successful && result.successful.length > 0) {
-      const uploadURL = result.successful[0].uploadURL;
-      if (!uploadURL) return;
+      const imagePath = pendingNormalizedPathRef.current;
+      console.log('[EventDetails] Using normalized path:', imagePath);
       
-      const normalizedPath = uploadURL.split('?')[0].replace('https://storage.googleapis.com', '').replace(/^\/[^/]+\/\.private/, '/objects');
+      if (!imagePath) {
+        console.log('[EventDetails] No normalized path found!');
+        return;
+      }
       
       if (uploadingImageForNewGame) {
-        setNewGameImageUrl(normalizedPath);
+        console.log('[EventDetails] Setting newGameImageUrl to:', imagePath);
+        setNewGameImageUrl(imagePath);
         setUploadingImageForNewGame(false);
         setToastMessage("Image uploaded successfully");
         setToastType("success");
         setShowToast(true);
         setTimeout(() => setShowToast(false), 3000);
       } else if (uploadingImageForGame) {
+        console.log('[EventDetails] Setting editingGame imageUrl to:', imagePath);
         if (editingGame && editingGame.id === uploadingImageForGame) {
-          setEditingGame({ ...editingGame, imageUrl: normalizedPath });
+          setEditingGame({ ...editingGame, imageUrl: imagePath });
         }
         setUploadingImageForGame(null);
         setToastMessage("Image uploaded successfully");
         setToastType("success");
         setShowToast(true);
         setTimeout(() => setShowToast(false), 3000);
+      } else {
+        console.log('[EventDetails] Neither uploadingImageForNewGame nor uploadingImageForGame is set!');
       }
+      
+      pendingNormalizedPathRef.current = "";
+    } else {
+      console.log('[EventDetails] No successful uploads in result');
     }
   };
 

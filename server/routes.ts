@@ -506,7 +506,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const objectStorageService = new ObjectStorageService();
       const uploadURL = await objectStorageService.getObjectEntityUploadURL();
-      res.json({ uploadURL });
+      const normalizedPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+      console.log('[API] /api/objects/upload - uploadURL:', uploadURL);
+      console.log('[API] /api/objects/upload - normalizedPath:', normalizedPath);
+      res.json({ uploadURL, normalizedPath });
     } catch (error: any) {
       console.error('Error in POST /api/objects/upload:', error);
       res.status(500).json({ error: error.message || "Internal server error" });

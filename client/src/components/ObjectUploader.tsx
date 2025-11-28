@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import type { ReactNode } from "react";
 import Uppy from "@uppy/core";
 import DashboardModal from "@uppy/react/dashboard-modal";
@@ -35,11 +35,18 @@ export function ObjectUploader({
   children,
 }: ObjectUploaderProps) {
   const [showModal, setShowModal] = useState(false);
+  
+  const onCompleteRef = useRef(onComplete);
+  const onGetUploadParametersRef = useRef(onGetUploadParameters);
+  
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
+  
+  useEffect(() => {
+    onGetUploadParametersRef.current = onGetUploadParameters;
+  }, [onGetUploadParameters]);
 
-  const handleOpen = () => {
-    onOpen?.();
-    setShowModal(true);
-  };
   const [uppy] = useState(() =>
     new Uppy({
       restrictions: {
@@ -51,13 +58,31 @@ export function ObjectUploader({
     })
       .use(AwsS3, {
         shouldUseMultipart: false,
-        getUploadParameters: onGetUploadParameters,
+        getUploadParameters: () => onGetUploadParametersRef.current(),
       })
       .on("complete", (result) => {
-        onComplete?.(result);
+        console.log('[ObjectUploader] Upload complete, result:', result);
+        if (result.successful && result.successful.length > 0) {
+          console.log('[ObjectUploader] Successful upload:', result.successful[0]);
+          console.log('[ObjectUploader] Upload URL:', result.successful[0].uploadURL);
+        }
+        onCompleteRef.current?.(result);
         setShowModal(false);
+        uppy.cancelAll();
       })
   );
+  
+  useEffect(() => {
+    return () => {
+      uppy.destroy();
+    };
+  }, [uppy]);
+
+  const handleOpen = useCallback(() => {
+    uppy.cancelAll();
+    onOpen?.();
+    setShowModal(true);
+  }, [uppy, onOpen]);
 
   return (
     <div>
@@ -74,7 +99,10 @@ export function ObjectUploader({
       <DashboardModal
         uppy={uppy}
         open={showModal}
-        onRequestClose={() => setShowModal(false)}
+        onRequestClose={() => {
+          uppy.cancelAll();
+          setShowModal(false);
+        }}
         proudlyDisplayPoweredByUppy={false}
       />
     </div>
