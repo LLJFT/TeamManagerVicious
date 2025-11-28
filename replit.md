@@ -10,9 +10,14 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+- **UI Polish & Defensive Case Normalization** (November 28, 2025): Professional COD-style UI refinements
+  - Quick Stats cards moved from Home page to OverallStats page for cleaner home interface
+  - Settings page redesigned with professional two-panel layout (Game Modes | Maps)
+  - Events calendar colors updated with proper dark mode support using theme tokens
+  - All event type filtering now uses case-insensitive `.toLowerCase()` comparison for robustness
+  - Consistent spacing and CTA alignment across all pages
 - **Modern Theme & UI Improvements** (November 27, 2025): Complete redesign with bright, energetic theme
   - New color scheme: Vibrant blues, teals, coral accents - no more dark/yellow Marvel theme
-  - Quick Stats cards on Home page: Total Events, Total Games, Event Wins, Game Wins, Scrims, Tournaments
   - Weekly Availability Overview component integrated into Home page
   - Removed Export button functionality
   - Updated password gate button to use theme colors
