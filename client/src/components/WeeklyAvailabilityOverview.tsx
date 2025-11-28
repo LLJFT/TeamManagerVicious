@@ -75,11 +75,16 @@ export function WeeklyAvailabilityOverview({ scheduleData }: WeeklyAvailabilityO
 
   return (
     <Card>
-      <CardHeader className="pb-4">
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <Users className="h-5 w-5 text-primary" />
-          Weekly Availability Overview
-        </CardTitle>
+      <CardHeader className="pb-4 border-b border-border">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-primary/10">
+            <Users className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <CardTitle className="text-lg">Weekly Availability Overview</CardTitle>
+            <p className="text-sm text-muted-foreground">Team availability at a glance</p>
+          </div>
+        </div>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="grid grid-cols-3 gap-4">

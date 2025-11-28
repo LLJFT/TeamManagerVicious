@@ -102,21 +102,13 @@ function CustomCalendar({ selectedDate, onSelectDate, eventsByDate, onEventDoubl
                   {dayEvents.map((event, eventIdx) => (
                     <div
                       key={eventIdx}
-                      className="text-xs px-2 py-1 rounded truncate cursor-pointer"
-                      style={{
-                        backgroundColor:
-                          event.eventType === "Tournament"
-                            ? "hsl(51 100% 50%)"
-                            : event.eventType === "Scrim"
-                            ? "hsl(0 0% 30%)"
-                            : "hsl(51 80% 40%)",
-                        color:
-                          event.eventType === "Tournament"
-                            ? "hsl(0 0% 0%)"
-                            : event.eventType === "Scrim"
-                            ? "hsl(51 100% 50%)"
-                            : "hsl(0 0% 0%)",
-                      }}
+                      className={`text-xs px-2 py-1 rounded truncate cursor-pointer ${
+                        event.eventType === "Tournament"
+                          ? "bg-amber-500 dark:bg-amber-600 text-white"
+                          : event.eventType === "Scrim"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-violet-500 dark:bg-violet-600 text-white"
+                      }`}
                       title={`${event.title}${event.time ? ` - ${event.time}` : ''}`}
                       data-testid={`calendar-event-${event.id}`}
                       onDoubleClick={(e) => {
@@ -207,24 +199,19 @@ export default function Events() {
   };
 
   return (
-    <div className="min-h-screen bg-background p-6" dir="ltr">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <div>
+    <div className="min-h-screen bg-background" dir="ltr">
+      <div className="container mx-auto px-4 py-6 max-w-7xl">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8 pb-4 border-b border-border">
+          <div className="flex items-center gap-4">
             <Link href="/">
-              <Button
-                variant="ghost"
-                className="gap-2 mb-2"
-                data-testid="button-back"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Back to Schedule
+              <Button variant="outline" size="icon" data-testid="button-back">
+                <ArrowLeft className="h-4 w-4" />
               </Button>
             </Link>
-            <h1 className="text-3xl font-bold text-foreground">Team Events</h1>
-            <p className="text-muted-foreground mt-1">
-              Manage tournaments, scrims, and VOD reviews
-            </p>
+            <div>
+              <h1 className="text-3xl font-bold text-foreground">Team Events</h1>
+              <p className="text-muted-foreground">Manage tournaments, scrims, and VOD reviews</p>
+            </div>
           </div>
           <Button
             onClick={() => {

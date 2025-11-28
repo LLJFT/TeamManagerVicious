@@ -16,6 +16,7 @@ interface ObjectUploaderProps {
   onComplete?: (
     result: UploadResult<Record<string, unknown>, Record<string, unknown>>
   ) => void;
+  onOpen?: () => void;
   buttonClassName?: string;
   buttonVariant?: "default" | "outline" | "ghost" | "secondary";
   buttonSize?: "default" | "sm" | "lg" | "icon";
@@ -27,12 +28,18 @@ export function ObjectUploader({
   maxFileSize = 10485760,
   onGetUploadParameters,
   onComplete,
+  onOpen,
   buttonClassName,
   buttonVariant = "outline",
   buttonSize = "sm",
   children,
 }: ObjectUploaderProps) {
   const [showModal, setShowModal] = useState(false);
+
+  const handleOpen = () => {
+    onOpen?.();
+    setShowModal(true);
+  };
   const [uppy] = useState(() =>
     new Uppy({
       restrictions: {
@@ -55,7 +62,7 @@ export function ObjectUploader({
   return (
     <div>
       <Button
-        onClick={() => setShowModal(true)}
+        onClick={handleOpen}
         className={buttonClassName}
         variant={buttonVariant}
         size={buttonSize}

@@ -1,9 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import {
   ArrowLeft,
@@ -14,6 +13,7 @@ import {
   TrendingDown,
   Minus,
   BarChart3,
+  Trophy,
 } from "lucide-react";
 import type { Event, Game, GameMode, Map as MapType } from "@shared/schema";
 
@@ -30,7 +30,7 @@ export default function ScrimStats() {
     queryKey: ["/api/events"],
   });
 
-  const scrimEvents = events.filter(e => e.eventType === "scrim");
+  const scrimEvents = events.filter(e => e.eventType?.toLowerCase() === "scrim");
 
   const { data: allGames = [] } = useQuery<(Game & { eventType: string })[]>({
     queryKey: ["/api/games", "scrim"],
@@ -96,8 +96,11 @@ export default function ScrimStats() {
 
   if (eventsLoading) {
     return (
-      <div className="min-h-screen bg-background p-6 flex items-center justify-center">
-        <div className="text-foreground">Loading stats...</div>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="text-muted-foreground">Loading statistics...</p>
+        </div>
       </div>
     );
   }
@@ -109,13 +112,12 @@ export default function ScrimStats() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto p-6 max-w-6xl">
-        <div className="flex items-center justify-between mb-6">
+      <div className="container mx-auto px-4 py-6 max-w-7xl">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8 pb-4 border-b border-border">
           <div className="flex items-center gap-4">
             <Link href="/">
-              <Button variant="outline" className="gap-2" data-testid="button-back">
+              <Button variant="outline" size="icon" data-testid="button-back">
                 <ArrowLeft className="h-4 w-4" />
-                Back
               </Button>
             </Link>
             <div>
@@ -123,202 +125,224 @@ export default function ScrimStats() {
                 <Swords className="h-6 w-6 text-primary" />
                 <h1 className="text-3xl font-bold text-foreground">Scrim Statistics</h1>
               </div>
-              <p className="text-muted-foreground">Performance in practice matches</p>
+              <p className="text-muted-foreground">Practice match performance</p>
             </div>
           </div>
           <div className="flex gap-2">
             <Link href="/stats/overall">
-              <Button variant="outline" data-testid="link-overall-stats">Overall Stats</Button>
+              <Button variant="outline" className="gap-2" data-testid="link-overall-stats">
+                <BarChart3 className="h-4 w-4" />
+                Overall
+              </Button>
             </Link>
             <Link href="/stats/tournament">
-              <Button variant="outline" data-testid="link-tournament-stats">Tournament Stats</Button>
+              <Button variant="outline" className="gap-2" data-testid="link-tournament-stats">
+                <Trophy className="h-4 w-4" />
+                Tournaments
+              </Button>
             </Link>
           </div>
         </div>
 
-        <Tabs defaultValue="overall" className="space-y-6">
-          <TabsList className="grid grid-cols-3 w-full max-w-md">
-            <TabsTrigger value="overall" data-testid="tab-overall">Overall</TabsTrigger>
-            <TabsTrigger value="mode" data-testid="tab-mode">By Mode</TabsTrigger>
-            <TabsTrigger value="map" data-testid="tab-map">By Map</TabsTrigger>
-          </TabsList>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <Card>
+            <CardContent className="pt-4 pb-4">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-foreground">{scrimEvents.length}</div>
+                <div className="text-sm text-muted-foreground">Total Scrims</div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4 pb-4">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-foreground">{allGames.length}</div>
+                <div className="text-sm text-muted-foreground">Total Games</div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4 pb-4">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-emerald-500">{overallEventStats.wins}</div>
+                <div className="text-sm text-muted-foreground">Scrim Wins</div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4 pb-4">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-emerald-500">{overallGameStats.wins}</div>
+                <div className="text-sm text-muted-foreground">Game Wins</div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-          <TabsContent value="overall" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card className="border-primary/20">
-                <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Swords className="h-5 w-5 text-primary" />
-                    Scrim Results
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-2xl font-bold">{overallEventStats.total}</span>
-                      <div className="flex items-center gap-2">
-                        {getWinRateIcon(overallEventStats.winRate)}
-                        <span className={`font-semibold ${getWinRateColor(overallEventStats.winRate)}`}>
-                          {overallEventStats.winRate.toFixed(1)}%
-                        </span>
-                      </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <Card>
+            <CardHeader className="pb-4 border-b border-border">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <Swords className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle>Scrim Performance</CardTitle>
+                  <CardDescription>Win rate across scrims</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-4xl font-bold">{overallEventStats.total}</span>
+                  <div className="text-right">
+                    <div className="flex items-center gap-2">
+                      {getWinRateIcon(overallEventStats.winRate)}
+                      <span className={`text-2xl font-bold ${getWinRateColor(overallEventStats.winRate)}`}>
+                        {overallEventStats.winRate.toFixed(1)}%
+                      </span>
                     </div>
-                    <Progress value={overallEventStats.winRate} className="h-2" />
-                    <div className="flex justify-between text-sm">
-                      <span className="text-emerald-500">{overallEventStats.wins}W</span>
-                      <span className="text-red-500">{overallEventStats.losses}L</span>
-                      <span className="text-amber-500">{overallEventStats.draws}D</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-primary/20">
-                <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Gamepad2 className="h-5 w-5 text-secondary" />
-                    Game Results
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-2xl font-bold">{overallGameStats.total}</span>
-                      <div className="flex items-center gap-2">
-                        {getWinRateIcon(overallGameStats.winRate)}
-                        <span className={`font-semibold ${getWinRateColor(overallGameStats.winRate)}`}>
-                          {overallGameStats.winRate.toFixed(1)}%
-                        </span>
-                      </div>
-                    </div>
-                    <Progress value={overallGameStats.winRate} className="h-2" />
-                    <div className="flex justify-between text-sm">
-                      <span className="text-emerald-500">{overallGameStats.wins}W</span>
-                      <span className="text-red-500">{overallGameStats.losses}L</span>
-                      <span className="text-amber-500">{overallGameStats.draws}D</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5 text-primary" />
-                  Scrim Summary
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="text-center p-4 rounded-lg bg-muted">
-                    <div className="text-3xl font-bold text-foreground">{scrimEvents.length}</div>
-                    <div className="text-sm text-muted-foreground">Total Scrims</div>
-                  </div>
-                  <div className="text-center p-4 rounded-lg bg-muted">
-                    <div className="text-3xl font-bold text-foreground">{allGames.length}</div>
-                    <div className="text-sm text-muted-foreground">Total Games</div>
-                  </div>
-                  <div className="text-center p-4 rounded-lg bg-muted">
-                    <div className="text-3xl font-bold text-emerald-500">{overallEventStats.wins}</div>
-                    <div className="text-sm text-muted-foreground">Scrim Wins</div>
-                  </div>
-                  <div className="text-center p-4 rounded-lg bg-muted">
-                    <div className="text-3xl font-bold text-emerald-500">{overallGameStats.wins}</div>
-                    <div className="text-sm text-muted-foreground">Game Wins</div>
+                    <span className="text-sm text-muted-foreground">Win Rate</span>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="mode" className="space-y-6">
-            {statsByGameMode.length === 0 ? (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <Gamepad2 className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                  <p className="text-muted-foreground">No game mode statistics available for scrims yet.</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {statsByGameMode.map(({ mode, ...stats }) => (
-                  <Card key={mode.id} className="border-primary/20">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="flex items-center gap-2 text-base">
-                        <Gamepad2 className="h-5 w-5 text-primary" />
-                        {mode.name}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-2xl font-bold">{stats.total}</span>
-                          <div className="flex items-center gap-2">
-                            {getWinRateIcon(stats.winRate)}
-                            <span className={`font-semibold ${getWinRateColor(stats.winRate)}`}>
-                              {stats.winRate.toFixed(1)}%
-                            </span>
-                          </div>
-                        </div>
-                        <Progress value={stats.winRate} className="h-2" />
-                        <div className="flex justify-between text-sm">
-                          <span className="text-emerald-500">{stats.wins}W</span>
-                          <span className="text-red-500">{stats.losses}L</span>
-                          <span className="text-amber-500">{stats.draws}D</span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                <Progress value={overallEventStats.winRate} className="h-3" />
+                <div className="flex justify-between text-sm font-medium">
+                  <span className="text-emerald-500">{overallEventStats.wins} Wins</span>
+                  <span className="text-red-500">{overallEventStats.losses} Losses</span>
+                  <span className="text-amber-500">{overallEventStats.draws} Draws</span>
+                </div>
               </div>
-            )}
-          </TabsContent>
+            </CardContent>
+          </Card>
 
-          <TabsContent value="map" className="space-y-6">
-            {statsByMap.length === 0 ? (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <MapIcon className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                  <p className="text-muted-foreground">No map statistics available for scrims yet.</p>
-                </CardContent>
-              </Card>
-            ) : (
+          <Card>
+            <CardHeader className="pb-4 border-b border-border">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-secondary/10">
+                  <Gamepad2 className="h-5 w-5 text-secondary" />
+                </div>
+                <div>
+                  <CardTitle>Game Performance</CardTitle>
+                  <CardDescription>Win rate in scrim games</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-6">
               <div className="space-y-4">
-                {statsByMap.map(({ map, modeName, ...stats }) => (
-                  <Card key={map.id} className="hover-elevate">
-                    <CardContent className="py-4">
-                      <div className="flex items-center gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <MapIcon className="h-4 w-4 text-secondary" />
-                            <span className="font-semibold">{map.name}</span>
-                            <Badge variant="outline" className="text-xs">{modeName}</Badge>
-                          </div>
-                          <div className="flex items-center gap-4 text-sm">
-                            <span className="text-muted-foreground">{stats.total} games</span>
-                            <span className="text-emerald-500">{stats.wins}W</span>
-                            <span className="text-red-500">{stats.losses}L</span>
-                            <span className="text-amber-500">{stats.draws}D</span>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="flex items-center gap-2">
-                            {getWinRateIcon(stats.winRate)}
-                            <span className={`text-xl font-bold ${getWinRateColor(stats.winRate)}`}>
-                              {stats.winRate.toFixed(1)}%
-                            </span>
-                          </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-4xl font-bold">{overallGameStats.total}</span>
+                  <div className="text-right">
+                    <div className="flex items-center gap-2">
+                      {getWinRateIcon(overallGameStats.winRate)}
+                      <span className={`text-2xl font-bold ${getWinRateColor(overallGameStats.winRate)}`}>
+                        {overallGameStats.winRate.toFixed(1)}%
+                      </span>
+                    </div>
+                    <span className="text-sm text-muted-foreground">Win Rate</span>
+                  </div>
+                </div>
+                <Progress value={overallGameStats.winRate} className="h-3" />
+                <div className="flex justify-between text-sm font-medium">
+                  <span className="text-emerald-500">{overallGameStats.wins} Wins</span>
+                  <span className="text-red-500">{overallGameStats.losses} Losses</span>
+                  <span className="text-amber-500">{overallGameStats.draws} Draws</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader className="pb-4 border-b border-border">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <Gamepad2 className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle>By Game Mode</CardTitle>
+                  <CardDescription>Scrim performance by mode</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {statsByGameMode.length === 0 ? (
+                <div className="p-8 text-center">
+                  <Gamepad2 className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
+                  <p className="text-muted-foreground text-sm">No game mode data available</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {statsByGameMode.map(({ mode, ...stats }) => (
+                    <div key={mode.id} className="p-4 hover:bg-muted/30 transition-colors">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium">{mode.name}</span>
+                        <div className="flex items-center gap-2">
+                          {getWinRateIcon(stats.winRate)}
+                          <span className={`font-bold ${getWinRateColor(stats.winRate)}`}>
+                            {stats.winRate.toFixed(1)}%
+                          </span>
                         </div>
                       </div>
-                      <Progress value={stats.winRate} className="h-1.5 mt-3" />
-                    </CardContent>
-                  </Card>
-                ))}
+                      <Progress value={stats.winRate} className="h-1.5 mb-2" />
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>{stats.total} games</span>
+                        <span>{stats.wins}W - {stats.losses}L - {stats.draws}D</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-4 border-b border-border">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-secondary/10">
+                  <MapIcon className="h-5 w-5 text-secondary" />
+                </div>
+                <div>
+                  <CardTitle>By Map</CardTitle>
+                  <CardDescription>Scrim performance by map</CardDescription>
+                </div>
               </div>
-            )}
-          </TabsContent>
-        </Tabs>
+            </CardHeader>
+            <CardContent className="p-0 max-h-96 overflow-y-auto">
+              {statsByMap.length === 0 ? (
+                <div className="p-8 text-center">
+                  <MapIcon className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
+                  <p className="text-muted-foreground text-sm">No map data available</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {statsByMap.map(({ map, modeName, ...stats }) => (
+                    <div key={map.id} className="p-4 hover:bg-muted/30 transition-colors">
+                      <div className="flex items-center justify-between mb-2">
+                        <div>
+                          <span className="font-medium">{map.name}</span>
+                          <Badge variant="outline" className="ml-2 text-xs">{modeName}</Badge>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {getWinRateIcon(stats.winRate)}
+                          <span className={`font-bold ${getWinRateColor(stats.winRate)}`}>
+                            {stats.winRate.toFixed(1)}%
+                          </span>
+                        </div>
+                      </div>
+                      <Progress value={stats.winRate} className="h-1.5 mb-2" />
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>{stats.total} games</span>
+                        <span>{stats.wins}W - {stats.losses}L - {stats.draws}D</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

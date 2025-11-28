@@ -528,10 +528,11 @@ export default function EventDetails() {
                   maxFileSize={10485760}
                   onGetUploadParameters={handleGetUploadURL}
                   onComplete={handleImageUploadComplete}
+                  onOpen={() => setUploadingImageForNewGame(true)}
                   buttonVariant="outline"
                   buttonSize="sm"
                 >
-                  <Upload className="h-4 w-4 mr-2" onClick={() => setUploadingImageForNewGame(true)} />
+                  <Upload className="h-4 w-4 mr-2" />
                   {newGameImageUrl ? "Change Image" : "Upload Scoreboard"}
                 </ObjectUploader>
                 {newGameImageUrl && (
@@ -684,10 +685,11 @@ export default function EventDetails() {
                                     maxFileSize={10485760}
                                     onGetUploadParameters={handleGetUploadURL}
                                     onComplete={handleImageUploadComplete}
+                                    onOpen={() => setUploadingImageForGame(game.id)}
                                     buttonVariant="outline"
                                     buttonSize="sm"
                                   >
-                                    <Upload className="h-4 w-4 mr-2" onClick={() => setUploadingImageForGame(game.id)} />
+                                    <Upload className="h-4 w-4 mr-2" />
                                     {editingGame.imageUrl ? "Change" : "Upload"}
                                   </ObjectUploader>
                                 </div>

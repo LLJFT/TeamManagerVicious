@@ -1,21 +1,20 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Plus, Pencil, Trash2, Gamepad2, Map as MapIcon, ChevronDown, ChevronRight, RotateCcw } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, Gamepad2, Map as MapIcon, RotateCcw, ChevronRight } from "lucide-react";
 import type { GameMode, Map as MapType } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { SimpleToast } from "@/components/SimpleToast";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 const gameModeFormSchema = z.object({
   name: z.string().min(1, "Game mode name is required"),
@@ -34,7 +33,7 @@ export default function Settings() {
   const [showMapDialog, setShowMapDialog] = useState(false);
   const [editingGameMode, setEditingGameMode] = useState<GameMode | undefined>();
   const [editingMap, setEditingMap] = useState<MapType | undefined>();
-  const [expandedModes, setExpandedModes] = useState<Set<string>>(new Set());
+  const [selectedModeForMaps, setSelectedModeForMaps] = useState<string | null>(null);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [toastType, setToastType] = useState<"success" | "error">("success");
@@ -107,6 +106,14 @@ export default function Settings() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/game-modes"] });
       queryClient.invalidateQueries({ queryKey: ["/api/maps"] });
+      if (selectedModeForMaps) {
+        const remainingModes = gameModes.filter(m => m.id !== selectedModeForMaps);
+        if (remainingModes.length > 0) {
+          setSelectedModeForMaps(remainingModes[0].id);
+        } else {
+          setSelectedModeForMaps(null);
+        }
+      }
       setToastMessage("Game mode deleted successfully");
       setToastType("success");
       setShowToast(true);
@@ -186,6 +193,7 @@ export default function Settings() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/game-modes"] });
       queryClient.invalidateQueries({ queryKey: ["/api/maps"] });
+      setSelectedModeForMaps(null);
       setToastMessage("Reset to Marvel Rivals defaults successfully");
       setToastType("success");
       setShowToast(true);
@@ -231,7 +239,7 @@ export default function Settings() {
 
   const handleAddMap = (gameModeId?: string) => {
     setEditingMap(undefined);
-    mapForm.reset({ name: "", gameModeId: gameModeId || "" });
+    mapForm.reset({ name: "", gameModeId: gameModeId || selectedModeForMaps || "" });
     setShowMapDialog(true);
   };
 
@@ -255,33 +263,27 @@ export default function Settings() {
     }
   };
 
-  const toggleModeExpansion = (modeId: string) => {
-    setExpandedModes(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(modeId)) {
-        newSet.delete(modeId);
-      } else {
-        newSet.add(modeId);
-      }
-      return newSet;
-    });
-  };
-
   const getMapsByMode = (modeId: string) => {
     return maps.filter(map => map.gameModeId === modeId);
   };
 
+  const selectedMode = gameModes.find(m => m.id === selectedModeForMaps);
+  const selectedModeMaps = selectedModeForMaps ? getMapsByMode(selectedModeForMaps) : [];
+
   if (modesLoading || mapsLoading) {
     return (
-      <div className="min-h-screen bg-background p-6 flex items-center justify-center">
-        <div className="text-foreground">Loading...</div>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="text-muted-foreground">Loading settings...</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto p-6 max-w-5xl">
+      <div className="container mx-auto px-4 py-6 max-w-7xl">
         {showToast && (
           <SimpleToast
             message={toastMessage}
@@ -290,168 +292,208 @@ export default function Settings() {
           />
         )}
 
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8 pb-4 border-b border-border">
           <div className="flex items-center gap-4">
             <Link href="/">
-              <Button variant="outline" className="gap-2" data-testid="button-back">
+              <Button variant="outline" size="icon" data-testid="button-back">
                 <ArrowLeft className="h-4 w-4" />
-                Back
               </Button>
             </Link>
             <div>
               <h1 className="text-3xl font-bold text-foreground">Settings</h1>
-              <p className="text-muted-foreground">Manage game modes and maps</p>
+              <p className="text-muted-foreground">Configure game modes and maps</p>
             </div>
           </div>
+          <Button
+            onClick={handleResetToDefaults}
+            variant="outline"
+            className="gap-2"
+            disabled={resetToDefaultsMutation.isPending}
+            data-testid="button-reset-defaults"
+          >
+            <RotateCcw className="h-4 w-4" />
+            Reset to Marvel Rivals Defaults
+          </Button>
         </div>
 
-        <Card className="mb-6">
-          <CardHeader className="flex flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Gamepad2 className="h-5 w-5 text-primary" />
-              <CardTitle>Game Modes & Maps</CardTitle>
-            </div>
-            <div className="flex gap-2 flex-wrap">
-              <Button onClick={handleAddGameMode} className="gap-2" data-testid="button-add-game-mode">
-                <Plus className="h-4 w-4" />
-                Add Game Mode
-              </Button>
-              <Button onClick={() => handleAddMap()} variant="outline" className="gap-2" data-testid="button-add-map">
-                <Plus className="h-4 w-4" />
-                Add Map
-              </Button>
-              <Button
-                onClick={handleResetToDefaults}
-                variant="secondary"
-                className="gap-2"
-                disabled={resetToDefaultsMutation.isPending}
-                data-testid="button-reset-defaults"
-              >
-                <RotateCcw className="h-4 w-4" />
-                Reset to Marvel Rivals Defaults
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {gameModes.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <Gamepad2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No game modes created yet.</p>
-                <p className="text-sm">Click "Add Game Mode" to get started.</p>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card className="h-fit">
+            <CardHeader className="pb-4 border-b border-border">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-primary/10">
+                    <Gamepad2 className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl">Game Modes</CardTitle>
+                    <CardDescription>{gameModes.length} configured</CardDescription>
+                  </div>
+                </div>
+                <Button onClick={handleAddGameMode} size="sm" className="gap-2" data-testid="button-add-game-mode">
+                  <Plus className="h-4 w-4" />
+                  Add
+                </Button>
               </div>
-            ) : (
-              <div className="space-y-3">
-                {gameModes.map((mode) => {
-                  const modeMaps = getMapsByMode(mode.id);
-                  const isExpanded = expandedModes.has(mode.id);
-                  
-                  return (
-                    <Collapsible key={mode.id} open={isExpanded} onOpenChange={() => toggleModeExpansion(mode.id)}>
-                      <div className="border border-border rounded-lg overflow-hidden">
-                        <div className="flex items-center justify-between p-4 bg-card hover-elevate">
-                          <div className="flex items-center gap-3">
-                            <CollapsibleTrigger asChild>
-                              <Button variant="ghost" size="icon" data-testid={`button-expand-mode-${mode.id}`}>
-                                {isExpanded ? (
-                                  <ChevronDown className="h-4 w-4" />
-                                ) : (
-                                  <ChevronRight className="h-4 w-4" />
-                                )}
-                              </Button>
-                            </CollapsibleTrigger>
-                            <div className="flex items-center gap-2">
-                              <Gamepad2 className="h-4 w-4 text-primary" />
-                              <span className="font-semibold text-foreground" data-testid={`text-mode-name-${mode.id}`}>
-                                {mode.name}
-                              </span>
-                              <Badge variant="secondary" className="text-xs">
-                                {modeMaps.length} {modeMaps.length === 1 ? "map" : "maps"}
-                              </Badge>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleAddMap(mode.id)}
-                              data-testid={`button-add-map-to-${mode.id}`}
-                            >
-                              <Plus className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleEditGameMode(mode)}
-                              data-testid={`button-edit-mode-${mode.id}`}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleDeleteGameMode(mode.id)}
-                              data-testid={`button-delete-mode-${mode.id}`}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
+            </CardHeader>
+            <CardContent className="p-0">
+              {gameModes.length === 0 ? (
+                <div className="p-8 text-center">
+                  <Gamepad2 className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
+                  <p className="text-muted-foreground text-sm">No game modes configured</p>
+                  <p className="text-muted-foreground text-xs mt-1">Click "Add" to create your first game mode</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {gameModes.map((mode) => {
+                    const modeMaps = getMapsByMode(mode.id);
+                    const isSelected = selectedModeForMaps === mode.id;
+                    
+                    return (
+                      <div
+                        key={mode.id}
+                        className={`flex items-center justify-between p-4 cursor-pointer transition-colors ${
+                          isSelected ? "bg-primary/5 border-l-2 border-l-primary" : "hover:bg-muted/50"
+                        }`}
+                        onClick={() => setSelectedModeForMaps(mode.id)}
+                        data-testid={`row-mode-${mode.id}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="flex flex-col">
+                            <span className="font-medium text-foreground" data-testid={`text-mode-name-${mode.id}`}>
+                              {mode.name}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {modeMaps.length} {modeMaps.length === 1 ? "map" : "maps"}
+                            </span>
                           </div>
                         </div>
-                        
-                        <CollapsibleContent>
-                          <div className="border-t border-border">
-                            {modeMaps.length === 0 ? (
-                              <div className="p-4 text-center text-muted-foreground text-sm">
-                                No maps for this game mode. Click + to add one.
-                              </div>
-                            ) : (
-                              <div className="divide-y divide-border">
-                                {modeMaps.map((map) => (
-                                  <div
-                                    key={map.id}
-                                    className="flex items-center justify-between p-3 pl-14 hover-elevate"
-                                    data-testid={`row-map-${map.id}`}
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <MapIcon className="h-4 w-4 text-muted-foreground" />
-                                      <span data-testid={`text-map-name-${map.id}`}>{map.name}</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => handleEditMap(map)}
-                                        data-testid={`button-edit-map-${map.id}`}
-                                      >
-                                        <Pencil className="h-4 w-4" />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => handleDeleteMap(map.id)}
-                                        data-testid={`button-delete-map-${map.id}`}
-                                      >
-                                        <Trash2 className="h-4 w-4 text-destructive" />
-                                      </Button>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </CollapsibleContent>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditGameMode(mode);
+                            }}
+                            data-testid={`button-edit-mode-${mode.id}`}
+                          >
+                            <Pencil className="h-4 w-4 text-muted-foreground" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteGameMode(mode.id);
+                            }}
+                            data-testid={`button-delete-mode-${mode.id}`}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                          <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${isSelected ? "rotate-90" : ""}`} />
+                        </div>
                       </div>
-                    </Collapsible>
-                  );
-                })}
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="h-fit">
+            <CardHeader className="pb-4 border-b border-border">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-secondary/10">
+                    <MapIcon className="h-5 w-5 text-secondary" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl">
+                      {selectedMode ? `${selectedMode.name} Maps` : "Maps"}
+                    </CardTitle>
+                    <CardDescription>
+                      {selectedMode 
+                        ? `${selectedModeMaps.length} maps in this mode`
+                        : "Select a game mode to view maps"
+                      }
+                    </CardDescription>
+                  </div>
+                </div>
+                <Button 
+                  onClick={() => handleAddMap()} 
+                  size="sm" 
+                  className="gap-2"
+                  disabled={!selectedModeForMaps}
+                  data-testid="button-add-map"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add
+                </Button>
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </CardHeader>
+            <CardContent className="p-0">
+              {!selectedModeForMaps ? (
+                <div className="p-8 text-center">
+                  <MapIcon className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
+                  <p className="text-muted-foreground text-sm">Select a game mode</p>
+                  <p className="text-muted-foreground text-xs mt-1">Click on a game mode to view its maps</p>
+                </div>
+              ) : selectedModeMaps.length === 0 ? (
+                <div className="p-8 text-center">
+                  <MapIcon className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
+                  <p className="text-muted-foreground text-sm">No maps in this mode</p>
+                  <p className="text-muted-foreground text-xs mt-1">Click "Add" to create a map</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {selectedModeMaps.map((map) => (
+                    <div
+                      key={map.id}
+                      className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors"
+                      data-testid={`row-map-${map.id}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <MapIcon className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-medium text-foreground" data-testid={`text-map-name-${map.id}`}>
+                          {map.name}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEditMap(map)}
+                          data-testid={`button-edit-map-${map.id}`}
+                        >
+                          <Pencil className="h-4 w-4 text-muted-foreground" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteMap(map.id)}
+                          data-testid={`button-delete-map-${map.id}`}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
         <Dialog open={showGameModeDialog} onOpenChange={setShowGameModeDialog}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{editingGameMode ? "Edit Game Mode" : "Add Game Mode"}</DialogTitle>
+              <DialogDescription>
+                {editingGameMode 
+                  ? "Update the name of this game mode."
+                  : "Create a new game mode for tracking statistics."
+                }
+              </DialogDescription>
             </DialogHeader>
             <Form {...gameModeForm}>
               <form onSubmit={gameModeForm.handleSubmit(handleGameModeSubmit)} className="space-y-4">
@@ -493,6 +535,12 @@ export default function Settings() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{editingMap ? "Edit Map" : "Add Map"}</DialogTitle>
+              <DialogDescription>
+                {editingMap 
+                  ? "Update the map details."
+                  : "Add a new map to track statistics."
+                }
+              </DialogDescription>
             </DialogHeader>
             <Form {...mapForm}>
               <form onSubmit={mapForm.handleSubmit(handleMapSubmit)} className="space-y-4">

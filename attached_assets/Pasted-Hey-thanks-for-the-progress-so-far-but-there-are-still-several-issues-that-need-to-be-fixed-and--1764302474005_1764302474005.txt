@@ -1,0 +1,142 @@
+Hey, thanks for the progress so far — but there are still several issues that need to be fixed, and a few parts need to be redesigned to match the professional style we discussed.
+
+Please read everything carefully:
+
+1. Theme & UI
+
+The new theme looks better, but the website still doesn’t feel professional or polished.
+
+I want a fully official, modern, premium design — similar to the clean structure of the gray COD layout, but using my own colors and style.
+
+The structure should stay the same, but the UI needs to feel sharp, clean, and consistent across all pages.
+
+2. Availability Analytics
+
+This feature is structurally correct.
+
+Just polish the UI to match the new theme and make it look clean and professional like the COD-style layout.
+
+3. Weekly Availability Overview
+
+Also structurally correct — just needs UI polishing to match the new design.
+
+4. Statistics Pages (Need polishing)
+
+The three stats pages are created:
+
+Overall Stats
+
+Scrim Stats
+
+Tournament Stats
+
+But the UI is not professional enough.
+
+Each page must include:
+
+Overall Stats
+
+By Game Mode
+
+By Map
+
+I’m okay if each one is a separate full page (not tabs), but ideally I want them accessible like the top navigation (Events / History / Settings / Share) — clean, official, and consistent.
+
+5. Quick Stats Cards
+
+The feature is fine, but:
+
+❌ Do NOT place these cards on the homepage.
+
+Please move them into the Stats section or another internal page.
+
+The homepage must stay clean, simple, and professional.
+
+6. Homepage Cleanup
+
+Please remove these cards from the homepage:
+
+Total Events
+
+Total Games
+
+Event Wins
+
+Game Wins
+
+Scrims
+
+Tournaments
+
+They make the homepage look unprofessional.
+
+Keep the homepage very simple and clean.
+
+7. Scoreboard Image Upload (Still broken)
+
+This must be fully fixed.
+
+Current issues:
+
+Uploading works, but the image is NOT attached to the game.
+
+Editing a game and uploading a new image causes runtime errors.
+
+Images don’t save properly with the game data.
+
+Please fix:
+
+Upload
+
+Replace
+
+Edit
+
+Display
+
+No errors, and images must save with the game.
+
+8. Settings Page Redesign
+
+The current settings page works, but it needs a full redesign.
+
+I want it to look professional — similar to the COD-style layout:
+
+Game Modes in a clean panel
+
+Maps in a separate clean panel
+
+Organized layout
+
+Consistent UI
+
+Not the simple design it has now.
+
+9. Remaining Tasks
+
+Some tasks were marked as “done” but not actually completed or polished.
+
+Please continue working on:
+
+Improving the UI across all pages
+
+Making the site consistent and professional
+
+Final testing once everything is completed
+
+I want everything to be fully finished and polished before marking tasks as done.
+
+Summary
+
+Nothing new needs to be created — all features exist.
+The main focus now is:
+
+Fixing the broken features (image upload)
+
+Polishing the UI
+
+Redesigning the remaining pages
+
+Making everything clean, professional, and consistent
+
+If you need any clarification, I can explain — but this is the full list of what still needs to be completed.
