@@ -1,37 +1,53 @@
 import { createContext, useContext, useEffect, useState } from "react";
 
-type Theme = "dark" | "light";
+export type SiteStyle = "default-dark" | "ocean-blue" | "ruby-red" | "minimal-dark" | "carbon-black";
+
+export const siteStyles: { id: SiteStyle; name: string; description: string }[] = [
+  { id: "default-dark", name: "Default Dark", description: "Modern blue-gray with cyan accents" },
+  { id: "ocean-blue", name: "Ocean Blue", description: "Deep ocean with teal highlights" },
+  { id: "ruby-red", name: "Ruby Red", description: "Warm dark with crimson accents" },
+  { id: "minimal-dark", name: "Minimal Dark", description: "Clean and understated" },
+  { id: "carbon-black", name: "Carbon Black", description: "Pure black with emerald accents" },
+];
 
 type ThemeProviderProps = {
   children: React.ReactNode;
-  defaultTheme?: Theme;
+  defaultStyle?: SiteStyle;
 };
 
 type ThemeProviderState = {
-  theme: Theme;
-  setTheme: (theme: Theme) => void;
+  style: SiteStyle;
+  setStyle: (style: SiteStyle) => void;
 };
 
 const ThemeProviderContext = createContext<ThemeProviderState | undefined>(undefined);
 
 export function ThemeProvider({
   children,
-  defaultTheme = "light",
+  defaultStyle = "default-dark",
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(() => {
-    const stored = localStorage.getItem("theme");
-    return (stored as Theme) || defaultTheme;
+  const [style, setStyle] = useState<SiteStyle>(() => {
+    const stored = localStorage.getItem("site-style");
+    return (stored as SiteStyle) || defaultStyle;
   });
 
   useEffect(() => {
     const root = document.documentElement;
-    root.classList.remove("light", "dark");
-    root.classList.add(theme);
-    localStorage.setItem("theme", theme);
-  }, [theme]);
+    root.classList.remove(
+      "theme-default-dark",
+      "theme-ocean-blue",
+      "theme-ruby-red",
+      "theme-minimal-dark",
+      "theme-carbon-black",
+      "light",
+      "dark"
+    );
+    root.classList.add(`theme-${style}`);
+    localStorage.setItem("site-style", style);
+  }, [style]);
 
   return (
-    <ThemeProviderContext.Provider value={{ theme, setTheme }}>
+    <ThemeProviderContext.Provider value={{ style, setStyle }}>
       {children}
     </ThemeProviderContext.Provider>
   );

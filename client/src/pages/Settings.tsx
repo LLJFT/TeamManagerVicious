@@ -7,13 +7,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Plus, Pencil, Trash2, Gamepad2, Map as MapIcon, RotateCcw, ChevronRight, Calendar } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, Gamepad2, Map as MapIcon, RotateCcw, ChevronRight, Calendar, Palette, Check } from "lucide-react";
 import type { GameMode, Map as MapType, Season } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { SimpleToast } from "@/components/SimpleToast";
+import { useTheme, siteStyles, SiteStyle } from "@/hooks/use-theme";
 
 const gameModeFormSchema = z.object({
   name: z.string().min(1, "Game mode name is required"),
@@ -34,6 +35,7 @@ type MapFormData = z.infer<typeof mapFormSchema>;
 type SeasonFormData = z.infer<typeof seasonFormSchema>;
 
 export default function Settings() {
+  const { style, setStyle } = useTheme();
   const [showGameModeDialog, setShowGameModeDialog] = useState(false);
   const [showMapDialog, setShowMapDialog] = useState(false);
   const [showSeasonDialog, setShowSeasonDialog] = useState(false);
@@ -417,6 +419,44 @@ export default function Settings() {
             Reset to Marvel Rivals Defaults
           </Button>
         </div>
+
+        <Card className="mb-6">
+          <CardHeader className="pb-4 border-b border-border">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Palette className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <CardTitle className="text-xl">Site Styles</CardTitle>
+                <CardDescription>Choose your preferred visual theme</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              {siteStyles.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => setStyle(s.id)}
+                  className={`relative p-4 rounded-lg border-2 transition-all text-left hover-elevate ${
+                    style === s.id
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-muted-foreground/30"
+                  }`}
+                  data-testid={`button-style-${s.id}`}
+                >
+                  {style === s.id && (
+                    <div className="absolute top-2 right-2">
+                      <Check className="h-4 w-4 text-primary" />
+                    </div>
+                  )}
+                  <div className="font-medium text-foreground mb-1">{s.name}</div>
+                  <div className="text-xs text-muted-foreground">{s.description}</div>
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <Card className="h-fit">

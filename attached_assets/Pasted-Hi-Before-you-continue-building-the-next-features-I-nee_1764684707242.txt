@@ -1,0 +1,137 @@
+Hi! Before you continue building the next features, I need to fix an extremely important problem and apply the final required improvements.
+
+⸻
+
+1️⃣ VERY IMPORTANT — Stop Remix Data Loss Forever
+
+When someone remixes the project, the new remix starts EMPTY.
+
+This causes a huge problem:
+	•	All players / events / stats disappear
+	•	The new version loads a blank team instead of my real data
+
+I need you to change the system so that:
+
+✅ Remixes NEVER affect my real team data
+
+✅ My main site ALWAYS keeps its original teamId
+
+✅ NO remix is allowed to delete, overwrite, or replace existing data
+
+✅ All data stays permanent unless I delete it manually
+
+Make sure my main database is 100% protected and isolated.
+
+⸻
+
+2️⃣ Full Style System (NOT just a theme toggle)
+
+I want a complete style system, not just dark/light mode.
+
+Remove the dark/light toggle completely.
+
+Instead, add a new section in Settings:
+
+Site Styles
+
+Where users can choose between multiple full styles (colors + UI accents):
+	1.	Default Dark (current style) — this must be the automatic default
+	2.	Ocean Blue
+	3.	Ruby Red
+	4.	Minimal Dark
+	5.	Carbon Black
+
+These should NOT look childish.
+I want fresh, modern, energetic, premium looks — something that feels positive and clean.
+
+⸻
+
+3️⃣ All Stats Pages — Unify & Improve UI
+
+Make all stats pages (Overall, Scrim, Tournament, Monthly, Season) share the same:
+	•	Layout
+	•	Spacing
+	•	Typography
+	•	Table style
+	•	Header design
+
+Everything must feel One Professional System, not separate pages.
+
+Also add a unified stats mode selector:
+
+Overall | Monthly | Seasonal
+
+And inside each mode, include:
+	•	Overall Stats
+	•	By Game Mode
+	•	By Map
+
+⸻
+
+4️⃣ Season & Monthly Stats — Add Sub-categories
+
+When selecting a season or a month, show:
+	•	Overall Stats
+	•	Scrim Stats Only
+	•	Tournament Stats Only
+
+Same structure everywhere.
+
+⸻
+
+5️⃣ Correct Win/Loss Logic Everywhere
+	•	Event win = 1 win
+	•	Game wins are counted separately
+	•	All stats pages must follow this exact rule
+	•	Winrate for maps / modes must use game wins (not event wins)
+
+⸻
+
+6️⃣ “Day Off” Availability Feature
+
+Add option inside Availability:
+	•	Mark a full day as OFF
+	•	Day turns red with label “OFF”
+	•	OFF day cannot be changed unless I manually add an event on that day
+	•	If I add an event on an OFF day → remove the OFF state automatically
+
+⸻
+
+7️⃣ Scoreboard Upload — Must Fully Work
+
+Fix scoreboard upload COMPLETELY:
+	•	Upload image
+	•	Save image
+	•	Edit + replace image
+	•	Show “Image uploaded”
+	•	Show “View” link in Media
+	•	Display correctly in all places
+
+Right now images upload but do NOT save, so fix all backend + UI issues.
+
+⸻
+
+8️⃣ Official, Clean, Modern Look
+
+Please continue polishing the UI to make the whole website feel:
+	•	Premium
+	•	Clean
+	•	Energizing
+	•	Easy to look at
+	•	Not too dark or depressing
+
+I don’t want the COD look — just something modern and professional with balanced colors.
+
+⸻
+
+9️⃣ Make Sure NONE of My Data Ever Gets Deleted Again
+
+This is critical:
+	•	Do NOT reset teamId
+	•	Do NOT switch teamId after publish
+	•	Do NOT create new blank teamData
+	•	Ensure the main instance always loads the same data permanently
+
+⸻
+
+✔️ That’s all — you can now continue after applying these fixes.
