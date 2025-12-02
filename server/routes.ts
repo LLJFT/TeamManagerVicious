@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertScheduleSchema, insertEventSchema, insertPlayerSchema, insertAttendanceSchema, insertTeamNotesSchema, insertGameSchema, insertGameModeSchema, insertMapSchema } from "@shared/schema";
+import { insertScheduleSchema, insertEventSchema, insertPlayerSchema, insertAttendanceSchema, insertTeamNotesSchema, insertGameSchema, insertGameModeSchema, insertMapSchema, insertSeasonSchema } from "@shared/schema";
 import { 
   readScheduleFromSheet, 
   writeScheduleToSheet, 
@@ -527,6 +527,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.sendStatus(404);
       }
       return res.sendStatus(500);
+    }
+  });
+
+  // Seasons API endpoints
+  app.get("/api/seasons", async (req, res) => {
+    try {
+      const seasons = await storage.getAllSeasons();
+      res.json(seasons);
+    } catch (error: any) {
+      console.error('Error in GET /api/seasons:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.post("/api/seasons", async (req, res) => {
+    try {
+      const validatedData = insertSeasonSchema.parse(req.body);
+      const season = await storage.addSeason(validatedData);
+      res.json(season);
+    } catch (error: any) {
+      console.error('Error in POST /api/seasons:', error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ error: "Invalid season data", details: error.errors });
+      }
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.put("/api/seasons/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const validatedData = insertSeasonSchema.partial().parse(req.body);
+      const season = await storage.updateSeason(id, validatedData);
+      res.json(season);
+    } catch (error: any) {
+      console.error('Error in PUT /api/seasons:', error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ error: "Invalid season data", details: error.errors });
+      }
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.delete("/api/seasons/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const success = await storage.removeSeason(id);
+      if (success) {
+        res.json({ success: true });
+      } else {
+        res.status(404).json({ error: "Season not found" });
+      }
+    } catch (error: any) {
+      console.error('Error in DELETE /api/seasons:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
     }
   });
 

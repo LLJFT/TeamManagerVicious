@@ -1,5 +1,5 @@
-import type { Player, InsertPlayer, Schedule, InsertSchedule, Setting, InsertSetting, Event, InsertEvent, Attendance, InsertAttendance, TeamNotes, InsertTeamNotes, Game, InsertGame, GameMode, InsertGameMode, Map, InsertMap } from "@shared/schema";
-import { players, schedules, settings, events, attendance, teamNotes, games, gameModes, maps } from "@shared/schema";
+import type { Player, InsertPlayer, Schedule, InsertSchedule, Setting, InsertSetting, Event, InsertEvent, Attendance, InsertAttendance, TeamNotes, InsertTeamNotes, Game, InsertGame, GameMode, InsertGameMode, Map, InsertMap, Season, InsertSeason } from "@shared/schema";
+import { players, schedules, settings, events, attendance, teamNotes, games, gameModes, maps, seasons } from "@shared/schema";
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
 
@@ -40,6 +40,10 @@ export interface IStorage {
   updateMap(id: string, map: Partial<InsertMap>): Promise<Map>;
   removeMap(id: string): Promise<boolean>;
   resetToDefaults(): Promise<void>;
+  getAllSeasons(): Promise<Season[]>;
+  addSeason(season: InsertSeason): Promise<Season>;
+  updateSeason(id: string, season: Partial<InsertSeason>): Promise<Season>;
+  removeSeason(id: string): Promise<boolean>;
 }
 
 export class DbStorage implements IStorage {
@@ -425,6 +429,38 @@ export class DbStorage implements IStorage {
     for (const map of defaultMaps) {
       await db.insert(maps).values(map);
     }
+  }
+
+  async getAllSeasons(): Promise<Season[]> {
+    return await db.select().from(seasons);
+  }
+
+  async addSeason(insertSeason: InsertSeason): Promise<Season> {
+    const inserted = await db
+      .insert(seasons)
+      .values(insertSeason)
+      .returning();
+
+    return inserted[0];
+  }
+
+  async updateSeason(id: string, updateData: Partial<InsertSeason>): Promise<Season> {
+    const updated = await db
+      .update(seasons)
+      .set(updateData)
+      .where(eq(seasons.id, id))
+      .returning();
+
+    return updated[0];
+  }
+
+  async removeSeason(id: string): Promise<boolean> {
+    const deleted = await db
+      .delete(seasons)
+      .where(eq(seasons.id, id))
+      .returning();
+
+    return deleted.length > 0;
   }
 }
 

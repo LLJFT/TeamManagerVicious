@@ -1,0 +1,111 @@
+I would like to add two new analytics systems to the app: Monthly Stats and Season Stats.
+Below is the exact structure I want, and please follow this design strictly.
+
+⸻
+
+1. Season System (Simple Label System – NOT date-based)
+
+I want Seasons to be simple manual labels, not automatic or based on dates.
+
+1.1 Add a “Seasons” section in Settings
+
+In Settings, add a new panel similar to Game Modes / Maps:
+	•	Add Season
+	•	Edit Season name
+	•	Delete Season
+
+A Season is just:
+{
+  id: string;
+  name: string; // e.g. "Season 5.0", "Season 5.5", "Season 6.0"
+}
+
+No dates, no auto logic — ONLY a label.
+
+1.2 Assign Season to Events
+
+Inside the Event Create / Edit form:
+
+Add a new field:
+	•	Season (dropdown)
+	•	Shows all seasons created
+	•	Default: “No Season”
+
+I must be able to edit old events and assign them to seasons manually at any time.
+
+⸻
+
+2. Monthly Stats
+
+Create a new Stats page dedicated to monthly performance.
+
+2.1 Page Structure
+
+Top selectors:
+	•	Month (January–December)
+	•	Year
+
+After selecting a month/year, the stats should include ONLY the events whose date is inside that month.
+
+2.2 Monthly Stats Tabs
+
+Same structure as existing stats:
+	•	Overall
+	•	By Game Mode
+	•	By Map
+
+Calculations must match the current system exactly.
+
+⸻
+
+3. Season Stats
+
+Create another new Stats page for Season-based performance.
+
+3.1 Page Structure
+
+Top selector:
+	•	Season (dropdown with all created seasons)
+
+Stats should only include events assigned to that Season.
+
+3.2 Season Stats Tabs
+
+Same tabs as other stats pages:
+	•	Overall
+	•	By Game Mode
+	•	By Map
+
+⸻
+
+4. Stats Main Page – New Structure
+
+The Stats section should have three main categories:
+	1.	Overall Stats (existing system)
+	2.	Monthly Stats
+	3.	Season Stats
+
+Each category has the same tabs: Overall / Modes / Maps.
+
+⸻
+
+5. IMPORTANT — Data Persistence Requirement
+
+Do NOT delete, archive, purge, or auto-remove ANY data based on time or season.
+	•	If I assign an event to Season 5.0, its stats must remain visible forever.
+	•	Even if months or years pass, all stats must stay permanently.
+	•	Monthly Stats and Season Stats are purely filters — NOT data removers.
+
+All historical stats must always stay fully accessible.
+
+⸻
+
+6. Notes
+	•	Game Modes & Maps system stays unchanged.
+	•	Seasons do NOT affect maps or modes.
+	•	Past events stay unchanged unless I manually select a Season for them.
+	•	No automatic logic — everything is fully manual.
+
+⸻
+
+If anything is unclear, please ask me before implementing.

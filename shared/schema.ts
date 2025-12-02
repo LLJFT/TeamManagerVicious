@@ -80,6 +80,12 @@ export const events = pgTable("events", {
   result: text("result"),
   opponentName: text("opponent_name"),
   notes: text("notes"),
+  seasonId: varchar("season_id"),
+});
+
+export const seasons = pgTable("seasons", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull().unique(),
 });
 
 export const gameModes = pgTable("game_modes", {
@@ -135,6 +141,10 @@ export const insertGameSchema = createInsertSchema(games).omit({
   id: true,
 });
 
+export const insertSeasonSchema = createInsertSchema(seasons).omit({
+  id: true,
+});
+
 export const insertGameModeSchema = createInsertSchema(gameModes).omit({
   id: true,
 });
@@ -171,6 +181,9 @@ export type InsertTeamNotes = z.infer<typeof insertTeamNotesSchema>;
 
 export type Game = typeof games.$inferSelect;
 export type InsertGame = z.infer<typeof insertGameSchema>;
+
+export type Season = typeof seasons.$inferSelect;
+export type InsertSeason = z.infer<typeof insertSeasonSchema>;
 
 export type GameMode = typeof gameModes.$inferSelect;
 export type InsertGameMode = z.infer<typeof insertGameModeSchema>;
