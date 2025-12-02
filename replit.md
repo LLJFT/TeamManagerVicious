@@ -10,6 +10,14 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+- **Season & Monthly Stats Pages** (December 2, 2025): New stats filtering capabilities
+  - `/stats/season` - Statistics filtered by selected season with full breakdown
+  - `/stats/monthly` - Statistics filtered by selected month with full breakdown
+  - Season selector shows all configured seasons with descriptions
+  - Month selector auto-populates from events with dates
+  - Both pages include: Event Performance, Game Performance, By Game Mode, By Map breakdowns
+  - Navigation links added to all existing stats pages (Overall, Scrim, Tournament)
+  - Season description field added to seasons table and Settings UI
 - **Complete Data Isolation Implementation** (December 2, 2025): Critical multi-team support
   - Added `teamId` column to ALL database tables (players, events, games, attendance, team_notes, schedules, settings, game_modes, maps, seasons)
   - Storage layer automatically filters all queries by `REPL_ID` environment variable
