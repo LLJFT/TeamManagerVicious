@@ -5,9 +5,9 @@ import { Calendar } from "@/components/ui/calendar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, ArrowLeft, ChevronLeft, ChevronRight, Pencil, Eye } from "lucide-react";
+import { Plus, Trash2, ArrowLeft, ChevronLeft, ChevronRight, Pencil, Eye, Copy, X, Moon } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from "date-fns";
-import type { Event } from "@shared/schema";
+import type { Event, OffDay } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { EventDialog } from "@/components/EventDialog";
 import { SimpleToast } from "@/components/SimpleToast";
@@ -16,11 +16,13 @@ interface CustomCalendarProps {
   selectedDate: Date | undefined;
   onSelectDate: (date: Date | undefined) => void;
   eventsByDate: Record<string, Event[]>;
+  offDaysByDate: Record<string, OffDay>;
   onEventDoubleClick: (event: Event) => void;
   onDayDoubleClick: (date: Date) => void;
+  onToggleOffDay: (date: Date, isCurrentlyOff: boolean) => void;
 }
 
-function CustomCalendar({ selectedDate, onSelectDate, eventsByDate, onEventDoubleClick, onDayDoubleClick }: CustomCalendarProps) {
+function CustomCalendar({ selectedDate, onSelectDate, eventsByDate, offDaysByDate, onEventDoubleClick, onDayDoubleClick, onToggleOffDay }: CustomCalendarProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
   const monthStart = startOfMonth(currentMonth);
@@ -78,6 +80,7 @@ function CustomCalendar({ selectedDate, onSelectDate, eventsByDate, onEventDoubl
           {days.map((day, idx) => {
             const dateStr = format(day, "yyyy-MM-dd");
             const dayEvents = eventsByDate[dateStr] || [];
+            const isOffDay = !!offDaysByDate[dateStr];
             const isSelected = selectedDate && isSameDay(day, selectedDate);
             const isCurrentMonth = isSameMonth(day, currentMonth);
 
@@ -91,14 +94,28 @@ function CustomCalendar({ selectedDate, onSelectDate, eventsByDate, onEventDoubl
                   cursor-pointer hover-elevate active-elevate-2
                   ${!isCurrentMonth ? "bg-muted/30" : ""}
                   ${isSelected ? "bg-primary/10 border-2 border-primary" : ""}
+                  ${isOffDay && dayEvents.length === 0 ? "bg-slate-700/30 dark:bg-slate-800/50" : ""}
                 `}
                 data-testid={`calendar-day-${dateStr}`}
               >
-                <div className={`text-sm font-semibold mb-2 ${!isCurrentMonth ? "text-muted-foreground" : "text-foreground"}`}>
-                  {format(day, "d")}
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`text-sm font-semibold ${!isCurrentMonth ? "text-muted-foreground" : "text-foreground"}`}>
+                    {format(day, "d")}
+                  </span>
+                  {isOffDay && dayEvents.length === 0 && (
+                    <Moon className="w-3 h-3 text-slate-500" />
+                  )}
                 </div>
                 
                 <div className="flex flex-col gap-1 overflow-y-auto max-h-[140px]">
+                  {isOffDay && dayEvents.length === 0 && (
+                    <div
+                      className="text-xs px-2 py-1 rounded bg-slate-600/50 dark:bg-slate-700/50 text-slate-200 text-center"
+                      data-testid={`calendar-offday-${dateStr}`}
+                    >
+                      OFF DAY
+                    </div>
+                  )}
                   {dayEvents.map((event, eventIdx) => (
                     <div
                       key={eventIdx}
@@ -142,6 +159,10 @@ export default function Events() {
     queryKey: ["/api/events"],
   });
 
+  const { data: offDays = [] } = useQuery<OffDay[]>({
+    queryKey: ["/api/off-days"],
+  });
+
   const deleteMutation = useMutation({
     mutationFn: async (eventId: string) => {
       const response = await apiRequest("DELETE", `/api/events/${eventId}`, null);
@@ -155,6 +176,60 @@ export default function Events() {
     },
     onError: (error: any) => {
       setToastMessage(error.message || "Error deleting event");
+      setToastType("error");
+      setShowToast(true);
+    },
+  });
+
+  const duplicateEventMutation = useMutation({
+    mutationFn: async (eventId: string) => {
+      const response = await apiRequest("POST", `/api/events/${eventId}/duplicate`, null);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      setToastMessage("Event duplicated successfully");
+      setToastType("success");
+      setShowToast(true);
+    },
+    onError: (error: any) => {
+      setToastMessage(error.message || "Error duplicating event");
+      setToastType("error");
+      setShowToast(true);
+    },
+  });
+
+  const addOffDayMutation = useMutation({
+    mutationFn: async (date: string) => {
+      const response = await apiRequest("POST", "/api/off-days", { date });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/off-days"] });
+      setToastMessage("OFF day marked");
+      setToastType("success");
+      setShowToast(true);
+    },
+    onError: (error: any) => {
+      setToastMessage(error.message || "Error marking OFF day");
+      setToastType("error");
+      setShowToast(true);
+    },
+  });
+
+  const removeOffDayMutation = useMutation({
+    mutationFn: async (date: string) => {
+      const response = await apiRequest("DELETE", `/api/off-days/by-date/${date}`, null);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/off-days"] });
+      setToastMessage("OFF day removed");
+      setToastType("success");
+      setShowToast(true);
+    },
+    onError: (error: any) => {
+      setToastMessage(error.message || "Error removing OFF day");
       setToastType("error");
       setShowToast(true);
     },
@@ -181,9 +256,30 @@ export default function Events() {
     return map;
   };
 
+  const getOffDaysByDateMap = () => {
+    const map: Record<string, OffDay> = {};
+    offDays.forEach((offDay) => {
+      map[offDay.date] = offDay;
+    });
+    return map;
+  };
+
   const eventsForSelectedDate = getEventsForDate(selectedDate);
   const datesWithEvents = getDatesWithEvents();
   const eventsByDate = getEventsByDateMap();
+  const offDaysByDate = getOffDaysByDateMap();
+  
+  const selectedDateStr = selectedDate ? format(selectedDate, "yyyy-MM-dd") : "";
+  const isSelectedDateOffDay = !!offDaysByDate[selectedDateStr];
+
+  const handleToggleOffDay = (date: Date, isCurrentlyOff: boolean) => {
+    const dateStr = format(date, "yyyy-MM-dd");
+    if (isCurrentlyOff) {
+      removeOffDayMutation.mutate(dateStr);
+    } else {
+      addOffDayMutation.mutate(dateStr);
+    }
+  };
 
   const getEventTypeBadgeVariant = (eventType: string) => {
     switch (eventType) {
@@ -233,6 +329,7 @@ export default function Events() {
               selectedDate={selectedDate}
               onSelectDate={setSelectedDate}
               eventsByDate={eventsByDate}
+              offDaysByDate={offDaysByDate}
               onEventDoubleClick={(event) => {
                 setEventToEdit(event);
                 setShowEventDialog(true);
@@ -242,19 +339,42 @@ export default function Events() {
                 setEventToEdit(undefined);
                 setShowEventDialog(true);
               }}
+              onToggleOffDay={handleToggleOffDay}
             />
           </Card>
 
           <Card className="p-6">
-            <h2 className="text-xl font-semibold mb-4 text-foreground">
-              {selectedDate ? format(selectedDate, "MMMM d, yyyy") : "Select a date"}
-            </h2>
+            <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
+              <h2 className="text-xl font-semibold text-foreground">
+                {selectedDate ? format(selectedDate, "MMMM d, yyyy") : "Select a date"}
+              </h2>
+              {selectedDate && eventsForSelectedDate.length === 0 && (
+                <Button
+                  variant={isSelectedDateOffDay ? "secondary" : "outline"}
+                  size="sm"
+                  onClick={() => handleToggleOffDay(selectedDate, isSelectedDateOffDay)}
+                  disabled={addOffDayMutation.isPending || removeOffDayMutation.isPending}
+                  data-testid="button-toggle-off-day"
+                  className="gap-2"
+                >
+                  <Moon className="w-4 h-4" />
+                  {isSelectedDateOffDay ? "Remove OFF Day" : "Mark as OFF Day"}
+                </Button>
+              )}
+            </div>
 
             {isLoading ? (
               <div className="text-muted-foreground">Loading events...</div>
             ) : eventsForSelectedDate.length === 0 ? (
               <div className="text-muted-foreground text-center py-8">
-                No events scheduled for this date
+                {isSelectedDateOffDay ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <Moon className="w-8 h-8 text-slate-500" />
+                    <span>This is an OFF day - no practice scheduled</span>
+                  </div>
+                ) : (
+                  "No events scheduled for this date"
+                )}
               </div>
             ) : (
               <div className="space-y-3">
@@ -294,7 +414,7 @@ export default function Events() {
                           </p>
                         )}
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-1">
                         <Link href={`/events/${event.id}`}>
                           <Button
                             variant="ghost"
@@ -314,6 +434,16 @@ export default function Events() {
                           data-testid={`button-edit-event-${event.id}`}
                         >
                           <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => duplicateEventMutation.mutate(event.id)}
+                          disabled={duplicateEventMutation.isPending}
+                          data-testid={`button-duplicate-event-${event.id}`}
+                          title="Duplicate event"
+                        >
+                          <Copy className="w-4 h-4" />
                         </Button>
                         <Button
                           variant="ghost"

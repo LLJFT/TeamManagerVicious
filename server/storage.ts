@@ -1,5 +1,5 @@
-import type { Player, InsertPlayer, Schedule, InsertSchedule, Setting, InsertSetting, Event, InsertEvent, Attendance, InsertAttendance, TeamNotes, InsertTeamNotes, Game, InsertGame, GameMode, InsertGameMode, Map, InsertMap, Season, InsertSeason } from "@shared/schema";
-import { players, schedules, settings, events, attendance, teamNotes, games, gameModes, maps, seasons } from "@shared/schema";
+import type { Player, InsertPlayer, Schedule, InsertSchedule, Setting, InsertSetting, Event, InsertEvent, Attendance, InsertAttendance, TeamNotes, InsertTeamNotes, Game, InsertGame, GameMode, InsertGameMode, Map, InsertMap, Season, InsertSeason, OffDay, InsertOffDay } from "@shared/schema";
+import { players, schedules, settings, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, isNull } from "drizzle-orm";
 
@@ -52,6 +52,11 @@ export interface IStorage {
   addSeason(season: InsertSeason): Promise<Season>;
   updateSeason(id: string, season: Partial<InsertSeason>): Promise<Season>;
   removeSeason(id: string): Promise<boolean>;
+  getAllOffDays(): Promise<OffDay[]>;
+  addOffDay(offDay: InsertOffDay): Promise<OffDay>;
+  removeOffDay(date: string): Promise<boolean>;
+  removeOffDayById(id: string): Promise<boolean>;
+  duplicateEvent(eventId: string): Promise<Event>;
 }
 
 export class DbStorage implements IStorage {
@@ -523,6 +528,96 @@ export class DbStorage implements IStorage {
       .returning();
 
     return deleted.length > 0;
+  }
+
+  async getAllOffDays(): Promise<OffDay[]> {
+    const teamId = getTeamId();
+    return await db.select().from(offDays).where(eq(offDays.teamId, teamId));
+  }
+
+  async addOffDay(insertOffDay: InsertOffDay): Promise<OffDay> {
+    const teamId = getTeamId();
+    const existing = await db
+      .select()
+      .from(offDays)
+      .where(and(eq(offDays.teamId, teamId), eq(offDays.date, insertOffDay.date)))
+      .limit(1);
+    
+    if (existing.length > 0) {
+      return existing[0];
+    }
+
+    const inserted = await db
+      .insert(offDays)
+      .values({ ...insertOffDay, teamId })
+      .returning();
+
+    return inserted[0];
+  }
+
+  async removeOffDay(date: string): Promise<boolean> {
+    const teamId = getTeamId();
+    const deleted = await db
+      .delete(offDays)
+      .where(and(eq(offDays.date, date), eq(offDays.teamId, teamId)))
+      .returning();
+
+    return deleted.length > 0;
+  }
+
+  async removeOffDayById(id: string): Promise<boolean> {
+    const teamId = getTeamId();
+    const deleted = await db
+      .delete(offDays)
+      .where(and(eq(offDays.id, id), eq(offDays.teamId, teamId)))
+      .returning();
+
+    return deleted.length > 0;
+  }
+
+  async duplicateEvent(eventId: string): Promise<Event> {
+    const teamId = getTeamId();
+    const original = await db
+      .select()
+      .from(events)
+      .where(and(eq(events.id, eventId), eq(events.teamId, teamId)))
+      .limit(1);
+
+    if (original.length === 0) {
+      throw new Error("Event not found");
+    }
+
+    const event = original[0];
+    const newEvent = await db
+      .insert(events)
+      .values({
+        teamId,
+        title: event.title + " (Copy)",
+        eventType: event.eventType,
+        date: event.date,
+        time: event.time,
+        description: event.description,
+        seasonId: event.seasonId,
+      })
+      .returning();
+
+    const originalGames = await db
+      .select()
+      .from(games)
+      .where(and(eq(games.eventId, eventId), eq(games.teamId, teamId)));
+
+    for (const game of originalGames) {
+      await db.insert(games).values({
+        teamId,
+        eventId: newEvent[0].id,
+        gameCode: game.gameCode,
+        score: "",
+        gameModeId: game.gameModeId,
+        mapId: game.mapId,
+      });
+    }
+
+    return newEvent[0];
   }
 }
 

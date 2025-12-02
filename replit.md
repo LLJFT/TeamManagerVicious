@@ -10,6 +10,29 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+- **Enhanced Features Implementation** (December 2, 2025): Major UI/UX improvements
+  - **OFF Days Calendar Feature**: Mark dates as OFF days on the Events calendar
+    - OFF days display with moon icon and gray styling on calendar
+    - Toggle button in selected date panel to mark/unmark OFF days
+    - OFF days automatically hidden when events exist on that date
+    - New `offDays` database table with teamId isolation
+    - API endpoints: GET/POST/DELETE `/api/off-days`
+  - **Event Duplication**: Copy button on each event card to duplicate events
+    - Copies event title (with " (Copy)" suffix), type, date, time, and games
+    - API endpoint: POST `/api/events/:id/duplicate`
+  - **History Page** (`/history`): Advanced event filtering and browsing
+    - Filters: Season, Month, Game Mode, Map, Sort Order
+    - Pagination with customizable items per page
+    - Quick stats per filtered results
+  - **Compare Page** (`/compare`): Season and month comparison tools
+    - Side-by-side performance comparison between two periods
+    - Win rate, total games, wins/losses breakdown
+    - Visual progress bars for comparison
+  - **Opponent Stats Page** (`/opponent-stats`): Performance analytics by opponent
+    - Aggregated stats per opponent team
+    - Best modes and worst maps analysis
+    - Win rate trends per opponent
+  - **Navigation**: New buttons on Home page for History, Compare, Opponents
 - **Season & Monthly Stats Pages** (December 2, 2025): New stats filtering capabilities
   - `/stats/season` - Statistics filtered by selected season with full breakdown
   - `/stats/monthly` - Statistics filtered by selected month with full breakdown

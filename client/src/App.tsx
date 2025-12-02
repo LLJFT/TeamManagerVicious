@@ -8,13 +8,10 @@ import Home from "@/pages/Home";
 import Events from "@/pages/Events";
 import EventDetails from "@/pages/EventDetails";
 import EventsResults from "@/pages/EventsResults";
-import EventsHistory from "@/pages/EventsHistory";
-import Stats from "@/pages/Stats";
-import OverallStats from "@/pages/OverallStats";
-import ScrimStats from "@/pages/ScrimStats";
-import TournamentStats from "@/pages/TournamentStats";
-import SeasonStats from "@/pages/SeasonStats";
-import MonthlyStats from "@/pages/MonthlyStats";
+import History from "@/pages/History";
+import UnifiedStats from "@/pages/UnifiedStats";
+import Compare from "@/pages/Compare";
+import OpponentStats from "@/pages/OpponentStats";
 import Players from "@/pages/Players";
 import Settings from "@/pages/Settings";
 import NotFound from "@/pages/not-found";
@@ -27,13 +24,10 @@ function Router() {
       <Route path="/events" component={Events} />
       <Route path="/events/:id" component={EventDetails} />
       <Route path="/results" component={EventsResults} />
-      <Route path="/history" component={EventsHistory} />
-      <Route path="/stats" component={Stats} />
-      <Route path="/stats/overall" component={OverallStats} />
-      <Route path="/stats/scrim" component={ScrimStats} />
-      <Route path="/stats/tournament" component={TournamentStats} />
-      <Route path="/stats/season" component={SeasonStats} />
-      <Route path="/stats/monthly" component={MonthlyStats} />
+      <Route path="/history" component={History} />
+      <Route path="/stats" component={UnifiedStats} />
+      <Route path="/compare" component={Compare} />
+      <Route path="/opponents" component={OpponentStats} />
       <Route path="/players" component={Players} />
       <Route path="/settings" component={Settings} />
       <Route component={NotFound} />

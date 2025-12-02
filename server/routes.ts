@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertScheduleSchema, insertEventSchema, insertPlayerSchema, insertAttendanceSchema, insertTeamNotesSchema, insertGameSchema, insertGameModeSchema, insertMapSchema, insertSeasonSchema } from "@shared/schema";
+import { insertScheduleSchema, insertEventSchema, insertPlayerSchema, insertAttendanceSchema, insertTeamNotesSchema, insertGameSchema, insertGameModeSchema, insertMapSchema, insertSeasonSchema, insertOffDaySchema } from "@shared/schema";
 import { 
   readScheduleFromSheet, 
   writeScheduleToSheet, 
@@ -581,6 +581,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     } catch (error: any) {
       console.error('Error in DELETE /api/seasons:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.get("/api/off-days", async (req, res) => {
+    try {
+      const offDays = await storage.getAllOffDays();
+      res.json(offDays);
+    } catch (error: any) {
+      console.error('Error in GET /api/off-days:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.post("/api/off-days", async (req, res) => {
+    try {
+      const validatedData = insertOffDaySchema.parse(req.body);
+      const offDay = await storage.addOffDay(validatedData);
+      res.json(offDay);
+    } catch (error: any) {
+      console.error('Error in POST /api/off-days:', error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ error: "Invalid off day data", details: error.errors });
+      }
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.delete("/api/off-days/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const success = await storage.removeOffDayById(id);
+      if (success) {
+        res.json({ success: true });
+      } else {
+        res.status(404).json({ error: "Off day not found" });
+      }
+    } catch (error: any) {
+      console.error('Error in DELETE /api/off-days:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.delete("/api/off-days/by-date/:date", async (req, res) => {
+    try {
+      const { date } = req.params;
+      const success = await storage.removeOffDay(date);
+      if (success) {
+        res.json({ success: true });
+      } else {
+        res.status(404).json({ error: "Off day not found" });
+      }
+    } catch (error: any) {
+      console.error('Error in DELETE /api/off-days/by-date:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.post("/api/events/:id/duplicate", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const duplicatedEvent = await storage.duplicateEvent(id);
+      res.json(duplicatedEvent);
+    } catch (error: any) {
+      console.error('Error in POST /api/events/:id/duplicate:', error);
       res.status(500).json({ error: error.message || "Internal server error" });
     }
   });

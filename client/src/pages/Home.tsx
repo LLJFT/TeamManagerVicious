@@ -10,7 +10,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { AvailabilityAnalytics } from "@/components/AvailabilityAnalytics";
 import { WeeklyAvailabilityOverview } from "@/components/WeeklyAvailabilityOverview";
 import { SimpleToast } from "@/components/SimpleToast";
-import { Save, Share2, Calendar, Users, Trophy, Settings, History, BarChart3 } from "lucide-react";
+import { Save, Share2, Calendar, Users, Trophy, Settings, History, BarChart3, Scale, Target } from "lucide-react";
 import { format } from "date-fns";
 import type { PlayerAvailability, DayOfWeek, AvailabilityOption, RoleType } from "@shared/schema";
 import { dayOfWeek } from "@shared/schema";
@@ -243,7 +243,7 @@ export default function Home() {
                   History
                 </Button>
               </Link>
-              <Link href="/stats/overall">
+              <Link href="/stats">
                 <Button
                   variant="outline"
                   className="gap-2"
@@ -251,6 +251,26 @@ export default function Home() {
                 >
                   <BarChart3 className="h-4 w-4" />
                   Stats
+                </Button>
+              </Link>
+              <Link href="/compare">
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  data-testid="button-compare"
+                >
+                  <Scale className="h-4 w-4" />
+                  Compare
+                </Button>
+              </Link>
+              <Link href="/opponents">
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  data-testid="button-opponent-stats"
+                >
+                  <Target className="h-4 w-4" />
+                  Opponents
                 </Button>
               </Link>
               <Link href="/players">

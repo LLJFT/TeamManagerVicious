@@ -1,0 +1,148 @@
+Hi, here is the full list of improvements and corrections I want you to implement next.
+(I do NOT need you to restore any previous data — I will re-enter it myself.)
+
+⸻
+
+🔥 1. Unify ALL Stats Pages
+
+All Stats pages must share the exact same structure, layout, spacing, and styling:
+	•	Overall
+	•	Scrims
+	•	Tournaments
+	•	Monthly
+	•	Seasonal
+
+Each Stats mode must include:
+
+Tabs inside each mode
+	•	Overall Stats
+	•	Scrims Stats
+	•	Tournament Stats
+
+(Just like the Overview page already has.)
+
+Right now, Seasonal and Monthly are missing Scrims/Tournaments tabs — please add them.
+
+⸻
+
+🔥 2. Add a Unified Stats Mode Selector
+
+Use one consistent selector across all Stats pages:
+
+Overall | Monthly | Seasonal
+
+Switching between them should preserve the same layout and stats format.
+
+⸻
+
+🔥 3. Consistent Win/Loss Logic Across All Systems
+
+Make sure every Stats mode (Overall, Monthly, Seasonal, Scrims, Tournaments) uses the same logic:
+	•	Event win = +1
+	•	Game wins counted separately
+	•	No differences between pages
+
+Everything must calculate identical results everywhere.
+
+⸻
+
+🔥 4. Add OFF Day Feature in Calendar
+
+Inside the Events Calendar:
+
+I want a new option to mark a day as OFF, with these rules:
+	•	OFF days turn the entire calendar cell red and display “OFF” centered.
+	•	OFF remains permanently until I manually add an event.
+	•	If I add any event → the OFF label disappears automatically.
+
+⸻
+
+🔥 5. Improve History Page
+
+Add the following filters and functions:
+	•	Filter by Season
+	•	Filter by Month
+	•	Mode filter
+	•	Map filter
+	•	Sort (Newest → Oldest)
+	•	Pagination
+
+History should show only past events unless I choose otherwise.
+
+⸻
+
+🔥 6. Add Compare System
+
+New comparison feature:
+
+Compare:
+	•	Season vs Season
+	•	Month vs Month
+
+Comparison metrics:
+	•	Win rate
+	•	Best modes
+	•	Worst modes
+	•	Best maps
+	•	Worst maps
+	•	Performance trends
+
+⸻
+
+🔥 7. Add Stats by Opponent Page
+
+New analytics section showing:
+	•	Winrate vs each opponent/team
+	•	Best game modes against each team
+	•	Worst maps against each team
+
+This helps identify strengths/weaknesses vs specific teams.
+
+⸻
+
+🔥 8. Add “Duplicate Event” Feature
+
+Ability to duplicate an event with one click:
+	•	Same game modes
+	•	Same maps
+	•	Same settings
+	•	Only change score or opponent
+
+Useful for teams who play many scrims.
+
+⸻
+
+🔥 9. UI Polish Pass
+
+Global visual improvement:
+	•	Better spacing
+	•	More consistent typography
+	•	Balanced color usage
+	•	Smoother mobile layout
+	•	Unified component styling (buttons, cards, headers)
+
+⸻
+
+🔥 10. Seasonal & Monthly Stats Logic Confirmation
+
+For Seasons:
+	•	I manually create seasons in Settings
+	•	I choose the Season for each event (just like Event Type)
+	•	Stats filter based on Season selection
+
+For Months:
+	•	Automatically detected based on event date
+	•	Monthly Stats show:
+	•	Overall
+	•	Scrims
+	•	Tournament
+(all 3 tabs)
+
+Do NOT delete or reset any old stats.
+All stats must stay permanent forever.
+
+⸻
+
+Please confirm once all changes are complete.
+
+Thank you!

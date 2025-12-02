@@ -144,6 +144,14 @@ export const games = pgTable("games", {
   index("games_team_id_idx").on(table.teamId),
 ]);
 
+export const offDays = pgTable("off_days", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  date: text("date").notNull(),
+}, (table) => [
+  index("off_days_team_id_idx").on(table.teamId),
+]);
+
 export const insertPlayerSchema = createInsertSchema(players).omit({
   id: true,
   teamId: true,
@@ -194,6 +202,11 @@ export const insertMapSchema = createInsertSchema(maps).omit({
   teamId: true,
 });
 
+export const insertOffDaySchema = createInsertSchema(offDays).omit({
+  id: true,
+  teamId: true,
+});
+
 export type AvailabilityOption = typeof availabilityOptions[number];
 export type GameResult = typeof gameResultOptions[number];
 export type RoleType = typeof roleTypes[number];
@@ -231,6 +244,9 @@ export type InsertGameMode = z.infer<typeof insertGameModeSchema>;
 
 export type Map = typeof maps.$inferSelect;
 export type InsertMap = z.infer<typeof insertMapSchema>;
+
+export type OffDay = typeof offDays.$inferSelect;
+export type InsertOffDay = z.infer<typeof insertOffDaySchema>;
 
 export interface PlayerAvailability {
   playerId: string;
