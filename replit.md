@@ -10,6 +10,13 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+- **Complete Data Isolation Implementation** (December 2, 2025): Critical multi-team support
+  - Added `teamId` column to ALL database tables (players, events, games, attendance, team_notes, schedules, settings, game_modes, maps, seasons)
+  - Storage layer automatically filters all queries by `REPL_ID` environment variable
+  - All write operations automatically inject `teamId` for the current instance
+  - Each Replit remix/fork operates with completely isolated data
+  - Existing data backfilled with current REPL_ID
+  - Zero cross-team data leakage guaranteed
 - **UI Polish & Defensive Case Normalization** (November 28, 2025): Professional COD-style UI refinements
   - Quick Stats cards moved from Home page to OverallStats page for cleaner home interface
   - Settings page redesigned with professional two-panel layout (Game Modes | Maps)
