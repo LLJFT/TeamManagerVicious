@@ -3,13 +3,12 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Plus, Pencil, Trash2, Gamepad2, Map as MapIcon, RotateCcw, ChevronRight } from "lucide-react";
-import type { GameMode, Map as MapType } from "@shared/schema";
+import { ArrowLeft, Plus, Pencil, Trash2, Gamepad2, Map as MapIcon, RotateCcw, ChevronRight, Calendar } from "lucide-react";
+import type { GameMode, Map as MapType, Season } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -25,14 +24,21 @@ const mapFormSchema = z.object({
   gameModeId: z.string().min(1, "Game mode is required"),
 });
 
+const seasonFormSchema = z.object({
+  name: z.string().min(1, "Season name is required"),
+});
+
 type GameModeFormData = z.infer<typeof gameModeFormSchema>;
 type MapFormData = z.infer<typeof mapFormSchema>;
+type SeasonFormData = z.infer<typeof seasonFormSchema>;
 
 export default function Settings() {
   const [showGameModeDialog, setShowGameModeDialog] = useState(false);
   const [showMapDialog, setShowMapDialog] = useState(false);
+  const [showSeasonDialog, setShowSeasonDialog] = useState(false);
   const [editingGameMode, setEditingGameMode] = useState<GameMode | undefined>();
   const [editingMap, setEditingMap] = useState<MapType | undefined>();
+  const [editingSeason, setEditingSeason] = useState<Season | undefined>();
   const [selectedModeForMaps, setSelectedModeForMaps] = useState<string | null>(null);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
@@ -46,6 +52,10 @@ export default function Settings() {
     queryKey: ["/api/maps"],
   });
 
+  const { data: seasons = [], isLoading: seasonsLoading } = useQuery<Season[]>({
+    queryKey: ["/api/seasons"],
+  });
+
   const gameModeForm = useForm<GameModeFormData>({
     resolver: zodResolver(gameModeFormSchema),
     defaultValues: { name: "" },
@@ -54,6 +64,11 @@ export default function Settings() {
   const mapForm = useForm<MapFormData>({
     resolver: zodResolver(mapFormSchema),
     defaultValues: { name: "", gameModeId: "" },
+  });
+
+  const seasonForm = useForm<SeasonFormData>({
+    resolver: zodResolver(seasonFormSchema),
+    defaultValues: { name: "" },
   });
 
   const createGameModeMutation = useMutation({
@@ -185,6 +200,66 @@ export default function Settings() {
     },
   });
 
+  const createSeasonMutation = useMutation({
+    mutationFn: async (data: SeasonFormData) => {
+      const response = await apiRequest("POST", "/api/seasons", data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/seasons"] });
+      setShowSeasonDialog(false);
+      setEditingSeason(undefined);
+      seasonForm.reset();
+      setToastMessage("Season created successfully");
+      setToastType("success");
+      setShowToast(true);
+    },
+    onError: (error: any) => {
+      setToastMessage(error.message || "Failed to create season");
+      setToastType("error");
+      setShowToast(true);
+    },
+  });
+
+  const updateSeasonMutation = useMutation({
+    mutationFn: async (data: { id: string; season: Partial<SeasonFormData> }) => {
+      const response = await apiRequest("PUT", `/api/seasons/${data.id}`, data.season);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/seasons"] });
+      setShowSeasonDialog(false);
+      setEditingSeason(undefined);
+      seasonForm.reset();
+      setToastMessage("Season updated successfully");
+      setToastType("success");
+      setShowToast(true);
+    },
+    onError: (error: any) => {
+      setToastMessage(error.message || "Failed to update season");
+      setToastType("error");
+      setShowToast(true);
+    },
+  });
+
+  const deleteSeasonMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiRequest("DELETE", `/api/seasons/${id}`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/seasons"] });
+      setToastMessage("Season deleted successfully");
+      setToastType("success");
+      setShowToast(true);
+    },
+    onError: (error: any) => {
+      setToastMessage(error.message || "Failed to delete season");
+      setToastType("error");
+      setShowToast(true);
+    },
+  });
+
   const resetToDefaultsMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest("POST", "/api/reset-defaults");
@@ -263,6 +338,32 @@ export default function Settings() {
     }
   };
 
+  const handleAddSeason = () => {
+    setEditingSeason(undefined);
+    seasonForm.reset({ name: "" });
+    setShowSeasonDialog(true);
+  };
+
+  const handleEditSeason = (season: Season) => {
+    setEditingSeason(season);
+    seasonForm.reset({ name: season.name });
+    setShowSeasonDialog(true);
+  };
+
+  const handleDeleteSeason = (id: string) => {
+    if (confirm("Are you sure you want to delete this season? Events assigned to this season will still exist but won't be linked to any season.")) {
+      deleteSeasonMutation.mutate(id);
+    }
+  };
+
+  const handleSeasonSubmit = (data: SeasonFormData) => {
+    if (editingSeason) {
+      updateSeasonMutation.mutate({ id: editingSeason.id, season: data });
+    } else {
+      createSeasonMutation.mutate(data);
+    }
+  };
+
   const getMapsByMode = (modeId: string) => {
     return maps.filter(map => map.gameModeId === modeId);
   };
@@ -270,7 +371,7 @@ export default function Settings() {
   const selectedMode = gameModes.find(m => m.id === selectedModeForMaps);
   const selectedModeMaps = selectedModeForMaps ? getMapsByMode(selectedModeForMaps) : [];
 
-  if (modesLoading || mapsLoading) {
+  if (modesLoading || mapsLoading || seasonsLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-3">
@@ -301,7 +402,7 @@ export default function Settings() {
             </Link>
             <div>
               <h1 className="text-3xl font-bold text-foreground">Settings</h1>
-              <p className="text-muted-foreground">Configure game modes and maps</p>
+              <p className="text-muted-foreground">Configure game modes, maps, and seasons</p>
             </div>
           </div>
           <Button
@@ -316,10 +417,10 @@ export default function Settings() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <Card className="h-fit">
             <CardHeader className="pb-4 border-b border-border">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-primary/10">
                     <Gamepad2 className="h-5 w-5 text-primary" />
@@ -402,7 +503,7 @@ export default function Settings() {
 
           <Card className="h-fit">
             <CardHeader className="pb-4 border-b border-border">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-secondary/10">
                     <MapIcon className="h-5 w-5 text-secondary" />
@@ -472,6 +573,70 @@ export default function Settings() {
                           size="icon"
                           onClick={() => handleDeleteMap(map.id)}
                           data-testid={`button-delete-map-${map.id}`}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="h-fit">
+            <CardHeader className="pb-4 border-b border-border">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-amber-500/10">
+                    <Calendar className="h-5 w-5 text-amber-500" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl">Seasons</CardTitle>
+                    <CardDescription>{seasons.length} configured</CardDescription>
+                  </div>
+                </div>
+                <Button onClick={handleAddSeason} size="sm" className="gap-2" data-testid="button-add-season">
+                  <Plus className="h-4 w-4" />
+                  Add
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {seasons.length === 0 ? (
+                <div className="p-8 text-center">
+                  <Calendar className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
+                  <p className="text-muted-foreground text-sm">No seasons configured</p>
+                  <p className="text-muted-foreground text-xs mt-1">Click "Add" to create your first season</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {seasons.map((season) => (
+                    <div
+                      key={season.id}
+                      className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors"
+                      data-testid={`row-season-${season.id}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Calendar className="h-4 w-4 text-amber-500" />
+                        <span className="font-medium text-foreground" data-testid={`text-season-name-${season.id}`}>
+                          {season.name}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEditSeason(season)}
+                          data-testid={`button-edit-season-${season.id}`}
+                        >
+                          <Pencil className="h-4 w-4 text-muted-foreground" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteSeason(season.id)}
+                          data-testid={`button-delete-season-${season.id}`}
                         >
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
@@ -577,7 +742,7 @@ export default function Settings() {
                       <FormControl>
                         <Input
                           {...field}
-                          placeholder="e.g., Shin-Shibuya, Tokyo 2099"
+                          placeholder="e.g., Central Park, Krakoa"
                           data-testid="input-map-name"
                         />
                       </FormControl>
@@ -595,6 +760,53 @@ export default function Settings() {
                     data-testid="button-save-map"
                   >
                     {editingMap ? "Update" : "Create"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showSeasonDialog} onOpenChange={setShowSeasonDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editingSeason ? "Edit Season" : "Add Season"}</DialogTitle>
+              <DialogDescription>
+                {editingSeason 
+                  ? "Update the name of this season."
+                  : "Create a new season label to track events by season."
+                }
+              </DialogDescription>
+            </DialogHeader>
+            <Form {...seasonForm}>
+              <form onSubmit={seasonForm.handleSubmit(handleSeasonSubmit)} className="space-y-4">
+                <FormField
+                  control={seasonForm.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Season Name</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder="e.g., Season 5.0, Season 5.5, Season 6.0"
+                          data-testid="input-season-name"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setShowSeasonDialog(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={createSeasonMutation.isPending || updateSeasonMutation.isPending}
+                    data-testid="button-save-season"
+                  >
+                    {editingSeason ? "Update" : "Create"}
                   </Button>
                 </DialogFooter>
               </form>

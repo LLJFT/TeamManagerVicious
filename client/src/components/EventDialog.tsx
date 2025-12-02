@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -29,11 +29,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { eventTypes, insertEventSchema, type Event } from "@shared/schema";
+import { eventTypes, insertEventSchema, type Event, type Season } from "@shared/schema";
 
 const formSchema = insertEventSchema.extend({
   time: z.string().optional(),
   description: z.string().optional(),
+  seasonId: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -55,6 +56,10 @@ export function EventDialog({
 }: EventDialogProps) {
   const isEditMode = !!eventToEdit;
 
+  const { data: seasons = [] } = useQuery<Season[]>({
+    queryKey: ["/api/seasons"],
+  });
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -63,10 +68,10 @@ export function EventDialog({
       date: eventToEdit?.date || (selectedDate ? format(selectedDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd")),
       time: eventToEdit?.time || "",
       description: eventToEdit?.description || "",
+      seasonId: eventToEdit?.seasonId || "",
     },
   });
 
-  // Update form when eventToEdit changes
   useEffect(() => {
     if (eventToEdit) {
       form.reset({
@@ -75,6 +80,7 @@ export function EventDialog({
         date: eventToEdit.date,
         time: eventToEdit.time || "",
         description: eventToEdit.description || "",
+        seasonId: eventToEdit.seasonId || "",
       });
     } else if (selectedDate) {
       form.setValue("date", format(selectedDate, "yyyy-MM-dd"));
@@ -83,11 +89,15 @@ export function EventDialog({
 
   const saveEventMutation = useMutation({
     mutationFn: async (data: FormValues) => {
+      const payload = {
+        ...data,
+        seasonId: data.seasonId === "" || data.seasonId === "none" ? null : data.seasonId,
+      };
       if (isEditMode && eventToEdit) {
-        const response = await apiRequest("PUT", `/api/events/${eventToEdit.id}`, data);
+        const response = await apiRequest("PUT", `/api/events/${eventToEdit.id}`, payload);
         return response.json();
       } else {
-        const response = await apiRequest("POST", "/api/events", data);
+        const response = await apiRequest("POST", "/api/events", payload);
         return response.json();
       }
     },
@@ -160,37 +170,68 @@ export function EventDialog({
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="date"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Date</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="date"
-                      {...field}
-                      data-testid="input-event-date"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="date"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Date</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="date"
+                        {...field}
+                        data-testid="input-event-date"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="time"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Time (optional)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="time"
+                        {...field}
+                        data-testid="input-event-time"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <FormField
               control={form.control}
-              name="time"
+              name="seasonId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Time (optional)</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="time"
-                      {...field}
-                      data-testid="input-event-time"
-                    />
-                  </FormControl>
+                  <FormLabel>Season (optional)</FormLabel>
+                  <Select 
+                    onValueChange={field.onChange} 
+                    value={field.value || "none"}
+                  >
+                    <FormControl>
+                      <SelectTrigger data-testid="select-event-season">
+                        <SelectValue placeholder="Select season" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="none">No Season</SelectItem>
+                      {seasons.map((season) => (
+                        <SelectItem key={season.id} value={season.id}>
+                          {season.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
