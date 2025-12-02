@@ -60,7 +60,7 @@ export function ThemeProvider({
   defaultTheme = "classic-dark",
 }: ThemeProviderProps) {
   const [theme, setTheme] = useState<ThemeStyle>(() => {
-    const stored = localStorage.getItem("theme-style");
+    const stored = localStorage.getItem("ui-theme");
     if (stored && themes.some(t => t.id === stored)) {
       return stored as ThemeStyle;
     }
@@ -74,7 +74,7 @@ export function ThemeProvider({
     });
     root.classList.remove("light", "dark");
     root.classList.add(`theme-${theme}`);
-    localStorage.setItem("theme-style", theme);
+    localStorage.setItem("ui-theme", theme);
   }, [theme]);
 
   return (
