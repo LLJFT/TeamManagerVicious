@@ -92,7 +92,7 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider defaultTheme="light">
+      <ThemeProvider defaultTheme="classic-dark">
         <TooltipProvider>
           <Toaster />
           <Router />
