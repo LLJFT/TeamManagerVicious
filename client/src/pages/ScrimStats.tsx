@@ -14,6 +14,8 @@ import {
   Minus,
   BarChart3,
   Trophy,
+  Calendar,
+  CalendarDays,
 } from "lucide-react";
 import type { Event, Game, GameMode, Map as MapType } from "@shared/schema";
 
@@ -128,7 +130,7 @@ export default function ScrimStats() {
               <p className="text-muted-foreground">Practice match performance</p>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Link href="/stats/overall">
               <Button variant="outline" className="gap-2" data-testid="link-overall-stats">
                 <BarChart3 className="h-4 w-4" />
@@ -139,6 +141,18 @@ export default function ScrimStats() {
               <Button variant="outline" className="gap-2" data-testid="link-tournament-stats">
                 <Trophy className="h-4 w-4" />
                 Tournaments
+              </Button>
+            </Link>
+            <Link href="/stats/season">
+              <Button variant="outline" className="gap-2" data-testid="link-season-stats">
+                <CalendarDays className="h-4 w-4" />
+                Seasons
+              </Button>
+            </Link>
+            <Link href="/stats/monthly">
+              <Button variant="outline" className="gap-2" data-testid="link-monthly-stats">
+                <Calendar className="h-4 w-4" />
+                Monthly
               </Button>
             </Link>
           </div>

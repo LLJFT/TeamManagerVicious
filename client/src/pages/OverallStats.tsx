@@ -138,7 +138,7 @@ export default function OverallStats() {
               <p className="text-muted-foreground">Combined performance across all events</p>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Link href="/stats/scrim">
               <Button variant="outline" className="gap-2" data-testid="link-scrim-stats">
                 <Swords className="h-4 w-4" />
@@ -149,6 +149,18 @@ export default function OverallStats() {
               <Button variant="outline" className="gap-2" data-testid="link-tournament-stats">
                 <Trophy className="h-4 w-4" />
                 Tournaments
+              </Button>
+            </Link>
+            <Link href="/stats/season">
+              <Button variant="outline" className="gap-2" data-testid="link-season-stats">
+                <Calendar className="h-4 w-4" />
+                Seasons
+              </Button>
+            </Link>
+            <Link href="/stats/monthly">
+              <Button variant="outline" className="gap-2" data-testid="link-monthly-stats">
+                <Calendar className="h-4 w-4" />
+                Monthly
               </Button>
             </Link>
           </div>

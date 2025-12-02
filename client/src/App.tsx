@@ -13,6 +13,8 @@ import Stats from "@/pages/Stats";
 import OverallStats from "@/pages/OverallStats";
 import ScrimStats from "@/pages/ScrimStats";
 import TournamentStats from "@/pages/TournamentStats";
+import SeasonStats from "@/pages/SeasonStats";
+import MonthlyStats from "@/pages/MonthlyStats";
 import Players from "@/pages/Players";
 import Settings from "@/pages/Settings";
 import NotFound from "@/pages/not-found";
@@ -30,6 +32,8 @@ function Router() {
       <Route path="/stats/overall" component={OverallStats} />
       <Route path="/stats/scrim" component={ScrimStats} />
       <Route path="/stats/tournament" component={TournamentStats} />
+      <Route path="/stats/season" component={SeasonStats} />
+      <Route path="/stats/monthly" component={MonthlyStats} />
       <Route path="/players" component={Players} />
       <Route path="/settings" component={Settings} />
       <Route component={NotFound} />
