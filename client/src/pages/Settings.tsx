@@ -26,6 +26,7 @@ const mapFormSchema = z.object({
 
 const seasonFormSchema = z.object({
   name: z.string().min(1, "Season name is required"),
+  description: z.string().optional(),
 });
 
 type GameModeFormData = z.infer<typeof gameModeFormSchema>;
@@ -68,7 +69,7 @@ export default function Settings() {
 
   const seasonForm = useForm<SeasonFormData>({
     resolver: zodResolver(seasonFormSchema),
-    defaultValues: { name: "" },
+    defaultValues: { name: "", description: "" },
   });
 
   const createGameModeMutation = useMutation({
@@ -340,13 +341,13 @@ export default function Settings() {
 
   const handleAddSeason = () => {
     setEditingSeason(undefined);
-    seasonForm.reset({ name: "" });
+    seasonForm.reset({ name: "", description: "" });
     setShowSeasonDialog(true);
   };
 
   const handleEditSeason = (season: Season) => {
     setEditingSeason(season);
-    seasonForm.reset({ name: season.name });
+    seasonForm.reset({ name: season.name, description: season.description || "" });
     setShowSeasonDialog(true);
   };
 
@@ -619,9 +620,16 @@ export default function Settings() {
                     >
                       <div className="flex items-center gap-3">
                         <Calendar className="h-4 w-4 text-amber-500" />
-                        <span className="font-medium text-foreground" data-testid={`text-season-name-${season.id}`}>
-                          {season.name}
-                        </span>
+                        <div className="flex flex-col">
+                          <span className="font-medium text-foreground" data-testid={`text-season-name-${season.id}`}>
+                            {season.name}
+                          </span>
+                          {season.description && (
+                            <span className="text-xs text-muted-foreground">
+                              {season.description}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center gap-1">
                         <Button
@@ -773,7 +781,7 @@ export default function Settings() {
               <DialogTitle>{editingSeason ? "Edit Season" : "Add Season"}</DialogTitle>
               <DialogDescription>
                 {editingSeason 
-                  ? "Update the name of this season."
+                  ? "Update the season details."
                   : "Create a new season label to track events by season."
                 }
               </DialogDescription>
@@ -791,6 +799,23 @@ export default function Settings() {
                           {...field}
                           placeholder="e.g., Season 5.0, Season 5.5, Season 6.0"
                           data-testid="input-season-name"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={seasonForm.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description (optional)</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder="e.g., Dec 2024 - Jan 2025"
+                          data-testid="input-season-description"
                         />
                       </FormControl>
                       <FormMessage />

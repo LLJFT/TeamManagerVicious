@@ -105,6 +105,7 @@ export const seasons = pgTable("seasons", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
   name: text("name").notNull(),
+  description: text("description"),
 }, (table) => [
   index("seasons_team_id_idx").on(table.teamId),
 ]);
