@@ -28,17 +28,11 @@ Preferred communication style: Simple, everyday language.
     - Side-by-side performance comparison between two periods
     - Win rate, total games, wins/losses breakdown
     - Visual progress bars for comparison
-  - **Opponent Stats Page** (`/opponents`): Performance analytics by opponent
+  - **Opponent Stats Page** (`/opponent-stats`): Performance analytics by opponent
     - Aggregated stats per opponent team
     - Best modes and worst maps analysis
     - Win rate trends per opponent
   - **Navigation**: New buttons on Home page for History, Compare, Opponents
-  - **Multi-Theme Dark Mode System**: Professional dark-only theme selector
-    - 5 distinct visual themes: Classic Dark (default), Midnight Blue, Crimson Edge, Soft Shadow, Carbon Black
-    - ThemeSelector dropdown replaces old ThemeToggle (no light mode)
-    - Theme persists across sessions via localStorage key "ui-theme"
-    - CSS variables system in index.css with .theme-* modifier classes
-    - Themes apply globally across all pages and components
 - **Season & Monthly Stats Pages** (December 2, 2025): New stats filtering capabilities
   - `/stats/season` - Statistics filtered by selected season with full breakdown
   - `/stats/monthly` - Statistics filtered by selected month with full breakdown

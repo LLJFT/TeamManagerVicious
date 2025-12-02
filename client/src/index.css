@@ -2,13 +2,113 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ========================================
-   THEME SYSTEM - All Dark Themes
-   ======================================== */
+/* LIGHT MODE - Modern, Bright, Energetic Theme */
+:root {
+  --button-outline: rgba(0,0,0, .08);
+  --badge-outline: rgba(0,0,0, .04);
 
-/* CLASSIC DARK - Default Theme (current dark theme) */
-:root,
-.theme-classic-dark {
+  --opaque-button-border-intensity: -6;
+
+  --elevate-1: rgba(0,0,0, .03);
+  --elevate-2: rgba(0,0,0, .06);
+
+  /* Main backgrounds - clean and bright */
+  --background: 210 40% 98%;
+  --foreground: 222 47% 11%;
+
+  --border: 214 32% 91%;
+
+  /* Cards - subtle lift from background */
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --card-border: 214 32% 91%;
+
+  /* Sidebar - clean neutral */
+  --sidebar: 210 40% 96%;
+  --sidebar-foreground: 222 47% 11%;
+  --sidebar-border: 214 32% 91%;
+  --sidebar-primary: 199 89% 48%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 199 89% 94%;
+  --sidebar-accent-foreground: 199 89% 30%;
+  --sidebar-ring: 199 89% 48%;
+
+  /* Popover */
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --popover-border: 214 32% 88%;
+
+  /* Primary - Vibrant Cyan/Teal (energetic, heroic) */
+  --primary: 199 89% 48%;
+  --primary-foreground: 0 0% 100%;
+
+  /* Secondary - Light gray-blue */
+  --secondary: 210 40% 94%;
+  --secondary-foreground: 222 47% 20%;
+
+  /* Muted - Soft gray */
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;
+
+  /* Accent - Warm coral/salmon (exciting, motivational) */
+  --accent: 12 76% 95%;
+  --accent-foreground: 12 76% 35%;
+
+  /* Destructive - Bright red */
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  --input: 214 32% 91%;
+  --ring: 199 89% 48%;
+
+  /* Chart colors - Vibrant and varied */
+  --chart-1: 199 89% 48%;
+  --chart-2: 262 83% 58%;
+  --chart-3: 142 71% 45%;
+  --chart-4: 12 76% 61%;
+  --chart-5: 43 96% 56%;
+
+  /* Success/Warning colors */
+  --success: 142 71% 45%;
+  --success-foreground: 0 0% 100%;
+  --warning: 43 96% 56%;
+  --warning-foreground: 0 0% 0%;
+
+  --font-sans: Inter, system-ui, sans-serif;
+  --font-serif: Georgia, serif;
+  --font-mono: Menlo, monospace;
+  --radius: .5rem;
+
+  --shadow-2xs: 0px 1px 2px 0px hsl(222 47% 11% / 0.04);
+  --shadow-xs: 0px 1px 3px 0px hsl(222 47% 11% / 0.08);
+  --shadow-sm: 0px 1px 2px 0px hsl(222 47% 11% / 0.05), 0px 1px 3px 0px hsl(222 47% 11% / 0.08);
+  --shadow: 0px 2px 4px -1px hsl(222 47% 11% / 0.05), 0px 4px 6px -1px hsl(222 47% 11% / 0.08);
+  --shadow-md: 0px 4px 6px -1px hsl(222 47% 11% / 0.06), 0px 8px 10px -2px hsl(222 47% 11% / 0.08);
+  --shadow-lg: 0px 10px 15px -3px hsl(222 47% 11% / 0.07), 0px 4px 6px -2px hsl(222 47% 11% / 0.04);
+  --shadow-xl: 0px 20px 25px -5px hsl(222 47% 11% / 0.08), 0px 10px 10px -5px hsl(222 47% 11% / 0.03);
+  --shadow-2xl: 0px 25px 50px -12px hsl(222 47% 11% / 0.20);
+
+  --tracking-normal: 0em;
+  --spacing: 0.25rem;
+
+  --sidebar-primary-border: hsl(var(--sidebar-primary));
+  --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --sidebar-accent-border: hsl(var(--sidebar-accent));
+  --sidebar-accent-border: hsl(from hsl(var(--sidebar-accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --primary-border: hsl(var(--primary));
+  --primary-border: hsl(from hsl(var(--primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --secondary-border: hsl(var(--secondary));
+  --secondary-border: hsl(from hsl(var(--secondary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --muted-border: hsl(var(--muted));
+  --muted-border: hsl(from hsl(var(--muted)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --accent-border: hsl(var(--accent));
+  --accent-border: hsl(from hsl(var(--accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --destructive-border: hsl(var(--destructive));
+  --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+}
+
+/* DARK MODE - Still vibrant but deeper */
+.dark {
   --button-outline: rgba(255,255,255, .12);
   --badge-outline: rgba(255,255,255, .08);
 
@@ -43,7 +143,7 @@
   --popover-foreground: 210 40% 98%;
   --popover-border: 217 33% 24%;
 
-  /* Primary - Vibrant cyan */
+  /* Primary - Still vibrant cyan */
   --primary: 199 89% 48%;
   --primary-foreground: 0 0% 100%;
 
@@ -79,11 +179,6 @@
   --warning: 43 96% 56%;
   --warning-foreground: 0 0% 0%;
 
-  --font-sans: Inter, system-ui, sans-serif;
-  --font-serif: Georgia, serif;
-  --font-mono: Menlo, monospace;
-  --radius: .5rem;
-
   --shadow-2xs: 0px 1px 2px 0px hsl(0 0% 0% / 0.25);
   --shadow-xs: 0px 1px 3px 0px hsl(0 0% 0% / 0.35);
   --shadow-sm: 0px 1px 2px 0px hsl(0 0% 0% / 0.25), 0px 1px 3px 0px hsl(0 0% 0% / 0.35);
@@ -92,9 +187,6 @@
   --shadow-lg: 0px 10px 15px -3px hsl(0 0% 0% / 0.35), 0px 4px 6px -2px hsl(0 0% 0% / 0.25);
   --shadow-xl: 0px 20px 25px -5px hsl(0 0% 0% / 0.45), 0px 10px 10px -5px hsl(0 0% 0% / 0.25);
   --shadow-2xl: 0px 25px 50px -12px hsl(0 0% 0% / 0.55);
-
-  --tracking-normal: 0em;
-  --spacing: 0.25rem;
 
   --sidebar-primary-border: hsl(var(--sidebar-primary));
   --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
@@ -110,246 +202,6 @@
   --accent-border: hsl(from hsl(var(--accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
   --destructive-border: hsl(var(--destructive));
   --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-}
-
-/* MIDNIGHT BLUE - Refined blue accents, professional */
-.theme-midnight-blue {
-  --button-outline: rgba(255,255,255, .10);
-  --badge-outline: rgba(255,255,255, .06);
-  --opaque-button-border-intensity: 10;
-  --elevate-1: rgba(255,255,255, .03);
-  --elevate-2: rgba(255,255,255, .06);
-
-  --background: 224 71% 8%;
-  --foreground: 213 31% 91%;
-
-  --border: 224 50% 18%;
-
-  --card: 224 55% 11%;
-  --card-foreground: 213 31% 91%;
-  --card-border: 224 50% 20%;
-
-  --sidebar: 224 71% 6%;
-  --sidebar-foreground: 213 31% 91%;
-  --sidebar-border: 224 50% 16%;
-  --sidebar-primary: 217 91% 60%;
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 217 91% 20%;
-  --sidebar-accent-foreground: 217 91% 80%;
-  --sidebar-ring: 217 91% 60%;
-
-  --popover: 224 55% 11%;
-  --popover-foreground: 213 31% 91%;
-  --popover-border: 224 50% 22%;
-
-  --primary: 217 91% 60%;
-  --primary-foreground: 0 0% 100%;
-
-  --secondary: 224 50% 16%;
-  --secondary-foreground: 213 31% 85%;
-
-  --muted: 224 50% 14%;
-  --muted-foreground: 215 20% 60%;
-
-  --accent: 217 91% 22%;
-  --accent-foreground: 217 91% 85%;
-
-  --destructive: 0 72% 55%;
-  --destructive-foreground: 0 0% 100%;
-
-  --input: 224 50% 20%;
-  --ring: 217 91% 60%;
-
-  --chart-1: 217 91% 60%;
-  --chart-2: 199 89% 55%;
-  --chart-3: 142 71% 50%;
-  --chart-4: 262 83% 65%;
-  --chart-5: 43 96% 60%;
-
-  --success: 142 71% 45%;
-  --success-foreground: 0 0% 100%;
-  --warning: 43 96% 56%;
-  --warning-foreground: 0 0% 0%;
-}
-
-/* CRIMSON EDGE - Clean dark with subtle red accents */
-.theme-crimson-edge {
-  --button-outline: rgba(255,255,255, .10);
-  --badge-outline: rgba(255,255,255, .06);
-  --opaque-button-border-intensity: 10;
-  --elevate-1: rgba(255,255,255, .03);
-  --elevate-2: rgba(255,255,255, .06);
-
-  --background: 0 0% 9%;
-  --foreground: 0 0% 95%;
-
-  --border: 0 0% 18%;
-
-  --card: 0 0% 12%;
-  --card-foreground: 0 0% 95%;
-  --card-border: 0 0% 20%;
-
-  --sidebar: 0 0% 7%;
-  --sidebar-foreground: 0 0% 95%;
-  --sidebar-border: 0 0% 16%;
-  --sidebar-primary: 0 72% 55%;
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 0 72% 18%;
-  --sidebar-accent-foreground: 0 72% 85%;
-  --sidebar-ring: 0 72% 55%;
-
-  --popover: 0 0% 12%;
-  --popover-foreground: 0 0% 95%;
-  --popover-border: 0 0% 22%;
-
-  --primary: 0 72% 55%;
-  --primary-foreground: 0 0% 100%;
-
-  --secondary: 0 0% 16%;
-  --secondary-foreground: 0 0% 90%;
-
-  --muted: 0 0% 14%;
-  --muted-foreground: 0 0% 60%;
-
-  --accent: 0 72% 20%;
-  --accent-foreground: 0 72% 90%;
-
-  --destructive: 0 84% 60%;
-  --destructive-foreground: 0 0% 100%;
-
-  --input: 0 0% 20%;
-  --ring: 0 72% 55%;
-
-  --chart-1: 0 72% 55%;
-  --chart-2: 25 95% 55%;
-  --chart-3: 142 71% 50%;
-  --chart-4: 262 83% 65%;
-  --chart-5: 43 96% 60%;
-
-  --success: 142 71% 45%;
-  --success-foreground: 0 0% 100%;
-  --warning: 43 96% 56%;
-  --warning-foreground: 0 0% 0%;
-}
-
-/* SOFT SHADOW - Minimalistic with smooth, muted tones */
-.theme-soft-shadow {
-  --button-outline: rgba(255,255,255, .08);
-  --badge-outline: rgba(255,255,255, .05);
-  --opaque-button-border-intensity: 8;
-  --elevate-1: rgba(255,255,255, .02);
-  --elevate-2: rgba(255,255,255, .05);
-
-  --background: 240 6% 10%;
-  --foreground: 240 5% 85%;
-
-  --border: 240 5% 18%;
-
-  --card: 240 5% 13%;
-  --card-foreground: 240 5% 85%;
-  --card-border: 240 5% 20%;
-
-  --sidebar: 240 6% 8%;
-  --sidebar-foreground: 240 5% 85%;
-  --sidebar-border: 240 5% 16%;
-  --sidebar-primary: 240 5% 65%;
-  --sidebar-primary-foreground: 240 6% 10%;
-  --sidebar-accent: 240 5% 20%;
-  --sidebar-accent-foreground: 240 5% 75%;
-  --sidebar-ring: 240 5% 65%;
-
-  --popover: 240 5% 13%;
-  --popover-foreground: 240 5% 85%;
-  --popover-border: 240 5% 22%;
-
-  --primary: 240 5% 65%;
-  --primary-foreground: 240 6% 10%;
-
-  --secondary: 240 5% 18%;
-  --secondary-foreground: 240 5% 80%;
-
-  --muted: 240 5% 16%;
-  --muted-foreground: 240 5% 55%;
-
-  --accent: 240 5% 22%;
-  --accent-foreground: 240 5% 80%;
-
-  --destructive: 0 60% 50%;
-  --destructive-foreground: 0 0% 100%;
-
-  --input: 240 5% 20%;
-  --ring: 240 5% 65%;
-
-  --chart-1: 240 5% 65%;
-  --chart-2: 200 15% 55%;
-  --chart-3: 160 15% 50%;
-  --chart-4: 280 15% 55%;
-  --chart-5: 40 15% 55%;
-
-  --success: 142 50% 40%;
-  --success-foreground: 0 0% 100%;
-  --warning: 43 70% 50%;
-  --warning-foreground: 0 0% 0%;
-}
-
-/* CARBON BLACK - High-contrast, premium dark mode */
-.theme-carbon-black {
-  --button-outline: rgba(255,255,255, .15);
-  --badge-outline: rgba(255,255,255, .10);
-  --opaque-button-border-intensity: 12;
-  --elevate-1: rgba(255,255,255, .05);
-  --elevate-2: rgba(255,255,255, .10);
-
-  --background: 0 0% 4%;
-  --foreground: 0 0% 98%;
-
-  --border: 0 0% 15%;
-
-  --card: 0 0% 7%;
-  --card-foreground: 0 0% 98%;
-  --card-border: 0 0% 18%;
-
-  --sidebar: 0 0% 3%;
-  --sidebar-foreground: 0 0% 98%;
-  --sidebar-border: 0 0% 12%;
-  --sidebar-primary: 142 71% 50%;
-  --sidebar-primary-foreground: 0 0% 0%;
-  --sidebar-accent: 142 71% 15%;
-  --sidebar-accent-foreground: 142 71% 80%;
-  --sidebar-ring: 142 71% 50%;
-
-  --popover: 0 0% 7%;
-  --popover-foreground: 0 0% 98%;
-  --popover-border: 0 0% 20%;
-
-  --primary: 142 71% 50%;
-  --primary-foreground: 0 0% 0%;
-
-  --secondary: 0 0% 12%;
-  --secondary-foreground: 0 0% 92%;
-
-  --muted: 0 0% 10%;
-  --muted-foreground: 0 0% 65%;
-
-  --accent: 142 71% 18%;
-  --accent-foreground: 142 71% 85%;
-
-  --destructive: 0 90% 55%;
-  --destructive-foreground: 0 0% 100%;
-
-  --input: 0 0% 18%;
-  --ring: 142 71% 50%;
-
-  --chart-1: 142 71% 50%;
-  --chart-2: 199 89% 55%;
-  --chart-3: 262 83% 65%;
-  --chart-4: 43 96% 60%;
-  --chart-5: 0 72% 55%;
-
-  --success: 142 71% 50%;
-  --success-foreground: 0 0% 0%;
-  --warning: 43 96% 56%;
-  --warning-foreground: 0 0% 0%;
 }
 
 @layer base {
@@ -431,68 +283,72 @@
     inset: -1px;
   }
 
-  /* Status color utilities - using theme-aware colors */
+  /* Status color utilities */
   .status-available {
-    @apply bg-emerald-900/30 text-emerald-400;
+    @apply bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400;
   }
 
   .status-unavailable {
-    @apply bg-red-900/30 text-red-400;
+    @apply bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400;
   }
 
   .status-maybe {
-    @apply bg-amber-900/30 text-amber-400;
+    @apply bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400;
   }
 
   .status-unknown {
-    @apply bg-slate-800/50 text-slate-400;
+    @apply bg-slate-100 text-slate-500 dark:bg-slate-800/50 dark:text-slate-400;
   }
 
-  /* Role colors - dark mode only */
+  /* Role colors */
   .role-tank {
-    @apply bg-blue-900/30 text-blue-400 border-blue-800;
+    @apply bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800;
   }
 
   .role-dps {
-    @apply bg-red-900/30 text-red-400 border-red-800;
+    @apply bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800;
   }
 
   .role-support {
-    @apply bg-green-900/30 text-green-400 border-green-800;
+    @apply bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800;
   }
 
-  /* Event type colors - dark mode only */
+  /* Event type colors */
   .event-tournament {
-    @apply bg-purple-900/30 text-purple-400 border-purple-800;
+    @apply bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800;
   }
 
   .event-scrim {
-    @apply bg-cyan-900/30 text-cyan-400 border-cyan-800;
+    @apply bg-cyan-100 text-cyan-700 border-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-400 dark:border-cyan-800;
   }
 
   .event-vod {
-    @apply bg-orange-900/30 text-orange-400 border-orange-800;
+    @apply bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-800;
   }
 
-  /* Result colors - dark mode only */
+  /* Result colors */
   .result-win {
-    @apply bg-emerald-900/40 text-emerald-400;
+    @apply bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400;
   }
 
   .result-loss {
-    @apply bg-red-900/40 text-red-400;
+    @apply bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400;
   }
 
   .result-draw {
-    @apply bg-amber-900/40 text-amber-400;
+    @apply bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400;
   }
 
-  /* Gradient backgrounds - dark mode only */
+  /* Gradient backgrounds */
   .gradient-hero {
     background: linear-gradient(135deg, hsl(199 89% 48% / 0.15), hsl(262 83% 58% / 0.10));
   }
 
   .gradient-card {
+    background: linear-gradient(145deg, hsl(0 0% 100%), hsl(210 40% 98%));
+  }
+
+  .dark .gradient-card {
     background: linear-gradient(145deg, hsl(217 33% 16%), hsl(222 47% 11%));
   }
 }

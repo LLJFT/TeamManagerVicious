@@ -6,7 +6,7 @@ import { ScheduleTable } from "@/components/ScheduleTable";
 import { WeekSelector } from "@/components/WeekSelector";
 import { PlayerManager } from "@/components/PlayerManager";
 import { SyncStatus } from "@/components/SyncStatus";
-import { ThemeSelector } from "@/components/ThemeSelector";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { AvailabilityAnalytics } from "@/components/AvailabilityAnalytics";
 import { WeeklyAvailabilityOverview } from "@/components/WeeklyAvailabilityOverview";
 import { SimpleToast } from "@/components/SimpleToast";
@@ -200,7 +200,7 @@ export default function Home() {
                 lastSyncTime={lastSyncTime}
                 hasError={saveMutation.isError}
               />
-              <ThemeSelector />
+              <ThemeToggle />
             </div>
           </div>
 
