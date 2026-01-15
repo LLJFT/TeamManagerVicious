@@ -35,7 +35,7 @@ function Router() {
   );
 }
 
-const APP_PASSWORD = "1975";
+const APP_PASSWORD = "9988";
 
 function PasswordGate({ onUnlock }: { onUnlock: () => void }) {
   const [input, setInput] = useState("");
