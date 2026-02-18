@@ -10,6 +10,23 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+- **Dynamic Stat Fields & Player Game Stats** (February 18, 2026): Custom per-game-mode stat tracking
+  - **Stat Fields Management** (Settings page): Define custom stat fields per game mode
+    - New "Stat Fields" card at bottom of Settings page with two-panel layout
+    - Select game mode on left, manage stat fields on right
+    - Full CRUD: Add, edit, delete stat fields (e.g., Kills, Deaths, Assists, Damage)
+    - Cascade delete: Removing a stat field removes all associated player stats
+    - New `stat_fields` table (id, name, gameModeId FK, createdAt, teamId)
+    - API endpoints: GET/POST/PUT/DELETE `/api/stat-fields`
+  - **Player Stats Entry** (EventDetails page): Dynamic stats table when adding/editing games
+    - When adding a new game with a game mode selected that has stat fields, a player stats table appears
+    - Table shows all players as rows and stat fields as columns
+    - Stats are saved automatically when the game is added
+    - For existing games: "Stats" button (BarChart3 icon) in actions column expands a GameStatsEditor
+    - GameStatsEditor loads existing stats and allows editing/saving
+    - New `player_game_stats` table (id, gameId FK, playerId FK, statFieldId FK, value, createdAt, teamId)
+    - API endpoints: GET/POST `/api/games/:id/player-stats`
+  - Both tables follow teamId isolation pattern for complete data separation
 - **Enhanced Features Implementation** (December 2, 2025): Major UI/UX improvements
   - **OFF Days Calendar Feature**: Mark dates as OFF days on the Events calendar
     - OFF days display with moon icon and gray styling on calendar

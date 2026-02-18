@@ -7,8 +7,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Plus, Pencil, Trash2, Gamepad2, Map as MapIcon, RotateCcw, ChevronRight, Calendar, Palette, Check } from "lucide-react";
-import type { GameMode, Map as MapType, Season } from "@shared/schema";
+import { ArrowLeft, Plus, Pencil, Trash2, Gamepad2, Map as MapIcon, RotateCcw, ChevronRight, Calendar, Palette, Check, BarChart3 } from "lucide-react";
+import type { GameMode, Map as MapType, Season, StatField } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -30,9 +30,15 @@ const seasonFormSchema = z.object({
   description: z.string().optional(),
 });
 
+const statFieldFormSchema = z.object({
+  name: z.string().min(1, "Stat field name is required"),
+  gameModeId: z.string().min(1, "Game mode is required"),
+});
+
 type GameModeFormData = z.infer<typeof gameModeFormSchema>;
 type MapFormData = z.infer<typeof mapFormSchema>;
 type SeasonFormData = z.infer<typeof seasonFormSchema>;
+type StatFieldFormData = z.infer<typeof statFieldFormSchema>;
 
 export default function Settings() {
   const { style, setStyle } = useTheme();
@@ -42,6 +48,9 @@ export default function Settings() {
   const [editingGameMode, setEditingGameMode] = useState<GameMode | undefined>();
   const [editingMap, setEditingMap] = useState<MapType | undefined>();
   const [editingSeason, setEditingSeason] = useState<Season | undefined>();
+  const [showStatFieldDialog, setShowStatFieldDialog] = useState(false);
+  const [editingStatField, setEditingStatField] = useState<StatField | undefined>();
+  const [selectedModeForStatFields, setSelectedModeForStatFields] = useState<string | null>(null);
   const [selectedModeForMaps, setSelectedModeForMaps] = useState<string | null>(null);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
@@ -59,6 +68,10 @@ export default function Settings() {
     queryKey: ["/api/seasons"],
   });
 
+  const { data: statFields = [], isLoading: statFieldsLoading } = useQuery<StatField[]>({
+    queryKey: ["/api/stat-fields"],
+  });
+
   const gameModeForm = useForm<GameModeFormData>({
     resolver: zodResolver(gameModeFormSchema),
     defaultValues: { name: "" },
@@ -72,6 +85,71 @@ export default function Settings() {
   const seasonForm = useForm<SeasonFormData>({
     resolver: zodResolver(seasonFormSchema),
     defaultValues: { name: "", description: "" },
+  });
+
+  const statFieldForm = useForm<StatFieldFormData>({
+    resolver: zodResolver(statFieldFormSchema),
+    defaultValues: { name: "", gameModeId: "" },
+  });
+
+  const createStatFieldMutation = useMutation({
+    mutationFn: async (data: StatFieldFormData) => {
+      const response = await apiRequest("POST", "/api/stat-fields", data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/stat-fields"] });
+      setShowStatFieldDialog(false);
+      setEditingStatField(undefined);
+      statFieldForm.reset();
+      setToastMessage("Stat field created successfully");
+      setToastType("success");
+      setShowToast(true);
+    },
+    onError: (error: any) => {
+      setToastMessage(error.message || "Failed to create stat field");
+      setToastType("error");
+      setShowToast(true);
+    },
+  });
+
+  const updateStatFieldMutation = useMutation({
+    mutationFn: async (data: { id: string; statField: Partial<StatFieldFormData> }) => {
+      const response = await apiRequest("PUT", `/api/stat-fields/${data.id}`, data.statField);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/stat-fields"] });
+      setShowStatFieldDialog(false);
+      setEditingStatField(undefined);
+      statFieldForm.reset();
+      setToastMessage("Stat field updated successfully");
+      setToastType("success");
+      setShowToast(true);
+    },
+    onError: (error: any) => {
+      setToastMessage(error.message || "Failed to update stat field");
+      setToastType("error");
+      setShowToast(true);
+    },
+  });
+
+  const deleteStatFieldMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiRequest("DELETE", `/api/stat-fields/${id}`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/stat-fields"] });
+      setToastMessage("Stat field deleted successfully");
+      setToastType("success");
+      setShowToast(true);
+    },
+    onError: (error: any) => {
+      setToastMessage(error.message || "Failed to delete stat field");
+      setToastType("error");
+      setShowToast(true);
+    },
   });
 
   const createGameModeMutation = useMutation({
@@ -367,14 +445,46 @@ export default function Settings() {
     }
   };
 
+  const handleAddStatField = (gameModeId?: string) => {
+    setEditingStatField(undefined);
+    statFieldForm.reset({ name: "", gameModeId: gameModeId || selectedModeForStatFields || "" });
+    setShowStatFieldDialog(true);
+  };
+
+  const handleEditStatField = (statField: StatField) => {
+    setEditingStatField(statField);
+    statFieldForm.reset({ name: statField.name, gameModeId: statField.gameModeId });
+    setShowStatFieldDialog(true);
+  };
+
+  const handleDeleteStatField = (id: string) => {
+    if (confirm("Are you sure you want to delete this stat field? This will also remove all player stats recorded for this field.")) {
+      deleteStatFieldMutation.mutate(id);
+    }
+  };
+
+  const handleStatFieldSubmit = (data: StatFieldFormData) => {
+    if (editingStatField) {
+      updateStatFieldMutation.mutate({ id: editingStatField.id, statField: data });
+    } else {
+      createStatFieldMutation.mutate(data);
+    }
+  };
+
+  const getStatFieldsByMode = (modeId: string) => {
+    return statFields.filter(sf => sf.gameModeId === modeId);
+  };
+
   const getMapsByMode = (modeId: string) => {
     return maps.filter(map => map.gameModeId === modeId);
   };
 
   const selectedMode = gameModes.find(m => m.id === selectedModeForMaps);
   const selectedModeMaps = selectedModeForMaps ? getMapsByMode(selectedModeForMaps) : [];
+  const selectedStatFieldMode = gameModes.find(m => m.id === selectedModeForStatFields);
+  const selectedModeStatFields = selectedModeForStatFields ? getStatFieldsByMode(selectedModeForStatFields) : [];
 
-  if (modesLoading || mapsLoading || seasonsLoading) {
+  if (modesLoading || mapsLoading || seasonsLoading || statFieldsLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-3">
@@ -697,6 +807,128 @@ export default function Settings() {
           </Card>
         </div>
 
+        <Card>
+          <CardHeader className="pb-4 border-b border-border">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <BarChart3 className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl">Stat Fields</CardTitle>
+                  <CardDescription>Define custom stat fields per game mode for player tracking</CardDescription>
+                </div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-3">Select Game Mode</label>
+                {gameModes.length === 0 ? (
+                  <div className="p-6 text-center border border-border rounded-lg">
+                    <BarChart3 className="h-10 w-10 mx-auto mb-2 text-muted-foreground/30" />
+                    <p className="text-muted-foreground text-sm">Create game modes first</p>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    {gameModes.map((mode) => {
+                      const modeStatFields = getStatFieldsByMode(mode.id);
+                      const isSelected = selectedModeForStatFields === mode.id;
+                      return (
+                        <div
+                          key={mode.id}
+                          className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors ${
+                            isSelected ? "bg-primary/5 border border-primary/30" : "hover:bg-muted/50 border border-transparent"
+                          }`}
+                          onClick={() => setSelectedModeForStatFields(mode.id)}
+                          data-testid={`row-stat-mode-${mode.id}`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <Gamepad2 className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <span className="font-medium text-foreground">{mode.name}</span>
+                              <span className="text-xs text-muted-foreground ml-2">
+                                {modeStatFields.length} {modeStatFields.length === 1 ? "field" : "fields"}
+                              </span>
+                            </div>
+                          </div>
+                          <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${isSelected ? "rotate-90" : ""}`} />
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <label className="block text-sm font-medium text-foreground">
+                    {selectedStatFieldMode ? `${selectedStatFieldMode.name} Stat Fields` : "Stat Fields"}
+                  </label>
+                  <Button
+                    onClick={() => handleAddStatField()}
+                    size="sm"
+                    className="gap-2"
+                    disabled={!selectedModeForStatFields}
+                    data-testid="button-add-stat-field"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Field
+                  </Button>
+                </div>
+                {!selectedModeForStatFields ? (
+                  <div className="p-6 text-center border border-border rounded-lg">
+                    <BarChart3 className="h-10 w-10 mx-auto mb-2 text-muted-foreground/30" />
+                    <p className="text-muted-foreground text-sm">Select a game mode to manage its stat fields</p>
+                  </div>
+                ) : selectedModeStatFields.length === 0 ? (
+                  <div className="p-6 text-center border border-border rounded-lg">
+                    <BarChart3 className="h-10 w-10 mx-auto mb-2 text-muted-foreground/30" />
+                    <p className="text-muted-foreground text-sm">No stat fields for this mode</p>
+                    <p className="text-muted-foreground text-xs mt-1">Click "Add Field" to create one</p>
+                  </div>
+                ) : (
+                  <div className="border border-border rounded-lg divide-y divide-border">
+                    {selectedModeStatFields.map((field) => (
+                      <div
+                        key={field.id}
+                        className="flex items-center justify-between p-3 hover:bg-muted/50 transition-colors"
+                        data-testid={`row-stat-field-${field.id}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium text-foreground" data-testid={`text-stat-field-name-${field.id}`}>
+                            {field.name}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEditStatField(field)}
+                            data-testid={`button-edit-stat-field-${field.id}`}
+                          >
+                            <Pencil className="h-4 w-4 text-muted-foreground" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteStatField(field.id)}
+                            data-testid={`button-delete-stat-field-${field.id}`}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <Dialog open={showGameModeDialog} onOpenChange={setShowGameModeDialog}>
           <DialogContent>
             <DialogHeader>
@@ -872,6 +1104,77 @@ export default function Settings() {
                     data-testid="button-save-season"
                   >
                     {editingSeason ? "Update" : "Create"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showStatFieldDialog} onOpenChange={setShowStatFieldDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editingStatField ? "Edit Stat Field" : "Add Stat Field"}</DialogTitle>
+              <DialogDescription>
+                {editingStatField 
+                  ? "Update the stat field details."
+                  : "Create a new stat field for tracking player stats in this game mode."
+                }
+              </DialogDescription>
+            </DialogHeader>
+            <Form {...statFieldForm}>
+              <form onSubmit={statFieldForm.handleSubmit(handleStatFieldSubmit)} className="space-y-4">
+                <FormField
+                  control={statFieldForm.control}
+                  name="gameModeId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Game Mode</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-stat-field-mode">
+                            <SelectValue placeholder="Select game mode" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {gameModes.map((mode) => (
+                            <SelectItem key={mode.id} value={mode.id}>
+                              {mode.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={statFieldForm.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Stat Field Name</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder="e.g., Kills, Deaths, Assists, Damage"
+                          data-testid="input-stat-field-name"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setShowStatFieldDialog(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={createStatFieldMutation.isPending || updateStatFieldMutation.isPending}
+                    data-testid="button-save-stat-field"
+                  >
+                    {editingStatField ? "Update" : "Create"}
                   </Button>
                 </DialogFooter>
               </form>

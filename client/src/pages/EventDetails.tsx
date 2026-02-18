@@ -1,7 +1,7 @@
 import { useRoute, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { Event, EventResult, Game, InsertGame, GameMode, Map as MapType } from "@shared/schema";
+import type { Event, EventResult, Game, InsertGame, GameMode, Map as MapType, Player, StatField, PlayerGameStat } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,12 +13,122 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Plus, Trash2, Save, Upload, Eye, ExternalLink, Gamepad2, Map as MapIcon } from "lucide-react";
-import { useState, useRef } from "react";
+import { ArrowLeft, Plus, Trash2, Save, Upload, Eye, ExternalLink, Gamepad2, Map as MapIcon, BarChart3 } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import type { UploadResult } from "@uppy/core";
+
+function GameStatsEditor({ game, players, statFields, onSave, isSaving }: {
+  game: Game;
+  players: Player[];
+  statFields: StatField[];
+  onSave: (stats: { gameId: string; playerId: string; statFieldId: string; value: string }[]) => void;
+  isSaving: boolean;
+}) {
+  const [localStats, setLocalStats] = useState<Record<string, Record<string, string>>>({});
+  const [initializedForGameId, setInitializedForGameId] = useState<string | null>(null);
+
+  const { data: existingStats = [], isSuccess } = useQuery<PlayerGameStat[]>({
+    queryKey: ["/api/games", game.id, "player-stats"],
+    queryFn: async () => {
+      const response = await fetch(`/api/games/${game.id}/player-stats`);
+      if (!response.ok) throw new Error("Failed to fetch player stats");
+      return response.json();
+    },
+  });
+
+  useEffect(() => {
+    if (isSuccess && initializedForGameId !== game.id) {
+      const statsMap: Record<string, Record<string, string>> = {};
+      for (const stat of existingStats) {
+        if (!statsMap[stat.playerId]) statsMap[stat.playerId] = {};
+        statsMap[stat.playerId][stat.statFieldId] = stat.value;
+      }
+      setLocalStats(statsMap);
+      setInitializedForGameId(game.id);
+    }
+  }, [existingStats, isSuccess, game.id, initializedForGameId]);
+
+  const handleSave = () => {
+    const stats: { gameId: string; playerId: string; statFieldId: string; value: string }[] = [];
+    for (const playerId of Object.keys(localStats)) {
+      for (const fieldId of Object.keys(localStats[playerId])) {
+        const val = localStats[playerId][fieldId];
+        if (val && val.trim() !== "") {
+          stats.push({ gameId: game.id, playerId, statFieldId: fieldId, value: val });
+        }
+      }
+    }
+    onSave(stats);
+  };
+
+  if (statFields.length === 0 || players.length === 0) return null;
+
+  return (
+    <Card className="mt-3">
+      <CardHeader className="py-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4 text-primary" />
+            <CardTitle className="text-base">Player Stats - {game.gameCode}</CardTitle>
+          </div>
+          <Button
+            size="sm"
+            onClick={handleSave}
+            disabled={isSaving}
+            data-testid={`button-save-stats-${game.id}`}
+          >
+            <Save className="h-4 w-4 mr-2" />
+            {isSaving ? "Saving..." : "Save Stats"}
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <div className="border border-border rounded-lg overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-muted">
+              <tr>
+                <th className="p-2 text-left font-semibold text-sm">Player</th>
+                {statFields.map((field) => (
+                  <th key={field.id} className="p-2 text-center font-semibold text-sm">
+                    {field.name}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {players.map((player) => (
+                <tr key={player.id} className="border-t border-border">
+                  <td className="p-2 text-sm font-medium whitespace-nowrap">
+                    {player.name}
+                  </td>
+                  {statFields.map((field) => (
+                    <td key={field.id} className="p-2">
+                      <Input
+                        value={localStats[player.id]?.[field.id] || ""}
+                        onChange={(e) => {
+                          const updated = { ...localStats };
+                          if (!updated[player.id]) updated[player.id] = {};
+                          updated[player.id] = { ...updated[player.id], [field.id]: e.target.value };
+                          setLocalStats(updated);
+                        }}
+                        className="w-20 text-center text-sm"
+                        placeholder="0"
+                        data-testid={`edit-stat-${game.id}-${player.id}-${field.id}`}
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function EventDetails() {
   const [, params] = useRoute("/events/:id");
@@ -76,6 +186,42 @@ export default function EventDetails() {
     queryKey: ["/api/maps"],
   });
 
+  const { data: allPlayers = [] } = useQuery<Player[]>({
+    queryKey: ["/api/players"],
+  });
+
+  const { data: allStatFields = [] } = useQuery<StatField[]>({
+    queryKey: ["/api/stat-fields"],
+  });
+
+  const [newGamePlayerStats, setNewGamePlayerStats] = useState<Record<string, Record<string, string>>>({});
+  const [editGamePlayerStats, setEditGamePlayerStats] = useState<Record<string, Record<string, string>>>({});
+  const [expandedGameStats, setExpandedGameStats] = useState<string | null>(null);
+
+  const getStatFieldsByMode = (modeId: string) => {
+    return allStatFields.filter(sf => sf.gameModeId === modeId);
+  };
+
+  const savePlayerStatsMutation = useMutation({
+    mutationFn: async (data: { gameId: string; stats: { gameId: string; playerId: string; statFieldId: string; value: string }[] }) => {
+      const response = await apiRequest("POST", `/api/games/${data.gameId}/player-stats`, { stats: data.stats });
+      return response.json();
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/games", variables.gameId, "player-stats"] });
+      setToastMessage("Player stats saved");
+      setToastType("success");
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+    },
+    onError: (error: any) => {
+      setToastMessage(error.message || "Failed to save player stats");
+      setToastType("error");
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+    },
+  });
+
   const getMapsByMode = (modeId: string) => {
     return allMaps.filter(map => map.gameModeId === modeId);
   };
@@ -116,7 +262,22 @@ export default function EventDetails() {
       const response = await apiRequest("POST", "/api/games", data);
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: async (newGame: Game) => {
+      const modeStatFields = newGameModeId ? getStatFieldsByMode(newGameModeId) : [];
+      if (modeStatFields.length > 0 && Object.keys(newGamePlayerStats).length > 0) {
+        const stats: { gameId: string; playerId: string; statFieldId: string; value: string }[] = [];
+        for (const playerId of Object.keys(newGamePlayerStats)) {
+          for (const fieldId of Object.keys(newGamePlayerStats[playerId])) {
+            const val = newGamePlayerStats[playerId][fieldId];
+            if (val && val.trim() !== "") {
+              stats.push({ gameId: newGame.id, playerId, statFieldId: fieldId, value: val });
+            }
+          }
+        }
+        if (stats.length > 0) {
+          await savePlayerStatsMutation.mutateAsync({ gameId: newGame.id, stats });
+        }
+      }
       queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "games"] });
       resetNewGameForm();
       setToastMessage("Game added successfully");
@@ -265,6 +426,7 @@ export default function EventDetails() {
     setNewGameMapId("");
     setNewGameResult("");
     setNewGameLink("");
+    setNewGamePlayerStats({});
   };
 
   const handleUpdateGame = (game: Game) => {
@@ -329,6 +491,63 @@ export default function EventDetails() {
       default:
         return "Not Set";
     }
+  };
+
+  const renderPlayerStatsTable = (
+    modeId: string,
+    statsState: Record<string, Record<string, string>>,
+    setStatsState: (state: Record<string, Record<string, string>>) => void,
+    testIdPrefix: string
+  ) => {
+    const modeStatFields = getStatFieldsByMode(modeId);
+    if (modeStatFields.length === 0 || allPlayers.length === 0) return null;
+
+    return (
+      <div className="border border-border rounded-lg overflow-x-auto" data-testid={`${testIdPrefix}-stats-table`}>
+        <div className="flex items-center gap-2 p-3 border-b border-border bg-muted/50">
+          <BarChart3 className="h-4 w-4 text-primary" />
+          <span className="text-sm font-medium text-foreground">Player Stats</span>
+          <span className="text-xs text-muted-foreground">({modeStatFields.length} fields)</span>
+        </div>
+        <table className="w-full">
+          <thead className="bg-muted">
+            <tr>
+              <th className="p-2 text-left font-semibold text-sm">Player</th>
+              {modeStatFields.map((field) => (
+                <th key={field.id} className="p-2 text-center font-semibold text-sm" data-testid={`th-stat-${field.id}`}>
+                  {field.name}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {allPlayers.map((player) => (
+              <tr key={player.id} className="border-t border-border">
+                <td className="p-2 text-sm font-medium whitespace-nowrap" data-testid={`${testIdPrefix}-player-name-${player.id}`}>
+                  {player.name}
+                </td>
+                {modeStatFields.map((field) => (
+                  <td key={field.id} className="p-2">
+                    <Input
+                      value={statsState[player.id]?.[field.id] || ""}
+                      onChange={(e) => {
+                        const updated = { ...statsState };
+                        if (!updated[player.id]) updated[player.id] = {};
+                        updated[player.id] = { ...updated[player.id], [field.id]: e.target.value };
+                        setStatsState(updated);
+                      }}
+                      className="w-20 text-center text-sm"
+                      placeholder="0"
+                      data-testid={`${testIdPrefix}-stat-${player.id}-${field.id}`}
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
   };
 
   if (eventLoading || gamesLoading) {
@@ -543,6 +762,12 @@ export default function EventDetails() {
                   data-testid="input-new-game-link"
                 />
               </div>
+              {newGameModeId && renderPlayerStatsTable(
+                newGameModeId,
+                newGamePlayerStats,
+                setNewGamePlayerStats,
+                "new-game"
+              )}
               <div className="flex gap-2 flex-wrap">
                 <ObjectUploader
                   maxNumberOfFiles={1}
@@ -577,7 +802,8 @@ export default function EventDetails() {
                 No games recorded
               </div>
             ) : (
-              <div className="border rounded-md overflow-x-auto">
+              <div className="space-y-3">
+                <div className="border rounded-md overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-muted">
                     <tr>
@@ -772,6 +998,16 @@ export default function EventDetails() {
                                 >
                                   Edit
                                 </Button>
+                                {game.gameModeId && getStatFieldsByMode(game.gameModeId).length > 0 && (
+                                  <Button
+                                    size="sm"
+                                    variant={expandedGameStats === game.id ? "default" : "outline"}
+                                    onClick={() => setExpandedGameStats(expandedGameStats === game.id ? null : game.id)}
+                                    data-testid={`button-stats-game-${game.id}`}
+                                  >
+                                    <BarChart3 className="h-4 w-4" />
+                                  </Button>
+                                )}
                                 <Button
                                   size="sm"
                                   variant="ghost"
@@ -789,6 +1025,21 @@ export default function EventDetails() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+
+                {expandedGameStats && (() => {
+                  const game = games.find(g => g.id === expandedGameStats);
+                  if (!game || !game.gameModeId) return null;
+                  return (
+                    <GameStatsEditor
+                      game={game}
+                      players={allPlayers}
+                      statFields={getStatFieldsByMode(game.gameModeId)}
+                      onSave={(stats) => savePlayerStatsMutation.mutate({ gameId: game.id, stats })}
+                      isSaving={savePlayerStatsMutation.isPending}
+                    />
+                  );
+                })()}
               </div>
             )}
           </CardContent>
