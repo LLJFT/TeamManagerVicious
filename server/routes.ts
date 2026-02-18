@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertScheduleSchema, insertEventSchema, insertPlayerSchema, insertAttendanceSchema, insertTeamNotesSchema, insertGameSchema, insertGameModeSchema, insertMapSchema, insertSeasonSchema, insertOffDaySchema } from "@shared/schema";
+import { insertScheduleSchema, insertEventSchema, insertPlayerSchema, insertAttendanceSchema, insertTeamNotesSchema, insertGameSchema, insertGameModeSchema, insertMapSchema, insertSeasonSchema, insertOffDaySchema, insertStatFieldSchema, insertPlayerGameStatSchema } from "@shared/schema";
 import { 
   readScheduleFromSheet, 
   writeScheduleToSheet, 
@@ -646,6 +646,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(duplicatedEvent);
     } catch (error: any) {
       console.error('Error in POST /api/events/:id/duplicate:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.get("/api/stat-fields", async (req, res) => {
+    try {
+      const statFields = await storage.getAllStatFields();
+      res.json(statFields);
+    } catch (error: any) {
+      console.error('Error in GET /api/stat-fields:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.post("/api/stat-fields", async (req, res) => {
+    try {
+      const validatedData = insertStatFieldSchema.parse(req.body);
+      const statField = await storage.addStatField(validatedData);
+      res.json(statField);
+    } catch (error: any) {
+      console.error('Error in POST /api/stat-fields:', error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ error: "Invalid stat field data", details: error.errors });
+      }
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.put("/api/stat-fields/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const validatedData = insertStatFieldSchema.partial().parse(req.body);
+      const statField = await storage.updateStatField(id, validatedData);
+      res.json(statField);
+    } catch (error: any) {
+      console.error('Error in PUT /api/stat-fields/:id:', error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ error: "Invalid stat field data", details: error.errors });
+      }
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.delete("/api/stat-fields/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const success = await storage.removeStatField(id);
+      if (success) {
+        res.json({ success: true });
+      } else {
+        res.status(404).json({ error: "Stat field not found" });
+      }
+    } catch (error: any) {
+      console.error('Error in DELETE /api/stat-fields/:id:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.get("/api/games/:id/player-stats", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const stats = await storage.getPlayerGameStats(id);
+      res.json(stats);
+    } catch (error: any) {
+      console.error('Error in GET /api/games/:id/player-stats:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.post("/api/games/:id/player-stats", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { stats } = req.body;
+      if (!Array.isArray(stats)) {
+        return res.status(400).json({ error: "stats must be an array" });
+      }
+      const saved = await storage.savePlayerGameStats(id, stats);
+      res.json(saved);
+    } catch (error: any) {
+      console.error('Error in POST /api/games/:id/player-stats:', error);
       res.status(500).json({ error: error.message || "Internal server error" });
     }
   });

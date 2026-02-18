@@ -1,5 +1,5 @@
-import type { Player, InsertPlayer, Schedule, InsertSchedule, Setting, InsertSetting, Event, InsertEvent, Attendance, InsertAttendance, TeamNotes, InsertTeamNotes, Game, InsertGame, GameMode, InsertGameMode, Map, InsertMap, Season, InsertSeason, OffDay, InsertOffDay } from "@shared/schema";
-import { players, schedules, settings, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays } from "@shared/schema";
+import type { Player, InsertPlayer, Schedule, InsertSchedule, Setting, InsertSetting, Event, InsertEvent, Attendance, InsertAttendance, TeamNotes, InsertTeamNotes, Game, InsertGame, GameMode, InsertGameMode, Map, InsertMap, Season, InsertSeason, OffDay, InsertOffDay, StatField, InsertStatField, PlayerGameStat, InsertPlayerGameStat } from "@shared/schema";
+import { players, schedules, settings, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays, statFields, playerGameStats } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, isNull } from "drizzle-orm";
 
@@ -57,6 +57,13 @@ export interface IStorage {
   removeOffDay(date: string): Promise<boolean>;
   removeOffDayById(id: string): Promise<boolean>;
   duplicateEvent(eventId: string): Promise<Event>;
+  getAllStatFields(): Promise<StatField[]>;
+  getStatFieldsByGameModeId(gameModeId: string): Promise<StatField[]>;
+  addStatField(statField: InsertStatField): Promise<StatField>;
+  updateStatField(id: string, statField: Partial<InsertStatField>): Promise<StatField>;
+  removeStatField(id: string): Promise<boolean>;
+  getPlayerGameStats(gameId: string): Promise<PlayerGameStat[]>;
+  savePlayerGameStats(gameId: string, stats: InsertPlayerGameStat[]): Promise<PlayerGameStat[]>;
 }
 
 export class DbStorage implements IStorage {
@@ -618,6 +625,70 @@ export class DbStorage implements IStorage {
     }
 
     return newEvent[0];
+  }
+
+  async getAllStatFields(): Promise<StatField[]> {
+    const teamId = getTeamId();
+    return await db.select().from(statFields).where(eq(statFields.teamId, teamId));
+  }
+
+  async getStatFieldsByGameModeId(gameModeId: string): Promise<StatField[]> {
+    const teamId = getTeamId();
+    return await db
+      .select()
+      .from(statFields)
+      .where(and(eq(statFields.gameModeId, gameModeId), eq(statFields.teamId, teamId)));
+  }
+
+  async addStatField(insertStatField: InsertStatField): Promise<StatField> {
+    const teamId = getTeamId();
+    const inserted = await db
+      .insert(statFields)
+      .values({ ...insertStatField, teamId })
+      .returning();
+    return inserted[0];
+  }
+
+  async updateStatField(id: string, updateData: Partial<InsertStatField>): Promise<StatField> {
+    const teamId = getTeamId();
+    const updated = await db
+      .update(statFields)
+      .set(updateData)
+      .where(and(eq(statFields.id, id), eq(statFields.teamId, teamId)))
+      .returning();
+    return updated[0];
+  }
+
+  async removeStatField(id: string): Promise<boolean> {
+    const teamId = getTeamId();
+    const deleted = await db
+      .delete(statFields)
+      .where(and(eq(statFields.id, id), eq(statFields.teamId, teamId)))
+      .returning();
+    return deleted.length > 0;
+  }
+
+  async getPlayerGameStats(gameId: string): Promise<PlayerGameStat[]> {
+    const teamId = getTeamId();
+    return await db
+      .select()
+      .from(playerGameStats)
+      .where(and(eq(playerGameStats.gameId, gameId), eq(playerGameStats.teamId, teamId)));
+  }
+
+  async savePlayerGameStats(gameId: string, stats: InsertPlayerGameStat[]): Promise<PlayerGameStat[]> {
+    const teamId = getTeamId();
+    await db
+      .delete(playerGameStats)
+      .where(and(eq(playerGameStats.gameId, gameId), eq(playerGameStats.teamId, teamId)));
+
+    if (stats.length === 0) return [];
+
+    const inserted = await db
+      .insert(playerGameStats)
+      .values(stats.map(s => ({ ...s, gameId, teamId })))
+      .returning();
+    return inserted;
   }
 }
 

@@ -152,6 +152,28 @@ export const offDays = pgTable("off_days", {
   index("off_days_team_id_idx").on(table.teamId),
 ]);
 
+export const statFields = pgTable("stat_fields", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  name: text("name").notNull(),
+  gameModeId: varchar("game_mode_id").notNull().references(() => gameModes.id, { onDelete: "cascade" }),
+  createdAt: text("created_at").default(sql`now()`),
+}, (table) => [
+  index("stat_fields_team_id_idx").on(table.teamId),
+]);
+
+export const playerGameStats = pgTable("player_game_stats", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  gameId: varchar("game_id").notNull().references(() => games.id, { onDelete: "cascade" }),
+  playerId: varchar("player_id").notNull().references(() => players.id, { onDelete: "cascade" }),
+  statFieldId: varchar("stat_field_id").notNull().references(() => statFields.id, { onDelete: "cascade" }),
+  value: text("value").notNull().default("0"),
+  createdAt: text("created_at").default(sql`now()`),
+}, (table) => [
+  index("player_game_stats_team_id_idx").on(table.teamId),
+]);
+
 export const insertPlayerSchema = createInsertSchema(players).omit({
   id: true,
   teamId: true,
@@ -207,6 +229,18 @@ export const insertOffDaySchema = createInsertSchema(offDays).omit({
   teamId: true,
 });
 
+export const insertStatFieldSchema = createInsertSchema(statFields).omit({
+  id: true,
+  teamId: true,
+  createdAt: true,
+});
+
+export const insertPlayerGameStatSchema = createInsertSchema(playerGameStats).omit({
+  id: true,
+  teamId: true,
+  createdAt: true,
+});
+
 export type AvailabilityOption = typeof availabilityOptions[number];
 export type GameResult = typeof gameResultOptions[number];
 export type RoleType = typeof roleTypes[number];
@@ -247,6 +281,12 @@ export type InsertMap = z.infer<typeof insertMapSchema>;
 
 export type OffDay = typeof offDays.$inferSelect;
 export type InsertOffDay = z.infer<typeof insertOffDaySchema>;
+
+export type StatField = typeof statFields.$inferSelect;
+export type InsertStatField = z.infer<typeof insertStatFieldSchema>;
+
+export type PlayerGameStat = typeof playerGameStats.$inferSelect;
+export type InsertPlayerGameStat = z.infer<typeof insertPlayerGameStatSchema>;
 
 export interface PlayerAvailability {
   playerId: string;
