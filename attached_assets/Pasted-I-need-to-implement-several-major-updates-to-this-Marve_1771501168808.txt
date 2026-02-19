@@ -1,0 +1,290 @@
+I need to implement several major updates to this Marvel Rivals roster website. Please implement ALL of the following carefully without breaking any existing features: 
+
+ 
+🔴 CRITICAL FIX 1: Remove Site Password Protection 
+
+The site currently has a password protection system (password: 9988). Remove it completely since we are replacing it with a proper login system. 
+
+ 
+
+🔴 CRITICAL FIX 2: Fix Data Persistence After Republish 
+
+All data gets wiped every restart. Fix this immediately. All data must be stored in PostgreSQL only — never in memory or JSON files. Ensure DATABASE_URL is used and Drizzle migrations run on startup. 
+
+ 
+
+FEATURE 1: Full Authentication System 
+
+A) Default Owner Account: 
+
+On first run, automatically create a default account: username Admin, password Admin 
+
+This account has the Owner role 
+
+The Owner can change their username and password after logging in 
+
+No one can access any part of the site without logging in 
+
+B) Registration & Approval Flow: 
+
+Anyone can register with a username + password (min 4, max 12 characters) + optional avatar (upload or default generated) 
+
+After registering, the account is pending — the user sees a "Waiting for approval" screen and cannot access the site 
+
+Admins/Owner must approve the account from the Dashboard before the user can log in 
+
+Admins can also create accounts directly (pre-approved) and assign them any role, then share the credentials with the player — no approval needed for admin-created accounts 
+
+C) Login page should match the site's dark blue/cyan theme 
+
+Database table users: id, username, password_hash, avatar_url, role_id (FK to roles), player_id (nullable FK), status (pending/active/banned), created_at 
+
+API endpoints: 
+
+POST /api/auth/register 
+
+POST /api/auth/login 
+
+POST /api/auth/logout 
+
+GET /api/auth/me 
+
+ 
+
+FEATURE 2: Custom Role System with Granular Permissions 
+
+Replace the fixed roles (Owner/Admin/Member) with a fully dynamic role system: 
+
+A) Default roles created on setup: 
+
+Owner — all permissions, cannot be modified or deleted, cannot be demoted by anyone 
+
+Admin — all permissions except cannot remove/demote Owner 
+
+Member — default for new registrations: view only + edit own availability + send chat messages 
+
+B) Admins/Owner can: 
+
+Create new custom roles with any name (e.g., "Analyst", "Coach", "Substitute") 
+
+Assign specific permissions to each role by toggling checkboxes 
+
+Edit or delete custom roles (cannot edit/delete Owner role) 
+
+Assign any role to any user (Owner cannot be assigned by admins, only by Owner) 
+
+Rename any user's username 
+
+C) Permission options (checkboxes when creating/editing a role): 
+
+View schedule 
+
+Edit own availability 
+
+Edit all players' availability 
+
+Add/remove players 
+
+Manage events (add/edit/delete scrims, tournaments) 
+
+View stats 
+
+Access chat 
+
+Manage chat channels 
+
+Access settings 
+
+Access dashboard (admin panel) 
+
+Manage users (approve, ban, create accounts) 
+
+Manage roles 
+
+Database tables: 
+
+roles: id, name, is_system (true for Owner/Admin/Member), permissions (JSON array), created_at 
+
+Update users table to reference role_id 
+
+API endpoints: 
+
+GET /api/roles 
+
+POST /api/roles 
+
+PUT /api/roles/:id 
+
+DELETE /api/roles/:id 
+
+ 
+
+FEATURE 3: Dashboard Tab (Admin/Owner only) 
+
+Add a "Dashboard" tab in the navigation — only visible to users with the "Access dashboard" permission. 
+
+The Dashboard contains: 
+
+A) User Management: 
+
+List all registered accounts: avatar, username, role, linked player, status (pending/active/banned) 
+
+Approve or reject pending accounts 
+
+Ban/unban active accounts 
+
+Delete accounts (Owner can delete anyone, Admin cannot delete Owner) 
+
+Change any user's role (Owner can assign any role, Admin cannot assign Owner role) 
+
+Rename any user's username 
+
+Create new pre-approved accounts with any role 
+
+Link/unlink accounts to roster players 
+
+B) Move Settings here: 
+
+All content from the current Settings tab (game modes, maps, stat fields, availability slots, roles, site theme) moves into the Dashboard 
+
+The Settings tab in the main navigation is removed 
+
+Regular members never see Settings at all 
+
+ 
+
+FEATURE 4: Staff Section in Availability Schedule 
+
+Add a second section below the players' availability table for Staff members: 
+
+Same customizable time slot dropdowns as players (Feature 8) 
+
+Completely separate from players — different rows, labeled "Staff" 
+
+Staff do NOT count in Weekly Availability Overview or Availability Analytics 
+
+Staff have their own role type (separate from player roles) 
+
+ 
+
+FEATURE 5: Dynamic Roles in Settings (Player Roles vs Staff Roles) 
+
+In the Dashboard settings, add two separate role lists: 
+
+A) Player Roles (e.g., Tank, DPS, Support, IGL) — appear when adding players B) Staff Roles (e.g., Coach, Manager, Analyst) — appear when adding staff 
+
+Store in database with type column: player or staff 
+
+ 
+
+FEATURE 6: Player Statistics Tab 
+
+Expand the Stats tab to show: 
+
+A) Aggregated player stats from all saved games: 
+
+Total per player per game mode 
+
+Total per player per map 
+
+Total per event type (Scrim, Tournament) 
+
+Grand totals 
+
+B) Stats vs Opponents: 
+
+Player stats breakdown per opponent team 
+
+Filters: event type, game mode, map 
+
+ 
+
+FEATURE 7: Team Chat (Discord-style) 
+
+Add a "Chat" tab: 
+
+Admins create/rename/delete text channels (e.g., "Notes", "Announcements", "Complaints") 
+
+Messages show sender's avatar, username, timestamp 
+
+Support: text, image uploads, video links, file attachments 
+
+Only logged-in active users can send messages 
+
+Messages stored in database and persist 
+
+Database: 
+
+chat_channels: id, name, created_at 
+
+chat_messages: id, channel_id, user_id, message, attachment_url, attachment_type, created_at 
+
+ 
+
+FEATURE 8: Customizable Availability Time Slots 
+
+In Dashboard settings, add "Availability Time Slots" management: 
+
+Add, edit, delete custom time slot labels 
+
+Defaults pre-loaded: 18:00-20:00, 20:00-22:00, All Blocks, Unknown, Cannot 
+
+These slots appear in availability dropdowns for both players and staff 
+
+Database: availability_slots: id, label, sort_order, created_at 
+
+ 
+
+FEATURE 9: Sync Players Tab with Availability Schedule 
+
+Adding a player anywhere (Manage Players modal OR Players tab) syncs them to both places automatically 
+
+Players tab shows full details: nickname, full name, phone, Snapchat, role 
+
+Only linked account owner or admin can edit a player's availability 
+
+Staff members do NOT appear in the Players tab 
+
+ 
+
+FEATURE 10: Remove "Reset to Marvel Rivals Defaults" Button 
+
+Delete the button and all its associated logic from the settings/dashboard entirely. 
+
+ 
+
+FEATURE 11: Remove Google Sheets Integration and Share Tab 
+
+Please do the following: 
+
+Delete the "Share" tab from the navigation completely 
+
+Remove all Google Sheets integration — any code that connects to, syncs with, reads from, or writes to Google Sheets should be deleted entirely (API calls, credentials, sync logic, scheduled jobs, everything related to Google Sheets) 
+
+Make sure removing this does not break any other feature — it should be a clean removal. 
+
+ 
+
+Security requirements: 
+
+Hash all passwords with bcrypt 
+
+Use sessions or JWT 
+
+Never expose passwords anywhere in the UI or API responses 
+
+Protect all API routes based on user permissions 
+
+Design requirements: 
+
+Keep the existing dark blue/cyan theme throughout 
+
+Login/Register page matches the dark theme 
+
+Dashboard tab matches existing tab style 
+
+All new modals match existing UI 
+
+Do NOT remove or break any existing features. Only add new functionality. 
+
+ 

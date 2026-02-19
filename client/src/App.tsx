@@ -4,6 +4,11 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/hooks/use-theme";
+import { AuthProvider, useAuth } from "@/hooks/use-auth";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { AppSidebar } from "@/components/app-sidebar";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import Login from "@/pages/Login";
 import Home from "@/pages/Home";
 import Events from "@/pages/Events";
 import EventDetails from "@/pages/EventDetails";
@@ -13,9 +18,10 @@ import UnifiedStats from "@/pages/UnifiedStats";
 import Compare from "@/pages/Compare";
 import OpponentStats from "@/pages/OpponentStats";
 import Players from "@/pages/Players";
-import Settings from "@/pages/Settings";
+import Dashboard from "@/pages/Dashboard";
+import StaffPage from "@/pages/Staff";
+import Chat from "@/pages/Chat";
 import NotFound from "@/pages/not-found";
-import { useState, useEffect } from "react";
 
 function Router() {
   return (
@@ -29,73 +35,61 @@ function Router() {
       <Route path="/compare" component={Compare} />
       <Route path="/opponents" component={OpponentStats} />
       <Route path="/players" component={Players} />
-      <Route path="/settings" component={Settings} />
+      <Route path="/dashboard" component={Dashboard} />
+      <Route path="/staff" component={StaffPage} />
+      <Route path="/chat" component={Chat} />
       <Route component={NotFound} />
     </Switch>
   );
 }
 
-const APP_PASSWORD = "9988";
+function AuthenticatedApp() {
+  const { user, isLoading } = useAuth();
 
-function PasswordGate({ onUnlock }: { onUnlock: () => void }) {
-  const [input, setInput] = useState("");
-  const [error, setError] = useState("");
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (input === APP_PASSWORD) {
-      localStorage.setItem("site_authed", "true"); // Trust device
-      onUnlock();
-    } else {
-      setError("Wrong password");
-    }
+  if (!user) {
+    return <Login />;
+  }
+
+  const style = {
+    "--sidebar-width": "16rem",
+    "--sidebar-width-icon": "3rem",
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <form
-        onSubmit={handleSubmit}
-        className="border border-border rounded-xl p-6 w-full max-w-sm space-y-4 bg-card"
-      >
-        <h1 className="text-xl font-bold text-center">Enter Password</h1>
-        <input
-          type="password"
-          className="w-full border rounded px-3 py-2 bg-background"
-          placeholder="Password"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-        />
-        {error && <p className="text-sm text-red-500">{error}</p>}
-        <button
-          type="submit"
-          className="w-full rounded px-3 py-2 bg-primary text-primary-foreground font-semibold hover:bg-primary/90"
-        >
-          Unlock
-        </button>
-      </form>
-    </div>
+    <SidebarProvider style={style as React.CSSProperties}>
+      <div className="flex h-screen w-full">
+        <AppSidebar />
+        <div className="flex flex-col flex-1 min-w-0">
+          <header className="flex items-center justify-between gap-1 p-2 border-b sticky top-0 z-50 bg-background">
+            <SidebarTrigger data-testid="button-sidebar-toggle" />
+            <ThemeToggle />
+          </header>
+          <main className="flex-1 overflow-auto">
+            <Router />
+          </main>
+        </div>
+      </div>
+    </SidebarProvider>
   );
 }
 
 function App() {
-  const [authed, setAuthed] = useState(false);
-
-  useEffect(() => {
-    if (localStorage.getItem("site_authed") === "true") {
-      setAuthed(true);
-    }
-  }, []);
-
-  if (!authed) {
-    return <PasswordGate onUnlock={() => setAuthed(true)} />;
-  }
-
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultStyle="default-dark">
         <TooltipProvider>
-          <Toaster />
-          <Router />
+          <AuthProvider>
+            <Toaster />
+            <AuthenticatedApp />
+          </AuthProvider>
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>

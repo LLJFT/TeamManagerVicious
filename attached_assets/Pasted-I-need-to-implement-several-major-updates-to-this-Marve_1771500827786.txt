@@ -1,0 +1,94 @@
+I need to implement several major updates to this Marvel Rivals roster website. Please implement ALL of the following carefully without breaking any existing features:
+
+🔴 CRITICAL: Fix Data Persistence After Republish
+Currently, all data (player names, scrims, events, etc.) gets wiped every time the app restarts or is republished. This must be fixed first. Make sure the PostgreSQL database connection is persistent and that data is never stored in-memory or in JSON files. All data must survive restarts. If using Drizzle ORM, ensure db/schema is properly migrated and the DATABASE_URL environment variable is used.
+
+FEATURE 1: Staff Section in Availability Schedule (separate from players)
+In the main schedule/availability page, add a second section below the players' availability table specifically for Staff members. Staff should:
+
+Have the same time slot options as players (but customizable — see Feature 7)
+Be completely separate rows labeled as staff (not mixed with players)
+NOT be included in the Weekly Availability Overview stats
+NOT be included in the Availability Analytics section
+Staff roles are different from player roles (handled in Feature 2)
+
+
+FEATURE 2: Dynamic Roles from Settings (separate for Players and Staff)
+In the Settings page, add two separate role management sections:
+A) Player Roles - used when adding/managing players:
+
+Add, edit, delete custom roles (e.g., Tank, DPS, Support, IGL)
+These roles appear in the "Manage Players" modal and sync with the Players tab (Feature 5)
+
+B) Staff Roles - used only for staff members:
+
+Add, edit, delete custom staff roles (e.g., Coach, Manager, Analyst, Content Creator)
+These roles appear ONLY when adding staff members
+
+Store roles in the database with a type column: player or staff.
+API endpoints:
+
+GET /api/roles
+POST /api/roles
+PUT /api/roles/:id
+DELETE /api/roles/:id
+
+
+FEATURE 3: Player Statistics Tab
+Add/expand a "Stats" tab showing:
+A) Individual Player Stats aggregated from all saved game player stats:
+
+Total stats per player per game mode (e.g., total Kills in Hardpoint)
+Total stats per player per map
+Total stats per event type (Scrim, Tournament, etc.)
+Overall totals across all events
+
+B) Stats vs Opponents:
+
+Player stats breakdown PER opponent team
+Filter by: event type, game mode, map
+
+
+FEATURE 4: Team Chat (Discord-style) with User Accounts
+Add a "Chat" tab with a Discord-like channel system:
+
+Admins can create, rename, and delete text channels (e.g., "Notes", "Complaints", "Announcements")
+Messages support: text, image uploads, video links, file attachments
+Messages show sender's username, avatar, and timestamp
+Only logged-in users can access the chat and send messages
+Messages are stored in the database and persist
+
+Database tables:
+
+chat_channels: id, name, created_at
+chat_messages: id, channel_id, user_id, message, attachment_url, attachment_type, created_at
+
+
+FEATURE 5: Sync Players Tab with Availability Schedule
+
+Adding a player in "Manage Players" automatically adds them to the Players tab with name and role
+Adding a player from the Players tab automatically adds them to the availability schedule
+Players tab shows full details: nickname, full name, phone, Snapchat, role
+Role comes from dynamic Player Roles (Feature 2A)
+Staff members do NOT appear in the Players tab
+
+
+FEATURE 6: Remove "Reset to Marvel Rivals Defaults" Button
+Remove the "Reset to Marvel Rivals Defaults" button from the Settings page top-right entirely.
+
+FEATURE 7: Customizable Availability Time Slots in Settings
+In the Settings page, add an "Availability Time Slots" management section that allows admins to:
+
+Add custom time slot options (e.g., 16:00-18:00, All Night, Morning Only)
+Edit existing time slot labels
+Delete time slot options
+The default slots (18:00-20:00, 20:00-22:00, All Blocks, Unknown, Cannot) should be pre-loaded but editable/deletable
+These custom slots automatically appear in the availability dropdowns for both players and staff
+
+Database table: availability_slots: id, label, sort_order, created_at
+API endpoints:
+
+GET /api/availability-slots
+POST /api/availability-slots
+PUT /api/availability-slots/:id
+DELETE /api/availability-slots/:id

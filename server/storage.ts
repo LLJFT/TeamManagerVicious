@@ -47,7 +47,6 @@ export interface IStorage {
   addMap(map: InsertMap): Promise<Map>;
   updateMap(id: string, map: Partial<InsertMap>): Promise<Map>;
   removeMap(id: string): Promise<boolean>;
-  resetToDefaults(): Promise<void>;
   getAllSeasons(): Promise<Season[]>;
   addSeason(season: InsertSeason): Promise<Season>;
   updateSeason(id: string, season: Partial<InsertSeason>): Promise<Season>;
@@ -455,50 +454,6 @@ export class DbStorage implements IStorage {
       .returning();
 
     return deleted.length > 0;
-  }
-
-  async resetToDefaults(): Promise<void> {
-    const teamId = getTeamId();
-    await db.delete(maps).where(eq(maps.teamId, teamId));
-    await db.delete(gameModes).where(eq(gameModes.teamId, teamId));
-
-    const defaultModes = [
-      { name: "Domination", teamId },
-      { name: "Convoy", teamId },
-      { name: "Convergence", teamId },
-    ];
-
-    const createdModes: GameMode[] = [];
-    for (const mode of defaultModes) {
-      const inserted = await db
-        .insert(gameModes)
-        .values(mode)
-        .returning();
-      createdModes.push(inserted[0]);
-    }
-
-    const dominationMode = createdModes.find(m => m.name === "Domination");
-    const convoyMode = createdModes.find(m => m.name === "Convoy");
-    const convergenceMode = createdModes.find(m => m.name === "Convergence");
-
-    const defaultMaps = [
-      { name: "Birnin T'Challa", gameModeId: dominationMode!.id, teamId },
-      { name: "Celestial Husk", gameModeId: dominationMode!.id, teamId },
-      { name: "Hell's Heaven", gameModeId: dominationMode!.id, teamId },
-      { name: "Krakoa", gameModeId: dominationMode!.id, teamId },
-      { name: "Spider-Islands", gameModeId: convoyMode!.id, teamId },
-      { name: "Yggdrasill Path", gameModeId: convoyMode!.id, teamId },
-      { name: "Midtown", gameModeId: convoyMode!.id, teamId },
-      { name: "Arakko", gameModeId: convoyMode!.id, teamId },
-      { name: "Heart of Heaven", gameModeId: convergenceMode!.id, teamId },
-      { name: "Hall of Djalia", gameModeId: convergenceMode!.id, teamId },
-      { name: "Symbiotic Surface", gameModeId: convergenceMode!.id, teamId },
-      { name: "Central Park", gameModeId: convergenceMode!.id, teamId },
-    ];
-
-    for (const map of defaultMaps) {
-      await db.insert(maps).values(map);
-    }
   }
 
   async getAllSeasons(): Promise<Season[]> {

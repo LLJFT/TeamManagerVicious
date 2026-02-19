@@ -2,31 +2,62 @@
 
 ## Overview
 
-This application serves as a permanent team availability tracker for "The Vicious" Marvel Rivals esports team. Its core purpose is to enable team managers to track player availability for practice sessions across Tank, DPS, and Support roles. Key features include a persistent Monday-Sunday schedule, real-time synchronization with Google Sheets, inline editing, a dedicated events calendar for tournaments and scrims with comprehensive event details tracking, enhanced player management with personal information and attendance tracking, and a team notes messaging system. The design follows a modern, bright, and energetic theme with vibrant blues, teals, and coral accents for a clean, professional UI. The project aims to provide a robust, year-round solution for esports team management.
+This application serves as a comprehensive team management platform for "The Vicious" Marvel Rivals esports team. Features include a persistent availability schedule, events calendar with game tracking, player/staff management, role-based access control with user authentication, Discord-style team chat, statistics dashboards, and season management. The design follows a modern sidebar-based layout with a bright, energetic theme.
 
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
 
+## Architecture
+
+### Authentication & Authorization
+- Session-based auth with bcrypt password hashing (express-session + connect-pg-simple)
+- Default admin: username "Admin", password "Admin" (Owner role)
+- Registration creates "pending" accounts requiring admin approval
+- Role-based permissions: Owner (all), Admin (all except manage_roles), Member (basic view + chat)
+- Custom roles can be created with granular permission selection
+- All API routes protected with `requireAuth` middleware
+- Sensitive routes additionally gated with `requirePermission(permission)` middleware
+
+### Permission System
+Available permissions: view_schedule, edit_own_availability, edit_all_availability, add_remove_players, manage_events, view_stats, access_chat, manage_chat_channels, access_settings, access_dashboard, manage_users, manage_roles
+
+### Frontend Layout
+- Sidebar navigation (Shadcn Sidebar) with three groups: Main, Analytics, Management
+- Auth context (AuthProvider + useAuth hook) manages user state and permission checks
+- Login page shown when unauthenticated
+- Sidebar items filtered by user permissions
+
+### Key Pages
+- `/` - Schedule (availability tracker)
+- `/events` - Events calendar
+- `/events/:id` - Event details with games
+- `/results` - Event results
+- `/players` - Player management
+- `/staff` - Staff management (coaches, analysts)
+- `/chat` - Discord-style team chat with channels
+- `/dashboard` - Admin dashboard (Game Config, Team, Users, Roles, Stat Fields tabs)
+- `/stats` - Statistics, `/history`, `/compare`, `/opponents`
+
+### Database Tables
+Core: players, events, games, attendance, schedules, settings, team_notes, off_days, game_modes, maps, seasons, stat_fields, player_game_stats
+Auth: users, roles
+New: staff, chat_channels, chat_messages, availability_slots, roster_roles
+All tables use teamId isolation (REPL_ID-based)
+
 ## Recent Changes
 
+- **Major Platform Overhaul** (February 19, 2026): Complete transformation to authenticated team management platform
+  - **Authentication System**: Session-based auth replacing password gate, bcrypt hashing, registration with approval workflow
+  - **Role-Based Access Control**: Owner/Admin/Member system roles + custom roles with granular permissions
+  - **Sidebar Navigation**: Replaced inline nav buttons with Shadcn Sidebar layout
+  - **Dashboard** (replaces Settings): 5-tab admin panel (Game Config, Team, Users, Roles, Stat Fields)
+  - **Staff Management**: New page for coaches, analysts, managers with full CRUD
+  - **Team Chat**: Discord-style channel-based messaging with real-time refresh
+  - **New DB Tables**: users, roles, staff, chat_channels, chat_messages, availability_slots, roster_roles
+  - **Security**: All API routes protected with requireAuth, sensitive routes with requirePermission
+  - **Removed**: Google Sheets sync, Share button, Reset Defaults, password gate ("9988")
 - **Dynamic Stat Fields & Player Game Stats** (February 18, 2026): Custom per-game-mode stat tracking
-  - **Stat Fields Management** (Settings page): Define custom stat fields per game mode
-    - New "Stat Fields" card at bottom of Settings page with two-panel layout
-    - Select game mode on left, manage stat fields on right
-    - Full CRUD: Add, edit, delete stat fields (e.g., Kills, Deaths, Assists, Damage)
-    - Cascade delete: Removing a stat field removes all associated player stats
-    - New `stat_fields` table (id, name, gameModeId FK, createdAt, teamId)
-    - API endpoints: GET/POST/PUT/DELETE `/api/stat-fields`
-  - **Player Stats Entry** (EventDetails page): Dynamic stats table when adding/editing games
-    - When adding a new game with a game mode selected that has stat fields, a player stats table appears
-    - Table shows all players as rows and stat fields as columns
-    - Stats are saved automatically when the game is added
-    - For existing games: "Stats" button (BarChart3 icon) in actions column expands a GameStatsEditor
-    - GameStatsEditor loads existing stats and allows editing/saving
-    - New `player_game_stats` table (id, gameId FK, playerId FK, statFieldId FK, value, createdAt, teamId)
-    - API endpoints: GET/POST `/api/games/:id/player-stats`
-  - Both tables follow teamId isolation pattern for complete data separation
 - **Enhanced Features Implementation** (December 2, 2025): Major UI/UX improvements
   - **OFF Days Calendar Feature**: Mark dates as OFF days on the Events calendar
     - OFF days display with moon icon and gray styling on calendar

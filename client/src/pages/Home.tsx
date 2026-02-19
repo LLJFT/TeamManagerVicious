@@ -1,15 +1,12 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { ScheduleTable } from "@/components/ScheduleTable";
-import { WeekSelector } from "@/components/WeekSelector";
 import { PlayerManager } from "@/components/PlayerManager";
-import { SyncStatus } from "@/components/SyncStatus";
 import { AvailabilityAnalytics } from "@/components/AvailabilityAnalytics";
 import { WeeklyAvailabilityOverview } from "@/components/WeeklyAvailabilityOverview";
 import { SimpleToast } from "@/components/SimpleToast";
-import { Save, Share2, Calendar, Users, Trophy, Settings, History, BarChart3, Scale, Target } from "lucide-react";
+import { Save } from "lucide-react";
 import { format } from "date-fns";
 import type { PlayerAvailability, DayOfWeek, AvailabilityOption, RoleType } from "@shared/schema";
 import { dayOfWeek } from "@shared/schema";
@@ -62,7 +59,7 @@ export default function Home() {
       setHasChanges(false);
       setLastSyncTime(new Date());
       console.log("[Save Mutation] Showing success toast");
-      setToastMessage("Successfully saved to Google Sheets");
+      setToastMessage("Schedule saved successfully");
       setToastType("success");
       setShowToast(true);
     },
@@ -159,27 +156,6 @@ export default function Home() {
     setShowToast(true);
   };
 
-  const handleShare = async () => {
-    try {
-      const response = await fetch('/api/spreadsheet-info');
-      const data = await response.json();
-      
-      if (!response.ok || !data.url) {
-        throw new Error('Failed to get spreadsheet URL');
-      }
-      
-      await navigator.clipboard.writeText(data.url);
-      setToastMessage("Google Sheets link copied");
-      setToastType("success");
-      setShowToast(true);
-    } catch (error) {
-      console.error('Share error:', error);
-      setToastMessage("Failed to copy link");
-      setToastType("error");
-      setShowToast(true);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-6 max-w-7xl">
@@ -194,123 +170,26 @@ export default function Home() {
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <SyncStatus
-                isSyncing={saveMutation.isPending}
-                lastSyncTime={lastSyncTime}
-                hasError={saveMutation.isError}
-              />
             </div>
           </div>
 
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-
-            <div className="flex items-center gap-2 flex-wrap">
-              <PlayerManager
-                players={scheduleData}
-                onAddPlayer={handleAddPlayer}
-                onRemovePlayer={handleRemovePlayer}
-                onEditPlayer={handleEditPlayer}
-              />
-              <Link href="/events">
-                <Button
-                  variant="outline"
-                  className="gap-2"
-                  data-testid="button-events"
-                >
-                  <Calendar className="h-4 w-4" />
-                  Events
-                </Button>
-              </Link>
-              <Link href="/results">
-                <Button
-                  variant="outline"
-                  className="gap-2"
-                  data-testid="button-results"
-                >
-                  <Trophy className="h-4 w-4" />
-                  Results
-                </Button>
-              </Link>
-              <Link href="/history">
-                <Button
-                  variant="outline"
-                  className="gap-2"
-                  data-testid="button-history"
-                >
-                  <History className="h-4 w-4" />
-                  History
-                </Button>
-              </Link>
-              <Link href="/stats">
-                <Button
-                  variant="outline"
-                  className="gap-2"
-                  data-testid="button-stats"
-                >
-                  <BarChart3 className="h-4 w-4" />
-                  Stats
-                </Button>
-              </Link>
-              <Link href="/compare">
-                <Button
-                  variant="outline"
-                  className="gap-2"
-                  data-testid="button-compare"
-                >
-                  <Scale className="h-4 w-4" />
-                  Compare
-                </Button>
-              </Link>
-              <Link href="/opponents">
-                <Button
-                  variant="outline"
-                  className="gap-2"
-                  data-testid="button-opponent-stats"
-                >
-                  <Target className="h-4 w-4" />
-                  Opponents
-                </Button>
-              </Link>
-              <Link href="/players">
-                <Button
-                  variant="outline"
-                  className="gap-2"
-                  data-testid="button-players"
-                >
-                  <Users className="h-4 w-4" />
-                  Players
-                </Button>
-              </Link>
-              <Link href="/settings">
-                <Button
-                  variant="outline"
-                  className="gap-2"
-                  data-testid="button-settings"
-                >
-                  <Settings className="h-4 w-4" />
-                  Settings
-                </Button>
-              </Link>
-              <Button
-                variant="outline"
-                onClick={handleShare}
-                className="gap-2"
-                data-testid="button-share"
-              >
-                <Share2 className="h-4 w-4" />
-                Share
-              </Button>
-              <Button
-                variant="default"
-                onClick={() => saveMutation.mutate()}
-                disabled={!hasChanges || saveMutation.isPending}
-                className="gap-2"
-                data-testid="button-save"
-              >
-                <Save className="h-4 w-4" />
-                {saveMutation.isPending ? "Saving..." : "Save"}
-              </Button>
-            </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <PlayerManager
+              players={scheduleData}
+              onAddPlayer={handleAddPlayer}
+              onRemovePlayer={handleRemovePlayer}
+              onEditPlayer={handleEditPlayer}
+            />
+            <Button
+              variant="default"
+              onClick={() => saveMutation.mutate()}
+              disabled={!hasChanges || saveMutation.isPending}
+              className="gap-2"
+              data-testid="button-save"
+            >
+              <Save className="h-4 w-4" />
+              {saveMutation.isPending ? "Saving..." : "Save"}
+            </Button>
           </div>
 
           {isLoading ? (

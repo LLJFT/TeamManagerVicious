@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, jsonb, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, jsonb, index, boolean, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -12,6 +12,26 @@ export const availabilityOptions = [
 ] as const;
 
 export const roleTypes = ["Tank", "DPS", "Support", "Flex", "Manager", "Analyst", "Coach"] as const;
+
+export const allPermissions = [
+  "view_schedule",
+  "edit_own_availability",
+  "edit_all_availability",
+  "add_remove_players",
+  "manage_events",
+  "view_stats",
+  "access_chat",
+  "manage_chat_channels",
+  "access_settings",
+  "access_dashboard",
+  "manage_users",
+  "manage_roles",
+] as const;
+
+export type Permission = typeof allPermissions[number];
+
+export const userStatuses = ["pending", "active", "banned"] as const;
+export type UserStatus = typeof userStatuses[number];
 
 export const gameResultOptions = ["win", "loss", "draw"] as const;
 
@@ -174,6 +194,91 @@ export const playerGameStats = pgTable("player_game_stats", {
   index("player_game_stats_team_id_idx").on(table.teamId),
 ]);
 
+// Auth & Roles
+export const roles = pgTable("roles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  name: text("name").notNull(),
+  isSystem: boolean("is_system").default(false),
+  permissions: jsonb("permissions").notNull().default(sql`'[]'::jsonb`),
+  createdAt: text("created_at").default(sql`now()`),
+}, (table) => [
+  index("roles_team_id_idx").on(table.teamId),
+]);
+
+export const users = pgTable("users", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  username: text("username").notNull(),
+  passwordHash: text("password_hash").notNull(),
+  avatarUrl: text("avatar_url"),
+  roleId: varchar("role_id").references(() => roles.id),
+  playerId: varchar("player_id").references(() => players.id),
+  status: text("status").notNull().default("pending"),
+  createdAt: text("created_at").default(sql`now()`),
+}, (table) => [
+  index("users_team_id_idx").on(table.teamId),
+]);
+
+// Availability Slots
+export const availabilitySlots = pgTable("availability_slots", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  label: text("label").notNull(),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: text("created_at").default(sql`now()`),
+}, (table) => [
+  index("availability_slots_team_id_idx").on(table.teamId),
+]);
+
+// Player/Staff Role Types (for roster, not auth)
+export const rosterRoles = pgTable("roster_roles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  name: text("name").notNull(),
+  type: text("type").notNull().default("player"),
+  sortOrder: integer("sort_order").default(0),
+}, (table) => [
+  index("roster_roles_team_id_idx").on(table.teamId),
+]);
+
+// Staff members (separate from players)
+export const staff = pgTable("staff", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  name: text("name").notNull(),
+  role: text("role").notNull(),
+  fullName: text("full_name"),
+  phone: text("phone"),
+  snapchat: text("snapchat"),
+}, (table) => [
+  index("staff_team_id_idx").on(table.teamId),
+]);
+
+// Chat
+export const chatChannels = pgTable("chat_channels", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  name: text("name").notNull(),
+  createdAt: text("created_at").default(sql`now()`),
+}, (table) => [
+  index("chat_channels_team_id_idx").on(table.teamId),
+]);
+
+export const chatMessages = pgTable("chat_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  channelId: varchar("channel_id").notNull().references(() => chatChannels.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  message: text("message"),
+  attachmentUrl: text("attachment_url"),
+  attachmentType: text("attachment_type"),
+  createdAt: text("created_at").default(sql`now()`),
+}, (table) => [
+  index("chat_messages_team_id_idx").on(table.teamId),
+  index("chat_messages_channel_id_idx").on(table.channelId),
+]);
+
 export const insertPlayerSchema = createInsertSchema(players).omit({
   id: true,
   teamId: true,
@@ -241,6 +346,46 @@ export const insertPlayerGameStatSchema = createInsertSchema(playerGameStats).om
   createdAt: true,
 });
 
+export const insertRoleSchema = createInsertSchema(roles).omit({
+  id: true,
+  teamId: true,
+  createdAt: true,
+});
+
+export const insertUserSchema = createInsertSchema(users).omit({
+  id: true,
+  teamId: true,
+  createdAt: true,
+});
+
+export const insertAvailabilitySlotSchema = createInsertSchema(availabilitySlots).omit({
+  id: true,
+  teamId: true,
+  createdAt: true,
+});
+
+export const insertRosterRoleSchema = createInsertSchema(rosterRoles).omit({
+  id: true,
+  teamId: true,
+});
+
+export const insertStaffSchema = createInsertSchema(staff).omit({
+  id: true,
+  teamId: true,
+});
+
+export const insertChatChannelSchema = createInsertSchema(chatChannels).omit({
+  id: true,
+  teamId: true,
+  createdAt: true,
+});
+
+export const insertChatMessageSchema = createInsertSchema(chatMessages).omit({
+  id: true,
+  teamId: true,
+  createdAt: true,
+});
+
 export type AvailabilityOption = typeof availabilityOptions[number];
 export type GameResult = typeof gameResultOptions[number];
 export type RoleType = typeof roleTypes[number];
@@ -288,6 +433,27 @@ export type InsertStatField = z.infer<typeof insertStatFieldSchema>;
 export type PlayerGameStat = typeof playerGameStats.$inferSelect;
 export type InsertPlayerGameStat = z.infer<typeof insertPlayerGameStatSchema>;
 
+export type Role = typeof roles.$inferSelect;
+export type InsertRole = z.infer<typeof insertRoleSchema>;
+
+export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
+
+export type AvailabilitySlot = typeof availabilitySlots.$inferSelect;
+export type InsertAvailabilitySlot = z.infer<typeof insertAvailabilitySlotSchema>;
+
+export type RosterRole = typeof rosterRoles.$inferSelect;
+export type InsertRosterRole = z.infer<typeof insertRosterRoleSchema>;
+
+export type Staff = typeof staff.$inferSelect;
+export type InsertStaff = z.infer<typeof insertStaffSchema>;
+
+export type ChatChannel = typeof chatChannels.$inferSelect;
+export type InsertChatChannel = z.infer<typeof insertChatChannelSchema>;
+
+export type ChatMessage = typeof chatMessages.$inferSelect;
+export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;
+
 export interface PlayerAvailability {
   playerId: string;
   playerName: string;
@@ -299,4 +465,8 @@ export interface PlayerAvailability {
 
 export interface ScheduleData {
   players: PlayerAvailability[];
+}
+
+export interface UserWithRole extends Omit<User, 'passwordHash'> {
+  role: Role | null;
 }

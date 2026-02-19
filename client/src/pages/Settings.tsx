@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Plus, Pencil, Trash2, Gamepad2, Map as MapIcon, RotateCcw, ChevronRight, Calendar, Palette, Check, BarChart3 } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, Gamepad2, Map as MapIcon, ChevronRight, Calendar, Palette, Check, BarChart3 } from "lucide-react";
 import type { GameMode, Map as MapType, Season, StatField } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useForm } from "react-hook-form";
@@ -341,32 +341,6 @@ export default function Settings() {
     },
   });
 
-  const resetToDefaultsMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/reset-defaults");
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/game-modes"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/maps"] });
-      setSelectedModeForMaps(null);
-      setToastMessage("Reset to Marvel Rivals defaults successfully");
-      setToastType("success");
-      setShowToast(true);
-    },
-    onError: (error: any) => {
-      setToastMessage(error.message || "Failed to reset to defaults");
-      setToastType("error");
-      setShowToast(true);
-    },
-  });
-
-  const handleResetToDefaults = () => {
-    if (confirm("This will delete all existing game modes and maps and replace them with Marvel Rivals defaults. Are you sure?")) {
-      resetToDefaultsMutation.mutate();
-    }
-  };
-
   const handleAddGameMode = () => {
     setEditingGameMode(undefined);
     gameModeForm.reset({ name: "" });
@@ -518,16 +492,6 @@ export default function Settings() {
               <p className="text-muted-foreground">Configure game modes, maps, and seasons</p>
             </div>
           </div>
-          <Button
-            onClick={handleResetToDefaults}
-            variant="outline"
-            className="gap-2"
-            disabled={resetToDefaultsMutation.isPending}
-            data-testid="button-reset-defaults"
-          >
-            <RotateCcw className="h-4 w-4" />
-            Reset to Marvel Rivals Defaults
-          </Button>
         </div>
 
         <Card className="mb-6">
