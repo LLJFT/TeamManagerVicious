@@ -14,7 +14,7 @@ import {
   insertAvailabilitySlotSchema, insertRosterRoleSchema,
   insertChatChannelPermissionSchema,
   users, roles, staff, chatChannels, chatMessages, availabilitySlots, rosterRoles,
-  chatChannelPermissions, activityLogs, playerGameStats,
+  chatChannelPermissions, activityLogs, playerGameStats, allPermissions,
   statFields as statFieldsTable,
   type UserWithRole,
 } from "@shared/schema";
