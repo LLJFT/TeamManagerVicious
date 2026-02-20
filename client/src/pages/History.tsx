@@ -24,10 +24,13 @@ import {
 } from "lucide-react";
 import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval, isBefore, isToday, parse } from "date-fns";
 import type { Event, Game, GameMode, Map as MapType, Season } from "@shared/schema";
+import { useAuth } from "@/hooks/use-auth";
+import { AccessDenied } from "@/components/AccessDenied";
 
 const ITEMS_PER_PAGE = 10;
 
 export default function History() {
+  const { hasPermission } = useAuth();
   const [selectedSeason, setSelectedSeason] = useState<string>("all");
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [selectedMode, setSelectedMode] = useState<string>("all");
@@ -190,6 +193,10 @@ export default function History() {
     setSortOrder("newest");
     setCurrentPage(1);
   };
+
+  if (!hasPermission("view_history")) {
+    return <AccessDenied />;
+  }
 
   if (isLoading) {
     return (

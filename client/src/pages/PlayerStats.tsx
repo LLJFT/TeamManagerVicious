@@ -6,7 +6,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart3, Users, Trophy, Target, Gamepad2 } from "lucide-react";
+import { BarChart3, Users, Trophy, Target, Gamepad2, ChevronDown, ChevronRight } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
+import { AccessDenied } from "@/components/AccessDenied";
 
 interface StatAggregate {
   fieldName: string;
@@ -26,6 +28,7 @@ interface OpponentStat {
   losses: number;
   draws: number;
   gamesPlayed: number;
+  stats: StatAggregate[];
 }
 
 interface PlayerSummary {
@@ -38,8 +41,14 @@ interface PlayerSummary {
 }
 
 export default function PlayerStats() {
+  const { hasPermission } = useAuth();
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [statsView, setStatsView] = useState<"overall" | "byMode">("overall");
+  const [expandedOpponents, setExpandedOpponents] = useState<Set<string>>(new Set());
+
+  if (!hasPermission("view_player_stats")) {
+    return <AccessDenied />;
+  }
 
   const { data: summaries = [], isLoading } = useQuery<PlayerSummary[]>({
     queryKey: ["/api/player-stats-summary"],
@@ -47,6 +56,15 @@ export default function PlayerStats() {
 
   const selectedPlayer = summaries.find(s => s.player.id === selectedPlayerId);
   const playersWithStats = summaries.filter(s => s.gamesPlayed > 0);
+
+  const toggleOpponent = (opponent: string) => {
+    setExpandedOpponents(prev => {
+      const next = new Set(prev);
+      if (next.has(opponent)) next.delete(opponent);
+      else next.add(opponent);
+      return next;
+    });
+  };
 
   return (
     <ScrollArea className="h-full">
@@ -270,7 +288,7 @@ export default function PlayerStats() {
                     <CardTitle className="text-lg">
                       {selectedPlayer.player.name} - vs Opponents
                     </CardTitle>
-                    <CardDescription>Performance breakdown by opponent</CardDescription>
+                    <CardDescription>Performance and stat breakdown by opponent</CardDescription>
                   </CardHeader>
                   <CardContent className="pt-4">
                     {selectedPlayer.opponents.length === 0 ? (
@@ -284,20 +302,55 @@ export default function PlayerStats() {
                           const winRate = opp.gamesPlayed > 0
                             ? Math.round((opp.wins / opp.gamesPlayed) * 100)
                             : 0;
+                          const isExpanded = expandedOpponents.has(opp.opponent);
                           return (
-                            <div key={i} className="p-3 rounded-lg border border-border" data-testid={`opponent-row-${i}`}>
-                              <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
-                                <span className="text-sm font-medium">{opp.opponent}</span>
-                                <Badge variant={winRate >= 50 ? "default" : "secondary"} className="text-xs">
-                                  {winRate}% WR
-                                </Badge>
+                            <div key={i} className="rounded-lg border border-border" data-testid={`opponent-row-${i}`}>
+                              <div
+                                className="flex items-center justify-between gap-2 flex-wrap p-3 cursor-pointer hover-elevate rounded-lg"
+                                onClick={() => toggleOpponent(opp.opponent)}
+                              >
+                                <div className="flex items-center gap-2">
+                                  {isExpanded ? (
+                                    <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                                  )}
+                                  <span className="text-sm font-medium">{opp.opponent}</span>
+                                  <Badge variant={winRate >= 50 ? "default" : "secondary"} className="text-xs">
+                                    {winRate}% WR
+                                  </Badge>
+                                </div>
+                                <div className="flex gap-3 text-xs text-muted-foreground">
+                                  <span>{opp.gamesPlayed} games</span>
+                                  <span className="text-green-600 dark:text-green-400">{opp.wins}W</span>
+                                  <span className="text-red-600 dark:text-red-400">{opp.losses}L</span>
+                                  {opp.draws > 0 && <span>{opp.draws}D</span>}
+                                </div>
                               </div>
-                              <div className="flex gap-3 text-xs text-muted-foreground">
-                                <span>{opp.gamesPlayed} games</span>
-                                <span className="text-green-600 dark:text-green-400">{opp.wins}W</span>
-                                <span className="text-red-600 dark:text-red-400">{opp.losses}L</span>
-                                {opp.draws > 0 && <span>{opp.draws}D</span>}
-                              </div>
+                              {isExpanded && opp.stats && opp.stats.length > 0 && (
+                                <div className="border-t border-border p-3 space-y-2 bg-muted/20">
+                                  {opp.stats.map((stat, si) => (
+                                    <div key={si} className="flex items-center justify-between px-3 py-2 rounded-md border border-border bg-card">
+                                      <span className="text-sm font-medium">{stat.fieldName}</span>
+                                      <div className="flex items-center gap-4">
+                                        <div className="text-right">
+                                          <span className="text-xs text-muted-foreground">Total</span>
+                                          <p className="text-sm font-semibold">{stat.total}</p>
+                                        </div>
+                                        <div className="text-right">
+                                          <span className="text-xs text-muted-foreground">Avg</span>
+                                          <p className="text-sm font-semibold">{stat.avg}</p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              {isExpanded && (!opp.stats || opp.stats.length === 0) && (
+                                <div className="border-t border-border p-3 text-center">
+                                  <p className="text-xs text-muted-foreground">No stat breakdown available for this opponent</p>
+                                </div>
+                              )}
                             </div>
                           );
                         })}

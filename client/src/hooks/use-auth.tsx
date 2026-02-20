@@ -1,4 +1,4 @@
-import { createContext, useContext, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useCallback, useEffect, type ReactNode } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { UserWithRole, Permission } from "@shared/schema";
@@ -15,11 +15,21 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { data: user, isLoading } = useQuery<UserWithRole>({
+  const { data: user, isLoading, error } = useQuery<UserWithRole>({
     queryKey: ["/api/auth/me"],
     retry: false,
     staleTime: 1000 * 60 * 5,
+    refetchInterval: 30000,
   });
+
+  useEffect(() => {
+    if (error) {
+      const msg = (error as any)?.message || "";
+      if (msg.includes("403") || msg.includes("banned")) {
+        queryClient.clear();
+      }
+    }
+  }, [error]);
 
   const loginMutation = useMutation({
     mutationFn: async ({ username, password }: { username: string; password: string }) => {

@@ -6,8 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format, parseISO, isAfter, startOfDay } from "date-fns";
 import { Calendar, Trophy, Eye } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
+import { AccessDenied } from "@/components/AccessDenied";
 
 export default function EventsResults() {
+  const { hasPermission } = useAuth();
   const { data: events = [], isLoading } = useQuery<Event[]>({
     queryKey: ["/api/events"],
   });
@@ -79,6 +82,10 @@ export default function EventsResults() {
         return "bg-gray-500";
     }
   };
+
+  if (!hasPermission("view_results")) {
+    return <AccessDenied />;
+  }
 
   if (isLoading) {
     return (

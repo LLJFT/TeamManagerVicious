@@ -28,6 +28,8 @@ import {
 } from "lucide-react";
 import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
 import type { Event, Game, GameMode, Map as MapType, Season } from "@shared/schema";
+import { useAuth } from "@/hooks/use-auth";
+import { AccessDenied } from "@/components/AccessDenied";
 
 interface StatsSummary {
   total: number;
@@ -48,6 +50,7 @@ type StatsMode = "overall" | "monthly" | "seasonal";
 type EventTypeFilter = "all" | "scrim" | "tournament";
 
 export default function UnifiedStats() {
+  const { hasPermission } = useAuth();
   const initialMode: StatsMode = "overall";
   const [statsMode, setStatsMode] = useState<StatsMode>(initialMode);
   const [eventTypeFilter, setEventTypeFilter] = useState<EventTypeFilter>("all");
@@ -235,6 +238,10 @@ export default function UnifiedStats() {
 
   const needsSelection = (statsMode === "monthly" && !selectedMonth) || (statsMode === "seasonal" && !selectedSeasonId);
   const hasData = filteredEvents.length > 0;
+
+  if (!hasPermission("view_statistics")) {
+    return <AccessDenied />;
+  }
 
   if (eventsLoading) {
     return (

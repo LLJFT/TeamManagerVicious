@@ -11,6 +11,8 @@ import type { Event, OffDay } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { EventDialog } from "@/components/EventDialog";
 import { SimpleToast } from "@/components/SimpleToast";
+import { useAuth } from "@/hooks/use-auth";
+import { AccessDenied } from "@/components/AccessDenied";
 
 interface CustomCalendarProps {
   selectedDate: Date | undefined;
@@ -148,6 +150,7 @@ function CustomCalendar({ selectedDate, onSelectDate, eventsByDate, offDaysByDat
 }
 
 export default function Events() {
+  const { hasPermission } = useAuth();
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [showEventDialog, setShowEventDialog] = useState(false);
   const [eventToEdit, setEventToEdit] = useState<Event | undefined>(undefined);
@@ -294,6 +297,10 @@ export default function Events() {
     }
   };
 
+  if (!hasPermission("view_events")) {
+    return <AccessDenied />;
+  }
+
   return (
     <div className="min-h-screen bg-background" dir="ltr">
       <div className="container mx-auto px-4 py-6 max-w-7xl">
@@ -309,6 +316,7 @@ export default function Events() {
               <p className="text-muted-foreground">Manage tournaments, scrims, and VOD reviews</p>
             </div>
           </div>
+          {hasPermission("create_events") && (
           <Button
             onClick={() => {
               setEventToEdit(undefined);
@@ -320,6 +328,7 @@ export default function Events() {
             <Plus className="w-4 h-4" />
             Add Event
           </Button>
+          )}
         </div>
 
         <div className="grid grid-cols-1 gap-6">
@@ -415,6 +424,7 @@ export default function Events() {
                         )}
                       </div>
                       <div className="flex gap-1">
+                        {hasPermission("view_results") && (
                         <Link href={`/events/${event.id}`}>
                           <Button
                             variant="ghost"
@@ -424,6 +434,8 @@ export default function Events() {
                             <Eye className="w-4 h-4" />
                           </Button>
                         </Link>
+                        )}
+                        {hasPermission("edit_events") && (
                         <Button
                           variant="ghost"
                           size="icon"
@@ -435,6 +447,8 @@ export default function Events() {
                         >
                           <Pencil className="w-4 h-4" />
                         </Button>
+                        )}
+                        {hasPermission("create_events") && (
                         <Button
                           variant="ghost"
                           size="icon"
@@ -445,6 +459,8 @@ export default function Events() {
                         >
                           <Copy className="w-4 h-4" />
                         </Button>
+                        )}
+                        {hasPermission("delete_events") && (
                         <Button
                           variant="ghost"
                           size="icon"
@@ -454,6 +470,7 @@ export default function Events() {
                         >
                           <Trash2 className="w-4 h-4 text-destructive" />
                         </Button>
+                        )}
                       </div>
                     </div>
                   </Card>

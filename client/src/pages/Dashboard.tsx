@@ -27,6 +27,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { AccessDenied } from "@/components/AccessDenied";
 import { format } from "date-fns";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -781,6 +782,10 @@ export default function Dashboard() {
 
   const visibleTabs = availableTabs.filter(t => t.show);
   const defaultTab = visibleTabs.length > 0 ? visibleTabs[0].value : "game-config";
+
+  if (!hasPermission("view_dashboard")) {
+    return <AccessDenied />;
+  }
 
   if (modesLoading || mapsLoading || seasonsLoading) {
     return (

@@ -7,6 +7,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Lock } from "lucide-react";
 import type { Player, PlayerAvailabilityRecord, DayOfWeek } from "@shared/schema";
 import { dayOfWeek } from "@shared/schema";
 
@@ -133,7 +134,12 @@ export function ScheduleTable({
                       </Select>
                     </td>
                     <td className="border-r border-border px-4 py-2 bg-card">
-                      <span className="text-sm font-medium" data-testid={`text-player-name-${player.id}`}>{player.name}</span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-sm font-medium" data-testid={`text-player-name-${player.id}`}>{player.name}</span>
+                        {!canEditThis && (
+                          <Lock className="h-3 w-3 text-muted-foreground shrink-0" />
+                        )}
+                      </div>
                     </td>
                     {dayOfWeek.map((day) => {
                       const avail = getPlayerAvailability(player.id, day);

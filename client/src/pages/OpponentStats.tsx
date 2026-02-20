@@ -21,6 +21,8 @@ import {
   ArrowUpDown,
 } from "lucide-react";
 import type { Event, Game, GameMode, Map as MapType } from "@shared/schema";
+import { useAuth } from "@/hooks/use-auth";
+import { AccessDenied } from "@/components/AccessDenied";
 
 interface StatsSummary {
   total: number;
@@ -42,6 +44,7 @@ interface OpponentData {
 type SortOption = "matches" | "winRate" | "name" | "lastPlayed";
 
 export default function OpponentStats() {
+  const { hasPermission } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("matches");
 
@@ -161,6 +164,10 @@ export default function OpponentStats() {
     if (rate >= 40) return <Badge variant="secondary">Even</Badge>;
     return <Badge variant="destructive">Weak</Badge>;
   };
+
+  if (!hasPermission("view_opponents")) {
+    return <AccessDenied />;
+  }
 
   if (isLoading) {
     return (

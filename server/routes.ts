@@ -442,6 +442,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.put("/api/chat/channels/:id", requireAuth, requirePermission("manage_channels"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = getTeamId();
+      const { name } = req.body;
+      if (!name || !name.trim()) return res.status(400).json({ message: "Channel name is required" });
+      const [updated] = await db.update(chatChannels)
+        .set({ name: name.trim() })
+        .where(and(eq(chatChannels.id, id), eq(chatChannels.teamId, teamId)))
+        .returning();
+      if (!updated) return res.status(404).json({ message: "Channel not found" });
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   app.delete("/api/chat/channels/:id", requireAuth, requirePermission("manage_channels"), async (req, res) => {
     try {
       const { id } = req.params;
@@ -719,12 +736,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/player-availability", requireAuth, requirePermission("edit_own_availability"), async (req, res) => {
+  app.post("/api/player-availability", requireAuth, async (req, res) => {
     try {
       const { playerId, day, availability } = req.body;
       if (!playerId || !day || !availability) {
         return res.status(400).json({ message: "playerId, day, and availability required" });
       }
+
+      const teamId = getTeamId();
+      const [currentUser] = await db.select().from(users).where(and(eq(users.id, req.session.userId!), eq(users.teamId, teamId))).limit(1);
+      if (!currentUser) return res.status(401).json({ message: "Unauthorized" });
+
+      const [userRole] = currentUser.roleId ? await db.select().from(roles).where(and(eq(roles.id, currentUser.roleId), eq(roles.teamId, teamId))).limit(1) : [];
+      const perms = userRole?.name === "Owner" ? [...allPermissions] : ((userRole?.permissions as string[]) || []);
+
+      const hasEditAll = perms.includes("edit_all_availability");
+      const hasEditOwn = perms.includes("edit_own_availability");
+      const isOwnPlayer = currentUser.playerId === playerId;
+
+      if (!hasEditAll && !(hasEditOwn && isOwnPlayer)) {
+        return res.status(403).json({ message: "No permission to edit this player's availability" });
+      }
+
       const record = await storage.savePlayerAvailability(playerId, day, availability);
       res.json(record);
     } catch (error: any) {
@@ -732,14 +765,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/player-availability/bulk", requireAuth, requirePermission("edit_own_availability"), async (req, res) => {
+  app.post("/api/player-availability/bulk", requireAuth, async (req, res) => {
     try {
       const { updates } = req.body;
       if (!Array.isArray(updates)) {
         return res.status(400).json({ message: "updates must be an array" });
       }
+
+      const teamId = getTeamId();
+      const [currentUser] = await db.select().from(users).where(and(eq(users.id, req.session.userId!), eq(users.teamId, teamId))).limit(1);
+      if (!currentUser) return res.status(401).json({ message: "Unauthorized" });
+
+      const [userRole] = currentUser.roleId ? await db.select().from(roles).where(and(eq(roles.id, currentUser.roleId), eq(roles.teamId, teamId))).limit(1) : [];
+      const perms = userRole?.name === "Owner" ? [...allPermissions] : ((userRole?.permissions as string[]) || []);
+      const hasEditAll = perms.includes("edit_all_availability");
+      const hasEditOwn = perms.includes("edit_own_availability");
+
       const results = [];
       for (const { playerId, day, availability } of updates) {
+        const isOwnPlayer = currentUser.playerId === playerId;
+        if (!hasEditAll && !(hasEditOwn && isOwnPlayer)) {
+          return res.status(403).json({ message: "No permission to edit this player's availability" });
+        }
         const record = await storage.savePlayerAvailability(playerId, day, availability);
         results.push(record);
       }
@@ -877,7 +924,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/events", requireAuth, async (req, res) => {
+  app.get("/api/events", requireAuth, requirePermission("view_events"), async (req, res) => {
     try {
       const events = await storage.getAllEvents();
       res.json(events);
@@ -1469,23 +1516,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const gameIds = Array.from(new Set(playerStats.map(s => s.gameId)));
         const gamesPlayed = gameIds.length;
 
-        const statAggregates: Record<string, { fieldName: string; total: number; count: number; avg: number }> = {};
+        const statAggregatesByName: Record<string, { fieldName: string; total: number; count: number; avg: number }> = {};
         for (const stat of playerStats) {
           const field = allStatFields.find(f => f.id === stat.statFieldId);
           if (!field) continue;
-          if (!statAggregates[stat.statFieldId]) {
-            statAggregates[stat.statFieldId] = { fieldName: field.name, total: 0, count: 0, avg: 0 };
+          const key = field.name;
+          if (!statAggregatesByName[key]) {
+            statAggregatesByName[key] = { fieldName: field.name, total: 0, count: 0, avg: 0 };
           }
           const val = parseFloat(stat.value) || 0;
-          statAggregates[stat.statFieldId].total += val;
-          statAggregates[stat.statFieldId].count += 1;
+          statAggregatesByName[key].total += val;
+          statAggregatesByName[key].count += 1;
         }
-        for (const key of Object.keys(statAggregates)) {
-          const agg = statAggregates[key];
+        for (const key of Object.keys(statAggregatesByName)) {
+          const agg = statAggregatesByName[key];
           agg.avg = agg.count > 0 ? Math.round((agg.total / agg.count) * 100) / 100 : 0;
         }
 
-        const opponentStats: Record<string, { opponent: string; wins: number; losses: number; draws: number; gamesPlayed: number }> = {};
+        const opponentStats: Record<string, { opponent: string; wins: number; losses: number; draws: number; gamesPlayed: number; stats: Record<string, { fieldName: string; total: number; count: number; avg: number }> }> = {};
         for (const gameId of gameIds) {
           const game = allGames.find(g => g.id === gameId);
           if (!game) continue;
@@ -1493,12 +1541,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (!event || !event.opponentName) continue;
           const opp = event.opponentName;
           if (!opponentStats[opp]) {
-            opponentStats[opp] = { opponent: opp, wins: 0, losses: 0, draws: 0, gamesPlayed: 0 };
+            opponentStats[opp] = { opponent: opp, wins: 0, losses: 0, draws: 0, gamesPlayed: 0, stats: {} };
           }
           opponentStats[opp].gamesPlayed++;
           if (game.result === "win") opponentStats[opp].wins++;
           else if (game.result === "loss") opponentStats[opp].losses++;
           else if (game.result === "draw") opponentStats[opp].draws++;
+
+          const gameStats = playerStats.filter(s => s.gameId === gameId);
+          for (const gs of gameStats) {
+            const field = allStatFields.find(f => f.id === gs.statFieldId);
+            if (!field) continue;
+            const fname = field.name;
+            if (!opponentStats[opp].stats[fname]) {
+              opponentStats[opp].stats[fname] = { fieldName: fname, total: 0, count: 0, avg: 0 };
+            }
+            const val = parseFloat(gs.value) || 0;
+            opponentStats[opp].stats[fname].total += val;
+            opponentStats[opp].stats[fname].count += 1;
+          }
+        }
+        for (const opp of Object.values(opponentStats)) {
+          for (const st of Object.values(opp.stats)) {
+            st.avg = st.count > 0 ? Math.round((st.total / st.count) * 100) / 100 : 0;
+          }
         }
 
         const statsByMode: Record<string, { modeName: string; stats: { fieldName: string; total: number; count: number; avg: number }[] }> = {};
@@ -1535,12 +1601,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           eventTypeGames[eventType] = (eventTypeGames[eventType] || 0) + 1;
         }
 
+        const opponentsList = Object.values(opponentStats).map(o => ({
+          ...o,
+          stats: Object.values(o.stats),
+        }));
+
         return {
           player: { id: player.id, name: player.name, role: player.role },
           gamesPlayed,
-          stats: Object.values(statAggregates),
+          stats: Object.values(statAggregatesByName),
           statsByMode: Object.values(statsByMode),
-          opponents: Object.values(opponentStats),
+          opponents: opponentsList,
           eventTypeGames,
         };
       });

@@ -334,7 +334,7 @@ export const chatMessages = pgTable("chat_messages", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
   channelId: varchar("channel_id").notNull().references(() => chatChannels.id, { onDelete: "cascade" }),
-  userId: varchar("user_id").notNull().references(() => users.id),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }),
   message: text("message"),
   attachmentUrl: text("attachment_url"),
   attachmentType: text("attachment_type"),

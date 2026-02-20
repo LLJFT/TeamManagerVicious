@@ -1,0 +1,83 @@
+Please fix all the following issues. Do NOT break any existing functionality:
+
+🔴 FIX 1: Player Stats — Overall View Must Merge Duplicate Stat Names
+In the Player Stats page “Overall” view, stats with the same name (e.g., “Kill”, “Death”) from different game modes are showing as separate repeated rows. Fix this:
+	∙	In “Overall” mode: group stats by name and SUM their totals across all game modes into one row per stat name (e.g., all “Kill” stats from all modes → one “Kill” row with combined total and recalculated average)
+	∙	In “By Mode” view: show each game mode as a labeled section/card with a header showing the game mode name, then list only the stats configured for that specific mode underneath
+	∙	The two views (Overall / By Mode) must be clearly switchable with the existing toggle buttons
+
+🔴 FIX 2: Player Stats vs Opponent — Show Actual Stats Not Just Results
+In the “vs Opponents” section of the Player Stats page, currently only win/loss results are shown. Fix this:
+	∙	When viewing a player’s stats vs a specific opponent, show the aggregated stat totals for games played against that opponent (Kill total, Death total, etc. — same stats as the Overall view but filtered to games vs that opponent)
+	∙	Add a “expand” or clickable row per opponent that reveals their per-stat breakdown
+
+🔴 FIX 3: Roster Roles Must Be Fully Synced Everywhere
+The Roster Roles configured in Dashboard → Team → Roster Roles are NOT being used in the Players tab or availability schedule. Fix this completely:
+	∙	The role dropdown in “Add New Player” (Players tab) must pull ONLY from roster_roles where type = 'player'
+	∙	The role dropdown in the availability schedule “Manage Players” modal must pull ONLY from roster_roles where type = 'player'
+	
+	∙	Delete any hardcoded role lists — all roles must come from the database
+
+🔴 FIX 4: Chat — Images Must Display Inline + Fix File Upload
+Images sent in chat are still showing as “[Attachment]” text. Fix this completely:
+	∙	Images (jpg, png, gif, webp) must render as actual visible inline images in the chat message
+	∙	Clicking an image opens it in a fullscreen lightbox/modal
+	∙	Videos show an inline player
+	∙	Other files (pdf, doc, zip, etc.) show as a styled download card with filename and size
+	∙	The file upload button (+ or paperclip icon) must work for ALL file types — currently it’s broken
+	∙	Files must be properly stored and served (use multipart upload, store in /uploads directory, serve statically)
+
+🔴 FIX 5: Chat — Users Can Delete Their Own Messages
+Regular users (Members) cannot delete their own messages even when they have the delete_own_messages permission. Fix this:
+	∙	Any user can delete their own messages (trash icon appears on hover on their own messages)
+	∙	Admins/Owners can delete any message
+	∙	Deleting a message removes it from the UI immediately without page refresh
+
+🔴 FIX 6: Chat — Add Channel Settings Button (Gear Icon)
+The channel management (rename, permissions, delete) is missing. Add a gear/settings icon (⚙) next to each channel name in the sidebar that opens a channel management modal (visible only to users with manage_channels permission) containing:
+	∙	Rename channel field
+	∙	Per-role permissions table: for each role, toggles for “Can View” and “Can Send”
+	∙	Delete channel button (with confirmation)
+
+🔴 FIX 7: Ban/Remove User Must Take Effect Immediately Without Page Refresh
+Currently when a user is banned or removed, they must manually refresh the page before being kicked out. Fix this:
+	∙	Implement a polling mechanism: every 60 seconds (or on every API request), the client checks if the current user’s session is still valid and their status is still active
+	∙	If the server returns 401 or the user status is banned/deleted, immediately redirect them to the login page with a “Your account has been suspended” message
+	∙	This means a banned user will be kicked within 60 seconds maximum without needing to refresh
+	∙	Also: when a user makes ANY API request, check their status server-side and return 401 immediately if banned — this ensures they’re kicked the moment they interact with anything
+
+🔴 FIX 8: Fix Foreign Key Error When Banning/Deleting Users With Chat Messages
+When trying to ban or delete a user who has sent chat messages, the app throws: 500: update or delete on table "users" violates foreign key constraint "chat_messages_user_id_users_id_fk". Fix this:
+	∙	When a user is banned: do NOT delete their messages — just set their status to banned (soft ban). Their messages remain but show as “[banned user]” or keep their username
+	∙	When a user is deleted: first set all their chat_messages.user_id to NULL (or to a “deleted user” placeholder), then delete the user. Add ON DELETE SET NULL to the foreign key constraint via migration, OR handle it in the delete route by nullifying messages first
+
+🔴 FIX 9: Full Permission Enforcement on Frontend AND Backend
+This is critical. Currently users can navigate to /results, /events, etc. directly in the URL even without permissions. Fix this completely:
+Backend: Every API route must check the user’s permissions server-side:
+	∙	GET/POST /api/events → requires view_events / create_events
+	∙	GET/POST /api/results → requires view_results / add_results
+	∙	GET/POST /api/players → requires view_players
+	∙	GET/POST /api/schedule → requires view_schedule
+	∙	GET/POST /api/games → requires view_results
+	∙	All dashboard routes → require view_dashboard
+	∙	Return HTTP 403 with { error: "Access denied" } if permission missing
+Frontend: Every page component must check permissions on load:
+	∙	If user doesn’t have the required permission, show an “Access Denied” page (not just hide the nav link)
+	∙	The sidebar must hide nav items the user has no permission for
+	∙	Buttons like “Add Event”, “Edit”, “Delete” must be hidden if user lacks the specific permission
+Complete permission list to enforce:
+view_schedule, edit_own_availability, edit_all_availability, manage_players, view_events, create_events, edit_events, delete_events, view_results, add_results, edit_results, delete_results, view_players, manage_players_tab, view_statistics, view_player_stats, view_history, view_compare, view_opponents, view_chat, send_messages, delete_own_messages, delete_any_message, manage_channels, view_staff, manage_staff, view_dashboard, manage_users, manage_roles, manage_game_config, manage_stat_fields, view_activity_log
+
+🔴 FIX 10: Events Page — View Result Button Must Respect Permissions
+In the Events page, users with only view_events permission (no view_results permission) can still click the eye icon on an event and see full results. Fix this:
+	∙	The eye/view button on an event must only be visible and functional if the user has view_results permission
+	∙	The Results page at /results must require view_results permission — block it both frontend and backend
+
+🔴 FIX 11: Availability Schedule — Locked Rows for Non-Owners
+When a user account is linked to a specific player:
+	∙	Their own row in the schedule must be fully editable (normal interactive dropdowns)
+	∙	ALL other players’ rows must be visually grayed out with a lock icon and non-interactive (disabled dropdowns, no cursor change)
+	∙	Attempting to edit another player’s row via the API must return 403
+	∙	Users with edit_all_availability permission bypass this restriction and can edit any row
+
+Design: Keep the existing dark blue/cyan theme throughout. Do not remove or break any existing features.

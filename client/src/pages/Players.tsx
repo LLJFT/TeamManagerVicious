@@ -11,19 +11,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Pencil, Trash2, ArrowLeft, Check, X, Clock, UserPlus, Users, Send } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
-import type { Player, Attendance, AttendanceStatus, TeamNotes as TeamNotesType } from "@shared/schema";
+import type { Player, Attendance, AttendanceStatus, TeamNotes as TeamNotesType, RosterRole } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { SimpleToast } from "@/components/SimpleToast";
+import { useAuth } from "@/hooks/use-auth";
+import { AccessDenied } from "@/components/AccessDenied";
 
 const playerFormSchema = z.object({
   name: z.string().min(1, "Nickname is required"),
   fullName: z.string().optional(),
   phone: z.string().optional(),
   snapchat: z.string().optional(),
-  role: z.enum(["Tank", "DPS", "Support", "Analyst", "Coach"]),
+  role: z.string().min(1, "Role is required"),
 });
 
 const attendanceFormSchema = z.object({
@@ -45,6 +47,7 @@ type AttendanceFormData = z.infer<typeof attendanceFormSchema>;
 type TeamNoteFormData = z.infer<typeof teamNoteFormSchema>;
 
 export default function Players() {
+  const { hasPermission } = useAuth();
   const [showPlayerDialog, setShowPlayerDialog] = useState(false);
   const [showAttendanceDialog, setShowAttendanceDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -67,6 +70,19 @@ export default function Players() {
   const { data: teamNotes = [] } = useQuery<TeamNotesType[]>({
     queryKey: ["/api/team-notes"],
   });
+
+  const { data: rosterRoles = [] } = useQuery<RosterRole[]>({
+    queryKey: ["/api/roster-roles"],
+  });
+
+  const playerRoleOptions = rosterRoles
+    .filter(r => r.type === "player")
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map(r => r.name);
+  const allRoleOptions = rosterRoles
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map(r => r.name);
+  const roleOptions = allRoleOptions.length > 0 ? allRoleOptions : ["Tank", "DPS", "Support", "Flex"];
 
   const playerForm = useForm<PlayerFormData>({
     resolver: zodResolver(playerFormSchema),
@@ -383,6 +399,10 @@ export default function Players() {
       total: playerAttendance.length,
     };
   };
+
+  if (!hasPermission("view_players")) {
+    return <AccessDenied />;
+  }
 
   if (playersLoading || attendanceLoading) {
     return (
@@ -733,11 +753,9 @@ export default function Players() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="Tank">Tank</SelectItem>
-                          <SelectItem value="DPS">DPS</SelectItem>
-                          <SelectItem value="Support">Support</SelectItem>
-                          <SelectItem value="Analyst">Analyst</SelectItem>
-                          <SelectItem value="Coach">Coach</SelectItem>
+                          {roleOptions.map(r => (
+                            <SelectItem key={r} value={r}>{r}</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                       <FormMessage />

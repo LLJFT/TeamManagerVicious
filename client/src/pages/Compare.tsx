@@ -26,6 +26,8 @@ import {
 } from "lucide-react";
 import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
 import type { Event, Game, GameMode, Map as MapType, Season } from "@shared/schema";
+import { useAuth } from "@/hooks/use-auth";
+import { AccessDenied } from "@/components/AccessDenied";
 
 interface StatsSummary {
   total: number;
@@ -43,6 +45,7 @@ interface MonthOption {
 type CompareMode = "season" | "month";
 
 export default function Compare() {
+  const { hasPermission } = useAuth();
   const [compareMode, setCompareMode] = useState<CompareMode>("season");
   const [selection1, setSelection1] = useState<string>("");
   const [selection2, setSelection2] = useState<string>("");
@@ -189,6 +192,10 @@ export default function Compare() {
     if (Math.abs(diff) < 0.1) return null;
     return diff;
   };
+
+  if (!hasPermission("view_compare")) {
+    return <AccessDenied />;
+  }
 
   if (isLoading) {
     return (

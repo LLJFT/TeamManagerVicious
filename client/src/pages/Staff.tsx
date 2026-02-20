@@ -17,6 +17,7 @@ import type { Staff } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { AccessDenied } from "@/components/AccessDenied";
 
 interface StaffFormData {
   name: string;
@@ -139,6 +140,10 @@ export default function StaffPage() {
   }
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
+
+  if (!hasPermission("view_staff")) {
+    return <AccessDenied />;
+  }
 
   if (isLoading) {
     return (

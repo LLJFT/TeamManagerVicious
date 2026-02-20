@@ -15,7 +15,10 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { MessageSquare, Hash, Plus, Trash2, Send, Paperclip, X, AtSign, FileText, Download } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { MessageSquare, Hash, Plus, Trash2, Send, Paperclip, X, AtSign, FileText, Download, Settings } from "lucide-react";
 
 interface ChatChannelWithPerms {
   id: string;
@@ -61,6 +64,9 @@ export default function Chat() {
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [showChannelSettings, setShowChannelSettings] = useState(false);
+  const [editChannelName, setEditChannelName] = useState("");
+  const [settingsChannelId, setSettingsChannelId] = useState<string | null>(null);
   const canManageChannels = hasPermission("manage_channels");
   const canSendMessages = hasPermission("send_messages");
 
@@ -129,6 +135,42 @@ export default function Chat() {
     },
   });
 
+  const { data: allRoles = [] } = useQuery<{ id: string; name: string; permissions: string[] }[]>({
+    queryKey: ["/api/roles"],
+    enabled: canManageChannels,
+  });
+
+  const { data: channelPermissions = [] } = useQuery<{ id: string; channelId: string; roleId: string; canSend: boolean }[]>({
+    queryKey: ["/api/chat/channels", settingsChannelId, "permissions"],
+    enabled: !!settingsChannelId && canManageChannels,
+  });
+
+  const renameChannelMutation = useMutation({
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      await apiRequest("PUT", `/api/chat/channels/${id}`, { name });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/chat/channels"] });
+      toast({ title: "Channel renamed" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to rename channel", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const saveChannelPermMutation = useMutation({
+    mutationFn: async ({ channelId, roleId, canSend }: { channelId: string; roleId: string; canSend: boolean }) => {
+      await apiRequest("POST", `/api/chat/channels/${channelId}/permissions`, { roleId, canSend });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/chat/channels", settingsChannelId, "permissions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/chat/channels"] });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to save permission", description: err.message, variant: "destructive" });
+    },
+  });
+
   const sendMessageMutation = useMutation({
     mutationFn: async ({ channelId, message, attachmentUrl, attachmentType, mentions }: {
       channelId: string;
@@ -184,7 +226,9 @@ export default function Chat() {
           filename: selectedFile.name,
           contentType: selectedFile.type,
         });
-        const { presignedUrl, objectPath } = await presignRes.json();
+        const uploadData = await presignRes.json();
+        const presignedUrl = uploadData.presignedUrl || uploadData.uploadURL;
+        const objectPath = uploadData.objectPath || uploadData.normalizedPath;
 
         await fetch(presignedUrl, {
           method: "PUT",
@@ -394,11 +438,13 @@ export default function Chat() {
                       style={{ visibility: "visible" }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        deleteChannelMutation.mutate(channel.id);
+                        setSettingsChannelId(channel.id);
+                        setEditChannelName(channel.name);
+                        setShowChannelSettings(true);
                       }}
-                      data-testid={`button-delete-channel-${channel.id}`}
+                      data-testid={`button-settings-channel-${channel.id}`}
                     >
-                      <Trash2 className="h-3 w-3" />
+                      <Settings className="h-3 w-3" />
                     </Button>
                   )}
                 </div>
@@ -591,7 +637,6 @@ export default function Chat() {
                       ref={fileInputRef}
                       onChange={handleFileSelect}
                       className="hidden"
-                      accept="image/*,.pdf,.doc,.docx,.txt"
                       data-testid="input-file-upload"
                     />
                     <Button
@@ -632,6 +677,83 @@ export default function Chat() {
           </div>
         )}
       </div>
+
+      <Dialog open={showChannelSettings} onOpenChange={setShowChannelSettings}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Channel Settings</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <Label>Channel Name</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={editChannelName}
+                  onChange={(e) => setEditChannelName(e.target.value)}
+                  data-testid="input-edit-channel-name"
+                />
+                <Button
+                  onClick={() => {
+                    if (settingsChannelId && editChannelName.trim()) {
+                      renameChannelMutation.mutate({ id: settingsChannelId, name: editChannelName.trim() });
+                    }
+                  }}
+                  disabled={renameChannelMutation.isPending}
+                  data-testid="button-rename-channel"
+                >
+                  Rename
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <Label>Role Permissions</Label>
+              <p className="text-xs text-muted-foreground">Control which roles can send messages in this channel</p>
+              {allRoles.map(role => {
+                const perm = channelPermissions.find(p => p.roleId === role.id);
+                const canSend = perm ? perm.canSend : true;
+                return (
+                  <div key={role.id} className="flex items-center justify-between gap-4 p-2 rounded-md border border-border">
+                    <span className="text-sm font-medium">{role.name}</span>
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs text-muted-foreground">Can Send</Label>
+                      <Switch
+                        checked={canSend}
+                        onCheckedChange={(checked) => {
+                          if (settingsChannelId) {
+                            saveChannelPermMutation.mutate({
+                              channelId: settingsChannelId,
+                              roleId: role.id,
+                              canSend: checked,
+                            });
+                          }
+                        }}
+                        data-testid={`switch-perm-${role.id}`}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  if (settingsChannelId && window.confirm("Are you sure you want to delete this channel?")) {
+                    deleteChannelMutation.mutate(settingsChannelId);
+                    setShowChannelSettings(false);
+                  }
+                }}
+                data-testid="button-delete-channel-settings"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Channel
+              </Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
