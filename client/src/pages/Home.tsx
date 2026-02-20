@@ -9,6 +9,7 @@ import { dayOfWeek } from "@shared/schema";
 import type { PlayerAvailability, AvailabilityOption } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 
 interface StaffMember {
   id: string;
@@ -19,7 +20,11 @@ interface StaffMember {
 
 export default function Home() {
   const { toast } = useToast();
+  const { user, hasPermission } = useAuth();
   const currentDate = format(new Date(), "MMM dd");
+  const canEditAll = hasPermission("edit_all_availability");
+  const canEditOwn = hasPermission("edit_own_availability");
+  const linkedPlayerId = user?.playerId || null;
 
   const { data: players = [], isLoading: playersLoading } = useQuery<Player[]>({
     queryKey: ["/api/players"],
@@ -193,6 +198,7 @@ export default function Home() {
             </div>
           </div>
 
+          {hasPermission("manage_schedule_players") && (
           <div className="flex items-center gap-2 flex-wrap">
             <PlayerManager
               players={players}
@@ -202,6 +208,7 @@ export default function Home() {
               onEditPlayer={handleEditPlayer}
             />
           </div>
+          )}
 
           {playersLoading ? (
             <div className="flex items-center justify-center py-20">
@@ -222,6 +229,8 @@ export default function Home() {
                 onStaffAvailabilityChange={handleStaffAvailabilityChange}
                 onRoleChange={handleRoleChange}
                 isLoading={false}
+                canEditAll={canEditAll}
+                editablePlayerId={canEditOwn ? linkedPlayerId : null}
               />
 
               <WeeklyAvailabilityOverview scheduleData={scheduleData} />

@@ -1,0 +1,309 @@
+Please fix all the following issues. Do NOT break any existing functionality: 
+
+ 
+
+🔴 FIX 1: Player Stats — Group Stats by Game Mode with Labels 
+
+In the Player Stats page, the stat boxes currently show with no label indicating which game mode they belong to. Fix this so: 
+
+Each stat group box has a clear header/title showing the game mode name (e.g., "Hardpoint", "Search and Destroy", "Overload") 
+
+Stats inside each box are the ones configured for that game mode only 
+
+Visual separation between game mode groups is clear 
+
+ 
+
+🔴 FIX 2: Player Stats — Add Filters (Scrims / Tournaments / vs Opponent / All) 
+
+Add filter buttons or a dropdown at the top of the Player Stats page with these 4 options: 
+
+All Events 
+
+Scrims only 
+
+Tournaments only 
+
+vs Specific Opponent (dropdown to select which opponent) 
+
+When a filter is selected, all stats on the page update to reflect only the filtered data. Also add "Stats vs Opponent" as a section in the main Statistics tab as well. 
+
+ 
+
+🔴 FIX 3: Opponents Page — Click on Opponent to See All Events + Search/Filter 
+
+In the Opponents tab: 
+
+Clicking on an opponent card opens a detail view showing ALL events/games played against that opponent (date, event type, score, result, map, game mode) 
+
+Add a search bar at the top to search opponents by name 
+
+Add filters: by event type (Scrim/Tournament), by result (Win/Loss/Draw), by game mode, by map 
+
+Add sorting: by win rate, by date, by number of games 
+
+ 
+
+🔴 FIX 4: Chat — Images Must Display Inline (Not as "Attachment" Link) 
+
+Currently uploaded images show as "[Attachment]" text that doesn't open. Fix this: 
+
+Images (jpg, png, gif, webp) must render as actual inline images in the chat message 
+
+Clicking an image opens it fullscreen/lightbox 
+
+Videos should show an inline player or thumbnail with play button 
+
+Other files (pdf, doc, etc.) show as a styled file card with filename, size, and download button 
+
+Fix the upload so ALL file types work (currently broken) 
+
+ 
+
+🔴 FIX 5: Chat — Delete Own Messages + Channel Management Button 
+
+Users can delete their own messages (trash icon appears on hover next to their own messages) 
+
+Admins/Owners can delete any message 
+
+Next to each channel in the sidebar, add a settings/gear icon (⚙) that opens a channel management modal with:  
+
+Rename channel 
+
+Set per-role permissions (can view / can send) — show all roles with toggle switches 
+
+Delete channel 
+
+This replaces the current delete-only behavior 
+
+ 
+
+🔴 FIX 6: Chat — Banned Users Cannot Access Site or Chat 
+
+Currently banning a user does nothing — they can still browse the site. Fix this: 
+
+When a user is banned, immediately invalidate their session 
+
+Banned users who try to access any page are redirected to a "You have been banned" screen 
+
+Ban must also block by device fingerprint (use a combination of: IP address + user agent string stored at login time) so they cannot simply log in with a new account from the same device 
+
+Store device info: ip_address, user_agent, fingerprint in the sessions table 
+
+A banned device fingerprint cannot register new accounts or log in 
+
+ 
+
+🔴 FIX 7: Dashboard — User Management Shows Device/Location Info 
+
+In Dashboard → Users, for each user show: 
+
+Last seen: date and time 
+
+Device: parsed from user agent (e.g., "iPhone 17 — Safari", "Windows PC — Chrome") 
+
+Location: city/country from IP geolocation (use a free IP geolocation API like ip-api.com) 
+
+All sessions for that user (if they're logged in from multiple devices, show all) 
+
+Admins can terminate/invalidate any specific session 
+
+ 
+
+🔴 FIX 8: Permissions System — Full Granular Control for Every Feature 
+
+The current permission system only has ~12 options and doesn't enforce anything properly. Replace it with a complete granular system where admins choose EXACTLY what each role can do. Permissions must cover every feature: 
+
+Schedule: 
+
+view_schedule 
+
+edit_own_availability (only edit their own row) 
+
+edit_all_availability (edit any player's row) 
+
+manage_players (add/remove players from schedule) 
+
+Events: 
+
+view_events 
+
+create_events 
+
+edit_events 
+
+delete_events 
+
+Results: 
+
+view_results 
+
+add_results 
+
+edit_results 
+
+delete_results 
+
+Players: 
+
+view_players 
+
+manage_players_tab (add/edit/delete from Players tab) 
+
+Statistics: 
+
+view_statistics 
+
+view_player_stats 
+
+view_history 
+
+view_compare 
+
+view_opponents 
+
+Chat: 
+
+view_chat 
+
+send_messages 
+
+delete_own_messages 
+
+delete_any_message 
+
+manage_channels 
+
+Staff: 
+
+view_staff 
+
+manage_staff 
+
+Dashboard: 
+
+view_dashboard 
+
+manage_users 
+
+manage_roles 
+
+manage_game_config 
+
+manage_stat_fields 
+
+view_activity_log 
+
+ALL permissions must be enforced on both frontend AND backend (API routes must check permissions server-side). A user who manually types /events in the URL must be blocked if they don't have view_events permission. Return 403 from the API if they don't have permission. 
+
+ 
+
+🔴 FIX 9: Availability Schedule — Member Can Only Edit Their Own Row 
+
+When a user account is linked to a player: 
+
+Their row in the availability schedule should be editable (normal dropdowns) 
+
+All other players' rows must appear grayed out / disabled — they cannot interact with them 
+
+Only admins or users with edit_all_availability permission can edit other rows 
+
+This must be enforced on the backend too — the API must reject availability updates for rows the user doesn't own 
+
+ 
+
+🔴 FIX 10: Sidebar Navigation — Respect Permissions 
+
+The sidebar currently shows all navigation items to all users regardless of permissions. Fix this: 
+
+Each nav item only appears if the user has the corresponding view permission 
+
+Example: user without view_events does not see "Events" in the sidebar 
+
+Example: user without view_dashboard does not see "Dashboard" 
+
+Example: user without view_chat does not see "Chat" 
+
+The sidebar groups (Main, Analytics, Management) should hide entirely if all items in them are hidden 
+
+ 
+
+🔴 FIX 11: Activity Log — Log Every Action + Advanced Filters 
+
+The activity log must capture EVERY action in the system, including: 
+
+User logged in / logged out 
+
+User registered (pending) 
+
+User approved / rejected / banned / unbanned (+ who did the ban) 
+
+Account created by admin 
+
+Player added / edited / deleted 
+
+Staff added / edited / deleted 
+
+Availability changed (who changed it, which player, which day, old value → new value) 
+
+Event created / edited / deleted 
+
+Game result added / edited / deleted 
+
+Chat message sent / deleted (+ who deleted it if admin deleted someone else's message) 
+
+Chat channel created / deleted / renamed 
+
+Role created / edited / deleted 
+
+Game mode / map / stat field added / edited / deleted 
+
+Settings changed 
+
+Each log entry must include: timestamp, acting user, action type, details (what changed), IP address, device info. 
+
+Add a full filter system to the Activity Log in the Dashboard: 
+
+Filter by action type (login, ban, delete message, availability change, etc.) — multi-select dropdown 
+
+Filter by user (who performed the action) — searchable dropdown 
+
+Filter by target user (who was affected, e.g., who got banned) 
+
+Filter by date range (from date — to date) 
+
+Filter by specific action categories:  
+
+"Show only bans/unbans" — quickly see all ban actions and who performed them 
+
+"Show only deleted messages" — see all chat message deletions 
+
+"Show only availability changes" 
+
+"Show only login/logout events" 
+
+Search bar to search inside the "details" text of log entries 
+
+Sort by: newest first / oldest first 
+
+Pagination or infinite scroll for large logs 
+
+ 
+
+ 
+
+🔴 FIX 12: Member Role — Viewer with "viewer" label sees too much 
+
+In the screenshot, a "viewer" role user (user "z") can see the Events page with full Add Event button and all data despite having no explicit permissions. Fix: 
+
+Viewer/Member role by default has NO permissions except what is explicitly granted 
+
+The UI must hide all buttons and sections the user has no permission for 
+
+The backend must enforce all restrictions 
+
+ 
+
+Design: Keep the existing dark blue/cyan theme. Do not remove or break any existing features. 
+
+ 

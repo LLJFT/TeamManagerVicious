@@ -37,7 +37,7 @@ const emptyForm: StaffFormData = {
 export default function StaffPage() {
   const { toast } = useToast();
   const { hasPermission } = useAuth();
-  const canManage = hasPermission("access_dashboard");
+  const canManage = hasPermission("manage_staff");
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);

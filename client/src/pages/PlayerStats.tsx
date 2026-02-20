@@ -5,13 +5,19 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { BarChart3, Users, Trophy, Target } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { BarChart3, Users, Trophy, Target, Gamepad2 } from "lucide-react";
 
 interface StatAggregate {
   fieldName: string;
   total: number;
   count: number;
   avg: number;
+}
+
+interface ModeStats {
+  modeName: string;
+  stats: StatAggregate[];
 }
 
 interface OpponentStat {
@@ -26,11 +32,14 @@ interface PlayerSummary {
   player: { id: string; name: string; role: string | null };
   gamesPlayed: number;
   stats: StatAggregate[];
+  statsByMode: ModeStats[];
   opponents: OpponentStat[];
+  eventTypeGames: Record<string, number>;
 }
 
 export default function PlayerStats() {
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+  const [statsView, setStatsView] = useState<"overall" | "byMode">("overall");
 
   const { data: summaries = [], isLoading } = useQuery<PlayerSummary[]>({
     queryKey: ["/api/player-stats-summary"],
@@ -132,7 +141,7 @@ export default function PlayerStats() {
                     .map((s) => (
                       <div
                         key={s.player.id}
-                        className={`flex items-center gap-3 p-3 rounded-lg border border-border cursor-pointer ${
+                        className={`flex items-center gap-3 p-3 rounded-lg border border-border cursor-pointer hover-elevate ${
                           selectedPlayerId === s.player.id ? "bg-primary/5 border-primary/30" : ""
                         }`}
                         onClick={() => setSelectedPlayerId(s.player.id)}
@@ -150,6 +159,15 @@ export default function PlayerStats() {
                               <Badge variant="outline" className="text-xs py-0">{s.player.role}</Badge>
                             )}
                           </div>
+                          {s.eventTypeGames && Object.keys(s.eventTypeGames).length > 0 && (
+                            <div className="flex gap-2 mt-1 flex-wrap">
+                              {Object.entries(s.eventTypeGames).map(([type, count]) => (
+                                <span key={type} className="text-xs text-muted-foreground">
+                                  {type}: {count}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                         <div className="text-right shrink-0">
                           <span className="text-sm font-semibold">{s.gamesPlayed}</span>
@@ -162,40 +180,87 @@ export default function PlayerStats() {
             </Card>
 
             {selectedPlayer && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="space-y-6">
                 <Card>
                   <CardHeader className="pb-4 border-b border-border">
-                    <CardTitle className="text-lg">
-                      {selectedPlayer.player.name} - Stat Averages
-                    </CardTitle>
-                    <CardDescription>
-                      Across {selectedPlayer.gamesPlayed} games
-                    </CardDescription>
+                    <div className="flex items-center justify-between gap-4 flex-wrap">
+                      <div>
+                        <CardTitle className="text-lg">
+                          {selectedPlayer.player.name} - Stats
+                        </CardTitle>
+                        <CardDescription>
+                          Across {selectedPlayer.gamesPlayed} games
+                        </CardDescription>
+                      </div>
+                      <Tabs value={statsView} onValueChange={(v) => setStatsView(v as "overall" | "byMode")}>
+                        <TabsList>
+                          <TabsTrigger value="overall" data-testid="tab-overall-stats">Overall</TabsTrigger>
+                          <TabsTrigger value="byMode" data-testid="tab-bymode-stats">By Mode</TabsTrigger>
+                        </TabsList>
+                      </Tabs>
+                    </div>
                   </CardHeader>
                   <CardContent className="pt-4">
-                    {selectedPlayer.stats.length === 0 ? (
-                      <div className="p-6 text-center">
-                        <BarChart3 className="h-10 w-10 mx-auto mb-2 text-muted-foreground/30" />
-                        <p className="text-sm text-muted-foreground">No stat data recorded for this player</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {selectedPlayer.stats.map((stat, i) => (
-                          <div key={i} className="flex items-center justify-between p-3 rounded-lg border border-border" data-testid={`stat-row-${i}`}>
-                            <span className="text-sm font-medium">{stat.fieldName}</span>
-                            <div className="flex items-center gap-4">
-                              <div className="text-right">
-                                <span className="text-xs text-muted-foreground">Total</span>
-                                <p className="text-sm font-semibold">{stat.total}</p>
-                              </div>
-                              <div className="text-right">
-                                <span className="text-xs text-muted-foreground">Avg</span>
-                                <p className="text-sm font-semibold">{stat.avg}</p>
+                    {statsView === "overall" ? (
+                      selectedPlayer.stats.length === 0 ? (
+                        <div className="p-6 text-center">
+                          <BarChart3 className="h-10 w-10 mx-auto mb-2 text-muted-foreground/30" />
+                          <p className="text-sm text-muted-foreground">No stat data recorded for this player</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {selectedPlayer.stats.map((stat, i) => (
+                            <div key={i} className="flex items-center justify-between p-3 rounded-lg border border-border" data-testid={`stat-row-${i}`}>
+                              <span className="text-sm font-medium">{stat.fieldName}</span>
+                              <div className="flex items-center gap-4">
+                                <div className="text-right">
+                                  <span className="text-xs text-muted-foreground">Total</span>
+                                  <p className="text-sm font-semibold">{stat.total}</p>
+                                </div>
+                                <div className="text-right">
+                                  <span className="text-xs text-muted-foreground">Avg</span>
+                                  <p className="text-sm font-semibold">{stat.avg}</p>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
-                      </div>
+                          ))}
+                        </div>
+                      )
+                    ) : (
+                      selectedPlayer.statsByMode.length === 0 ? (
+                        <div className="p-6 text-center">
+                          <Gamepad2 className="h-10 w-10 mx-auto mb-2 text-muted-foreground/30" />
+                          <p className="text-sm text-muted-foreground">No stats by game mode available</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-6">
+                          {selectedPlayer.statsByMode.map((mode, mi) => (
+                            <div key={mi} data-testid={`mode-group-${mi}`}>
+                              <div className="flex items-center gap-2 mb-3">
+                                <Gamepad2 className="h-4 w-4 text-primary" />
+                                <h3 className="text-sm font-semibold">{mode.modeName}</h3>
+                              </div>
+                              <div className="space-y-2 pl-6">
+                                {mode.stats.map((stat, si) => (
+                                  <div key={si} className="flex items-center justify-between p-3 rounded-lg border border-border">
+                                    <span className="text-sm font-medium">{stat.fieldName}</span>
+                                    <div className="flex items-center gap-4">
+                                      <div className="text-right">
+                                        <span className="text-xs text-muted-foreground">Total</span>
+                                        <p className="text-sm font-semibold">{stat.total}</p>
+                                      </div>
+                                      <div className="text-right">
+                                        <span className="text-xs text-muted-foreground">Avg</span>
+                                        <p className="text-sm font-semibold">{stat.avg}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )
                     )}
                   </CardContent>
                 </Card>

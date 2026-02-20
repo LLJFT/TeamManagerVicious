@@ -4,7 +4,7 @@ import connectPgSimple from "connect-pg-simple";
 import { eq, and } from "drizzle-orm";
 import { db, pool } from "./db";
 import { getTeamId } from "./storage";
-import { roles, users, allPermissions, availabilitySlots, rosterRoles, chatChannels } from "@shared/schema";
+import { roles, users, allPermissions, availabilitySlots, rosterRoles, chatChannels, type Permission } from "@shared/schema";
 import type { Express, Request, Response, NextFunction } from "express";
 
 declare module "express-session" {
@@ -92,16 +92,11 @@ export async function bootstrapDefaultAdmin() {
     return;
   }
 
-  const ownerPermissions = [...allPermissions];
+  const ownerPermissions = [...allPermissions] as Permission[];
   const adminPermissions = allPermissions.filter(
     (p) => p !== "manage_roles"
-  );
-  const memberPermissions = [
-    "view_schedule",
-    "edit_own_availability",
-    "access_chat",
-    "view_stats",
-  ];
+  ) as Permission[];
+  const memberPermissions: Permission[] = [];
 
   const [ownerRole] = await db
     .insert(roles)
@@ -140,10 +135,32 @@ export async function bootstrapDefaultAdmin() {
   console.log("Default admin user created (username: Admin, password: Admin)");
 }
 
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
+export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (!req.session.userId) {
-    return res.status(401).json({ message: "Unauthorized" });
+    return res.status(401).json({ message: "Not authenticated" });
   }
+
+  const teamId = getTeamId();
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(and(eq(users.id, req.session.userId), eq(users.teamId, teamId)))
+    .limit(1);
+
+  if (!user) {
+    req.session.destroy(() => {});
+    return res.status(401).json({ message: "Not authenticated" });
+  }
+
+  if (user.status === "banned") {
+    req.session.destroy(() => {});
+    return res.status(403).json({ message: "Your account has been banned" });
+  }
+
+  if (user.status === "pending") {
+    return res.status(403).json({ message: "Your account is pending approval" });
+  }
+
   next();
 }
 

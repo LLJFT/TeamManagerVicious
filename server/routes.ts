@@ -55,6 +55,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Account has been banned" });
       }
       req.session.userId = user.id;
+      const userAgent = req.headers["user-agent"] || "";
+      await db.update(users)
+        .set({ lastSeen: new Date().toISOString(), lastUserAgent: userAgent })
+        .where(eq(users.id, user.id));
       logActivity(user.id, "login", `User ${user.username} logged in`);
       const { passwordHash, ...safeUser } = user;
       let role = null;
@@ -164,7 +168,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==================== USER MANAGEMENT ====================
-  app.get("/api/chat/users", requireAuth, requirePermission("access_chat"), async (req, res) => {
+  app.get("/api/chat/users", requireAuth, requirePermission("view_chat"), async (req, res) => {
     try {
       const teamId = getTeamId();
       const allUsers = await db.select().from(users).where(and(eq(users.teamId, teamId), eq(users.status, "active")));
@@ -359,7 +363,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/staff", requireAuth, requirePermission("access_dashboard"), async (req, res) => {
+  app.post("/api/staff", requireAuth, requirePermission("manage_staff"), async (req, res) => {
     try {
       const teamId = getTeamId();
       const validatedData = insertStaffSchema.parse(req.body);
@@ -370,7 +374,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/staff/:id", requireAuth, requirePermission("access_dashboard"), async (req, res) => {
+  app.put("/api/staff/:id", requireAuth, requirePermission("manage_staff"), async (req, res) => {
     try {
       const { id } = req.params;
       const teamId = getTeamId();
@@ -385,7 +389,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/staff/:id", requireAuth, requirePermission("access_dashboard"), async (req, res) => {
+  app.delete("/api/staff/:id", requireAuth, requirePermission("manage_staff"), async (req, res) => {
     try {
       const { id } = req.params;
       const teamId = getTeamId();
@@ -400,7 +404,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==================== CHAT CHANNELS & MESSAGES ====================
-  app.get("/api/chat/channels", requireAuth, requirePermission("access_chat"), async (req, res) => {
+  app.get("/api/chat/channels", requireAuth, requirePermission("view_chat"), async (req, res) => {
     try {
       const teamId = getTeamId();
       const channels = await db.select().from(chatChannels).where(eq(chatChannels.teamId, teamId));
@@ -427,7 +431,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/chat/channels", requireAuth, requirePermission("manage_chat_channels"), async (req, res) => {
+  app.post("/api/chat/channels", requireAuth, requirePermission("manage_channels"), async (req, res) => {
     try {
       const teamId = getTeamId();
       const { name } = req.body;
@@ -438,7 +442,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/chat/channels/:id", requireAuth, requirePermission("manage_chat_channels"), async (req, res) => {
+  app.delete("/api/chat/channels/:id", requireAuth, requirePermission("manage_channels"), async (req, res) => {
     try {
       const { id } = req.params;
       const teamId = getTeamId();
@@ -449,7 +453,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/chat/channels/:channelId/messages", requireAuth, requirePermission("access_chat"), async (req, res) => {
+  app.get("/api/chat/channels/:channelId/messages", requireAuth, requirePermission("view_chat"), async (req, res) => {
     try {
       const { channelId } = req.params;
       const teamId = getTeamId();
@@ -473,7 +477,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/chat/channels/:channelId/messages", requireAuth, requirePermission("access_chat"), async (req, res) => {
+  app.post("/api/chat/channels/:channelId/messages", requireAuth, requirePermission("send_messages"), async (req, res) => {
     try {
       const { channelId } = req.params;
       const teamId = getTeamId();
@@ -499,6 +503,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const teamId = getTeamId();
+      const userId = req.session.userId!;
+
+      const [msg] = await db.select().from(chatMessages)
+        .where(and(eq(chatMessages.id, id), eq(chatMessages.teamId, teamId)))
+        .limit(1);
+      if (!msg) return res.status(404).json({ message: "Message not found" });
+
+      const [currentUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      const [userRole] = currentUser?.roleId
+        ? await db.select().from(roles).where(eq(roles.id, currentUser.roleId)).limit(1)
+        : [null];
+      const perms = (userRole?.permissions as string[]) || [];
+      const isOwner = userRole?.name === "Owner";
+      const isOwnMessage = msg.userId === userId;
+
+      if (!isOwner && !isOwnMessage && !perms.includes("delete_any_message")) {
+        if (!perms.includes("delete_own_messages")) {
+          return res.status(403).json({ message: "No permission to delete messages" });
+        }
+        return res.status(403).json({ message: "You can only delete your own messages" });
+      }
+      if (!isOwner && isOwnMessage && !perms.includes("delete_own_messages") && !perms.includes("delete_any_message")) {
+        return res.status(403).json({ message: "No permission to delete messages" });
+      }
+
       await db.delete(chatMessages).where(and(eq(chatMessages.id, id), eq(chatMessages.teamId, teamId)));
       res.json({ success: true });
     } catch (error: any) {
@@ -507,7 +536,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==================== CHANNEL PERMISSIONS ====================
-  app.get("/api/chat/channels/:channelId/permissions", requireAuth, requirePermission("manage_chat_channels"), async (req, res) => {
+  app.get("/api/chat/channels/:channelId/permissions", requireAuth, requirePermission("manage_channels"), async (req, res) => {
     try {
       const { channelId } = req.params;
       const teamId = getTeamId();
@@ -519,7 +548,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/chat/channels/:channelId/permissions", requireAuth, requirePermission("manage_chat_channels"), async (req, res) => {
+  app.post("/api/chat/channels/:channelId/permissions", requireAuth, requirePermission("manage_channels"), async (req, res) => {
     try {
       const { channelId } = req.params;
       const teamId = getTeamId();
@@ -546,7 +575,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/chat/channel-permissions/:id", requireAuth, requirePermission("manage_chat_channels"), async (req, res) => {
+  app.delete("/api/chat/channel-permissions/:id", requireAuth, requirePermission("manage_channels"), async (req, res) => {
     try {
       const { id } = req.params;
       const teamId = getTeamId();
@@ -558,7 +587,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==================== ACTIVITY LOGS ====================
-  app.get("/api/activity-logs", requireAuth, requirePermission("access_dashboard"), async (req, res) => {
+  app.get("/api/activity-logs", requireAuth, requirePermission("view_activity_log"), async (req, res) => {
     try {
       const teamId = getTeamId();
       const logs = await db.select().from(activityLogs)
@@ -586,7 +615,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/availability-slots", requireAuth, requirePermission("access_dashboard"), async (req, res) => {
+  app.post("/api/availability-slots", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const teamId = getTeamId();
       const validatedData = insertAvailabilitySlotSchema.parse(req.body);
@@ -597,7 +626,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/availability-slots/:id", requireAuth, requirePermission("access_dashboard"), async (req, res) => {
+  app.put("/api/availability-slots/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const { id } = req.params;
       const teamId = getTeamId();
@@ -615,7 +644,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/availability-slots/:id", requireAuth, requirePermission("access_dashboard"), async (req, res) => {
+  app.delete("/api/availability-slots/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const { id } = req.params;
       const teamId = getTeamId();
@@ -638,7 +667,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/roster-roles", requireAuth, requirePermission("access_dashboard"), async (req, res) => {
+  app.post("/api/roster-roles", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const teamId = getTeamId();
       const validatedData = insertRosterRoleSchema.parse(req.body);
@@ -649,7 +678,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/roster-roles/:id", requireAuth, requirePermission("access_dashboard"), async (req, res) => {
+  app.put("/api/roster-roles/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const { id } = req.params;
       const teamId = getTeamId();
@@ -668,7 +697,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/roster-roles/:id", requireAuth, requirePermission("access_dashboard"), async (req, res) => {
+  app.delete("/api/roster-roles/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const { id } = req.params;
       const teamId = getTeamId();
@@ -690,7 +719,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/player-availability", requireAuth, async (req, res) => {
+  app.post("/api/player-availability", requireAuth, requirePermission("edit_own_availability"), async (req, res) => {
     try {
       const { playerId, day, availability } = req.body;
       if (!playerId || !day || !availability) {
@@ -703,7 +732,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/player-availability/bulk", requireAuth, async (req, res) => {
+  app.post("/api/player-availability/bulk", requireAuth, requirePermission("edit_own_availability"), async (req, res) => {
     try {
       const { updates } = req.body;
       if (!Array.isArray(updates)) {
@@ -730,7 +759,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/staff-availability", requireAuth, async (req, res) => {
+  app.post("/api/staff-availability", requireAuth, requirePermission("edit_own_availability"), async (req, res) => {
     try {
       const { staffId, day, availability } = req.body;
       if (!staffId || !day || !availability) {
@@ -743,7 +772,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/staff-availability/bulk", requireAuth, async (req, res) => {
+  app.post("/api/staff-availability/bulk", requireAuth, requirePermission("edit_own_availability"), async (req, res) => {
     try {
       const { updates } = req.body;
       if (!Array.isArray(updates)) {
@@ -793,7 +822,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/schedule", requireAuth, async (req, res) => {
+  app.post("/api/schedule", requireAuth, requirePermission("edit_all_availability"), async (req, res) => {
     try {
       const validatedData = insertScheduleSchema.parse(req.body);
 
@@ -819,7 +848,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/players", requireAuth, async (req, res) => {
+  app.post("/api/players", requireAuth, requirePermission("add_players"), async (req, res) => {
     try {
       const validatedData = insertPlayerSchema.parse(req.body);
       const player = await storage.addPlayer(validatedData);
@@ -833,7 +862,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/players/:id", requireAuth, async (req, res) => {
+  app.delete("/api/players/:id", requireAuth, requirePermission("remove_players"), async (req, res) => {
     try {
       const { id } = req.params;
       const success = await storage.removePlayer(id);
@@ -858,7 +887,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/events", requireAuth, async (req, res) => {
+  app.post("/api/events", requireAuth, requirePermission("create_events"), async (req, res) => {
     try {
       const validatedData = insertEventSchema.parse(req.body);
       const event = await storage.addEvent(validatedData);
@@ -872,7 +901,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/events/:id", requireAuth, async (req, res) => {
+  app.put("/api/events/:id", requireAuth, requirePermission("edit_events"), async (req, res) => {
     try {
       const { id } = req.params;
       const validatedData = insertEventSchema.partial().parse(req.body);
@@ -887,7 +916,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/events/:id", requireAuth, async (req, res) => {
+  app.delete("/api/events/:id", requireAuth, requirePermission("delete_events"), async (req, res) => {
     try {
       const { id } = req.params;
       const success = await storage.removeEvent(id);
@@ -902,7 +931,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/players/:id", requireAuth, async (req, res) => {
+  app.put("/api/players/:id", requireAuth, requirePermission("edit_players"), async (req, res) => {
     try {
       const { id } = req.params;
       const validatedData = insertPlayerSchema.partial().parse(req.body);
@@ -927,7 +956,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/attendance", requireAuth, async (req, res) => {
+  app.post("/api/attendance", requireAuth, requirePermission("edit_events"), async (req, res) => {
     try {
       const validatedData = insertAttendanceSchema.parse(req.body);
       const attendance = await storage.addAttendance(validatedData);
@@ -941,7 +970,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/attendance/:id", requireAuth, async (req, res) => {
+  app.put("/api/attendance/:id", requireAuth, requirePermission("edit_events"), async (req, res) => {
     try {
       const { id } = req.params;
       const validatedData = insertAttendanceSchema.partial().parse(req.body);
@@ -956,7 +985,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/attendance/:id", requireAuth, async (req, res) => {
+  app.delete("/api/attendance/:id", requireAuth, requirePermission("edit_events"), async (req, res) => {
     try {
       const { id } = req.params;
       const success = await storage.removeAttendance(id);
@@ -981,7 +1010,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/team-notes", requireAuth, async (req, res) => {
+  app.post("/api/team-notes", requireAuth, requirePermission("view_chat"), async (req, res) => {
     try {
       const validatedData = insertTeamNotesSchema.parse(req.body);
       const note = await storage.addTeamNote(validatedData);
@@ -995,7 +1024,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/team-notes/:id", requireAuth, async (req, res) => {
+  app.delete("/api/team-notes/:id", requireAuth, requirePermission("view_chat"), async (req, res) => {
     try {
       const { id } = req.params;
       const success = await storage.deleteTeamNote(id);
@@ -1034,7 +1063,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/games", requireAuth, async (req, res) => {
+  app.post("/api/games", requireAuth, requirePermission("edit_events"), async (req, res) => {
     try {
       const validatedData = insertGameSchema.parse(req.body);
       const game = await storage.addGame(validatedData);
@@ -1048,7 +1077,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/games/:id", requireAuth, async (req, res) => {
+  app.put("/api/games/:id", requireAuth, requirePermission("edit_events"), async (req, res) => {
     try {
       const { id } = req.params;
       const validatedData = insertGameSchema.partial().parse(req.body);
@@ -1063,7 +1092,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/games/:id", requireAuth, async (req, res) => {
+  app.delete("/api/games/:id", requireAuth, requirePermission("edit_events"), async (req, res) => {
     try {
       const { id } = req.params;
       const success = await storage.removeGame(id);
@@ -1088,7 +1117,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/game-modes", requireAuth, async (req, res) => {
+  app.post("/api/game-modes", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const validatedData = insertGameModeSchema.parse(req.body);
       const gameMode = await storage.addGameMode(validatedData);
@@ -1102,7 +1131,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/game-modes/:id", requireAuth, async (req, res) => {
+  app.put("/api/game-modes/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const { id } = req.params;
       const validatedData = insertGameModeSchema.partial().parse(req.body);
@@ -1117,7 +1146,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/game-modes/:id", requireAuth, async (req, res) => {
+  app.delete("/api/game-modes/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const { id } = req.params;
       const success = await storage.removeGameMode(id);
@@ -1153,7 +1182,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/maps", requireAuth, async (req, res) => {
+  app.post("/api/maps", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const validatedData = insertMapSchema.parse(req.body);
       const map = await storage.addMap(validatedData);
@@ -1167,7 +1196,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/maps/:id", requireAuth, async (req, res) => {
+  app.put("/api/maps/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const { id } = req.params;
       const validatedData = insertMapSchema.partial().parse(req.body);
@@ -1182,7 +1211,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/maps/:id", requireAuth, async (req, res) => {
+  app.delete("/api/maps/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const { id } = req.params;
       const success = await storage.removeMap(id);
@@ -1236,7 +1265,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/seasons", requireAuth, async (req, res) => {
+  app.post("/api/seasons", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const validatedData = insertSeasonSchema.parse(req.body);
       const season = await storage.addSeason(validatedData);
@@ -1250,7 +1279,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/seasons/:id", requireAuth, async (req, res) => {
+  app.put("/api/seasons/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const { id } = req.params;
       const validatedData = insertSeasonSchema.partial().parse(req.body);
@@ -1265,7 +1294,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/seasons/:id", requireAuth, async (req, res) => {
+  app.delete("/api/seasons/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const { id } = req.params;
       const success = await storage.removeSeason(id);
@@ -1290,7 +1319,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/off-days", requireAuth, async (req, res) => {
+  app.post("/api/off-days", requireAuth, requirePermission("create_events"), async (req, res) => {
     try {
       const validatedData = insertOffDaySchema.parse(req.body);
       const offDay = await storage.addOffDay(validatedData);
@@ -1304,7 +1333,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/off-days/:id", requireAuth, async (req, res) => {
+  app.delete("/api/off-days/:id", requireAuth, requirePermission("delete_events"), async (req, res) => {
     try {
       const { id } = req.params;
       const success = await storage.removeOffDayById(id);
@@ -1319,7 +1348,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/off-days/by-date/:date", requireAuth, async (req, res) => {
+  app.delete("/api/off-days/by-date/:date", requireAuth, requirePermission("delete_events"), async (req, res) => {
     try {
       const { date } = req.params;
       const success = await storage.removeOffDay(date);
@@ -1334,7 +1363,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/events/:id/duplicate", requireAuth, async (req, res) => {
+  app.post("/api/events/:id/duplicate", requireAuth, requirePermission("create_events"), async (req, res) => {
     try {
       const { id } = req.params;
       const duplicatedEvent = await storage.duplicateEvent(id);
@@ -1355,7 +1384,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/stat-fields", requireAuth, async (req, res) => {
+  app.post("/api/stat-fields", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const validatedData = insertStatFieldSchema.parse(req.body);
       const statField = await storage.addStatField(validatedData);
@@ -1369,7 +1398,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/stat-fields/:id", requireAuth, async (req, res) => {
+  app.put("/api/stat-fields/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const { id } = req.params;
       const validatedData = insertStatFieldSchema.partial().parse(req.body);
@@ -1384,7 +1413,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/stat-fields/:id", requireAuth, async (req, res) => {
+  app.delete("/api/stat-fields/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const { id } = req.params;
       const success = await storage.removeStatField(id);
@@ -1410,7 +1439,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/games/:id/player-stats", requireAuth, async (req, res) => {
+  app.post("/api/games/:id/player-stats", requireAuth, requirePermission("edit_events"), async (req, res) => {
     try {
       const { id } = req.params;
       const { stats } = req.body;
@@ -1425,7 +1454,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/player-stats-summary", requireAuth, requirePermission("view_stats"), async (req, res) => {
+  app.get("/api/player-stats-summary", requireAuth, requirePermission("view_player_stats"), async (req, res) => {
     try {
       const teamId = getTeamId();
       const allPlayers = await storage.getAllPlayers();
@@ -1433,10 +1462,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const allPlayerGameStats = await db.select().from(playerGameStats).where(eq(playerGameStats.teamId, teamId));
       const allGames = await storage.getAllGamesWithEventType();
       const allEvents = await storage.getAllEvents();
+      const allGameModes = await storage.getAllGameModes();
 
       const summary = allPlayers.map(player => {
         const playerStats = allPlayerGameStats.filter(s => s.playerId === player.id);
-        const gameIds = [...new Set(playerStats.map(s => s.gameId))];
+        const gameIds = Array.from(new Set(playerStats.map(s => s.gameId)));
         const gamesPlayed = gameIds.length;
 
         const statAggregates: Record<string, { fieldName: string; total: number; count: number; avg: number }> = {};
@@ -1471,11 +1501,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
           else if (game.result === "draw") opponentStats[opp].draws++;
         }
 
+        const statsByMode: Record<string, { modeName: string; stats: { fieldName: string; total: number; count: number; avg: number }[] }> = {};
+        for (const stat of playerStats) {
+          const field = allStatFields.find(f => f.id === stat.statFieldId);
+          if (!field) continue;
+          const game = allGames.find(g => g.id === stat.gameId);
+          const modeId = game?.gameModeId || "unknown";
+          const modeObj = allGameModes.find(m => m.id === modeId);
+          const modeName = modeObj?.name || "Unknown";
+          if (!statsByMode[modeId]) {
+            statsByMode[modeId] = { modeName, stats: [] };
+          }
+          let modeStat = statsByMode[modeId].stats.find(s => s.fieldName === field.name);
+          if (!modeStat) {
+            modeStat = { fieldName: field.name, total: 0, count: 0, avg: 0 };
+            statsByMode[modeId].stats.push(modeStat);
+          }
+          const val = parseFloat(stat.value) || 0;
+          modeStat.total += val;
+          modeStat.count += 1;
+        }
+        for (const mode of Object.values(statsByMode)) {
+          for (const st of mode.stats) {
+            st.avg = st.count > 0 ? Math.round((st.total / st.count) * 100) / 100 : 0;
+          }
+        }
+
+        const eventTypeGames: Record<string, number> = {};
+        for (const gameId of gameIds) {
+          const game = allGames.find(g => g.id === gameId);
+          if (!game) continue;
+          const eventType = (game as any).eventType || "unknown";
+          eventTypeGames[eventType] = (eventTypeGames[eventType] || 0) + 1;
+        }
+
         return {
           player: { id: player.id, name: player.name, role: player.role },
           gamesPlayed,
           stats: Object.values(statAggregates),
+          statsByMode: Object.values(statsByMode),
           opponents: Object.values(opponentStats),
+          eventTypeGames,
         };
       });
 

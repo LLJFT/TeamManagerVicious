@@ -15,7 +15,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { MessageSquare, Hash, Plus, Trash2, Send, Paperclip, X, AtSign } from "lucide-react";
+import { MessageSquare, Hash, Plus, Trash2, Send, Paperclip, X, AtSign, FileText, Download } from "lucide-react";
 
 interface ChatChannelWithPerms {
   id: string;
@@ -61,7 +61,12 @@ export default function Chat() {
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const canManageChannels = hasPermission("manage_chat_channels");
+  const canManageChannels = hasPermission("manage_channels");
+  const canSendMessages = hasPermission("send_messages");
+
+  const extractFilename = (url: string): string => {
+    return url.split("/").pop() || "attachment";
+  };
 
   const { data: channels = [], isLoading: channelsLoading } = useQuery<ChatChannelWithPerms[]>({
     queryKey: ["/api/chat/channels"],
@@ -149,6 +154,19 @@ export default function Chat() {
     },
   });
 
+  const deleteMessageMutation = useMutation({
+    mutationFn: async (messageId: string) => {
+      await apiRequest("DELETE", `/api/chat/messages/${messageId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/chat/channels", selectedChannelId, "messages"] });
+      toast({ title: "Message deleted" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to delete message", description: err.message, variant: "destructive" });
+    },
+  });
+
   const handleCreateChannel = () => {
     const name = newChannelName.trim();
     if (!name) return;
@@ -202,7 +220,7 @@ export default function Chat() {
   const extractMentions = (text: string): string[] => {
     const mentionRegex = /@(\w+)/g;
     const ids: string[] = [];
-    let match;
+    let match: RegExpExecArray | null;
     while ((match = mentionRegex.exec(text)) !== null) {
       const mentioned = activeUsers.find(u => u.username.toLowerCase() === match[1].toLowerCase());
       if (mentioned) ids.push(mentioned.id);
@@ -289,7 +307,7 @@ export default function Chat() {
     });
   };
 
-  if (!hasPermission("access_chat")) {
+  if (!hasPermission("view_chat")) {
     return (
       <div className="flex items-center justify-center h-full" data-testid="chat-no-access">
         <p className="text-muted-foreground">You do not have permission to access chat.</p>
@@ -407,7 +425,7 @@ export default function Chat() {
               ) : (
                 <div className="space-y-4">
                   {messages.map((msg) => (
-                    <div key={msg.id} className="flex gap-3" data-testid={`message-item-${msg.id}`}>
+                    <div key={msg.id} className="group flex gap-3" data-testid={`message-item-${msg.id}`}>
                       <Popover>
                         <PopoverTrigger asChild>
                           <button className="shrink-0 mt-0.5" data-testid={`button-avatar-${msg.id}`}>
@@ -433,7 +451,7 @@ export default function Chat() {
                         </PopoverContent>
                       </Popover>
 
-                      <div className="flex flex-col gap-0.5 min-w-0">
+                      <div className="flex flex-col gap-0.5 min-w-0 flex-1">
                         <div className="flex items-baseline gap-2 flex-wrap">
                           <span className="font-semibold text-sm" data-testid={`text-sender-${msg.id}`}>
                             {msg.senderName}
@@ -461,20 +479,56 @@ export default function Chat() {
                             />
                           </div>
                         )}
-                        {msg.attachmentUrl && !msg.attachmentType?.startsWith("image/") && (
-                          <div className="mt-1">
-                            <a
-                              href={msg.attachmentUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-sm text-primary underline"
-                              data-testid={`link-attachment-${msg.id}`}
+                        {msg.attachmentUrl && msg.attachmentType?.startsWith("video/") && (
+                          <div className="mt-1 max-w-sm">
+                            <video
+                              controls
+                              className="rounded-md border border-border max-h-64 w-full"
+                              data-testid={`video-attachment-${msg.id}`}
                             >
-                              View Attachment
-                            </a>
+                              <source src={msg.attachmentUrl} type={msg.attachmentType} />
+                              Your browser does not support the video tag.
+                            </video>
                           </div>
                         )}
+                        {msg.attachmentUrl && !msg.attachmentType?.startsWith("image/") && !msg.attachmentType?.startsWith("video/") && (
+                          <Card className="mt-1 p-3 max-w-sm" data-testid={`file-attachment-card-${msg.id}`}>
+                            <div className="flex items-center gap-2">
+                              <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate" data-testid={`file-name-${msg.id}`}>
+                                  {extractFilename(msg.attachmentUrl)}
+                                </p>
+                              </div>
+                              <a
+                                href={msg.attachmentUrl}
+                                download
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="shrink-0"
+                                data-testid={`link-download-${msg.id}`}
+                              >
+                                <Button size="icon" variant="ghost" className="h-7 w-7">
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                              </a>
+                            </div>
+                          </Card>
+                        )}
                       </div>
+
+                      {(msg.userId === user?.id || hasPermission("delete_any_message")) && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6 shrink-0 invisible group-hover:visible"
+                          onClick={() => deleteMessageMutation.mutate(msg.id)}
+                          disabled={deleteMessageMutation.isPending}
+                          data-testid={`button-delete-message-${msg.id}`}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      )}
                     </div>
                   ))}
                   <div ref={messagesEndRef} />
@@ -483,12 +537,17 @@ export default function Chat() {
             </ScrollArea>
 
             <div className="p-3 border-t">
-              {!canSendInChannel && (
+              {!canSendMessages && (
+                <div className="text-center text-sm text-muted-foreground py-2" data-testid="text-send-messages-restricted">
+                  You do not have permission to send messages.
+                </div>
+              )}
+              {!canSendInChannel && canSendMessages && (
                 <div className="text-center text-sm text-muted-foreground py-2" data-testid="text-send-restricted">
                   You do not have permission to send messages in this channel.
                 </div>
               )}
-              {canSendInChannel && selectedFile && (
+              {canSendMessages && canSendInChannel && selectedFile && (
                 <div className="flex items-center gap-2 mb-2 p-2 rounded-md bg-muted/50 border border-border">
                   <Paperclip className="h-4 w-4 text-muted-foreground shrink-0" />
                   <span className="text-sm truncate flex-1">{selectedFile.name}</span>
@@ -504,7 +563,7 @@ export default function Chat() {
                 </div>
               )}
 
-              {canSendInChannel && (
+              {canSendMessages && canSendInChannel && (
                 <div className="relative">
                   {showMentions && filteredMentionUsers.length > 0 && (
                     <div className="absolute bottom-full left-0 right-0 mb-1 bg-popover border border-border rounded-md shadow-lg max-h-48 overflow-auto z-50" data-testid="mentions-dropdown">

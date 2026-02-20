@@ -1,20 +1,24 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   ArrowLeft,
   Trophy,
   Gamepad2,
-  Map as MapIcon,
   TrendingUp,
   TrendingDown,
   Minus,
   Users,
   Swords,
+  Search,
+  ArrowUpDown,
 } from "lucide-react";
 import type { Event, Game, GameMode, Map as MapType } from "@shared/schema";
 
@@ -35,7 +39,12 @@ interface OpponentData {
   lastPlayed?: string;
 }
 
+type SortOption = "matches" | "winRate" | "name" | "lastPlayed";
+
 export default function OpponentStats() {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<SortOption>("matches");
+
   const { data: events = [], isLoading } = useQuery<Event[]>({
     queryKey: ["/api/events"],
   });
@@ -112,8 +121,28 @@ export default function OpponentStats() {
       });
     });
 
-    return result.sort((a, b) => b.eventStats.total - a.eventStats.total);
+    return result;
   }, [events, allGames, gameModes, maps]);
+
+  const filteredAndSorted = useMemo(() => {
+    let filtered = opponentData;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(o => o.name.toLowerCase().includes(q));
+    }
+    return filtered.sort((a, b) => {
+      switch (sortBy) {
+        case "winRate": return b.eventStats.winRate - a.eventStats.winRate;
+        case "name": return a.name.localeCompare(b.name);
+        case "lastPlayed": {
+          const aDate = a.lastPlayed ? new Date(a.lastPlayed).getTime() : 0;
+          const bDate = b.lastPlayed ? new Date(b.lastPlayed).getTime() : 0;
+          return bDate - aDate;
+        }
+        default: return b.eventStats.total - a.eventStats.total;
+      }
+    });
+  }, [opponentData, searchQuery, sortBy]);
 
   const getWinRateColor = (rate: number) => {
     if (rate >= 60) return "text-emerald-500";
@@ -145,7 +174,7 @@ export default function OpponentStats() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <ScrollArea className="h-full">
       <div className="container mx-auto px-4 py-6 max-w-7xl">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 pb-4 border-b border-border">
           <div className="flex items-center gap-4">
@@ -159,12 +188,37 @@ export default function OpponentStats() {
                 <Users className="h-6 w-6 text-primary" />
                 <h1 className="text-3xl font-bold text-foreground">Stats by Opponent</h1>
               </div>
-              <p className="text-muted-foreground">Performance analysis against each team</p>
+              <p className="text-muted-foreground">Performance analysis against each team ({opponentData.length} opponents)</p>
             </div>
           </div>
         </div>
 
-        {opponentData.length === 0 ? (
+        <div className="flex items-center gap-3 mb-6 flex-wrap">
+          <div className="relative flex-1 min-w-[200px] max-w-[300px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search opponents..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+              data-testid="input-search-opponents"
+            />
+          </div>
+          <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+            <SelectTrigger className="w-[180px]" data-testid="select-sort-opponents">
+              <ArrowUpDown className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="matches">Most Matches</SelectItem>
+              <SelectItem value="winRate">Win Rate</SelectItem>
+              <SelectItem value="name">Name (A-Z)</SelectItem>
+              <SelectItem value="lastPlayed">Last Played</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {filteredAndSorted.length === 0 ? (
           <Card>
             <CardContent className="py-16 text-center">
               <Users className="h-16 w-16 mx-auto mb-4 text-muted-foreground/30" />
@@ -176,7 +230,7 @@ export default function OpponentStats() {
           </Card>
         ) : (
           <div className="space-y-6">
-            {opponentData.map((opponent) => (
+            {filteredAndSorted.map((opponent) => (
               <Card key={opponent.name}>
                 <CardHeader className="pb-4 border-b">
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -295,6 +349,6 @@ export default function OpponentStats() {
           </div>
         )}
       </div>
-    </div>
+    </ScrollArea>
   );
 }

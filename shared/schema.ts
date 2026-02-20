@@ -17,18 +17,81 @@ export const allPermissions = [
   "view_schedule",
   "edit_own_availability",
   "edit_all_availability",
-  "add_remove_players",
-  "manage_events",
-  "view_stats",
-  "access_chat",
-  "manage_chat_channels",
-  "access_settings",
-  "access_dashboard",
+  "manage_schedule_players",
+  "view_events",
+  "create_events",
+  "edit_events",
+  "delete_events",
+  "view_results",
+  "add_results",
+  "edit_results",
+  "delete_results",
+  "view_players",
+  "manage_players_tab",
+  "view_statistics",
+  "view_player_stats",
+  "view_history",
+  "view_compare",
+  "view_opponents",
+  "view_chat",
+  "send_messages",
+  "delete_own_messages",
+  "delete_any_message",
+  "manage_channels",
+  "view_staff",
+  "manage_staff",
+  "view_dashboard",
   "manage_users",
   "manage_roles",
+  "manage_game_config",
+  "manage_stat_fields",
+  "view_activity_log",
 ] as const;
 
 export type Permission = typeof allPermissions[number];
+
+export const permissionCategories: { category: string; label: string; permissions: Permission[] }[] = [
+  {
+    category: "schedule",
+    label: "Schedule",
+    permissions: ["view_schedule", "edit_own_availability", "edit_all_availability", "manage_schedule_players"],
+  },
+  {
+    category: "events",
+    label: "Events",
+    permissions: ["view_events", "create_events", "edit_events", "delete_events"],
+  },
+  {
+    category: "results",
+    label: "Results",
+    permissions: ["view_results", "add_results", "edit_results", "delete_results"],
+  },
+  {
+    category: "players",
+    label: "Players",
+    permissions: ["view_players", "manage_players_tab"],
+  },
+  {
+    category: "statistics",
+    label: "Statistics",
+    permissions: ["view_statistics", "view_player_stats", "view_history", "view_compare", "view_opponents"],
+  },
+  {
+    category: "chat",
+    label: "Chat",
+    permissions: ["view_chat", "send_messages", "delete_own_messages", "delete_any_message", "manage_channels"],
+  },
+  {
+    category: "staff",
+    label: "Staff",
+    permissions: ["view_staff", "manage_staff"],
+  },
+  {
+    category: "dashboard",
+    label: "Dashboard",
+    permissions: ["view_dashboard", "manage_users", "manage_roles", "manage_game_config", "manage_stat_fields", "view_activity_log"],
+  },
+];
 
 export const userStatuses = ["pending", "active", "banned"] as const;
 export type UserStatus = typeof userStatuses[number];
@@ -216,6 +279,8 @@ export const users = pgTable("users", {
   playerId: varchar("player_id").references(() => players.id),
   status: text("status").notNull().default("pending"),
   createdAt: text("created_at").default(sql`now()`),
+  lastSeen: text("last_seen"),
+  lastUserAgent: text("last_user_agent"),
 }, (table) => [
   index("users_team_id_idx").on(table.teamId),
 ]);

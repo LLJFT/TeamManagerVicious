@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -14,13 +14,13 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   ArrowLeft, Plus, Pencil, Trash2, Gamepad2, Map as MapIcon,
   ChevronRight, Calendar, BarChart3, Settings, Users, Shield,
-  Clock, UserCog, Check, Ban, UserCheck
+  Clock, UserCog, Check, Ban, UserCheck, Search
 } from "lucide-react";
 import type {
   GameMode, Map as MapType, Season, StatField, Role, Player,
   AvailabilitySlot, RosterRole, Permission
 } from "@shared/schema";
-import { allPermissions } from "@shared/schema";
+import { allPermissions, permissionCategories } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -38,6 +38,8 @@ interface UserWithRole {
   roleId: string | null;
   playerId: string | null;
   role: Role | null;
+  lastSeen: string | null;
+  lastUserAgent: string | null;
   player: Player | null;
 }
 
@@ -94,6 +96,10 @@ interface ActivityLogEntry {
 }
 
 function ActivityLogTab() {
+  const [actionFilter, setActionFilter] = useState("all");
+  const [userFilter, setUserFilter] = useState("all");
+  const [searchText, setSearchText] = useState("");
+
   const { data: logs = [], isLoading } = useQuery<ActivityLogEntry[]>({
     queryKey: ["/api/activity-logs"],
     refetchInterval: 15000,
@@ -104,6 +110,24 @@ function ActivityLogTab() {
     user_status_change: "User status changed",
     user_role_change: "User role changed",
   };
+
+  const uniqueActions = useMemo(() => Array.from(new Set(logs.map(l => l.action))), [logs]);
+  const uniqueActors = useMemo(() => Array.from(new Set(logs.map(l => l.actorName))), [logs]);
+
+  const filteredLogs = useMemo(() => {
+    return logs.filter(log => {
+      if (actionFilter !== "all" && log.action !== actionFilter) return false;
+      if (userFilter !== "all" && log.actorName !== userFilter) return false;
+      if (searchText.trim()) {
+        const q = searchText.toLowerCase();
+        const matchesDetails = log.details?.toLowerCase().includes(q);
+        const matchesActor = log.actorName.toLowerCase().includes(q);
+        const matchesAction = log.action.toLowerCase().includes(q);
+        if (!matchesDetails && !matchesActor && !matchesAction) return false;
+      }
+      return true;
+    });
+  }, [logs, actionFilter, userFilter, searchText]);
 
   const formatLogTime = (ts: string | null) => {
     if (!ts) return "";
@@ -117,27 +141,65 @@ function ActivityLogTab() {
   return (
     <Card>
       <CardHeader className="pb-4 border-b border-border">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-primary/10">
-            <Clock className="h-5 w-5 text-primary" />
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Clock className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <CardTitle className="text-xl">Activity Log</CardTitle>
+              <CardDescription>Recent actions and events ({filteredLogs.length} of {logs.length})</CardDescription>
+            </div>
           </div>
-          <div>
-            <CardTitle className="text-xl">Activity Log</CardTitle>
-            <CardDescription>Recent actions and events across the team</CardDescription>
+        </div>
+        <div className="flex items-center gap-2 mt-3 flex-wrap">
+          <div className="relative min-w-[160px] flex-1 max-w-[250px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search logs..."
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              className="pl-9"
+              data-testid="input-search-activity"
+            />
           </div>
+          <Select value={actionFilter} onValueChange={setActionFilter}>
+            <SelectTrigger className="w-[160px]" data-testid="select-action-filter">
+              <SelectValue placeholder="Action type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Actions</SelectItem>
+              {uniqueActions.map(a => (
+                <SelectItem key={a} value={a}>{actionLabels[a] || a}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={userFilter} onValueChange={setUserFilter}>
+            <SelectTrigger className="w-[140px]" data-testid="select-user-filter">
+              <SelectValue placeholder="User" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Users</SelectItem>
+              {uniqueActors.map(a => (
+                <SelectItem key={a} value={a}>{a}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </CardHeader>
       <CardContent className="pt-4">
         {isLoading ? (
           <p className="text-muted-foreground text-sm">Loading activity...</p>
-        ) : logs.length === 0 ? (
+        ) : filteredLogs.length === 0 ? (
           <div className="p-8 text-center">
             <Clock className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
-            <p className="text-muted-foreground text-sm">No activity recorded yet</p>
+            <p className="text-muted-foreground text-sm">
+              {logs.length === 0 ? "No activity recorded yet" : "No matching activity found"}
+            </p>
           </div>
         ) : (
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {logs.map((log) => (
+          <div className="space-y-2 max-h-[500px] overflow-y-auto">
+            {filteredLogs.map((log) => (
               <div key={log.id} className="flex items-start gap-3 p-3 rounded-lg border border-border" data-testid={`activity-log-${log.id}`}>
                 <Avatar className="h-7 w-7 mt-0.5">
                   <AvatarFallback className="bg-primary/10 text-primary text-xs">
@@ -701,18 +763,20 @@ export default function Dashboard() {
   const selectedStatFieldMode = gameModes.find(m => m.id === selectedModeForStatFields);
   const selectedModeStatFields = selectedModeForStatFields ? getStatFieldsByMode(selectedModeForStatFields) : [];
 
-  const canAccessDashboard = hasPermission("access_dashboard");
+  const canViewDashboard = hasPermission("view_dashboard");
   const canManageUsers = hasPermission("manage_users");
   const canManageRoles = hasPermission("manage_roles");
-  const canAccessSettings = hasPermission("access_settings");
+  const canManageGameConfig = hasPermission("manage_game_config");
+  const canManageStatFields = hasPermission("manage_stat_fields");
+  const canViewActivityLog = hasPermission("view_activity_log");
 
   const availableTabs: { value: string; label: string; icon: any; show: boolean }[] = [
-    { value: "game-config", label: "Game Config", icon: Gamepad2, show: canAccessDashboard || canAccessSettings },
-    { value: "team", label: "Team", icon: UserCog, show: canAccessDashboard },
+    { value: "game-config", label: "Game Config", icon: Gamepad2, show: canManageGameConfig },
+    { value: "team", label: "Team", icon: UserCog, show: canViewDashboard },
     { value: "users", label: "Users", icon: Users, show: canManageUsers },
     { value: "roles", label: "Roles", icon: Shield, show: canManageRoles },
-    { value: "stat-fields", label: "Stat Fields", icon: BarChart3, show: canAccessDashboard || canAccessSettings },
-    { value: "activity", label: "Activity", icon: Clock, show: canAccessDashboard },
+    { value: "stat-fields", label: "Stat Fields", icon: BarChart3, show: canManageStatFields },
+    { value: "activity", label: "Activity", icon: Clock, show: canViewActivityLog },
   ];
 
   const visibleTabs = availableTabs.filter(t => t.show);
@@ -1086,6 +1150,18 @@ export default function Dashboard() {
                                 </span>
                               )}
                             </div>
+                            {user.lastSeen && (
+                              <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-muted-foreground">
+                                <span data-testid={`text-last-seen-${user.id}`}>
+                                  Last seen: {format(new Date(user.lastSeen), "MMM d, h:mm a")}
+                                </span>
+                                {user.lastUserAgent && (
+                                  <span data-testid={`text-device-${user.id}`} className="truncate max-w-[200px]" title={user.lastUserAgent}>
+                                    {user.lastUserAgent.includes("Mobile") ? "Mobile" : "Desktop"}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
@@ -1235,22 +1311,29 @@ export default function Dashboard() {
                           </CardHeader>
                           {!isOwner && (
                             <CardContent>
-                              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                                {allPermissions.map((perm) => (
-                                  <div key={perm} className="flex items-center gap-2">
-                                    <Checkbox
-                                      checked={perms.includes(perm)}
-                                      onCheckedChange={(checked) => {
-                                        const newPerms = checked
-                                          ? [...perms, perm]
-                                          : perms.filter(p => p !== perm);
-                                        updateRoleMutation.mutate({ id: role.id, role: { permissions: newPerms } });
-                                      }}
-                                      data-testid={`checkbox-perm-${role.id}-${perm}`}
-                                    />
-                                    <label className="text-sm text-foreground cursor-pointer">
-                                      {perm.replace(/_/g, " ")}
-                                    </label>
+                              <div className="space-y-4">
+                                {permissionCategories.map((cat) => (
+                                  <div key={cat.category}>
+                                    <h4 className="text-sm font-medium text-muted-foreground mb-2 capitalize">{cat.category}</h4>
+                                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                                      {cat.permissions.map((perm) => (
+                                        <div key={perm} className="flex items-center gap-2">
+                                          <Checkbox
+                                            checked={perms.includes(perm)}
+                                            onCheckedChange={(checked) => {
+                                              const newPerms = checked
+                                                ? [...perms, perm]
+                                                : perms.filter(p => p !== perm);
+                                              updateRoleMutation.mutate({ id: role.id, role: { permissions: newPerms } });
+                                            }}
+                                            data-testid={`checkbox-perm-${role.id}-${perm}`}
+                                          />
+                                          <label className="text-sm text-foreground cursor-pointer">
+                                            {perm.replace(/_/g, " ")}
+                                          </label>
+                                        </div>
+                                      ))}
+                                    </div>
                                   </div>
                                 ))}
                               </div>
@@ -1606,20 +1689,27 @@ export default function Dashboard() {
                 <FormField control={roleForm.control} name="permissions" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Permissions</FormLabel>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
-                      {allPermissions.map((perm) => (
-                        <div key={perm} className="flex items-center gap-2">
-                          <Checkbox
-                            checked={field.value.includes(perm)}
-                            onCheckedChange={(checked) => {
-                              const newVal = checked
-                                ? [...field.value, perm]
-                                : field.value.filter((p: string) => p !== perm);
-                              field.onChange(newVal);
-                            }}
-                            data-testid={`checkbox-role-perm-${perm}`}
-                          />
-                          <label className="text-sm text-foreground cursor-pointer">{perm.replace(/_/g, " ")}</label>
+                    <div className="space-y-4 mt-2">
+                      {permissionCategories.map((cat) => (
+                        <div key={cat.category}>
+                          <h4 className="text-sm font-medium text-muted-foreground mb-2 capitalize">{cat.category}</h4>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                            {cat.permissions.map((perm) => (
+                              <div key={perm} className="flex items-center gap-2">
+                                <Checkbox
+                                  checked={field.value.includes(perm)}
+                                  onCheckedChange={(checked) => {
+                                    const newVal = checked
+                                      ? [...field.value, perm]
+                                      : field.value.filter((p: string) => p !== perm);
+                                    field.onChange(newVal);
+                                  }}
+                                  data-testid={`checkbox-role-perm-${perm}`}
+                                />
+                                <label className="text-sm text-foreground cursor-pointer">{perm.replace(/_/g, " ")}</label>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       ))}
                     </div>

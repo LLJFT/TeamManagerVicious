@@ -27,6 +27,8 @@ interface ScheduleTableProps {
   onStaffAvailabilityChange: (staffId: string, day: DayOfWeek, availability: string) => void;
   onRoleChange?: (playerId: string, role: string) => void;
   isLoading?: boolean;
+  canEditAll?: boolean;
+  editablePlayerId?: string | null;
 }
 
 const roleColorPalette = [
@@ -63,6 +65,8 @@ export function ScheduleTable({
   onStaffAvailabilityChange,
   onRoleChange,
   isLoading,
+  canEditAll = true,
+  editablePlayerId = null,
 }: ScheduleTableProps) {
   const tableRef = useRef<HTMLDivElement>(null);
 
@@ -79,7 +83,7 @@ export function ScheduleTable({
   }
 
   const roleOrder = roleOptions.length > 0 ? roleOptions : Object.keys(groupedByRole);
-  const allRolesForColor = [...new Set([...roleOptions, ...Object.keys(groupedByRole)])];
+  const allRolesForColor = Array.from(new Set([...roleOptions, ...Object.keys(groupedByRole)]));
 
   return (
     <div className="space-y-6">
@@ -108,13 +112,15 @@ export function ScheduleTable({
               {roleOrder.map((role) => {
                 const playersInRole = groupedByRole[role] || [];
                 if (playersInRole.length === 0) return null;
-                return playersInRole.map((player) => (
+                return playersInRole.map((player) => {
+                  const canEditThis = canEditAll || editablePlayerId === player.id;
+                  return (
                   <tr key={player.id} className="border-t border-border hover-elevate" data-testid={`row-player-${player.id}`}>
                     <td className="border-r border-border px-2 py-2 bg-card">
                       <Select
                         value={player.role}
                         onValueChange={(value: string) => onRoleChange?.(player.id, value)}
-                        disabled={isLoading}
+                        disabled={isLoading || !canEditAll}
                       >
                         <SelectTrigger className={`w-full h-9 text-xs font-medium ${getRoleColor(player.role, allRolesForColor)} border-0`} data-testid={`select-role-${player.id}`}>
                           <SelectValue>{player.role}</SelectValue>
@@ -136,7 +142,7 @@ export function ScheduleTable({
                           <Select
                             value={avail}
                             onValueChange={(value: string) => onAvailabilityChange(player.id, day, value)}
-                            disabled={isLoading}
+                            disabled={isLoading || !canEditThis}
                           >
                             <SelectTrigger className={`w-full h-9 text-xs font-medium ${getAvailabilityColor(avail)} border-0`} data-testid={`select-avail-${player.id}-${day}`}>
                               <SelectValue><span className="truncate">{avail}</span></SelectValue>
@@ -151,8 +157,9 @@ export function ScheduleTable({
                       );
                     })}
                   </tr>
-                ));
-              })}
+                );
+                })}
+              )}
             </tbody>
           </table>
         </div>
@@ -202,7 +209,7 @@ export function ScheduleTable({
                           <Select
                             value={avail}
                             onValueChange={(value: string) => onStaffAvailabilityChange(s.id, day as DayOfWeek, value)}
-                            disabled={isLoading}
+                            disabled={isLoading || !canEditAll}
                           >
                             <SelectTrigger className={`w-full h-9 text-xs font-medium ${getAvailabilityColor(avail)} border-0`} data-testid={`select-staff-avail-${s.id}-${day}`}>
                               <SelectValue><span className="truncate">{avail}</span></SelectValue>
