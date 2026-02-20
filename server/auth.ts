@@ -4,7 +4,7 @@ import connectPgSimple from "connect-pg-simple";
 import { eq, and } from "drizzle-orm";
 import { db, pool } from "./db";
 import { getTeamId } from "./storage";
-import { roles, users, allPermissions } from "@shared/schema";
+import { roles, users, allPermissions, availabilitySlots, rosterRoles, chatChannels } from "@shared/schema";
 import type { Express, Request, Response, NextFunction } from "express";
 
 declare module "express-session" {
@@ -35,8 +35,52 @@ export function setupAuth(app: Express) {
   );
 }
 
+async function seedDefaults(teamId: string) {
+  const existingSlots = await db.select().from(availabilitySlots).where(eq(availabilitySlots.teamId, teamId)).limit(1);
+  if (existingSlots.length === 0) {
+    const defaultSlots = [
+      { label: "18:00-20:00", sortOrder: 0 },
+      { label: "20:00-22:00", sortOrder: 1 },
+      { label: "All Blocks", sortOrder: 2 },
+      { label: "Unknown", sortOrder: 3 },
+      { label: "Can't", sortOrder: 4 },
+    ];
+    await db.insert(availabilitySlots).values(
+      defaultSlots.map((s) => ({ teamId, label: s.label, sortOrder: s.sortOrder }))
+    );
+    console.log("Default availability slots seeded");
+  }
+
+  const existingRosterRoles = await db.select().from(rosterRoles).where(eq(rosterRoles.teamId, teamId)).limit(1);
+  if (existingRosterRoles.length === 0) {
+    const defaultPlayerRoles = [
+      { name: "Tank", type: "player", sortOrder: 0 },
+      { name: "DPS", type: "player", sortOrder: 1 },
+      { name: "Support", type: "player", sortOrder: 2 },
+      { name: "Flex", type: "player", sortOrder: 3 },
+    ];
+    const defaultStaffRoles = [
+      { name: "Coach", type: "staff", sortOrder: 0 },
+      { name: "Analyst", type: "staff", sortOrder: 1 },
+      { name: "Manager", type: "staff", sortOrder: 2 },
+    ];
+    await db.insert(rosterRoles).values(
+      [...defaultPlayerRoles, ...defaultStaffRoles].map((r) => ({ teamId, name: r.name, type: r.type, sortOrder: r.sortOrder }))
+    );
+    console.log("Default roster roles seeded");
+  }
+
+  const existingChannels = await db.select().from(chatChannels).where(eq(chatChannels.teamId, teamId)).limit(1);
+  if (existingChannels.length === 0) {
+    await db.insert(chatChannels).values({ teamId, name: "general" });
+    console.log("Default chat channel 'general' seeded");
+  }
+}
+
 export async function bootstrapDefaultAdmin() {
   const teamId = getTeamId();
+
+  await seedDefaults(teamId);
 
   const existingUsers = await db
     .select()

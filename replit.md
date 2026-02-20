@@ -29,21 +29,37 @@ Available permissions: view_schedule, edit_own_availability, edit_all_availabili
 - Sidebar items filtered by user permissions
 
 ### Key Pages
-- `/` - Schedule (availability tracker)
+- `/` - Schedule (availability tracker using relational player_availability/staff_availability tables)
 - `/events` - Events calendar
 - `/events/:id` - Event details with games
 - `/results` - Event results
-- `/players` - Player management
+- `/players` - Player management (dynamic roster roles from API)
 - `/staff` - Staff management (coaches, analysts)
-- `/chat` - Discord-style team chat with channels
-- `/dashboard` - Admin dashboard (Game Config, Team, Users, Roles, Stat Fields tabs)
-- `/stats` - Statistics, `/history`, `/compare`, `/opponents`
+- `/chat` - Discord-style team chat with channels, file uploads, @mentions, avatar+role popups
+- `/dashboard` - Admin dashboard (Game Config, Team, Users, Roles, Stat Fields, Activity tabs)
+- `/stats` - Statistics, `/player-stats` - Per-player aggregation, `/history`, `/compare`, `/opponents`
+- `/account` - Account settings (username/password change)
 
 ### Database Tables
 Core: players, events, games, attendance, schedules, settings, team_notes, off_days, game_modes, maps, seasons, stat_fields, player_game_stats
 Auth: users, roles
-New: staff, chat_channels, chat_messages, availability_slots, roster_roles
+Chat: chat_channels, chat_messages, chat_channel_permissions
+Schedule: availability_slots, roster_roles, player_availability, staff_availability
+Logging: activity_logs
 All tables use teamId isolation (REPL_ID-based)
+
+### Chat Features
+- Channel-based messaging with create/delete channels
+- File uploads via Object Storage (presigned URLs)
+- @mentions with autocomplete dropdown
+- Avatar + role badge displayed on messages
+- Popover on avatar click shows user role
+- Channel permissions per role (canView, canSend)
+
+### Activity Logging
+- Automatic logging on key actions: login, user status change, user role change
+- Activity tab in Dashboard shows last 200 entries with actor, action, details, timestamp
+- `logActivity()` helper in routes.ts for easy integration
 
 ## Recent Changes
 

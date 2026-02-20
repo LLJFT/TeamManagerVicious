@@ -29,6 +29,7 @@ const mainNavItems = [
 
 const statsNavItems = [
   { title: "Statistics", url: "/stats", icon: BarChart3, permission: "view_stats" as const },
+  { title: "Player Stats", url: "/player-stats", icon: ClipboardList, permission: "view_stats" as const },
   { title: "History", url: "/history", icon: Clock, permission: "view_stats" as const },
   { title: "Compare", url: "/compare", icon: GitCompare, permission: "view_stats" as const },
   { title: "Opponents", url: "/opponents", icon: Target, permission: "view_stats" as const },
@@ -118,14 +119,21 @@ export function AppSidebar() {
               <Badge variant="secondary" className="text-xs">{user?.role?.name || "Member"}</Badge>
             </div>
           </div>
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={() => logout()}
-            data-testid="button-logout"
-          >
-            <LogOut className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Link href="/account">
+              <Button size="icon" variant="ghost" data-testid="button-account-settings">
+                <Settings className="h-4 w-4" />
+              </Button>
+            </Link>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => logout()}
+              data-testid="button-logout"
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </SidebarFooter>
     </Sidebar>

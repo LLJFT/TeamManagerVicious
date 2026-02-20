@@ -273,10 +273,57 @@ export const chatMessages = pgTable("chat_messages", {
   message: text("message"),
   attachmentUrl: text("attachment_url"),
   attachmentType: text("attachment_type"),
+  mentions: jsonb("mentions").default(sql`'[]'::jsonb`),
   createdAt: text("created_at").default(sql`now()`),
 }, (table) => [
   index("chat_messages_team_id_idx").on(table.teamId),
   index("chat_messages_channel_id_idx").on(table.channelId),
+]);
+
+export const chatChannelPermissions = pgTable("chat_channel_permissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  channelId: varchar("channel_id").notNull().references(() => chatChannels.id, { onDelete: "cascade" }),
+  roleId: varchar("role_id").notNull().references(() => roles.id, { onDelete: "cascade" }),
+  canView: boolean("can_view").notNull().default(true),
+  canSend: boolean("can_send").notNull().default(true),
+  createdAt: text("created_at").default(sql`now()`),
+}, (table) => [
+  index("chat_channel_permissions_team_id_idx").on(table.teamId),
+]);
+
+export const activityLogs = pgTable("activity_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  userId: varchar("user_id"),
+  action: text("action").notNull(),
+  details: text("details"),
+  ipAddress: text("ip_address"),
+  createdAt: text("created_at").default(sql`now()`),
+}, (table) => [
+  index("activity_logs_team_id_idx").on(table.teamId),
+]);
+
+export const playerAvailability = pgTable("player_availability", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  playerId: varchar("player_id").notNull().references(() => players.id, { onDelete: "cascade" }),
+  day: text("day").notNull(),
+  availability: text("availability").notNull().default("unknown"),
+}, (table) => [
+  index("player_availability_team_id_idx").on(table.teamId),
+  index("player_availability_player_id_idx").on(table.playerId),
+]);
+
+export const staffAvailability = pgTable("staff_availability", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  staffId: varchar("staff_id").notNull().references(() => staff.id, { onDelete: "cascade" }),
+  day: text("day").notNull(),
+  availability: text("availability").notNull().default("unknown"),
+}, (table) => [
+  index("staff_availability_team_id_idx").on(table.teamId),
+  index("staff_availability_staff_id_idx").on(table.staffId),
 ]);
 
 export const insertPlayerSchema = createInsertSchema(players).omit({
@@ -386,6 +433,11 @@ export const insertChatMessageSchema = createInsertSchema(chatMessages).omit({
   createdAt: true,
 });
 
+export const insertChatChannelPermissionSchema = createInsertSchema(chatChannelPermissions).omit({ id: true, teamId: true, createdAt: true });
+export const insertActivityLogSchema = createInsertSchema(activityLogs).omit({ id: true, teamId: true, createdAt: true });
+export const insertPlayerAvailabilitySchema = createInsertSchema(playerAvailability).omit({ id: true, teamId: true });
+export const insertStaffAvailabilitySchema = createInsertSchema(staffAvailability).omit({ id: true, teamId: true });
+
 export type AvailabilityOption = typeof availabilityOptions[number];
 export type GameResult = typeof gameResultOptions[number];
 export type RoleType = typeof roleTypes[number];
@@ -453,6 +505,15 @@ export type InsertChatChannel = z.infer<typeof insertChatChannelSchema>;
 
 export type ChatMessage = typeof chatMessages.$inferSelect;
 export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;
+
+export type ChatChannelPermission = typeof chatChannelPermissions.$inferSelect;
+export type InsertChatChannelPermission = z.infer<typeof insertChatChannelPermissionSchema>;
+export type ActivityLog = typeof activityLogs.$inferSelect;
+export type InsertActivityLog = z.infer<typeof insertActivityLogSchema>;
+export type PlayerAvailabilityRecord = typeof playerAvailability.$inferSelect;
+export type InsertPlayerAvailability = z.infer<typeof insertPlayerAvailabilitySchema>;
+export type StaffAvailabilityRecord = typeof staffAvailability.$inferSelect;
+export type InsertStaffAvailability = z.infer<typeof insertStaffAvailabilitySchema>;
 
 export interface PlayerAvailability {
   playerId: string;

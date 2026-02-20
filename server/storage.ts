@@ -1,5 +1,5 @@
-import type { Player, InsertPlayer, Schedule, InsertSchedule, Setting, InsertSetting, Event, InsertEvent, Attendance, InsertAttendance, TeamNotes, InsertTeamNotes, Game, InsertGame, GameMode, InsertGameMode, Map, InsertMap, Season, InsertSeason, OffDay, InsertOffDay, StatField, InsertStatField, PlayerGameStat, InsertPlayerGameStat } from "@shared/schema";
-import { players, schedules, settings, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays, statFields, playerGameStats } from "@shared/schema";
+import type { Player, InsertPlayer, Schedule, InsertSchedule, Setting, InsertSetting, Event, InsertEvent, Attendance, InsertAttendance, TeamNotes, InsertTeamNotes, Game, InsertGame, GameMode, InsertGameMode, Map, InsertMap, Season, InsertSeason, OffDay, InsertOffDay, StatField, InsertStatField, PlayerGameStat, InsertPlayerGameStat, PlayerAvailabilityRecord, InsertPlayerAvailability, StaffAvailabilityRecord, InsertStaffAvailability, Staff, InsertStaff, AvailabilitySlot, RosterRole } from "@shared/schema";
+import { players, schedules, settings, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays, statFields, playerGameStats, playerAvailability, staffAvailability, staff as staffTable, availabilitySlots, rosterRoles } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, isNull } from "drizzle-orm";
 
@@ -63,6 +63,15 @@ export interface IStorage {
   removeStatField(id: string): Promise<boolean>;
   getPlayerGameStats(gameId: string): Promise<PlayerGameStat[]>;
   savePlayerGameStats(gameId: string, stats: InsertPlayerGameStat[]): Promise<PlayerGameStat[]>;
+  getPlayerAvailabilities(): Promise<PlayerAvailabilityRecord[]>;
+  savePlayerAvailability(playerId: string, day: string, availability: string): Promise<PlayerAvailabilityRecord>;
+  deletePlayerAvailabilities(playerId: string): Promise<boolean>;
+  getStaffAvailabilities(): Promise<StaffAvailabilityRecord[]>;
+  saveStaffAvailability(staffId: string, day: string, availability: string): Promise<StaffAvailabilityRecord>;
+  deleteStaffAvailabilities(staffId: string): Promise<boolean>;
+  getAllAvailabilitySlots(): Promise<AvailabilitySlot[]>;
+  getAllRosterRoles(): Promise<RosterRole[]>;
+  getAllStaff(): Promise<Staff[]>;
 }
 
 export class DbStorage implements IStorage {
@@ -644,6 +653,90 @@ export class DbStorage implements IStorage {
       .values(stats.map(s => ({ ...s, gameId, teamId })))
       .returning();
     return inserted;
+  }
+  async getPlayerAvailabilities(): Promise<PlayerAvailabilityRecord[]> {
+    const teamId = getTeamId();
+    return await db.select().from(playerAvailability).where(eq(playerAvailability.teamId, teamId));
+  }
+
+  async savePlayerAvailability(playerId: string, day: string, availability: string): Promise<PlayerAvailabilityRecord> {
+    const teamId = getTeamId();
+    const existing = await db.select().from(playerAvailability)
+      .where(and(
+        eq(playerAvailability.teamId, teamId),
+        eq(playerAvailability.playerId, playerId),
+        eq(playerAvailability.day, day)
+      )).limit(1);
+
+    if (existing.length > 0) {
+      const [updated] = await db.update(playerAvailability)
+        .set({ availability })
+        .where(eq(playerAvailability.id, existing[0].id))
+        .returning();
+      return updated;
+    }
+
+    const [inserted] = await db.insert(playerAvailability)
+      .values({ teamId, playerId, day, availability })
+      .returning();
+    return inserted;
+  }
+
+  async deletePlayerAvailabilities(playerId: string): Promise<boolean> {
+    const teamId = getTeamId();
+    await db.delete(playerAvailability)
+      .where(and(eq(playerAvailability.playerId, playerId), eq(playerAvailability.teamId, teamId)));
+    return true;
+  }
+
+  async getStaffAvailabilities(): Promise<StaffAvailabilityRecord[]> {
+    const teamId = getTeamId();
+    return await db.select().from(staffAvailability).where(eq(staffAvailability.teamId, teamId));
+  }
+
+  async saveStaffAvailability(staffId: string, day: string, availability: string): Promise<StaffAvailabilityRecord> {
+    const teamId = getTeamId();
+    const existing = await db.select().from(staffAvailability)
+      .where(and(
+        eq(staffAvailability.teamId, teamId),
+        eq(staffAvailability.staffId, staffId),
+        eq(staffAvailability.day, day)
+      )).limit(1);
+
+    if (existing.length > 0) {
+      const [updated] = await db.update(staffAvailability)
+        .set({ availability })
+        .where(eq(staffAvailability.id, existing[0].id))
+        .returning();
+      return updated;
+    }
+
+    const [inserted] = await db.insert(staffAvailability)
+      .values({ teamId, staffId, day, availability })
+      .returning();
+    return inserted;
+  }
+
+  async deleteStaffAvailabilities(staffId: string): Promise<boolean> {
+    const teamId = getTeamId();
+    await db.delete(staffAvailability)
+      .where(and(eq(staffAvailability.staffId, staffId), eq(staffAvailability.teamId, teamId)));
+    return true;
+  }
+
+  async getAllAvailabilitySlots(): Promise<AvailabilitySlot[]> {
+    const teamId = getTeamId();
+    return await db.select().from(availabilitySlots).where(eq(availabilitySlots.teamId, teamId));
+  }
+
+  async getAllRosterRoles(): Promise<RosterRole[]> {
+    const teamId = getTeamId();
+    return await db.select().from(rosterRoles).where(eq(rosterRoles.teamId, teamId));
+  }
+
+  async getAllStaff(): Promise<Staff[]> {
+    const teamId = getTeamId();
+    return await db.select().from(staffTable).where(eq(staffTable.teamId, teamId));
   }
 }
 

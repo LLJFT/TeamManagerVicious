@@ -1,0 +1,250 @@
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { BarChart3, Users, Trophy, Target } from "lucide-react";
+
+interface StatAggregate {
+  fieldName: string;
+  total: number;
+  count: number;
+  avg: number;
+}
+
+interface OpponentStat {
+  opponent: string;
+  wins: number;
+  losses: number;
+  draws: number;
+  gamesPlayed: number;
+}
+
+interface PlayerSummary {
+  player: { id: string; name: string; role: string | null };
+  gamesPlayed: number;
+  stats: StatAggregate[];
+  opponents: OpponentStat[];
+}
+
+export default function PlayerStats() {
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+
+  const { data: summaries = [], isLoading } = useQuery<PlayerSummary[]>({
+    queryKey: ["/api/player-stats-summary"],
+  });
+
+  const selectedPlayer = summaries.find(s => s.player.id === selectedPlayerId);
+  const playersWithStats = summaries.filter(s => s.gamesPlayed > 0);
+
+  return (
+    <ScrollArea className="h-full">
+      <div className="p-6 max-w-5xl mx-auto space-y-6">
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <BarChart3 className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold" data-testid="text-page-title">Player Statistics</h1>
+              <p className="text-sm text-muted-foreground">Per-player stat aggregations and opponent breakdowns</p>
+            </div>
+          </div>
+        </div>
+
+        {isLoading ? (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <p className="text-muted-foreground">Loading player stats...</p>
+            </CardContent>
+          </Card>
+        ) : summaries.length === 0 ? (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <Users className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
+              <p className="text-muted-foreground">No players found. Add players first.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card>
+                <CardContent className="p-4 flex items-center gap-3">
+                  <Users className="h-8 w-8 text-primary" />
+                  <div>
+                    <p className="text-2xl font-bold" data-testid="text-total-players">{summaries.length}</p>
+                    <p className="text-xs text-muted-foreground">Total Players</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4 flex items-center gap-3">
+                  <Trophy className="h-8 w-8 text-primary" />
+                  <div>
+                    <p className="text-2xl font-bold" data-testid="text-players-with-stats">{playersWithStats.length}</p>
+                    <p className="text-xs text-muted-foreground">Players with Stats</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4 flex items-center gap-3">
+                  <Target className="h-8 w-8 text-primary" />
+                  <div>
+                    <p className="text-2xl font-bold" data-testid="text-total-games">
+                      {summaries.reduce((sum, s) => sum + s.gamesPlayed, 0)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Total Games Recorded</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card>
+              <CardHeader className="pb-4 border-b border-border">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div>
+                    <CardTitle>Player Leaderboard</CardTitle>
+                    <CardDescription>Games played per player</CardDescription>
+                  </div>
+                  <Select
+                    value={selectedPlayerId || ""}
+                    onValueChange={(v) => setSelectedPlayerId(v || null)}
+                  >
+                    <SelectTrigger className="w-[200px]" data-testid="select-player">
+                      <SelectValue placeholder="Select player" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {summaries.map(s => (
+                        <SelectItem key={s.player.id} value={s.player.id}>
+                          {s.player.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <div className="space-y-2">
+                  {summaries
+                    .sort((a, b) => b.gamesPlayed - a.gamesPlayed)
+                    .map((s) => (
+                      <div
+                        key={s.player.id}
+                        className={`flex items-center gap-3 p-3 rounded-lg border border-border cursor-pointer ${
+                          selectedPlayerId === s.player.id ? "bg-primary/5 border-primary/30" : ""
+                        }`}
+                        onClick={() => setSelectedPlayerId(s.player.id)}
+                        data-testid={`player-row-${s.player.id}`}
+                      >
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                            {s.player.name.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium text-sm">{s.player.name}</span>
+                            {s.player.role && (
+                              <Badge variant="outline" className="text-xs py-0">{s.player.role}</Badge>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="text-sm font-semibold">{s.gamesPlayed}</span>
+                          <span className="text-xs text-muted-foreground ml-1">games</span>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {selectedPlayer && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader className="pb-4 border-b border-border">
+                    <CardTitle className="text-lg">
+                      {selectedPlayer.player.name} - Stat Averages
+                    </CardTitle>
+                    <CardDescription>
+                      Across {selectedPlayer.gamesPlayed} games
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-4">
+                    {selectedPlayer.stats.length === 0 ? (
+                      <div className="p-6 text-center">
+                        <BarChart3 className="h-10 w-10 mx-auto mb-2 text-muted-foreground/30" />
+                        <p className="text-sm text-muted-foreground">No stat data recorded for this player</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {selectedPlayer.stats.map((stat, i) => (
+                          <div key={i} className="flex items-center justify-between p-3 rounded-lg border border-border" data-testid={`stat-row-${i}`}>
+                            <span className="text-sm font-medium">{stat.fieldName}</span>
+                            <div className="flex items-center gap-4">
+                              <div className="text-right">
+                                <span className="text-xs text-muted-foreground">Total</span>
+                                <p className="text-sm font-semibold">{stat.total}</p>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-xs text-muted-foreground">Avg</span>
+                                <p className="text-sm font-semibold">{stat.avg}</p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-4 border-b border-border">
+                    <CardTitle className="text-lg">
+                      {selectedPlayer.player.name} - vs Opponents
+                    </CardTitle>
+                    <CardDescription>Performance breakdown by opponent</CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-4">
+                    {selectedPlayer.opponents.length === 0 ? (
+                      <div className="p-6 text-center">
+                        <Target className="h-10 w-10 mx-auto mb-2 text-muted-foreground/30" />
+                        <p className="text-sm text-muted-foreground">No opponent data available</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {selectedPlayer.opponents.map((opp, i) => {
+                          const winRate = opp.gamesPlayed > 0
+                            ? Math.round((opp.wins / opp.gamesPlayed) * 100)
+                            : 0;
+                          return (
+                            <div key={i} className="p-3 rounded-lg border border-border" data-testid={`opponent-row-${i}`}>
+                              <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+                                <span className="text-sm font-medium">{opp.opponent}</span>
+                                <Badge variant={winRate >= 50 ? "default" : "secondary"} className="text-xs">
+                                  {winRate}% WR
+                                </Badge>
+                              </div>
+                              <div className="flex gap-3 text-xs text-muted-foreground">
+                                <span>{opp.gamesPlayed} games</span>
+                                <span className="text-green-600 dark:text-green-400">{opp.wins}W</span>
+                                <span className="text-red-600 dark:text-red-400">{opp.losses}L</span>
+                                {opp.draws > 0 && <span>{opp.draws}D</span>}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </ScrollArea>
+  );
+}

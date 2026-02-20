@@ -1,160 +1,182 @@
-import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
 import { ScheduleTable } from "@/components/ScheduleTable";
 import { PlayerManager } from "@/components/PlayerManager";
 import { AvailabilityAnalytics } from "@/components/AvailabilityAnalytics";
 import { WeeklyAvailabilityOverview } from "@/components/WeeklyAvailabilityOverview";
-import { SimpleToast } from "@/components/SimpleToast";
-import { Save } from "lucide-react";
 import { format } from "date-fns";
-import type { PlayerAvailability, DayOfWeek, AvailabilityOption, RoleType } from "@shared/schema";
+import type { Player, PlayerAvailabilityRecord, StaffAvailabilityRecord, AvailabilitySlot, RosterRole, DayOfWeek } from "@shared/schema";
 import { dayOfWeek } from "@shared/schema";
+import type { PlayerAvailability, AvailabilityOption } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { nanoid } from "nanoid";
+import { useToast } from "@/hooks/use-toast";
+
+interface StaffMember {
+  id: string;
+  name: string;
+  role: string;
+  teamId: string | null;
+}
 
 export default function Home() {
-  const [showToast, setShowToast] = useState(false);
-  const [toastMessage, setToastMessage] = useState("");
-  const [toastType, setToastType] = useState<"success" | "error">("success");
-  const [scheduleData, setScheduleData] = useState<PlayerAvailability[]>([]);
-  const [hasChanges, setHasChanges] = useState(false);
-  const [lastSyncTime, setLastSyncTime] = useState<Date>();
+  const { toast } = useToast();
+  const currentDate = format(new Date(), "MMM dd");
 
-  // Use a fixed identifier for the permanent schedule
-  const scheduleId = "permanent-schedule";
-  const currentDate = format(new Date(), "MMM dd"); // e.g., "Nov 01"
-
-  const { data: fetchedSchedule, isLoading } = useQuery<any>({
-    queryKey: [`/api/schedule?weekStartDate=${scheduleId}&weekEndDate=${scheduleId}`],
+  const { data: players = [], isLoading: playersLoading } = useQuery<Player[]>({
+    queryKey: ["/api/players"],
   });
 
-  useEffect(() => {
-    if (fetchedSchedule && fetchedSchedule.scheduleData?.players) {
-      setScheduleData(fetchedSchedule.scheduleData.players);
-      setHasChanges(false);
-      setLastSyncTime(new Date());
-    } else if (fetchedSchedule && !fetchedSchedule.scheduleData?.players) {
-      setScheduleData([]);
-      setHasChanges(false);
-      setLastSyncTime(new Date());
-    }
-  }, [fetchedSchedule]);
-
-  const saveMutation = useMutation({
-    mutationFn: async () => {
-      console.log("[Save Mutation] Starting save...");
-      const response = await apiRequest("POST", "/api/schedule", {
-        weekStartDate: scheduleId,
-        weekEndDate: scheduleId,
-        scheduleData: { players: scheduleData },
-      });
-      const data = await response.json();
-      console.log("[Save Mutation] Save completed:", data);
-      return data;
-    },
-    onSuccess: (data) => {
-      console.log("[Save Mutation] onSuccess called with data:", data);
-      queryClient.invalidateQueries({ queryKey: ["/api/schedule"] });
-      setHasChanges(false);
-      setLastSyncTime(new Date());
-      console.log("[Save Mutation] Showing success toast");
-      setToastMessage("Schedule saved successfully");
-      setToastType("success");
-      setShowToast(true);
-    },
-    onError: (error: any) => {
-      console.log("[Save Mutation] onError called:", error);
-      setToastMessage(error.message || "Error saving schedule");
-      setToastType("error");
-      setShowToast(true);
-    },
+  const { data: staffMembers = [] } = useQuery<StaffMember[]>({
+    queryKey: ["/api/staff"],
   });
 
+  const { data: playerAvailabilities = [] } = useQuery<PlayerAvailabilityRecord[]>({
+    queryKey: ["/api/player-availability"],
+  });
 
-  const handleAvailabilityChange = (playerId: string, day: DayOfWeek, availability: AvailabilityOption) => {
-    setScheduleData((prev) =>
-      prev.map((player) =>
-        player.playerId === playerId
-          ? {
-              ...player,
-              availability: {
-                ...player.availability,
-                [day]: availability,
-              },
-            }
-          : player
-      )
-    );
-    setHasChanges(true);
-  };
+  const { data: staffAvailabilities = [] } = useQuery<StaffAvailabilityRecord[]>({
+    queryKey: ["/api/staff-availability"],
+  });
 
-  const handleRoleChange = (playerId: string, role: RoleType) => {
-    setScheduleData((prev) =>
-      prev.map((player) =>
-        player.playerId === playerId
-          ? { ...player, role }
-          : player
-      )
-    );
-    setHasChanges(true);
-  };
+  const { data: availabilitySlots = [] } = useQuery<AvailabilitySlot[]>({
+    queryKey: ["/api/availability-slots"],
+  });
 
-  const handlePlayerNameChange = (playerId: string, name: string) => {
-    setScheduleData((prev) =>
-      prev.map((player) =>
-        player.playerId === playerId
-          ? { ...player, playerName: name }
-          : player
-      )
-    );
-    setHasChanges(true);
-  };
+  const { data: rosterRoles = [] } = useQuery<RosterRole[]>({
+    queryKey: ["/api/roster-roles"],
+  });
 
-  const handleAddPlayer = (name: string, role: RoleType) => {
-    const newPlayer: PlayerAvailability = {
-      playerId: nanoid(),
-      playerName: name,
-      role,
-      availability: dayOfWeek.reduce((acc, day) => {
-        acc[day] = "unknown";
-        return acc;
-      }, {} as { [key in DayOfWeek]: AvailabilityOption }),
+  const scheduleData: PlayerAvailability[] = players.map(player => {
+    const playerAvails = playerAvailabilities.filter(pa => pa.playerId === player.id);
+    const availability = dayOfWeek.reduce((acc, day) => {
+      const record = playerAvails.find(pa => pa.day === day);
+      acc[day] = (record?.availability || "unknown") as AvailabilityOption;
+      return acc;
+    }, {} as { [key in DayOfWeek]: AvailabilityOption });
+    return {
+      playerId: player.id,
+      playerName: player.name,
+      role: player.role as any,
+      availability,
     };
-    setScheduleData((prev) => [...prev, newPlayer]);
-    setHasChanges(true);
-    setToastMessage(`Added ${name} to schedule`);
-    setToastType("success");
-    setShowToast(true);
+  });
+
+  const slotLabels = availabilitySlots.length > 0
+    ? availabilitySlots.sort((a, b) => a.sortOrder - b.sortOrder).map(s => s.label)
+    : ["Unknown", "18:00-20:00", "20:00-22:00", "All Blocks", "Can't"];
+
+  const playerRoleNames = rosterRoles
+    .filter(r => r.type === "player")
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map(r => r.name);
+
+  const allRoleNames = rosterRoles
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map(r => r.name);
+
+  const savePlayerAvailMutation = useMutation({
+    mutationFn: async ({ playerId, day, availability }: { playerId: string; day: string; availability: string }) => {
+      await apiRequest("POST", "/api/player-availability", { playerId, day, availability });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/player-availability"] });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to save availability", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const saveStaffAvailMutation = useMutation({
+    mutationFn: async ({ staffId, day, availability }: { staffId: string; day: string; availability: string }) => {
+      await apiRequest("POST", "/api/staff-availability", { staffId, day, availability });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/staff-availability"] });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to save availability", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const addPlayerMutation = useMutation({
+    mutationFn: async ({ name, role }: { name: string; role: string }) => {
+      const res = await apiRequest("POST", "/api/players", { name, role });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/players"] });
+      toast({ title: "Player added" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to add player", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const updatePlayerMutation = useMutation({
+    mutationFn: async ({ id, name, role }: { id: string; name: string; role: string }) => {
+      await apiRequest("PUT", `/api/players/${id}`, { name, role });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/players"] });
+      toast({ title: "Player updated" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to update player", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const removePlayerMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/players/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/players"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/player-availability"] });
+      toast({ title: "Player removed" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to remove player", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const handleAvailabilityChange = (playerId: string, day: DayOfWeek, availability: string) => {
+    savePlayerAvailMutation.mutate({ playerId, day, availability });
+  };
+
+  const handleStaffAvailabilityChange = (staffId: string, day: DayOfWeek, availability: string) => {
+    saveStaffAvailMutation.mutate({ staffId, day, availability });
+  };
+
+  const handleRoleChange = (playerId: string, role: string) => {
+    const player = players.find(p => p.id === playerId);
+    if (player) {
+      updatePlayerMutation.mutate({ id: playerId, name: player.name, role });
+    }
+  };
+
+  const handleAddPlayer = (name: string, role: string) => {
+    addPlayerMutation.mutate({ name, role });
   };
 
   const handleRemovePlayer = (playerId: string) => {
-    const player = scheduleData.find((p) => p.playerId === playerId);
-    if (player) {
-      const confirm = window.confirm(`Remove ${player.playerName}?`);
-      if (!confirm) return;
-      
-      setScheduleData((prev) => prev.filter((p) => p.playerId !== playerId));
-      setHasChanges(true);
-      setToastMessage(`Removed ${player.playerName} from schedule`);
-      setToastType("success");
-      setShowToast(true);
+    const player = players.find(p => p.id === playerId);
+    if (player && window.confirm(`Remove ${player.name}?`)) {
+      removePlayerMutation.mutate(playerId);
     }
   };
 
-  const handleEditPlayer = (playerId: string, name: string, role: RoleType) => {
-    setScheduleData((prev) =>
-      prev.map((player) =>
-        player.playerId === playerId
-          ? { ...player, playerName: name, role }
-          : player
-      )
-    );
-    setHasChanges(true);
-    setToastMessage(`Updated ${name}`);
-    setToastType("success");
-    setShowToast(true);
+  const handleEditPlayer = (playerId: string, name: string, role: string) => {
+    updatePlayerMutation.mutate({ id: playerId, name, role });
   };
+
+  const staffScheduleData = staffMembers.map(s => {
+    const staffAvails = staffAvailabilities.filter(sa => sa.staffId === s.id);
+    const availability = dayOfWeek.reduce((acc, day) => {
+      const record = staffAvails.find(sa => sa.day === day);
+      acc[day] = record?.availability || "unknown";
+      return acc;
+    }, {} as Record<string, string>);
+    return { id: s.id, name: s.name, role: s.role, availability };
+  });
 
   return (
     <div className="min-h-screen bg-background">
@@ -169,30 +191,19 @@ export default function Home() {
                 The Vicious Availability Times ({currentDate})
               </p>
             </div>
-            <div className="flex items-center gap-3">
-            </div>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
             <PlayerManager
-              players={scheduleData}
+              players={players}
+              roleOptions={playerRoleNames.length > 0 ? playerRoleNames : ["Tank", "DPS", "Support", "Flex"]}
               onAddPlayer={handleAddPlayer}
               onRemovePlayer={handleRemovePlayer}
               onEditPlayer={handleEditPlayer}
             />
-            <Button
-              variant="default"
-              onClick={() => saveMutation.mutate()}
-              disabled={!hasChanges || saveMutation.isPending}
-              className="gap-2"
-              data-testid="button-save"
-            >
-              <Save className="h-4 w-4" />
-              {saveMutation.isPending ? "Saving..." : "Save"}
-            </Button>
           </div>
 
-          {isLoading ? (
+          {playersLoading ? (
             <div className="flex items-center justify-center py-20">
               <div className="text-center space-y-3">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
@@ -202,11 +213,15 @@ export default function Home() {
           ) : (
             <>
               <ScheduleTable
-                scheduleData={scheduleData}
+                players={players}
+                playerAvailabilities={playerAvailabilities}
+                staffMembers={staffScheduleData}
+                slotLabels={slotLabels}
+                roleOptions={allRoleNames.length > 0 ? allRoleNames : ["Tank", "DPS", "Support", "Flex"]}
                 onAvailabilityChange={handleAvailabilityChange}
+                onStaffAvailabilityChange={handleStaffAvailabilityChange}
                 onRoleChange={handleRoleChange}
-                onPlayerNameChange={handlePlayerNameChange}
-                isLoading={saveMutation.isPending}
+                isLoading={false}
               />
 
               <WeeklyAvailabilityOverview scheduleData={scheduleData} />
@@ -216,50 +231,15 @@ export default function Home() {
               )}
             </>
           )}
-
-          {hasChanges && (
-            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
-              <div className="bg-primary text-primary-foreground px-6 py-3 rounded-lg shadow-lg flex items-center gap-3">
-                <span className="text-sm font-medium">You have unsaved changes</span>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => saveMutation.mutate()}
-                  disabled={saveMutation.isPending}
-                  data-testid="button-save-floating"
-                >
-                  Save Now
-                </Button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
-      {showToast && (
-        <SimpleToast
-          message={toastMessage}
-          type={toastType}
-          onClose={() => setShowToast(false)}
-        />
-      )}
-
       <style>{`
         @media print {
-          body * {
-            visibility: hidden;
-          }
-          .container, .container * {
-            visibility: visible;
-          }
-          .container {
-            position: absolute;
-            left: 0;
-            top: 0;
-          }
-          button, .fixed {
-            display: none !important;
-          }
+          body * { visibility: hidden; }
+          .container, .container * { visibility: visible; }
+          .container { position: absolute; left: 0; top: 0; }
+          button, .fixed { display: none !important; }
         }
       `}</style>
     </div>

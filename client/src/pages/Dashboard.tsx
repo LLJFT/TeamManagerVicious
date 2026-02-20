@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -26,6 +27,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { format } from "date-fns";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface UserWithRole {
   id: string;
@@ -80,6 +84,87 @@ type AvailabilitySlotFormData = z.infer<typeof availabilitySlotFormSchema>;
 type RosterRoleFormData = z.infer<typeof rosterRoleFormSchema>;
 type RoleFormData = z.infer<typeof roleFormSchema>;
 
+interface ActivityLogEntry {
+  id: string;
+  userId: string | null;
+  action: string;
+  details: string | null;
+  createdAt: string | null;
+  actorName: string;
+}
+
+function ActivityLogTab() {
+  const { data: logs = [], isLoading } = useQuery<ActivityLogEntry[]>({
+    queryKey: ["/api/activity-logs"],
+    refetchInterval: 15000,
+  });
+
+  const actionLabels: Record<string, string> = {
+    login: "Logged in",
+    user_status_change: "User status changed",
+    user_role_change: "User role changed",
+  };
+
+  const formatLogTime = (ts: string | null) => {
+    if (!ts) return "";
+    try {
+      return format(new Date(ts), "MMM d, h:mm a");
+    } catch {
+      return ts;
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-4 border-b border-border">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-primary/10">
+            <Clock className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <CardTitle className="text-xl">Activity Log</CardTitle>
+            <CardDescription>Recent actions and events across the team</CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-4">
+        {isLoading ? (
+          <p className="text-muted-foreground text-sm">Loading activity...</p>
+        ) : logs.length === 0 ? (
+          <div className="p-8 text-center">
+            <Clock className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
+            <p className="text-muted-foreground text-sm">No activity recorded yet</p>
+          </div>
+        ) : (
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {logs.map((log) => (
+              <div key={log.id} className="flex items-start gap-3 p-3 rounded-lg border border-border" data-testid={`activity-log-${log.id}`}>
+                <Avatar className="h-7 w-7 mt-0.5">
+                  <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                    {log.actorName.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline gap-2 flex-wrap">
+                    <span className="text-sm font-medium">{log.actorName}</span>
+                    <Badge variant="outline" className="text-xs py-0">
+                      {actionLabels[log.action] || log.action}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">{formatLogTime(log.createdAt)}</span>
+                  </div>
+                  {log.details && (
+                    <p className="text-xs text-muted-foreground mt-0.5">{log.details}</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Dashboard() {
   const { hasPermission } = useAuth();
   const { toast } = useToast();
@@ -91,6 +176,12 @@ export default function Dashboard() {
   const [showSlotDialog, setShowSlotDialog] = useState(false);
   const [showRosterRoleDialog, setShowRosterRoleDialog] = useState(false);
   const [showRoleDialog, setShowRoleDialog] = useState(false);
+  const [showCreateUserDialog, setShowCreateUserDialog] = useState(false);
+
+  const [createUserUsername, setCreateUserUsername] = useState("");
+  const [createUserPassword, setCreateUserPassword] = useState("");
+  const [createUserRoleId, setCreateUserRoleId] = useState("");
+  const [createUserStatus, setCreateUserStatus] = useState("active");
 
   const [editingGameMode, setEditingGameMode] = useState<GameMode | undefined>();
   const [editingMap, setEditingMap] = useState<MapType | undefined>();
@@ -487,6 +578,23 @@ export default function Dashboard() {
     onError: (e: any) => showError(e.message || "Failed to delete user"),
   });
 
+  const createUserMutation = useMutation({
+    mutationFn: async (data: { username: string; password: string; roleId?: string; status?: string }) => {
+      const r = await apiRequest("POST", "/api/users/create", data);
+      return r.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      setShowCreateUserDialog(false);
+      setCreateUserUsername("");
+      setCreateUserPassword("");
+      setCreateUserRoleId("");
+      setCreateUserStatus("active");
+      showSuccess("User created");
+    },
+    onError: (e: any) => showError(e.message || "Failed to create user"),
+  });
+
   const createRoleMutation = useMutation({
     mutationFn: async (data: RoleFormData) => {
       const r = await apiRequest("POST", "/api/roles", data);
@@ -604,6 +712,7 @@ export default function Dashboard() {
     { value: "users", label: "Users", icon: Users, show: canManageUsers },
     { value: "roles", label: "Roles", icon: Shield, show: canManageRoles },
     { value: "stat-fields", label: "Stat Fields", icon: BarChart3, show: canAccessDashboard || canAccessSettings },
+    { value: "activity", label: "Activity", icon: Clock, show: canAccessDashboard },
   ];
 
   const visibleTabs = availableTabs.filter(t => t.show);
@@ -926,14 +1035,20 @@ export default function Dashboard() {
           <TabsContent value="users">
             <Card>
               <CardHeader className="pb-4 border-b border-border">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-primary/10">
-                    <Users className="h-5 w-5 text-primary" />
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-primary/10">
+                      <Users className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-xl">User Management</CardTitle>
+                      <CardDescription>{allUsers.length} users</CardDescription>
+                    </div>
                   </div>
-                  <div>
-                    <CardTitle className="text-xl">User Management</CardTitle>
-                    <CardDescription>{allUsers.length} users</CardDescription>
-                  </div>
+                  <Button onClick={() => { setCreateUserUsername(""); setCreateUserPassword(""); setCreateUserRoleId(""); setCreateUserStatus("active"); setShowCreateUserDialog(true); }} size="sm" className="gap-2" data-testid="button-create-user">
+                    <Plus className="h-4 w-4" />
+                    Create Account
+                  </Button>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
@@ -1252,6 +1367,10 @@ export default function Dashboard() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          <TabsContent value="activity">
+            <ActivityLogTab />
+          </TabsContent>
         </Tabs>
 
         {/* Dialogs */}
@@ -1515,6 +1634,79 @@ export default function Dashboard() {
                 </DialogFooter>
               </form>
             </Form>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showCreateUserDialog} onOpenChange={setShowCreateUserDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create Account</DialogTitle>
+              <DialogDescription>Create a new user account.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Username</Label>
+                <Input
+                  value={createUserUsername}
+                  onChange={(e) => setCreateUserUsername(e.target.value)}
+                  placeholder="Enter username"
+                  data-testid="input-create-user-username"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Password</Label>
+                <Input
+                  type="password"
+                  value={createUserPassword}
+                  onChange={(e) => setCreateUserPassword(e.target.value)}
+                  placeholder="Enter password"
+                  data-testid="input-create-user-password"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Role</Label>
+                <Select value={createUserRoleId} onValueChange={setCreateUserRoleId}>
+                  <SelectTrigger data-testid="select-create-user-role">
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allRoles.map((role) => (
+                      <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select value={createUserStatus} onValueChange={setCreateUserStatus}>
+                  <SelectTrigger data-testid="select-create-user-status">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setShowCreateUserDialog(false)}>Cancel</Button>
+                <Button
+                  onClick={() => {
+                    if (!createUserUsername.trim() || !createUserPassword.trim()) return;
+                    createUserMutation.mutate({
+                      username: createUserUsername.trim(),
+                      password: createUserPassword,
+                      roleId: createUserRoleId || undefined,
+                      status: createUserStatus,
+                    });
+                  }}
+                  disabled={!createUserUsername.trim() || !createUserPassword.trim() || createUserMutation.isPending}
+                  data-testid="button-submit-create-user"
+                >
+                  Create Account
+                </Button>
+              </DialogFooter>
+            </div>
           </DialogContent>
         </Dialog>
       </div>

@@ -21,6 +21,8 @@ import Players from "@/pages/Players";
 import Dashboard from "@/pages/Dashboard";
 import StaffPage from "@/pages/Staff";
 import Chat from "@/pages/Chat";
+import AccountSettings from "@/pages/AccountSettings";
+import PlayerStats from "@/pages/PlayerStats";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -38,6 +40,8 @@ function Router() {
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/staff" component={StaffPage} />
       <Route path="/chat" component={Chat} />
+      <Route path="/account" component={AccountSettings} />
+      <Route path="/player-stats" component={PlayerStats} />
       <Route component={NotFound} />
     </Switch>
   );

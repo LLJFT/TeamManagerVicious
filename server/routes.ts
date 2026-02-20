@@ -12,10 +12,22 @@ import {
   insertSeasonSchema, insertOffDaySchema, insertStatFieldSchema, insertPlayerGameStatSchema,
   insertStaffSchema, insertChatChannelSchema, insertChatMessageSchema,
   insertAvailabilitySlotSchema, insertRosterRoleSchema,
+  insertChatChannelPermissionSchema,
   users, roles, staff, chatChannels, chatMessages, availabilitySlots, rosterRoles,
+  chatChannelPermissions, activityLogs, playerGameStats,
+  statFields as statFieldsTable,
   type UserWithRole,
 } from "@shared/schema";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
+
+async function logActivity(userId: string | null, action: string, details?: string) {
+  try {
+    const teamId = getTeamId();
+    await db.insert(activityLogs).values({ teamId, userId, action, details });
+  } catch (err) {
+    console.error("Failed to log activity:", err);
+  }
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
 
@@ -43,6 +55,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Account has been banned" });
       }
       req.session.userId = user.id;
+      logActivity(user.id, "login", `User ${user.username} logged in`);
       const { passwordHash, ...safeUser } = user;
       let role = null;
       if (user.roleId) {
@@ -118,7 +131,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==================== ACCOUNT SETTINGS ====================
+  app.put("/api/auth/settings", requireAuth, async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      
+      const { username, currentPassword, newPassword, avatarUrl } = req.body;
+      
+      const [currentUser] = await db.select().from(users).where(eq(users.id, userId));
+      if (!currentUser) return res.status(404).json({ message: "User not found" });
+      
+      if (newPassword) {
+        if (!currentPassword) return res.status(400).json({ message: "Current password required" });
+        const valid = await bcrypt.compare(currentPassword, currentUser.passwordHash);
+        if (!valid) return res.status(400).json({ message: "Current password is incorrect" });
+      }
+      
+      const updates: any = {};
+      if (username && username !== currentUser.username) updates.username = username;
+      if (newPassword) updates.passwordHash = await bcrypt.hash(newPassword, 10);
+      if (avatarUrl !== undefined) updates.avatarUrl = avatarUrl;
+      
+      if (Object.keys(updates).length > 0) {
+        await db.update(users).set(updates).where(eq(users.id, userId));
+      }
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // ==================== USER MANAGEMENT ====================
+  app.get("/api/chat/users", requireAuth, requirePermission("access_chat"), async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const allUsers = await db.select().from(users).where(and(eq(users.teamId, teamId), eq(users.status, "active")));
+      const result = allUsers.map(u => ({ id: u.id, username: u.username, status: u.status, roleId: u.roleId }));
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   app.get("/api/users", requireAuth, requirePermission("manage_users"), async (req, res) => {
     try {
       const teamId = getTeamId();
@@ -135,6 +191,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/users/create", requireAuth, requirePermission("manage_users"), async (req, res) => {
+    try {
+      const { username, password, roleId, status } = req.body;
+      if (!username || !password) return res.status(400).json({ message: "Username and password required" });
+      
+      const teamId = getTeamId();
+      
+      const existing = await db.select().from(users).where(and(eq(users.username, username), eq(users.teamId, teamId)));
+      if (existing.length > 0) return res.status(400).json({ message: "Username already taken" });
+      
+      const passwordHash = await bcrypt.hash(password, 10);
+      const [newUser] = await db.insert(users).values({
+        teamId,
+        username,
+        passwordHash,
+        roleId: roleId || null,
+        status: status || "active",
+      }).returning();
+      
+      res.json(newUser);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   app.put("/api/users/:id/status", requireAuth, requirePermission("manage_users"), async (req, res) => {
     try {
       const { id } = req.params;
@@ -145,6 +226,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(and(eq(users.id, id), eq(users.teamId, teamId)))
         .returning();
       if (!updated) return res.status(404).json({ message: "User not found" });
+      logActivity(req.session.userId!, "user_status_change", `Changed ${updated.username} status to ${status}`);
       const { passwordHash, ...safeUser } = updated;
       res.json(safeUser);
     } catch (error: any) {
@@ -162,6 +244,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(and(eq(users.id, id), eq(users.teamId, teamId)))
         .returning();
       if (!updated) return res.status(404).json({ message: "User not found" });
+      logActivity(req.session.userId!, "user_role_change", `Changed ${updated.username} role`);
       const { passwordHash, ...safeUser } = updated;
       res.json(safeUser);
     } catch (error: any) {
@@ -321,7 +404,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const teamId = getTeamId();
       const channels = await db.select().from(chatChannels).where(eq(chatChannels.teamId, teamId));
-      res.json(channels);
+      const userId = req.session.userId!;
+      const [currentUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      const perms = await db.select().from(chatChannelPermissions).where(eq(chatChannelPermissions.teamId, teamId));
+
+      const filteredChannels = channels.filter(ch => {
+        if (!currentUser?.roleId) return true;
+        const channelPerms = perms.filter(p => p.channelId === ch.id && p.roleId === currentUser.roleId);
+        if (channelPerms.length === 0) return true;
+        return channelPerms.some(p => p.canView);
+      });
+
+      const enriched = filteredChannels.map(ch => {
+        const channelPerms = perms.filter(p => p.channelId === ch.id && currentUser?.roleId && p.roleId === currentUser.roleId);
+        const canSend = channelPerms.length === 0 || channelPerms.some(p => p.canSend);
+        return { ...ch, canSend };
+      });
+
+      res.json(enriched);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -356,9 +456,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const messages = await db.select().from(chatMessages)
         .where(and(eq(chatMessages.channelId, channelId), eq(chatMessages.teamId, teamId)));
       const allUsers = await db.select().from(users).where(eq(users.teamId, teamId));
+      const allRoles = await db.select().from(roles).where(eq(roles.teamId, teamId));
       const enriched = messages.map(m => {
         const sender = allUsers.find(u => u.id === m.userId);
-        return { ...m, senderName: sender?.username || "Unknown" };
+        const senderRole = sender?.roleId ? allRoles.find(r => r.id === sender.roleId) : null;
+        return {
+          ...m,
+          senderName: sender?.username || "Unknown",
+          senderAvatarUrl: sender?.avatarUrl || null,
+          senderRoleName: senderRole?.name || null,
+        };
       });
       res.json(enriched);
     } catch (error: any) {
@@ -371,12 +478,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { channelId } = req.params;
       const teamId = getTeamId();
       const userId = req.session.userId!;
-      const { message, attachmentUrl, attachmentType } = req.body;
+      const { message, attachmentUrl, attachmentType, mentions } = req.body;
       const [msg] = await db.insert(chatMessages).values({
-        teamId, channelId, userId, message, attachmentUrl, attachmentType,
+        teamId, channelId, userId, message, attachmentUrl, attachmentType, mentions: mentions || [],
       }).returning();
       const [sender] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-      res.json({ ...msg, senderName: sender?.username || "Unknown" });
+      const senderRoleData = sender?.roleId ? await db.select().from(roles).where(eq(roles.id, sender.roleId)).limit(1) : [];
+      res.json({
+        ...msg,
+        senderName: sender?.username || "Unknown",
+        senderAvatarUrl: sender?.avatarUrl || null,
+        senderRoleName: senderRoleData.length > 0 ? senderRoleData[0].name : null,
+      });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -388,6 +501,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teamId = getTeamId();
       await db.delete(chatMessages).where(and(eq(chatMessages.id, id), eq(chatMessages.teamId, teamId)));
       res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ==================== CHANNEL PERMISSIONS ====================
+  app.get("/api/chat/channels/:channelId/permissions", requireAuth, requirePermission("manage_chat_channels"), async (req, res) => {
+    try {
+      const { channelId } = req.params;
+      const teamId = getTeamId();
+      const perms = await db.select().from(chatChannelPermissions)
+        .where(and(eq(chatChannelPermissions.channelId, channelId), eq(chatChannelPermissions.teamId, teamId)));
+      res.json(perms);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/chat/channels/:channelId/permissions", requireAuth, requirePermission("manage_chat_channels"), async (req, res) => {
+    try {
+      const { channelId } = req.params;
+      const teamId = getTeamId();
+      const { roleId, canView, canSend } = req.body;
+      const existing = await db.select().from(chatChannelPermissions)
+        .where(and(
+          eq(chatChannelPermissions.channelId, channelId),
+          eq(chatChannelPermissions.roleId, roleId),
+          eq(chatChannelPermissions.teamId, teamId)
+        ));
+      if (existing.length > 0) {
+        const [updated] = await db.update(chatChannelPermissions)
+          .set({ canView: canView ?? true, canSend: canSend ?? true })
+          .where(eq(chatChannelPermissions.id, existing[0].id))
+          .returning();
+        return res.json(updated);
+      }
+      const [perm] = await db.insert(chatChannelPermissions)
+        .values({ teamId, channelId, roleId, canView: canView ?? true, canSend: canSend ?? true })
+        .returning();
+      res.json(perm);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/chat/channel-permissions/:id", requireAuth, requirePermission("manage_chat_channels"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = getTeamId();
+      await db.delete(chatChannelPermissions).where(and(eq(chatChannelPermissions.id, id), eq(chatChannelPermissions.teamId, teamId)));
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ==================== ACTIVITY LOGS ====================
+  app.get("/api/activity-logs", requireAuth, requirePermission("access_dashboard"), async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const logs = await db.select().from(activityLogs)
+        .where(eq(activityLogs.teamId, teamId))
+        .orderBy(activityLogs.createdAt);
+      const allUsers = await db.select().from(users).where(eq(users.teamId, teamId));
+      const enriched = logs.map(l => {
+        const actor = l.userId ? allUsers.find(u => u.id === l.userId) : null;
+        return { ...l, actorName: actor?.username || "System" };
+      });
+      res.json(enriched.reverse().slice(0, 200));
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -493,6 +675,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await db.delete(rosterRoles)
         .where(and(eq(rosterRoles.id, id), eq(rosterRoles.teamId, teamId)));
       res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ==================== PLAYER AVAILABILITY ====================
+  app.get("/api/player-availability", requireAuth, async (req, res) => {
+    try {
+      const records = await storage.getPlayerAvailabilities();
+      res.json(records);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/player-availability", requireAuth, async (req, res) => {
+    try {
+      const { playerId, day, availability } = req.body;
+      if (!playerId || !day || !availability) {
+        return res.status(400).json({ message: "playerId, day, and availability required" });
+      }
+      const record = await storage.savePlayerAvailability(playerId, day, availability);
+      res.json(record);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/player-availability/bulk", requireAuth, async (req, res) => {
+    try {
+      const { updates } = req.body;
+      if (!Array.isArray(updates)) {
+        return res.status(400).json({ message: "updates must be an array" });
+      }
+      const results = [];
+      for (const { playerId, day, availability } of updates) {
+        const record = await storage.savePlayerAvailability(playerId, day, availability);
+        results.push(record);
+      }
+      res.json(results);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ==================== STAFF AVAILABILITY ====================
+  app.get("/api/staff-availability", requireAuth, async (req, res) => {
+    try {
+      const records = await storage.getStaffAvailabilities();
+      res.json(records);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/staff-availability", requireAuth, async (req, res) => {
+    try {
+      const { staffId, day, availability } = req.body;
+      if (!staffId || !day || !availability) {
+        return res.status(400).json({ message: "staffId, day, and availability required" });
+      }
+      const record = await storage.saveStaffAvailability(staffId, day, availability);
+      res.json(record);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/staff-availability/bulk", requireAuth, async (req, res) => {
+    try {
+      const { updates } = req.body;
+      if (!Array.isArray(updates)) {
+        return res.status(400).json({ message: "updates must be an array" });
+      }
+      const results = [];
+      for (const { staffId, day, availability } of updates) {
+        const record = await storage.saveStaffAvailability(staffId, day, availability);
+        results.push(record);
+      }
+      res.json(results);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -1159,6 +1421,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(saved);
     } catch (error: any) {
       console.error('Error in POST /api/games/:id/player-stats:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.get("/api/player-stats-summary", requireAuth, requirePermission("view_stats"), async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const allPlayers = await storage.getAllPlayers();
+      const allStatFields = await db.select().from(statFieldsTable).where(eq(statFieldsTable.teamId, teamId));
+      const allPlayerGameStats = await db.select().from(playerGameStats).where(eq(playerGameStats.teamId, teamId));
+      const allGames = await storage.getAllGamesWithEventType();
+      const allEvents = await storage.getAllEvents();
+
+      const summary = allPlayers.map(player => {
+        const playerStats = allPlayerGameStats.filter(s => s.playerId === player.id);
+        const gameIds = [...new Set(playerStats.map(s => s.gameId))];
+        const gamesPlayed = gameIds.length;
+
+        const statAggregates: Record<string, { fieldName: string; total: number; count: number; avg: number }> = {};
+        for (const stat of playerStats) {
+          const field = allStatFields.find(f => f.id === stat.statFieldId);
+          if (!field) continue;
+          if (!statAggregates[stat.statFieldId]) {
+            statAggregates[stat.statFieldId] = { fieldName: field.name, total: 0, count: 0, avg: 0 };
+          }
+          const val = parseFloat(stat.value) || 0;
+          statAggregates[stat.statFieldId].total += val;
+          statAggregates[stat.statFieldId].count += 1;
+        }
+        for (const key of Object.keys(statAggregates)) {
+          const agg = statAggregates[key];
+          agg.avg = agg.count > 0 ? Math.round((agg.total / agg.count) * 100) / 100 : 0;
+        }
+
+        const opponentStats: Record<string, { opponent: string; wins: number; losses: number; draws: number; gamesPlayed: number }> = {};
+        for (const gameId of gameIds) {
+          const game = allGames.find(g => g.id === gameId);
+          if (!game) continue;
+          const event = allEvents.find(e => e.id === game.eventId);
+          if (!event || !event.opponentName) continue;
+          const opp = event.opponentName;
+          if (!opponentStats[opp]) {
+            opponentStats[opp] = { opponent: opp, wins: 0, losses: 0, draws: 0, gamesPlayed: 0 };
+          }
+          opponentStats[opp].gamesPlayed++;
+          if (game.result === "win") opponentStats[opp].wins++;
+          else if (game.result === "loss") opponentStats[opp].losses++;
+          else if (game.result === "draw") opponentStats[opp].draws++;
+        }
+
+        return {
+          player: { id: player.id, name: player.name, role: player.role },
+          gamesPlayed,
+          stats: Object.values(statAggregates),
+          opponents: Object.values(opponentStats),
+        };
+      });
+
+      res.json(summary);
+    } catch (error: any) {
+      console.error("Error in GET /api/player-stats-summary:", error);
       res.status(500).json({ error: error.message || "Internal server error" });
     }
   });

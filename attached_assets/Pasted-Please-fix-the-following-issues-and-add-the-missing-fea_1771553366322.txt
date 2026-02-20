@@ -1,0 +1,95 @@
+Please fix the following issues and add the missing features. Do NOT break any existing functionality:
+🔴 FIX 1: Player Sync Between Availability Schedule and Players Tab
+Currently players added in the availability times are NOT synced with the Players tab and vice versa. Fix this so:
+	∙	Adding a player in the availability “Manage Players” modal → automatically creates them in the Players list with their name and role
+	∙	Adding a player from the Players tab → automatically adds them to the availability times with their name and role
+	∙	They share the same database record — one source of truth
+	∙	The player’s role shown in the availability schedule and in the Players tab must be the same role from the roster_roles table (type: player)
+
+    🔴 FIX 2: Roster Roles Not Syncing to Availability and Players Dropdowns
+Roles added in Dashboard → Roster Roles are NOT appearing in the availability schedule role dropdowns or the Players tab role dropdowns. Fix this:
+	∙	The role dropdown in “Manage Players” (availability page) must pull from roster_roles where type = 'player'
+	∙	The role dropdown in the Players tab “Add Player” modal must also pull from roster_roles where type = 'player'
+	∙	Staff role dropdowns must pull from roster_roles where type = 'staff'
+	∙	When roles are added/edited/deleted in the Dashboard, the dropdowns everywhere update immediately
+
+    🔴 FIX 3: Staff Must Appear in Availability Schedule (Separate Section)
+Staff members added from the Staff page must appear in the availability schedule as a separate section below the players, with a visible divider/label saying “Staff”. Staff must:
+	∙	Use the same customizable time slot dropdowns as players
+	∙	NOT be counted in Weekly Availability Overview stats
+	∙	NOT be counted in Availability Analytics
+
+    🔴 FIX 4: Availability Time Slots Not Working
+The Dashboard shows “No availability slots configured” and the defaults are not pre-loaded. Fix this:
+	∙	On first run, automatically seed the default slots: 18:00-20:00, 20:00-22:00, All Blocks, Unknown, can’t 
+	∙	These slots must appear in the availability dropdowns for both players and staff
+	∙	Admins can add, edit, delete slots from the Dashboard and the dropdowns update everywhere
+
+    🔴 FIX 5: Missing Account Settings Page
+There is no way for users to change their own username, password, or avatar after registering. Add an Account Settings page/modal accessible from the sidebar (e.g., clicking on the user’s name/avatar at the bottom of the sidebar). It must allow:
+	∙	Change username
+	∙	Change password (requires current password confirmation)
+	∙	Upload a new avatar image OR keep the default avatar
+	∙	Default avatar should be a generated colored circle with the user’s initials (e.g., user “Saif” gets a circle with “S”)
+
+    🔴 FIX 6: Registration Flow Missing Avatar Selection
+After a user submits their registration form, before the “Waiting for approval” screen, show an avatar selection step:
+	∙	Option 1: Use default avatar (colored circle with initials, auto-generated)
+	∙	Option 2: Upload a custom profile picture
+Then show the “Waiting for approval” screen
+
+🔴 FIX 7: Admins Cannot Create Accounts for Others
+Admins/Owners must be able to create pre-approved accounts for teammates from the Dashboard. Add a “Create Account” button in the Dashboard → Users section that opens a form with:
+	∙	Username (required)
+	∙	Password (required, min 4 max 12 characters)
+	∙	Role assignment (select from existing roles)
+	∙	Link to player (optional, select from roster)
+	∙	Avatar: default (initials) or upload image
+	∙	Account is created as active immediately (no approval needed)
+	∙	Admin can then share the credentials with the player
+
+    🔴 FIX 8: Chat — No File/Image/Video Upload Button and emojis
+In the Chat tab, there is no “+” button or attachment button to upload images, videos, or files. Add an attachment button next to the message input that allows:
+	∙	Upload image (jpg, png, gif, webp)
+	∙	Upload video (mp4, mov)
+	∙	Upload file (pdf, doc, etc.)
+	∙	Show a preview before sending
+	∙	Display the attachment inline in the chat message after sending
+
+    🔴 FIX 9: Chat — No @Mention System
+When typing in the chat input, typing @ should show a dropdown of active team members that can be mentioned. Selected mentions should be highlighted in the message (e.g., cyan color). Mentioned users should see a visual indicator on the chat tab that they were mentioned.
+
+🔴 FIX 10: Chat — Messages Must Show Avatar + Role on Click
+Chat messages currently show only the username. Update so that:
+	∙	Each message shows the sender’s avatar (image or initials circle) + username
+	∙	Clicking on a username/avatar shows a small popup/tooltip with: avatar, username, and their role
+	∙	This matches Discord’s style
+
+    🔴 FIX 11: Chat — Channel Permissions per Role
+Admins must be able to set permissions per chat channel per role. In the Dashboard (or when editing a channel), add permission settings:
+	∙	For each role: can view channel (yes/no), can send messages (yes/no)
+	∙	These settings are saved per channel per role
+	∙	Users whose role doesn’t have view permission cannot see the channel at all
+Database table: chat_channel_permissions: id, channel_id, role_id, can_view, can_send, created_at
+
+🔴 FIX 12: Dashboard Must Show Technical/Activity Logs
+The Dashboard must have a section showing real-time site activity and technical info:
+	∙	Last login per user (username, timestamp, IP if available)
+	∙	Recent actions log (e.g., “Admin created account X”, “Player Y edited availability”, “Event Z was added”)
+	∙	Total users count, active users, pending approvals count
+	∙	Server uptime or last restart time
+Database table: activity_logs: id, user_id, action, details, ip_address, created_at
+Log every important action automatically: login, logout, register, account created, player added/deleted, event added/deleted, availability changed, role changed, user approved/banned.
+
+MISSING FEATURE: Player Statistics Tab (was not implemented)
+Expand or add a proper Stats tab that shows:
+A) Per-Player Aggregated Stats from all saved game stats:
+	∙	Filter by: game mode, map, event type (Scrim/Tournament/All)
+	∙	Show total Kill, Death, and all other custom stat fields per player
+	∙	Grand total row at the bottom
+B) Stats vs Opponents:
+	∙	For each opponent team, show aggregated player stats from games played against them
+	∙	Filters: event type, game mode, map
+	∙	Table: Player | Stat1 | Stat2 | … per opponent
+
+    All fixes must keep the existing dark blue/cyan theme. Do not remove or break any existing features.

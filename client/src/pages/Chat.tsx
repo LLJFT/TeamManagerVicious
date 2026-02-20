@@ -1,15 +1,27 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
-import type { ChatChannel } from "@shared/schema";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MessageSquare, Hash, Plus, Trash2, Send } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { MessageSquare, Hash, Plus, Trash2, Send, Paperclip, X, AtSign } from "lucide-react";
+
+interface ChatChannelWithPerms {
+  id: string;
+  name: string;
+  canSend?: boolean;
+}
 
 interface ChatMessageWithUser {
   id: string;
@@ -18,8 +30,18 @@ interface ChatMessageWithUser {
   message: string | null;
   attachmentUrl: string | null;
   attachmentType: string | null;
+  mentions: string[] | null;
   createdAt: string | null;
   senderName: string;
+  senderAvatarUrl: string | null;
+  senderRoleName: string | null;
+}
+
+interface TeamUser {
+  id: string;
+  username: string;
+  status: string;
+  roleId: string | null;
 }
 
 export default function Chat() {
@@ -29,12 +51,19 @@ export default function Chat() {
   const [messageText, setMessageText] = useState("");
   const [newChannelName, setNewChannelName] = useState("");
   const [showNewChannelInput, setShowNewChannelInput] = useState(false);
+  const [showMentions, setShowMentions] = useState(false);
+  const [mentionSearch, setMentionSearch] = useState("");
+  const [mentionStartIndex, setMentionStartIndex] = useState(-1);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const prevMessageCountRef = useRef(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const canManageChannels = hasPermission("manage_chat_channels");
 
-  const { data: channels = [], isLoading: channelsLoading } = useQuery<ChatChannel[]>({
+  const { data: channels = [], isLoading: channelsLoading } = useQuery<ChatChannelWithPerms[]>({
     queryKey: ["/api/chat/channels"],
   });
 
@@ -43,6 +72,12 @@ export default function Chat() {
     enabled: !!selectedChannelId,
     refetchInterval: 5000,
   });
+
+  const { data: teamUsers = [] } = useQuery<TeamUser[]>({
+    queryKey: ["/api/chat/users"],
+  });
+
+  const activeUsers = teamUsers.filter(u => u.status === "active");
 
   useEffect(() => {
     if (messages.length > prevMessageCountRef.current) {
@@ -90,12 +125,24 @@ export default function Chat() {
   });
 
   const sendMessageMutation = useMutation({
-    mutationFn: async ({ channelId, message }: { channelId: string; message: string }) => {
-      await apiRequest("POST", `/api/chat/channels/${channelId}/messages`, { message });
+    mutationFn: async ({ channelId, message, attachmentUrl, attachmentType, mentions }: {
+      channelId: string;
+      message?: string;
+      attachmentUrl?: string;
+      attachmentType?: string;
+      mentions?: string[];
+    }) => {
+      await apiRequest("POST", `/api/chat/channels/${channelId}/messages`, {
+        message: message || null,
+        attachmentUrl: attachmentUrl || null,
+        attachmentType: attachmentType || null,
+        mentions: mentions || [],
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/chat/channels", selectedChannelId, "messages"] });
       setMessageText("");
+      setSelectedFile(null);
     },
     onError: (err: Error) => {
       toast({ title: "Failed to send message", description: err.message, variant: "destructive" });
@@ -108,16 +155,104 @@ export default function Chat() {
     createChannelMutation.mutate(name);
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
+    if (!selectedChannelId) return;
     const text = messageText.trim();
-    if (!text || !selectedChannelId) return;
-    sendMessageMutation.mutate({ channelId: selectedChannelId, message: text });
+
+    if (selectedFile) {
+      setUploading(true);
+      try {
+        const presignRes = await apiRequest("POST", "/api/objects/upload", {
+          filename: selectedFile.name,
+          contentType: selectedFile.type,
+        });
+        const { presignedUrl, objectPath } = await presignRes.json();
+
+        await fetch(presignedUrl, {
+          method: "PUT",
+          body: selectedFile,
+          headers: { "Content-Type": selectedFile.type },
+        });
+
+        const mentionedUserIds = extractMentions(text);
+        sendMessageMutation.mutate({
+          channelId: selectedChannelId,
+          message: text || undefined,
+          attachmentUrl: `/objects/${objectPath}`,
+          attachmentType: selectedFile.type,
+          mentions: mentionedUserIds,
+        });
+      } catch (err: any) {
+        toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+      } finally {
+        setUploading(false);
+      }
+      return;
+    }
+
+    if (!text) return;
+    const mentionedUserIds = extractMentions(text);
+    sendMessageMutation.mutate({
+      channelId: selectedChannelId,
+      message: text,
+      mentions: mentionedUserIds,
+    });
   };
+
+  const extractMentions = (text: string): string[] => {
+    const mentionRegex = /@(\w+)/g;
+    const ids: string[] = [];
+    let match;
+    while ((match = mentionRegex.exec(text)) !== null) {
+      const mentioned = activeUsers.find(u => u.username.toLowerCase() === match[1].toLowerCase());
+      if (mentioned) ids.push(mentioned.id);
+    }
+    return ids;
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setMessageText(val);
+
+    const cursorPos = e.target.selectionStart || 0;
+    const textBeforeCursor = val.slice(0, cursorPos);
+    const atIndex = textBeforeCursor.lastIndexOf("@");
+
+    if (atIndex >= 0 && (atIndex === 0 || textBeforeCursor[atIndex - 1] === " ")) {
+      const query = textBeforeCursor.slice(atIndex + 1);
+      if (!query.includes(" ")) {
+        setShowMentions(true);
+        setMentionSearch(query);
+        setMentionStartIndex(atIndex);
+        return;
+      }
+    }
+    setShowMentions(false);
+  };
+
+  const insertMention = (username: string) => {
+    const before = messageText.slice(0, mentionStartIndex);
+    const after = messageText.slice(mentionStartIndex + mentionSearch.length + 1);
+    setMessageText(`${before}@${username} ${after}`);
+    setShowMentions(false);
+    inputRef.current?.focus();
+  };
+
+  const filteredMentionUsers = activeUsers.filter(u =>
+    u.username.toLowerCase().includes(mentionSearch.toLowerCase())
+  ).slice(0, 8);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSendMessage();
+      if (showMentions && filteredMentionUsers.length > 0) {
+        insertMention(filteredMentionUsers[0].username);
+      } else {
+        handleSendMessage();
+      }
+    }
+    if (e.key === "Escape") {
+      setShowMentions(false);
     }
   };
 
@@ -128,6 +263,32 @@ export default function Chat() {
     }
   };
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        toast({ title: "File too large", description: "Max file size is 10MB", variant: "destructive" });
+        return;
+      }
+      setSelectedFile(file);
+    }
+  };
+
+  const renderMessageContent = (text: string | null) => {
+    if (!text) return null;
+    const parts = text.split(/(@\w+)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith("@")) {
+        const username = part.slice(1);
+        const isMentioned = activeUsers.some(u => u.username.toLowerCase() === username.toLowerCase());
+        if (isMentioned) {
+          return <span key={i} className="text-primary font-semibold">{part}</span>;
+        }
+      }
+      return <span key={i}>{part}</span>;
+    });
+  };
+
   if (!hasPermission("access_chat")) {
     return (
       <div className="flex items-center justify-center h-full" data-testid="chat-no-access">
@@ -136,7 +297,8 @@ export default function Chat() {
     );
   }
 
-  const selectedChannel = channels.find((c) => c.id === selectedChannelId);
+  const selectedChannel = channels.find((c: ChatChannelWithPerms) => c.id === selectedChannelId);
+  const canSendInChannel = selectedChannel?.canSend !== false;
 
   const formatTimestamp = (ts: string | null) => {
     if (!ts) return "";
@@ -245,16 +407,74 @@ export default function Chat() {
               ) : (
                 <div className="space-y-4">
                   {messages.map((msg) => (
-                    <div key={msg.id} className="flex flex-col gap-0.5" data-testid={`message-item-${msg.id}`}>
-                      <div className="flex items-baseline gap-2 flex-wrap">
-                        <span className="font-semibold text-sm" data-testid={`text-sender-${msg.id}`}>
-                          {msg.senderName}
-                        </span>
-                        <span className="text-xs text-muted-foreground" data-testid={`text-timestamp-${msg.id}`}>
-                          {formatTimestamp(msg.createdAt)}
-                        </span>
+                    <div key={msg.id} className="flex gap-3" data-testid={`message-item-${msg.id}`}>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button className="shrink-0 mt-0.5" data-testid={`button-avatar-${msg.id}`}>
+                            <Avatar className="h-8 w-8 cursor-pointer">
+                              <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                                {msg.senderName.charAt(0).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-48 p-3">
+                          <div className="flex flex-col items-center gap-2">
+                            <Avatar className="h-12 w-12">
+                              <AvatarFallback className="bg-primary/10 text-primary font-bold">
+                                {msg.senderName.charAt(0).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <p className="font-semibold text-sm">{msg.senderName}</p>
+                            {msg.senderRoleName && (
+                              <Badge variant="secondary" className="text-xs">{msg.senderRoleName}</Badge>
+                            )}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+
+                      <div className="flex flex-col gap-0.5 min-w-0">
+                        <div className="flex items-baseline gap-2 flex-wrap">
+                          <span className="font-semibold text-sm" data-testid={`text-sender-${msg.id}`}>
+                            {msg.senderName}
+                          </span>
+                          {msg.senderRoleName && (
+                            <Badge variant="outline" className="text-xs py-0">{msg.senderRoleName}</Badge>
+                          )}
+                          <span className="text-xs text-muted-foreground" data-testid={`text-timestamp-${msg.id}`}>
+                            {formatTimestamp(msg.createdAt)}
+                          </span>
+                        </div>
+                        {msg.message && (
+                          <p className="text-sm" data-testid={`text-message-${msg.id}`}>
+                            {renderMessageContent(msg.message)}
+                          </p>
+                        )}
+                        {msg.attachmentUrl && msg.attachmentType?.startsWith("image/") && (
+                          <div className="mt-1 max-w-sm">
+                            <img
+                              src={msg.attachmentUrl}
+                              alt="Attachment"
+                              className="rounded-md border border-border max-h-64 object-contain cursor-pointer"
+                              onClick={() => window.open(msg.attachmentUrl!, "_blank")}
+                              data-testid={`img-attachment-${msg.id}`}
+                            />
+                          </div>
+                        )}
+                        {msg.attachmentUrl && !msg.attachmentType?.startsWith("image/") && (
+                          <div className="mt-1">
+                            <a
+                              href={msg.attachmentUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-primary underline"
+                              data-testid={`link-attachment-${msg.id}`}
+                            >
+                              View Attachment
+                            </a>
+                          </div>
+                        )}
                       </div>
-                      <p className="text-sm" data-testid={`text-message-${msg.id}`}>{msg.message}</p>
                     </div>
                   ))}
                   <div ref={messagesEndRef} />
@@ -262,22 +482,86 @@ export default function Chat() {
               )}
             </ScrollArea>
 
-            <div className="p-3 border-t flex gap-2">
-              <Input
-                placeholder={`Message #${selectedChannel.name}`}
-                value={messageText}
-                onChange={(e) => setMessageText(e.target.value)}
-                onKeyDown={handleKeyDown}
-                data-testid="input-message"
-              />
-              <Button
-                size="icon"
-                onClick={handleSendMessage}
-                disabled={sendMessageMutation.isPending || !messageText.trim()}
-                data-testid="button-send-message"
-              >
-                <Send />
-              </Button>
+            <div className="p-3 border-t">
+              {!canSendInChannel && (
+                <div className="text-center text-sm text-muted-foreground py-2" data-testid="text-send-restricted">
+                  You do not have permission to send messages in this channel.
+                </div>
+              )}
+              {canSendInChannel && selectedFile && (
+                <div className="flex items-center gap-2 mb-2 p-2 rounded-md bg-muted/50 border border-border">
+                  <Paperclip className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <span className="text-sm truncate flex-1">{selectedFile.name}</span>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6 shrink-0"
+                    onClick={() => { setSelectedFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                    data-testid="button-remove-file"
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
+
+              {canSendInChannel && (
+                <div className="relative">
+                  {showMentions && filteredMentionUsers.length > 0 && (
+                    <div className="absolute bottom-full left-0 right-0 mb-1 bg-popover border border-border rounded-md shadow-lg max-h-48 overflow-auto z-50" data-testid="mentions-dropdown">
+                      {filteredMentionUsers.map((u) => (
+                        <div
+                          key={u.id}
+                          className="flex items-center gap-2 px-3 py-2 cursor-pointer hover-elevate"
+                          onClick={() => insertMention(u.username)}
+                          data-testid={`mention-option-${u.id}`}
+                        >
+                          <Avatar className="h-5 w-5">
+                            <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                              {u.username.charAt(0).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="text-sm">{u.username}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileSelect}
+                      className="hidden"
+                      accept="image/*,.pdf,.doc,.docx,.txt"
+                      data-testid="input-file-upload"
+                    />
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => fileInputRef.current?.click()}
+                      data-testid="button-attach-file"
+                    >
+                      <Paperclip />
+                    </Button>
+                    <Input
+                      ref={inputRef}
+                      placeholder={`Message #${selectedChannel.name}`}
+                      value={messageText}
+                      onChange={handleInputChange}
+                      onKeyDown={handleKeyDown}
+                      data-testid="input-message"
+                    />
+                    <Button
+                      size="icon"
+                      onClick={handleSendMessage}
+                      disabled={sendMessageMutation.isPending || uploading || (!messageText.trim() && !selectedFile)}
+                      data-testid="button-send-message"
+                    >
+                      <Send />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           </>
         ) : (

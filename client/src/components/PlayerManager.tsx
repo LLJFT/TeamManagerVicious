@@ -19,56 +19,48 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus, Trash2, Pencil } from "lucide-react";
-import { roleTypes, type RoleType } from "@shared/schema";
-import type { PlayerAvailability } from "@shared/schema";
+import type { Player } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
 
 interface PlayerManagerProps {
-  players: PlayerAvailability[];
-  onAddPlayer: (name: string, role: RoleType) => void;
+  players: Player[];
+  roleOptions: string[];
+  onAddPlayer: (name: string, role: string) => void;
   onRemovePlayer: (playerId: string) => void;
-  onEditPlayer: (playerId: string, name: string, role: RoleType) => void;
+  onEditPlayer: (playerId: string, name: string, role: string) => void;
 }
 
-const roleColors: Record<string, string> = {
-  Tank: "bg-blue-500/10 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 border-blue-500/20",
-  DPS: "bg-red-500/10 text-red-700 dark:bg-red-500/20 dark:text-red-300 border-red-500/20",
-  Support: "bg-green-500/10 text-green-700 dark:bg-green-500/20 dark:text-green-300 border-green-500/20",
-  Analyst: "bg-purple-500/10 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300 border-purple-500/20",
-  Coach: "bg-yellow-500/10 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300 border-yellow-500/20",
-};
+const roleColorPalette = [
+  "bg-blue-500/10 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 border-blue-500/20",
+  "bg-red-500/10 text-red-700 dark:bg-red-500/20 dark:text-red-300 border-red-500/20",
+  "bg-green-500/10 text-green-700 dark:bg-green-500/20 dark:text-green-300 border-green-500/20",
+  "bg-purple-500/10 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300 border-purple-500/20",
+  "bg-yellow-500/10 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300 border-yellow-500/20",
+];
 
-const roleDisplayNames: Record<RoleType, string> = {
-  Tank: "Tank",
-  DPS: "DPS",
-  Support: "Support",
-  Analyst: "Analyst",
-  Coach: "Coach",
-};
-
-export function PlayerManager({ players, onAddPlayer, onRemovePlayer, onEditPlayer }: PlayerManagerProps) {
+export function PlayerManager({ players, roleOptions, onAddPlayer, onRemovePlayer, onEditPlayer }: PlayerManagerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [newPlayerName, setNewPlayerName] = useState("");
-  const [newPlayerRole, setNewPlayerRole] = useState<RoleType>("Tank");
-  const [editingPlayer, setEditingPlayer] = useState<PlayerAvailability | null>(null);
+  const [newPlayerRole, setNewPlayerRole] = useState(roleOptions[0] || "Tank");
+  const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
 
   const handleAddPlayer = () => {
     if (newPlayerName.trim()) {
       if (editingPlayer) {
-        onEditPlayer(editingPlayer.playerId, newPlayerName.trim(), newPlayerRole);
+        onEditPlayer(editingPlayer.id, newPlayerName.trim(), newPlayerRole);
         setEditingPlayer(null);
       } else {
         onAddPlayer(newPlayerName.trim(), newPlayerRole);
       }
       setNewPlayerName("");
-      setNewPlayerRole("Tank");
+      setNewPlayerRole(roleOptions[0] || "Tank");
       setIsOpen(false);
     }
   };
 
-  const handleEditClick = (player: PlayerAvailability) => {
+  const handleEditClick = (player: Player) => {
     setEditingPlayer(player);
-    setNewPlayerName(player.playerName);
+    setNewPlayerName(player.name);
     setNewPlayerRole(player.role);
     setIsOpen(true);
   };
@@ -78,7 +70,7 @@ export function PlayerManager({ players, onAddPlayer, onRemovePlayer, onEditPlay
     if (!open) {
       setEditingPlayer(null);
       setNewPlayerName("");
-      setNewPlayerRole("Tank");
+      setNewPlayerRole(roleOptions[0] || "Tank");
     }
   };
 
@@ -114,14 +106,14 @@ export function PlayerManager({ players, onAddPlayer, onRemovePlayer, onEditPlay
 
             <div className="space-y-2">
               <Label htmlFor="player-role">Role</Label>
-              <Select value={newPlayerRole} onValueChange={(v) => setNewPlayerRole(v as RoleType)}>
+              <Select value={newPlayerRole} onValueChange={setNewPlayerRole}>
                 <SelectTrigger id="player-role" data-testid="select-player-role">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {roleTypes.map((role) => (
+                  {roleOptions.map((role) => (
                     <SelectItem key={role} value={role}>
-                      {roleDisplayNames[role]}
+                      {role}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -152,40 +144,42 @@ export function PlayerManager({ players, onAddPlayer, onRemovePlayer, onEditPlay
             <div className="space-y-2">
               <Label>Current Players</Label>
               <div className="max-h-[300px] overflow-y-auto space-y-2 rounded-md border border-border p-3">
-                {players.map((player) => (
-                  <div
-                    key={player.playerId}
-                    className="flex items-center justify-between p-2 rounded-md hover-elevate border border-border"
-                    data-testid={`player-item-${player.playerId}`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Badge variant="secondary" className={`${roleColors[player.role]} text-xs`}>
-                        {roleDisplayNames[player.role]}
-                      </Badge>
-                      <span className="text-sm font-medium">{player.playerName}</span>
+                {players.map((player) => {
+                  const roleIdx = roleOptions.indexOf(player.role);
+                  const colorClass = roleIdx >= 0 ? roleColorPalette[roleIdx % roleColorPalette.length] : roleColorPalette[0];
+                  return (
+                    <div
+                      key={player.id}
+                      className="flex items-center justify-between p-2 rounded-md hover-elevate border border-border"
+                      data-testid={`player-item-${player.id}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Badge variant="secondary" className={`${colorClass} text-xs`}>
+                          {player.role}
+                        </Badge>
+                        <span className="text-sm font-medium">{player.name}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEditClick(player)}
+                          data-testid={`button-edit-player-${player.id}`}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => onRemovePlayer(player.id)}
+                          data-testid={`button-remove-player-${player.id}`}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleEditClick(player)}
-                        className="h-8 w-8"
-                        data-testid={`button-edit-player-${player.playerId}`}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => onRemovePlayer(player.playerId)}
-                        className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                        data-testid={`button-remove-player-${player.playerId}`}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
