@@ -66,16 +66,16 @@ export default function Home() {
   });
 
   const slotLabels = availabilitySlots.length > 0
-    ? availabilitySlots.sort((a, b) => a.sortOrder - b.sortOrder).map(s => s.label)
+    ? availabilitySlots.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).map(s => s.label)
     : ["Unknown", "18:00-20:00", "20:00-22:00", "All Blocks", "Can't"];
 
   const playerRoleNames = rosterRoles
     .filter(r => r.type === "player")
-    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
     .map(r => r.name);
 
   const allRoleNames = rosterRoles
-    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
     .map(r => r.name);
 
   const savePlayerAvailMutation = useMutation({

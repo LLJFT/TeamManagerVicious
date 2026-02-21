@@ -18,7 +18,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { MessageSquare, Hash, Plus, Trash2, Send, Paperclip, X, AtSign, FileText, Download, Settings } from "lucide-react";
+import { MessageSquare, Hash, Plus, Trash2, Send, Paperclip, X, AtSign, FileText, Download, Settings, Menu } from "lucide-react";
 
 interface ChatChannelWithPerms {
   id: string;
@@ -64,6 +64,7 @@ export default function Chat() {
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [showChannelSettings, setShowChannelSettings] = useState(false);
   const [editChannelName, setEditChannelName] = useState("");
   const [settingsChannelId, setSettingsChannelId] = useState<string | null>(null);
@@ -392,7 +393,10 @@ export default function Chat() {
 
   return (
     <div className="flex flex-1 h-full overflow-hidden" data-testid="chat-page">
-      <Card className="w-64 shrink-0 flex flex-col rounded-none border-t-0 border-b-0 border-l-0">
+      {showMobileSidebar && (
+        <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setShowMobileSidebar(false)} />
+      )}
+      <Card className={`w-64 shrink-0 flex flex-col rounded-none border-t-0 border-b-0 border-l-0 ${showMobileSidebar ? "fixed inset-y-0 left-0 z-50" : "hidden"} md:flex md:relative md:z-auto`}>
         <div className="p-3 border-b flex items-center justify-between gap-2 flex-wrap">
           <h2 className="text-sm font-semibold">Channels</h2>
           {canManageChannels && (
@@ -444,7 +448,7 @@ export default function Chat() {
                   className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover-elevate ${
                     selectedChannelId === channel.id ? "bg-accent" : ""
                   }`}
-                  onClick={() => setSelectedChannelId(channel.id)}
+                  onClick={() => { setSelectedChannelId(channel.id); setShowMobileSidebar(false); }}
                   data-testid={`channel-item-${channel.id}`}
                 >
                   <Hash className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -477,6 +481,9 @@ export default function Chat() {
         {selectedChannel ? (
           <>
             <div className="p-3 border-b flex items-center gap-2">
+              <Button size="icon" variant="ghost" className="md:hidden" onClick={() => setShowMobileSidebar(true)} data-testid="button-mobile-channels">
+                <Menu />
+              </Button>
               <Hash className="h-5 w-5 text-muted-foreground" />
               <h2 className="font-semibold" data-testid="text-channel-name">{selectedChannel.name}</h2>
             </div>
@@ -692,6 +699,10 @@ export default function Chat() {
             <div className="text-center">
               <MessageSquare className="mx-auto h-12 w-12 mb-3 opacity-40" />
               <p className="text-sm">Select a channel to start chatting</p>
+              <Button variant="outline" className="mt-3 md:hidden" onClick={() => setShowMobileSidebar(true)} data-testid="button-open-channels-mobile">
+                <Menu className="h-4 w-4 mr-2" />
+                View Channels
+              </Button>
             </div>
           </div>
         )}
