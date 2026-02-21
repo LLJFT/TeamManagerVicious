@@ -13,12 +13,36 @@ import {
   insertStaffSchema, insertChatChannelSchema, insertChatMessageSchema,
   insertAvailabilitySlotSchema, insertRosterRoleSchema,
   insertChatChannelPermissionSchema,
-  users, roles, staff, chatChannels, chatMessages, availabilitySlots, rosterRoles,
+  users, roles, chatChannels, chatMessages, availabilitySlots, rosterRoles,
   chatChannelPermissions, activityLogs, playerGameStats, allPermissions,
+  players, events, attendance, games, gameModes, maps, seasons, offDays,
   statFields as statFieldsTable,
+  staff as staffTable,
   type UserWithRole,
 } from "@shared/schema";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+
+const uploadsDir = path.join(process.cwd(), "uploads");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+const uploadStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadsDir),
+  filename: (_req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    const ext = path.extname(file.originalname);
+    cb(null, uniqueSuffix + ext);
+  },
+});
+
+const upload = multer({
+  storage: uploadStorage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
 
 async function logActivity(userId: string | null, action: string, details?: string, logType: string = "team", deviceInfo?: string) {
   try {
@@ -30,6 +54,26 @@ async function logActivity(userId: string | null, action: string, details?: stri
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+
+  const express = await import("express");
+  app.use("/uploads", express.default.static(uploadsDir));
+
+  // ==================== FILE UPLOAD ====================
+  app.post("/api/upload", requireAuth, requirePermission("send_messages"), upload.single("file"), (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+      res.json({
+        url: `/uploads/${req.file.filename}`,
+        originalName: req.file.originalname,
+        mimeType: req.file.mimetype,
+        size: req.file.size,
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
 
   // ==================== AUTH ROUTES ====================
   app.post("/api/auth/login", async (req, res) => {
@@ -101,6 +145,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: "pending",
       }).returning();
       const { passwordHash: _, ...safeUser } = newUser;
+      logActivity(null, "register", `User ${username} registered (pending approval)`, "system");
       res.json({ ...safeUser, message: "Registration successful. Awaiting approval." });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -226,6 +271,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: status || "active",
       }).returning();
       
+      logActivity(req.session.userId!, "create_user", `Created user ${username}`, "system");
       res.json(newUser);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -278,6 +324,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(and(eq(users.id, id), eq(users.teamId, teamId)))
         .returning();
       if (!updated) return res.status(404).json({ message: "User not found" });
+      logActivity(req.session.userId!, "link_player", `Linked player to user ${updated.username}`, "system");
       const { passwordHash, ...safeUser } = updated;
       res.json(safeUser);
     } catch (error: any) {
@@ -296,6 +343,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(and(eq(users.id, id), eq(users.teamId, teamId)))
         .returning();
       if (!deleted) return res.status(404).json({ message: "User not found" });
+      logActivity(req.session.userId!, "delete_user", `Deleted user ${deleted.username}`, "system");
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -423,6 +471,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const [role] = await db.insert(roles).values({
         teamId, name, permissions: permissions || [], isSystem: false,
       }).returning();
+      logActivity(req.session.userId!, "create_role", `Created role "${name}"`);
       res.json(role);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -445,6 +494,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const [updated] = await db.update(roles).set(updateData)
         .where(and(eq(roles.id, id), eq(roles.teamId, teamId)))
         .returning();
+      logActivity(req.session.userId!, "edit_role", `Updated role "${updated.name}"`);
       res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -461,6 +511,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!existing) return res.status(404).json({ message: "Role not found" });
       if (existing.isSystem) return res.status(403).json({ message: "Cannot delete system roles" });
       await db.delete(roles).where(and(eq(roles.id, id), eq(roles.teamId, teamId)));
+      logActivity(req.session.userId!, "delete_role", `Deleted role "${existing.name}"`);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -471,7 +522,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/staff", requireAuth, async (req, res) => {
     try {
       const teamId = getTeamId();
-      const allStaff = await db.select().from(staff).where(eq(staff.teamId, teamId));
+      const allStaff = await db.select().from(staffTable).where(eq(staffTable.teamId, teamId));
       res.json(allStaff);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -482,7 +533,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const teamId = getTeamId();
       const validatedData = insertStaffSchema.parse(req.body);
-      const [newStaff] = await db.insert(staff).values({ ...validatedData, teamId }).returning();
+      const [newStaff] = await db.insert(staffTable).values({ ...validatedData, teamId }).returning();
+      logActivity(req.session.userId!, "add_staff", `Added staff member "${newStaff.name}"`);
       res.json(newStaff);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -494,10 +546,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const teamId = getTeamId();
       const validatedData = insertStaffSchema.partial().parse(req.body);
-      const [updated] = await db.update(staff).set(validatedData)
-        .where(and(eq(staff.id, id), eq(staff.teamId, teamId)))
+      const [updated] = await db.update(staffTable).set(validatedData)
+        .where(and(eq(staffTable.id, id), eq(staffTable.teamId, teamId)))
         .returning();
       if (!updated) return res.status(404).json({ message: "Staff not found" });
+      logActivity(req.session.userId!, "edit_staff", `Updated staff member "${updated.name}"`);
       res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -508,10 +561,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const teamId = getTeamId();
-      const [deleted] = await db.delete(staff)
-        .where(and(eq(staff.id, id), eq(staff.teamId, teamId)))
+      const [deleted] = await db.delete(staffTable)
+        .where(and(eq(staffTable.id, id), eq(staffTable.teamId, teamId)))
         .returning();
       if (!deleted) return res.status(404).json({ message: "Staff not found" });
+      logActivity(req.session.userId!, "remove_staff", `Removed staff member "${deleted.name}"`);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -551,6 +605,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teamId = getTeamId();
       const { name } = req.body;
       const [channel] = await db.insert(chatChannels).values({ teamId, name }).returning();
+      logActivity(req.session.userId!, "create_channel", `Created chat channel "${channel.name}"`);
       res.json(channel);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -568,6 +623,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(and(eq(chatChannels.id, id), eq(chatChannels.teamId, teamId)))
         .returning();
       if (!updated) return res.status(404).json({ message: "Channel not found" });
+      logActivity(req.session.userId!, "edit_channel", `Updated chat channel`);
       res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -579,6 +635,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const teamId = getTeamId();
       await db.delete(chatChannels).where(and(eq(chatChannels.id, id), eq(chatChannels.teamId, teamId)));
+      logActivity(req.session.userId!, "delete_channel", `Deleted chat channel`);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -614,9 +671,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { channelId } = req.params;
       const teamId = getTeamId();
       const userId = req.session.userId!;
-      const { message, attachmentUrl, attachmentType, mentions } = req.body;
+      const { message, attachmentUrl, attachmentType, attachmentName, attachmentSize, mentions } = req.body;
       const [msg] = await db.insert(chatMessages).values({
-        teamId, channelId, userId, message, attachmentUrl, attachmentType, mentions: mentions || [],
+        teamId, channelId, userId, message, attachmentUrl, attachmentType,
+        attachmentName: attachmentName || null, attachmentSize: attachmentSize || null,
+        mentions: mentions || [],
       }).returning();
       const [sender] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
       const senderRoleData = sender?.roleId ? await db.select().from(roles).where(eq(roles.id, sender.roleId)).limit(1) : [];
@@ -661,6 +720,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       await db.delete(chatMessages).where(and(eq(chatMessages.id, id), eq(chatMessages.teamId, teamId)));
+      logActivity(req.session.userId!, "delete_message", `Deleted chat message`);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -761,6 +821,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/activity-logs/:id", requireAuth, requirePermission("view_activity_log"), async (req, res) => {
+    try {
+      const userId = req.session.userId!;
+      const teamId = getTeamId();
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      if (!user?.roleId) return res.status(403).json({ message: "Forbidden" });
+      const [role] = await db.select().from(roles).where(eq(roles.id, user.roleId));
+      if (role?.name !== "Owner") return res.status(403).json({ message: "Only the Owner can delete log entries" });
+      const { id } = req.params;
+      await db.delete(activityLogs).where(and(eq(activityLogs.id, id), eq(activityLogs.teamId, teamId)));
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // ==================== AVAILABILITY SLOTS ====================
   app.get("/api/availability-slots", requireAuth, async (req, res) => {
     try {
@@ -777,6 +853,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teamId = getTeamId();
       const validatedData = insertAvailabilitySlotSchema.parse(req.body);
       const [slot] = await db.insert(availabilitySlots).values({ ...validatedData, teamId }).returning();
+      logActivity(req.session.userId!, "add_availability_slot", `Added availability slot "${slot.label}"`);
       res.json(slot);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -795,6 +872,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(and(eq(availabilitySlots.id, id), eq(availabilitySlots.teamId, teamId)))
         .returning();
       if (!updated) return res.status(404).json({ message: "Slot not found" });
+      logActivity(req.session.userId!, "edit_availability_slot", `Updated availability slot`);
       res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -807,6 +885,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teamId = getTeamId();
       await db.delete(availabilitySlots)
         .where(and(eq(availabilitySlots.id, id), eq(availabilitySlots.teamId, teamId)));
+      logActivity(req.session.userId!, "delete_availability_slot", `Deleted availability slot`);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -829,6 +908,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teamId = getTeamId();
       const validatedData = insertRosterRoleSchema.parse(req.body);
       const [rr] = await db.insert(rosterRoles).values({ ...validatedData, teamId }).returning();
+      logActivity(req.session.userId!, "add_roster_role", `Added roster role "${rr.name}"`);
       res.json(rr);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -848,6 +928,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(and(eq(rosterRoles.id, id), eq(rosterRoles.teamId, teamId)))
         .returning();
       if (!updated) return res.status(404).json({ message: "Roster role not found" });
+      logActivity(req.session.userId!, "edit_roster_role", `Updated roster role "${updated.name}"`);
       res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -860,6 +941,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teamId = getTeamId();
       await db.delete(rosterRoles)
         .where(and(eq(rosterRoles.id, id), eq(rosterRoles.teamId, teamId)));
+      logActivity(req.session.userId!, "delete_roster_role", `Deleted roster role`);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1039,6 +1121,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertPlayerSchema.parse(req.body);
       const player = await storage.addPlayer(validatedData);
+      logActivity(req.session.userId!, "add_player", `Added player "${player.name}"`);
       res.json(player);
     } catch (error: any) {
       console.error('Error in POST /api/players:', error);
@@ -1054,6 +1137,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const success = await storage.removePlayer(id);
       if (success) {
+        logActivity(req.session.userId!, "remove_player", `Removed player`);
         res.json({ success: true });
       } else {
         res.status(404).json({ error: "Player not found" });
@@ -1078,6 +1162,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertEventSchema.parse(req.body);
       const event = await storage.addEvent(validatedData);
+      logActivity(req.session.userId!, "create_event", `Created event "${event.title}"`);
       res.json(event);
     } catch (error: any) {
       console.error('Error in POST /api/events:', error);
@@ -1093,6 +1178,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const validatedData = insertEventSchema.partial().parse(req.body);
       const event = await storage.updateEvent(id, validatedData);
+      logActivity(req.session.userId!, "edit_event", `Updated event "${event.title}"`);
       res.json(event);
     } catch (error: any) {
       console.error('Error in PUT /api/events:', error);
@@ -1108,6 +1194,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const success = await storage.removeEvent(id);
       if (success) {
+        logActivity(req.session.userId!, "delete_event", `Deleted event`);
         res.json({ success: true });
       } else {
         res.status(404).json({ error: "Event not found" });
@@ -1123,6 +1210,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const validatedData = insertPlayerSchema.partial().parse(req.body);
       const player = await storage.updatePlayer(id, validatedData);
+      logActivity(req.session.userId!, "edit_player", `Updated player "${player.name}"`);
       res.json(player);
     } catch (error: any) {
       console.error('Error in PUT /api/players:', error);
@@ -1254,6 +1342,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertGameSchema.parse(req.body);
       const game = await storage.addGame(validatedData);
+      logActivity(req.session.userId!, "add_game", `Added game to event`);
       res.json(game);
     } catch (error: any) {
       console.error('Error in POST /api/games:', error);
@@ -1269,6 +1358,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const validatedData = insertGameSchema.partial().parse(req.body);
       const game = await storage.updateGame(id, validatedData);
+      logActivity(req.session.userId!, "edit_game", `Updated game`);
       res.json(game);
     } catch (error: any) {
       console.error('Error in PUT /api/games:', error);
@@ -1284,6 +1374,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const success = await storage.removeGame(id);
       if (success) {
+        logActivity(req.session.userId!, "delete_game", `Deleted game`);
         res.json({ success: true });
       } else {
         res.status(404).json({ error: "Game not found" });
@@ -1308,6 +1399,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertGameModeSchema.parse(req.body);
       const gameMode = await storage.addGameMode(validatedData);
+      logActivity(req.session.userId!, "add_game_mode", `Added game mode "${gameMode.name}"`);
       res.json(gameMode);
     } catch (error: any) {
       console.error('Error in POST /api/game-modes:', error);
@@ -1323,6 +1415,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const validatedData = insertGameModeSchema.partial().parse(req.body);
       const gameMode = await storage.updateGameMode(id, validatedData);
+      logActivity(req.session.userId!, "edit_game_mode", `Updated game mode "${gameMode.name}"`);
       res.json(gameMode);
     } catch (error: any) {
       console.error('Error in PUT /api/game-modes:', error);
@@ -1338,6 +1431,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const success = await storage.removeGameMode(id);
       if (success) {
+        logActivity(req.session.userId!, "delete_game_mode", `Deleted game mode`);
         res.json({ success: true });
       } else {
         res.status(404).json({ error: "Game mode not found" });
@@ -1373,6 +1467,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertMapSchema.parse(req.body);
       const map = await storage.addMap(validatedData);
+      logActivity(req.session.userId!, "add_map", `Added map "${map.name}"`);
       res.json(map);
     } catch (error: any) {
       console.error('Error in POST /api/maps:', error);
@@ -1388,6 +1483,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const validatedData = insertMapSchema.partial().parse(req.body);
       const map = await storage.updateMap(id, validatedData);
+      logActivity(req.session.userId!, "edit_map", `Updated map "${map.name}"`);
       res.json(map);
     } catch (error: any) {
       console.error('Error in PUT /api/maps:', error);
@@ -1403,6 +1499,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const success = await storage.removeMap(id);
       if (success) {
+        logActivity(req.session.userId!, "delete_map", `Deleted map`);
         res.json({ success: true });
       } else {
         res.status(404).json({ error: "Map not found" });
@@ -1456,6 +1553,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertSeasonSchema.parse(req.body);
       const season = await storage.addSeason(validatedData);
+      logActivity(req.session.userId!, "add_season", `Added season "${season.name}"`);
       res.json(season);
     } catch (error: any) {
       console.error('Error in POST /api/seasons:', error);
@@ -1471,6 +1569,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const validatedData = insertSeasonSchema.partial().parse(req.body);
       const season = await storage.updateSeason(id, validatedData);
+      logActivity(req.session.userId!, "edit_season", `Updated season "${season.name}"`);
       res.json(season);
     } catch (error: any) {
       console.error('Error in PUT /api/seasons:', error);
@@ -1486,6 +1585,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const success = await storage.removeSeason(id);
       if (success) {
+        logActivity(req.session.userId!, "delete_season", `Deleted season`);
         res.json({ success: true });
       } else {
         res.status(404).json({ error: "Season not found" });
@@ -1510,6 +1610,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertOffDaySchema.parse(req.body);
       const offDay = await storage.addOffDay(validatedData);
+      logActivity(req.session.userId!, "add_off_day", `Added off day on ${offDay.date}`);
       res.json(offDay);
     } catch (error: any) {
       console.error('Error in POST /api/off-days:', error);
@@ -1525,6 +1626,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const success = await storage.removeOffDayById(id);
       if (success) {
+        logActivity(req.session.userId!, "remove_off_day", `Removed off day`);
         res.json({ success: true });
       } else {
         res.status(404).json({ error: "Off day not found" });
@@ -1540,6 +1642,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { date } = req.params;
       const success = await storage.removeOffDay(date);
       if (success) {
+        logActivity(req.session.userId!, "remove_off_day", `Removed off day on ${date}`);
         res.json({ success: true });
       } else {
         res.status(404).json({ error: "Off day not found" });
@@ -1575,6 +1678,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertStatFieldSchema.parse(req.body);
       const statField = await storage.addStatField(validatedData);
+      logActivity(req.session.userId!, "add_stat_field", `Added stat field "${statField.name}"`);
       res.json(statField);
     } catch (error: any) {
       console.error('Error in POST /api/stat-fields:', error);
@@ -1590,6 +1694,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const validatedData = insertStatFieldSchema.partial().parse(req.body);
       const statField = await storage.updateStatField(id, validatedData);
+      logActivity(req.session.userId!, "edit_stat_field", `Updated stat field`);
       res.json(statField);
     } catch (error: any) {
       console.error('Error in PUT /api/stat-fields/:id:', error);
@@ -1605,6 +1710,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const success = await storage.removeStatField(id);
       if (success) {
+        logActivity(req.session.userId!, "delete_stat_field", `Deleted stat field`);
         res.json({ success: true });
       } else {
         res.status(404).json({ error: "Stat field not found" });

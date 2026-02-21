@@ -127,13 +127,67 @@ function ActivityLogPanel({ logType, title }: { logType: string; title: string }
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
+  const deleteLogEntryMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const r = await apiRequest("DELETE", `/api/activity-logs/${id}`);
+      return r.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/activity-logs", logType] });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
   const actionLabels: Record<string, string> = {
     login: "Logged in",
-    user_status_change: "User status changed",
-    user_role_change: "User role changed",
+    register: "Registered",
+    user_status_change: "Status changed",
+    user_role_change: "Role changed",
     username_change: "Username changed",
-    admin_rename_user: "Admin renamed user",
+    admin_rename_user: "Renamed user",
     admin_terminate_sessions: "Sessions terminated",
+    create_user: "Created user",
+    link_player: "Linked player",
+    delete_user: "Deleted user",
+    create_role: "Created role",
+    edit_role: "Edited role",
+    delete_role: "Deleted role",
+    add_staff: "Added staff",
+    edit_staff: "Edited staff",
+    remove_staff: "Removed staff",
+    create_channel: "Created channel",
+    edit_channel: "Edited channel",
+    delete_channel: "Deleted channel",
+    delete_message: "Deleted message",
+    add_player: "Added player",
+    edit_player: "Edited player",
+    remove_player: "Removed player",
+    create_event: "Created event",
+    edit_event: "Edited event",
+    delete_event: "Deleted event",
+    add_game: "Added game",
+    edit_game: "Edited game",
+    delete_game: "Deleted game",
+    add_game_mode: "Added game mode",
+    edit_game_mode: "Edited game mode",
+    delete_game_mode: "Deleted game mode",
+    add_map: "Added map",
+    edit_map: "Edited map",
+    delete_map: "Deleted map",
+    add_season: "Added season",
+    edit_season: "Edited season",
+    delete_season: "Deleted season",
+    add_off_day: "Added off day",
+    remove_off_day: "Removed off day",
+    add_stat_field: "Added stat field",
+    edit_stat_field: "Edited stat field",
+    delete_stat_field: "Deleted stat field",
+    add_roster_role: "Added roster role",
+    edit_roster_role: "Edited roster role",
+    delete_roster_role: "Deleted roster role",
+    add_availability_slot: "Added time slot",
+    edit_availability_slot: "Edited time slot",
+    delete_availability_slot: "Deleted time slot",
   };
 
   const uniqueActions = useMemo(() => Array.from(new Set(logs.map(l => l.action))), [logs]);
@@ -239,7 +293,7 @@ function ActivityLogPanel({ logType, title }: { logType: string; title: string }
         ) : (
           <div className="space-y-2 max-h-[500px] overflow-y-auto">
             {filteredLogs.map((log) => (
-              <div key={log.id} className="flex items-start gap-3 p-3 rounded-lg border border-border" data-testid={`activity-log-${log.id}`}>
+              <div key={log.id} className="group flex items-start gap-3 p-3 rounded-lg border border-border" data-testid={`activity-log-${log.id}`}>
                 <Avatar className="h-7 w-7 mt-0.5">
                   <AvatarFallback className="bg-primary/10 text-primary text-xs">
                     {log.actorName.charAt(0).toUpperCase()}
@@ -260,6 +314,18 @@ function ActivityLogPanel({ logType, title }: { logType: string; title: string }
                     <p className="text-xs text-muted-foreground/60 mt-0.5">{log.deviceInfo}</p>
                   )}
                 </div>
+                {isOwner && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6 shrink-0 invisible group-hover:visible"
+                    onClick={() => deleteLogEntryMutation.mutate(log.id)}
+                    disabled={deleteLogEntryMutation.isPending}
+                    data-testid={`button-delete-log-${log.id}`}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                )}
               </div>
             ))}
           </div>

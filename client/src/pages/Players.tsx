@@ -9,9 +9,9 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Pencil, Trash2, ArrowLeft, Check, X, Clock, UserPlus, Users, Send } from "lucide-react";
+import { Plus, Pencil, Trash2, ArrowLeft, Check, X, Clock, UserPlus, Users, Send, ChevronDown, ChevronUp } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
-import type { Player, Attendance, AttendanceStatus, TeamNotes as TeamNotesType, RosterRole } from "@shared/schema";
+import type { Player, Attendance, AttendanceStatus, TeamNotes as TeamNotesType, RosterRole, Staff, Event } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -34,6 +34,7 @@ const attendanceFormSchema = z.object({
   status: z.enum(["attended", "late", "absent"]),
   notes: z.string().optional(),
   ringer: z.string().optional(),
+  eventId: z.string().optional(),
 });
 
 const teamNoteFormSchema = z.object({
@@ -58,6 +59,12 @@ export default function Players() {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [toastType, setToastType] = useState<"success" | "error">("success");
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
+  const [attendancePages, setAttendancePages] = useState<Record<string, number>>({});
+  const [statusFilters, setStatusFilters] = useState<Record<string, string>>({});
+  const [searchFilters, setSearchFilters] = useState<Record<string, string>>({});
+  const [sortOrders, setSortOrders] = useState<Record<string, "newest" | "oldest">>({});
+  const RECORDS_PER_PAGE = 5;
 
   const { data: players = [], isLoading: playersLoading } = useQuery<Player[]>({
     queryKey: ["/api/players"],
@@ -75,12 +82,20 @@ export default function Players() {
     queryKey: ["/api/roster-roles"],
   });
 
+  const { data: staffMembers = [] } = useQuery<Staff[]>({
+    queryKey: ["/api/staff"],
+  });
+
+  const { data: events = [] } = useQuery<Event[]>({
+    queryKey: ["/api/events"],
+  });
+
   const playerRoleOptions = rosterRoles
     .filter(r => r.type === "player")
-    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
     .map(r => r.name);
   const allRoleOptions = rosterRoles
-    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
     .map(r => r.name);
   const roleOptions = allRoleOptions.length > 0 ? allRoleOptions : ["Tank", "DPS", "Support", "Flex"];
 
@@ -103,6 +118,7 @@ export default function Players() {
       status: "attended",
       notes: "",
       ringer: "",
+      eventId: "",
     },
   });
 
@@ -179,7 +195,11 @@ export default function Players() {
 
   const createAttendanceMutation = useMutation({
     mutationFn: async (data: AttendanceFormData) => {
-      const response = await apiRequest("POST", "/api/attendance", data);
+      const submitData = {
+        ...data,
+        eventId: data.eventId || undefined,
+      };
+      const response = await apiRequest("POST", "/api/attendance", submitData);
       return response.json();
     },
     onSuccess: () => {
@@ -200,7 +220,11 @@ export default function Players() {
 
   const updateAttendanceMutation = useMutation({
     mutationFn: async (data: { id: string; attendance: Partial<AttendanceFormData> }) => {
-      const response = await apiRequest("PUT", `/api/attendance/${data.id}`, data.attendance);
+      const submitData = {
+        ...data.attendance,
+        eventId: data.attendance.eventId || undefined,
+      };
+      const response = await apiRequest("PUT", `/api/attendance/${data.id}`, submitData);
       return response.json();
     },
     onSuccess: () => {
@@ -324,6 +348,7 @@ export default function Players() {
       status: "attended",
       notes: "",
       ringer: "",
+      eventId: "",
     });
     setShowAttendanceDialog(true);
   };
@@ -331,18 +356,18 @@ export default function Players() {
   const handleEditAttendance = (attendance: Attendance) => {
     setEditingAttendance(attendance);
     attendanceForm.reset({
-      playerId: attendance.playerId,
+      playerId: attendance.playerId || undefined,
       date: attendance.date,
       status: attendance.status as "attended" | "late" | "absent",
       notes: attendance.notes || "",
       ringer: attendance.ringer || "",
+      eventId: attendance.eventId || "",
     });
     setShowAttendanceDialog(true);
   };
 
   const handleAttendanceSubmit = (data: AttendanceFormData) => {
     if (editingAttendance) {
-      // Exclude playerId when updating (it shouldn't change)
       const { playerId, ...updateData } = data;
       updateAttendanceMutation.mutate({ id: editingAttendance.id, attendance: updateData });
     } else {
@@ -355,6 +380,50 @@ export default function Players() {
       ...data,
       timestamp: new Date().toISOString(),
     });
+  };
+
+  const toggleCardExpanded = (id: string) => {
+    setExpandedCards(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const getEventName = (eventId: string | null) => {
+    if (!eventId) return null;
+    const event = events.find(e => e.id === eventId);
+    return event ? event.title : null;
+  };
+
+  const getFilteredAndSortedAttendance = (personId: string) => {
+    let records = allAttendance.filter(a => a.playerId === personId);
+    const statusFilter = statusFilters[personId] || "all";
+    if (statusFilter !== "all") {
+      records = records.filter(a => a.status === statusFilter);
+    }
+    const search = (searchFilters[personId] || "").toLowerCase();
+    if (search) {
+      records = records.filter(a =>
+        (a.notes && a.notes.toLowerCase().includes(search)) ||
+        (a.ringer && a.ringer.toLowerCase().includes(search))
+      );
+    }
+    const sortOrder = sortOrders[personId] || "newest";
+    records.sort((a, b) => {
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      return sortOrder === "newest" ? dateB - dateA : dateA - dateB;
+    });
+    return records;
+  };
+
+  const getPaginatedAttendance = (personId: string) => {
+    const filtered = getFilteredAndSortedAttendance(personId);
+    const page = attendancePages[personId] || 0;
+    const start = page * RECORDS_PER_PAGE;
+    return {
+      records: filtered.slice(start, start + RECORDS_PER_PAGE),
+      totalRecords: filtered.length,
+      totalPages: Math.ceil(filtered.length / RECORDS_PER_PAGE),
+      currentPage: page,
+    };
   };
 
   const getStatusBadge = (status: string) => {
@@ -398,6 +467,156 @@ export default function Players() {
       absent: playerAttendance.filter(a => a.status === "absent").length,
       total: playerAttendance.length,
     };
+  };
+
+  const renderAttendanceSection = (personId: string) => {
+    const isExpanded = expandedCards[personId] || false;
+    const { records, totalRecords, totalPages, currentPage } = getPaginatedAttendance(personId);
+
+    return (
+      <div>
+        <div
+          className="flex items-center gap-2 cursor-pointer select-none"
+          onClick={() => toggleCardExpanded(personId)}
+          data-testid={`toggle-attendance-${personId}`}
+        >
+          <h4 className="text-lg font-semibold text-primary">Attendance Records</h4>
+          <Badge variant="secondary" className="text-xs">{getFilteredAndSortedAttendance(personId).length}</Badge>
+          {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+        </div>
+
+        {isExpanded && (
+          <div className="mt-3">
+            <div className="flex flex-wrap items-center gap-3 mb-3">
+              <Select
+                value={statusFilters[personId] || "all"}
+                onValueChange={(val) => {
+                  setStatusFilters(prev => ({ ...prev, [personId]: val }));
+                  setAttendancePages(prev => ({ ...prev, [personId]: 0 }));
+                }}
+              >
+                <SelectTrigger className="w-[140px]" data-testid={`filter-status-${personId}`}>
+                  <SelectValue placeholder="Filter status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="attended">Attended</SelectItem>
+                  <SelectItem value="late">Late</SelectItem>
+                  <SelectItem value="absent">Absent</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input
+                placeholder="Search notes/ringer..."
+                className="w-[200px]"
+                value={searchFilters[personId] || ""}
+                onChange={(e) => {
+                  setSearchFilters(prev => ({ ...prev, [personId]: e.target.value }));
+                  setAttendancePages(prev => ({ ...prev, [personId]: 0 }));
+                }}
+                data-testid={`filter-search-${personId}`}
+              />
+              <Select
+                value={sortOrders[personId] || "newest"}
+                onValueChange={(val) => {
+                  setSortOrders(prev => ({ ...prev, [personId]: val as "newest" | "oldest" }));
+                  setAttendancePages(prev => ({ ...prev, [personId]: 0 }));
+                }}
+              >
+                <SelectTrigger className="w-[150px]" data-testid={`filter-sort-${personId}`}>
+                  <SelectValue placeholder="Sort order" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="newest">Newest first</SelectItem>
+                  <SelectItem value="oldest">Oldest first</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {records.length === 0 ? (
+              <p className="text-muted-foreground" data-testid={`text-no-attendance-${personId}`}>No attendance records found</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full" data-testid={`table-attendance-${personId}`}>
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="text-left p-2 font-semibold text-foreground">Date</th>
+                      <th className="text-left p-2 font-semibold text-foreground">Status</th>
+                      <th className="text-left p-2 font-semibold text-foreground">Event</th>
+                      <th className="text-left p-2 font-semibold text-foreground">Notes</th>
+                      <th className="text-left p-2 font-semibold text-foreground">Ringer</th>
+                      <th className="text-right p-2 font-semibold text-foreground">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {records.map((attendance) => (
+                      <tr key={attendance.id} className="border-b border-border">
+                        <td className="p-2 text-foreground">
+                          {format(new Date(attendance.date), "MMM dd, yyyy")}
+                        </td>
+                        <td className="p-2">{getStatusBadge(attendance.status)}</td>
+                        <td className="p-2 text-muted-foreground" data-testid={`text-event-${attendance.id}`}>
+                          {getEventName(attendance.eventId) || "—"}
+                        </td>
+                        <td className="p-2 text-muted-foreground">{attendance.notes || "—"}</td>
+                        <td className="p-2 text-foreground">{attendance.ringer || "—"}</td>
+                        <td className="p-2 text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEditAttendance(attendance)}
+                              data-testid={`button-edit-attendance-${attendance.id}`}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => deleteAttendanceMutation.mutate(attendance.id)}
+                              data-testid={`button-delete-attendance-${attendance.id}`}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-3">
+                <span className="text-sm text-muted-foreground" data-testid={`text-page-info-${personId}`}>
+                  Page {currentPage + 1} of {totalPages} ({totalRecords} records)
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage === 0}
+                    onClick={() => setAttendancePages(prev => ({ ...prev, [personId]: currentPage - 1 }))}
+                    data-testid={`button-prev-page-${personId}`}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage >= totalPages - 1}
+                    onClick={() => setAttendancePages(prev => ({ ...prev, [personId]: currentPage + 1 }))}
+                    data-testid={`button-next-page-${personId}`}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
   };
 
   if (!hasPermission("view_players")) {
@@ -542,7 +761,7 @@ export default function Players() {
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full" data-testid="table-attendance-stats">
                 <thead>
                   <tr className="border-b border-border">
                     <th className="text-left p-3 font-semibold text-foreground">Player</th>
@@ -557,7 +776,7 @@ export default function Players() {
                   {players.map((player) => {
                     const stats = getPlayerStats(player.id);
                     return (
-                      <tr key={player.id} className="border-b border-border hover-elevate">
+                      <tr key={player.id} className="border-b border-border hover-elevate" data-testid={`row-stats-player-${player.id}`}>
                         <td className="p-3 font-medium text-foreground">{player.name}</td>
                         <td className="p-3">{getRoleBadge(player.role)}</td>
                         <td className="p-3 text-center text-green-600 font-semibold">{stats.attended}</td>
@@ -576,13 +795,11 @@ export default function Players() {
         {/* Players List */}
         <div className="space-y-4">
           {players.map((player) => {
-            const playerAttendance = allAttendance.filter(a => a.playerId === player.id);
-            
             return (
-              <Card key={player.id} className="border-primary/20">
+              <Card key={player.id} className="border-primary/20" data-testid={`card-player-${player.id}`}>
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
                       <h3 className="text-xl font-bold text-primary">{player.name}</h3>
                       {getRoleBadge(player.role)}
                       <Button
@@ -624,57 +841,36 @@ export default function Players() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <h4 className="text-lg font-semibold mb-3 text-primary">Attendance Records</h4>
-                  {playerAttendance.length === 0 ? (
-                    <p className="text-muted-foreground">No attendance records found</p>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="border-b border-border">
-                            <th className="text-left p-2 font-semibold text-foreground">Date</th>
-                            <th className="text-left p-2 font-semibold text-foreground">Status</th>
-                            <th className="text-left p-2 font-semibold text-foreground">Notes</th>
-                            <th className="text-left p-2 font-semibold text-foreground">Ringer</th>
-                            <th className="text-right p-2 font-semibold text-foreground">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {playerAttendance.map((attendance) => (
-                            <tr key={attendance.id} className="border-b border-border">
-                              <td className="p-2 text-foreground">
-                                {format(new Date(attendance.date), "MMM dd, yyyy")}
-                              </td>
-                              <td className="p-2">{getStatusBadge(attendance.status)}</td>
-                              <td className="p-2 text-muted-foreground">{attendance.notes || "—"}</td>
-                              <td className="p-2 text-foreground">{attendance.ringer || "—"}</td>
-                              <td className="p-2 text-right">
-                                <div className="flex justify-end gap-2">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => handleEditAttendance(attendance)}
-                                    data-testid={`button-edit-attendance-${attendance.id}`}
-                                  >
-                                    <Pencil className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => deleteAttendanceMutation.mutate(attendance.id)}
-                                    data-testid={`button-delete-attendance-${attendance.id}`}
-                                  >
-                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                  </Button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+                  {renderAttendanceSection(player.id)}
                 </CardContent>
+              </Card>
+            );
+          })}
+
+          {/* Staff Cards */}
+          {staffMembers.map((member) => {
+            return (
+              <Card key={member.id} className="border-primary/20" data-testid={`card-staff-${member.id}`}>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <h3 className="text-xl font-bold text-primary">{member.name}</h3>
+                      {getRoleBadge(member.role)}
+                      <Badge variant="secondary">Staff</Badge>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2 text-sm text-muted-foreground">
+                    <div>
+                      <span className="font-medium">Full Name:</span> {member.fullName || "—"}
+                    </div>
+                    <div>
+                      <span className="font-medium">Phone:</span> {member.phone || "—"}
+                    </div>
+                    <div>
+                      <span className="font-medium">Snapchat:</span> {member.snapchat || "—"}
+                    </div>
+                  </div>
+                </CardHeader>
               </Card>
             );
           })}
@@ -809,6 +1005,31 @@ export default function Players() {
                           <SelectItem value="attended">Attended</SelectItem>
                           <SelectItem value="late">Late</SelectItem>
                           <SelectItem value="absent">Absent</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={attendanceForm.control}
+                  name="eventId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Event</FormLabel>
+                      <Select onValueChange={(val) => field.onChange(val === "none" ? "" : val)} value={field.value || "none"}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-event">
+                            <SelectValue placeholder="Select event (optional)" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">No Event</SelectItem>
+                          {events.map((event) => (
+                            <SelectItem key={event.id} value={event.id}>
+                              {event.title} — {format(new Date(event.date), "MMM dd, yyyy")}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                       <FormMessage />

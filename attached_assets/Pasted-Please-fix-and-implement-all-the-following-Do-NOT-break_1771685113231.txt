@@ -1,0 +1,225 @@
+Please fix and implement all the following. Do NOT break any existing functionality: 
+
+ 
+
+🔴 FIX 1: Chat File Upload — Complete Rewrite 
+
+The chat file upload system is fundamentally broken. Fix completely: 
+
+A) Backend: 
+
+Use multer to handle file uploads 
+
+Save files to persistent uploads/ directory in project root 
+
+Serve uploads statically: app.use('/uploads', express.static(path.join(process.cwd(), 'uploads'))) 
+
+Upload endpoint returns: { url: '/uploads/filename.ext', originalName: 'file.txt', mimeType: 'image/jpeg', size: 12345 } 
+
+Store in database: attachment_url, attachment_name, attachment_type, attachment_size 
+
+B) Frontend rendering by MIME type: 
+
+image/* → render as actual <img src={url} /> inline, click opens fullscreen lightbox 
+
+video/* → render as <video controls src={url} /> inline player 
+
+audio/* → render as <audio controls src={url} /> 
+
+Everything else → styled download card with filename + size + download icon 
+
+NEVER show "[Attachment]" text 
+
+C) Link detection in messages: 
+
+Auto-detect URLs with or without protocol 
+
+If no protocol → prepend https:// 
+
+Render as clickable cyan <a> links opening in new tab 
+
+Works for: x.com, kick.com, https://x.com — all must work 
+
+D) Emoji picker: 
+
+Add emoji button (😊) next to attachment button 
+
+Opens emoji panel with common emojis by category 
+
+Clicking emoji inserts at cursor position 
+
+ 
+
+🔴 FIX 2: Staff Must Appear in Players Tab for Attendance Tracking 
+
+When staff is added from the Staff tab, they must also appear in the Players tab for attendance tracking: 
+
+Staff appear in Players tab with a "Staff" badge next to their role 
+
+Staff do NOT appear in the players section of the availability schedule — they stay in "Staff Availability" section only 
+
+Players tab attendance tracking includes both players AND staff 
+
+ 
+
+🔴 FIX 3: Attendance Records — Link to Events Instead of Dates 
+
+A) When adding attendance record: 
+
+Remove free-text date field 
+
+Show searchable list of events: [Event Name] — [Type] — [Date] 
+
+Show 5 most recent events by default 
+
+Search bar to search all events by name 
+
+Pagination (10 events per page) for 500+ events 
+
+Filters: by event type, by date range 
+
+Store event_id instead of just a date 
+
+B) Display: 
+
+Show: Event Name | Event Type badge | Date | Status | Notes | Ringer | Actions 
+
+ 
+
+🔴 FIX 4: Attendance Records — Collapsible with Pagination and Filters 
+
+A) Each player's attendance section starts collapsed showing summary: "12 records — 8 Attended, 2 Absent, 2 Late" with chevron to expand/collapse 
+
+B) When expanded: show last 5 records, pagination (5 per page), Previous/Next arrows, "Page 1 of 12" 
+
+C) Filters inside expanded: filter by status (All/Attended/Absent/Late), search by event name, sort newest/oldest 
+
+D) "+ Add Attendance" button always visible at top of player card 
+
+ 
+
+🔴 FIX 5: Activity Log — Individual Entry Deletion (Owner Only) + Better Descriptions 
+
+A) Delete single log entry: 
+
+Trash icon on each entry visible ONLY to Owner role 
+
+Confirmation dialog before deleting 
+
+Deletes ONLY that one specific entry — not all logs 
+
+"Clear all" button remains for clearing everything 
+
+B) Fix log descriptions to be human-readable (never show UUIDs or raw IDs): 
+
+"Renamed user to a" → "Admin renamed user [old_username] to [new_username]" 
+
+"Changed a status to active" → "Admin approved user [username]'s account" 
+
+"Terminated all sessions for user [UUID]" → "Admin terminated all sessions for user [username]" 
+
+All entries must show actual names, never raw IDs or UUIDs 
+
+ 
+
+🔴 FIX 6: Activity Logs — Must Cover EVERY Action (Currently Nearly Empty) 
+
+Add logging calls to EVERY route. Currently most actions are NOT being logged. 
+
+Team Activity Log — log ALL of: 
+
+User login / logout (username, device, IP, location) 
+
+User registered (username, device, IP) 
+
+User approved / rejected (admin → affected username) 
+
+User banned / unbanned (admin → affected username) 
+
+User role changed (admin → user, old role → new role) 
+
+User renamed (admin → user, old name → new name) 
+
+Account created by admin (admin → new username, role assigned) 
+
+Chat message sent (sender, channel name, first 50 chars) 
+
+Chat message deleted (who deleted, original sender username, original message content) 
+
+Chat channel created / renamed / deleted (who, channel name) 
+
+Session terminated (who, affected username, device) 
+
+Password changed (who, self or admin) 
+
+System Log — log ALL of: 
+
+Player added / edited / deleted (player nickname, who) 
+
+Staff added / edited / deleted (staff name, who) 
+
+Availability slot changed (player name, day, old value → new value, who) 
+
+Event created / edited / deleted (event name, type, date, who) 
+
+Game result added / edited / deleted (game code, event name, score, who) 
+
+Attendance record added / edited / deleted (player name, event name, status, who) 
+
+Game mode added / edited / deleted (name, who) 
+
+Map added / edited / deleted (map name, game mode, who) 
+
+Stat field added / edited / deleted (field name, game mode, who) 
+
+Roster role added / edited / deleted (role name, type, who) 
+
+Availability time slot added / edited / deleted (label, who) 
+
+Site theme changed (old → new, who) 
+
+Every entry must include: timestamp, acting username (never UUID), color-coded action badge, full human-readable details, IP address, device info. 
+
+Filter system for both logs: 
+
+Filter by action type (multi-select) 
+
+Filter by acting user (searchable dropdown) 
+
+Filter by target user or item 
+
+Filter by date range 
+
+Quick filters: "Bans only", "Deleted messages", "Availability changes", "Login/logout" 
+
+Search bar inside log details text 
+
+Sort: newest/oldest first 
+
+Pagination: 50 entries per page 
+
+ 
+
+🔴 FIX 7: Data Persistence — Nothing Must Ever Be Lost 
+
+Ensure NO data is ever automatically deleted or reset: 
+
+Change all ON DELETE CASCADE foreign keys on important tables to ON DELETE RESTRICT or ON DELETE SET NULL 
+
+Important tables: events, games, results, players, staff, attendance records, chat messages, activity logs 
+
+If a player is deleted → attendance records remain (player_id set to NULL, show "Deleted Player") 
+
+If a user is deleted → chat messages remain (show "Deleted User") 
+
+If an event is deleted → games/results inside it are archived, not deleted 
+
+Run a migration to fix all existing foreign key constraints 
+
+Verify: restarting the server must never lose any data 
+
+ 
+
+ 
+
+Design: Keep the existing dark blue/cyan theme throughout. Do not remove or break any existing features. 

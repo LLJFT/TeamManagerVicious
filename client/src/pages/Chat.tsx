@@ -33,6 +33,8 @@ interface ChatMessageWithUser {
   message: string | null;
   attachmentUrl: string | null;
   attachmentType: string | null;
+  attachmentName: string | null;
+  attachmentSize: number | null;
   mentions: string[] | null;
   createdAt: string | null;
   senderName: string;
@@ -173,17 +175,21 @@ export default function Chat() {
   });
 
   const sendMessageMutation = useMutation({
-    mutationFn: async ({ channelId, message, attachmentUrl, attachmentType, mentions }: {
+    mutationFn: async ({ channelId, message, attachmentUrl, attachmentType, attachmentName, attachmentSize, mentions }: {
       channelId: string;
       message?: string;
       attachmentUrl?: string;
       attachmentType?: string;
+      attachmentName?: string;
+      attachmentSize?: number;
       mentions?: string[];
     }) => {
       await apiRequest("POST", `/api/chat/channels/${channelId}/messages`, {
         message: message || null,
         attachmentUrl: attachmentUrl || null,
         attachmentType: attachmentType || null,
+        attachmentName: attachmentName || null,
+        attachmentSize: attachmentSize || null,
         mentions: mentions || [],
       });
     },
@@ -223,26 +229,27 @@ export default function Chat() {
     if (selectedFile) {
       setUploading(true);
       try {
-        const presignRes = await apiRequest("POST", "/api/objects/upload", {
-          filename: selectedFile.name,
-          contentType: selectedFile.type,
+        const formData = new FormData();
+        formData.append("file", selectedFile);
+        const uploadRes = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+          credentials: "include",
         });
-        const uploadData = await presignRes.json();
-        const presignedUrl = uploadData.presignedUrl || uploadData.uploadURL;
-        const objectPath = uploadData.objectPath || uploadData.normalizedPath;
-
-        await fetch(presignedUrl, {
-          method: "PUT",
-          body: selectedFile,
-          headers: { "Content-Type": selectedFile.type },
-        });
+        if (!uploadRes.ok) {
+          const err = await uploadRes.json();
+          throw new Error(err.message || "Upload failed");
+        }
+        const uploadData = await uploadRes.json();
 
         const mentionedUserIds = extractMentions(text);
         sendMessageMutation.mutate({
           channelId: selectedChannelId,
           message: text || undefined,
-          attachmentUrl: `/objects/${objectPath}`,
-          attachmentType: selectedFile.type,
+          attachmentUrl: uploadData.url,
+          attachmentType: uploadData.mimeType,
+          attachmentName: uploadData.originalName,
+          attachmentSize: uploadData.size,
           mentions: mentionedUserIds,
         });
       } catch (err: any) {
@@ -337,9 +344,16 @@ export default function Chat() {
     }
   };
 
+  const formatFileSize = (bytes: number | null): string => {
+    if (!bytes) return "";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
   const renderMessageContent = (text: string | null) => {
     if (!text) return null;
-    const tokenRegex = /(https?:\/\/[^\s]+|@\w+)/g;
+    const tokenRegex = /(https?:\/\/[^\s]+|(?:www\.)[^\s]+\.[a-z]{2,}[^\s]*|@\w+)/gi;
     const result: JSX.Element[] = [];
     let lastIndex = 0;
     let match: RegExpExecArray | null;
@@ -348,9 +362,10 @@ export default function Chat() {
         result.push(<span key={`t-${lastIndex}`}>{text.slice(lastIndex, match.index)}</span>);
       }
       const token = match[0];
-      if (token.startsWith("http")) {
+      if (token.startsWith("http") || token.startsWith("www.")) {
+        const href = token.startsWith("http") ? token : `https://${token}`;
         result.push(
-          <a key={`u-${match.index}`} href={token} target="_blank" rel="noopener noreferrer" className="text-primary underline hover:opacity-80" data-testid={`link-chat-url-${match.index}`}>
+          <a key={`u-${match.index}`} href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline hover:opacity-80" data-testid={`link-chat-url-${match.index}`}>
             {token}
           </a>
         );
@@ -544,7 +559,7 @@ export default function Chat() {
                           <div className="mt-1 max-w-sm">
                             <img
                               src={msg.attachmentUrl}
-                              alt="Attachment"
+                              alt={msg.attachmentName || "Attachment"}
                               className="rounded-md border border-border max-h-64 object-contain cursor-pointer"
                               onClick={() => window.open(msg.attachmentUrl!, "_blank")}
                               data-testid={`img-attachment-${msg.id}`}
@@ -559,28 +574,41 @@ export default function Chat() {
                               data-testid={`video-attachment-${msg.id}`}
                             >
                               <source src={msg.attachmentUrl} type={msg.attachmentType} />
-                              Your browser does not support the video tag.
                             </video>
                           </div>
                         )}
-                        {msg.attachmentUrl && !msg.attachmentType?.startsWith("image/") && !msg.attachmentType?.startsWith("video/") && (
+                        {msg.attachmentUrl && msg.attachmentType?.startsWith("audio/") && (
+                          <div className="mt-1 max-w-sm">
+                            <audio
+                              controls
+                              className="w-full"
+                              data-testid={`audio-attachment-${msg.id}`}
+                            >
+                              <source src={msg.attachmentUrl} type={msg.attachmentType} />
+                            </audio>
+                          </div>
+                        )}
+                        {msg.attachmentUrl && !msg.attachmentType?.startsWith("image/") && !msg.attachmentType?.startsWith("video/") && !msg.attachmentType?.startsWith("audio/") && (
                           <Card className="mt-1 p-3 max-w-sm" data-testid={`file-attachment-card-${msg.id}`}>
                             <div className="flex items-center gap-2">
                               <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium truncate" data-testid={`file-name-${msg.id}`}>
-                                  {extractFilename(msg.attachmentUrl)}
+                                  {msg.attachmentName || extractFilename(msg.attachmentUrl)}
                                 </p>
+                                {msg.attachmentSize && (
+                                  <p className="text-xs text-muted-foreground">{formatFileSize(msg.attachmentSize)}</p>
+                                )}
                               </div>
                               <a
                                 href={msg.attachmentUrl}
-                                download
+                                download={msg.attachmentName || true}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="shrink-0"
                                 data-testid={`link-download-${msg.id}`}
                               >
-                                <Button size="icon" variant="ghost" className="h-7 w-7">
+                                <Button size="icon" variant="ghost">
                                   <Download className="h-4 w-4" />
                                 </Button>
                               </a>
