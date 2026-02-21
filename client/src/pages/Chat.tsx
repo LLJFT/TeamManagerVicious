@@ -338,17 +338,36 @@ export default function Chat() {
 
   const renderMessageContent = (text: string | null) => {
     if (!text) return null;
-    const parts = text.split(/(@\w+)/g);
-    return parts.map((part, i) => {
-      if (part.startsWith("@")) {
-        const username = part.slice(1);
+    const tokenRegex = /(https?:\/\/[^\s]+|@\w+)/g;
+    const result: JSX.Element[] = [];
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = tokenRegex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        result.push(<span key={`t-${lastIndex}`}>{text.slice(lastIndex, match.index)}</span>);
+      }
+      const token = match[0];
+      if (token.startsWith("http")) {
+        result.push(
+          <a key={`u-${match.index}`} href={token} target="_blank" rel="noopener noreferrer" className="text-primary underline hover:opacity-80" data-testid={`link-chat-url-${match.index}`}>
+            {token}
+          </a>
+        );
+      } else if (token.startsWith("@")) {
+        const username = token.slice(1);
         const isMentioned = activeUsers.some(u => u.username.toLowerCase() === username.toLowerCase());
         if (isMentioned) {
-          return <span key={i} className="text-primary font-semibold">{part}</span>;
+          result.push(<span key={`m-${match.index}`} className="text-primary font-semibold">{token}</span>);
+        } else {
+          result.push(<span key={`m-${match.index}`}>{token}</span>);
         }
       }
-      return <span key={i}>{part}</span>;
-    });
+      lastIndex = tokenRegex.lastIndex;
+    }
+    if (lastIndex < text.length) {
+      result.push(<span key={`t-${lastIndex}`}>{text.slice(lastIndex)}</span>);
+    }
+    return result;
   };
 
   if (!hasPermission("view_chat")) {

@@ -1,0 +1,293 @@
+Please fix all the following issues and add the new features. Do NOT break any existing functionality: 
+
+ 
+
+🔴 FIX 1: Unique Usernames (Case-Insensitive) 
+
+Usernames must be unique regardless of capitalization: 
+
+When registering or creating an account, check if the username already exists (case-insensitive comparison using LOWER() or ilike) 
+
+If the username is taken, return a clear error: "This username is already taken" 
+
+This applies to both self-registration AND admin-created accounts 
+
+Example: if "Admin" exists, then "admin", "ADMIN", "aDmIn" are all blocked 
+
+ 
+
+🔴 FIX 2: Add Rename Username Feature in User Management 
+
+In Dashboard → Users, next to the Ban button, add a Rename button (or pencil/edit icon) for each user that opens a small inline input or modal to change that user's username. Rules: 
+
+New username must pass the same uniqueness check (FIX 1) 
+
+Owner can rename anyone 
+
+Admin can rename Members only (not other Admins or Owner) 
+
+Log the rename action in the activity log: "Admin renamed [old] to [new]" 
+
+ 
+
+ 
+
+🔴 FIX 3: Accurate Online/Offline Status with Device Info 
+
+In Dashboard → Users, fix the status display to be accurate and detailed: 
+
+Show Online (green dot) if the user has made an API request in the last 2 minutes, with the device name (e.g., "iPhone — Safari", "Windows — Chrome", "Mac — Firefox") parsed from their user agent 
+
+Show Offline with "Last seen: [date and time]" if inactive for more than 2 minutes 
+
+Update last-seen timestamp on every authenticated API request server-side 
+
+Parse device info from user agent: detect OS (Windows/Mac/iPhone/Android/iPad/Linux) and browser (Chrome/Safari/Firefox/Edge) 
+
+Store last_seen_at, last_device columns in the users table 
+
+ 
+
+ 
+
+🔴 FIX 4: AFK Screen After 10 Minutes of Inactivity 
+
+When a user has been inactive (no mouse, keyboard, scroll, touch) for 10 minutes: 
+
+Show a full-screen dark overlay with a sleep icon and text: "You've been away for a while. Click anywhere to return." 
+
+Any interaction dismisses the overlay without page reload 
+
+Implement globally in the App layout (not per-page) 
+
+Session stays valid — this is UI only, not a logout 
+
+ 
+
+🔴 FIX 5: Multi-Device Session Management (Discord-style) 
+
+Allow multiple simultaneous sessions with full visibility and control: 
+
+A) Allow multiple logins from different devices at the same time. Each login creates a session record with: session_id, user_id, device_info, ip_address, location_city, location_country, created_at, last_active_at, is_valid 
+
+B) User can view and manage their own sessions in Account Settings: 
+
+Current Device shown at top (highlighted) with device icon, OS, browser, location, "Active now" 
+
+Other Devices list: device icon (📱 mobile / 🖥️ desktop), OS · Browser, location (city, country), last active time (e.g., "3 hours ago") 
+
+X button to terminate any other session remotely 
+
+"Log out all other devices" button 
+
+C) Admin session control in Dashboard → Users: 
+
+Clicking a user shows their active sessions (device, location, last active) 
+
+Admin can terminate any specific session or all sessions of a user (force logout) 
+
+D) Device icons: 📱 for iPhone/Android/iPad, 🖥️ for Windows/Mac/Linux 
+
+Database table sessions: id, user_id, session_token, device_info, ip_address, location_city, location_country, created_at, last_active_at, is_valid 
+
+ 
+
+🔴 FIX 6: Fix External Links in Games & Scoreboard 
+
+VOD/external links currently navigate to vicious.services/events/[the-link] instead of the actual URL. Fix: 
+
+If link starts with http:// or https:// → open as-is in new tab 
+
+If missing protocol (e.g., x.com, kick.com) → prepend https:// before opening 
+
+Always open in new tab with target="_blank" rel="noopener noreferrer" 
+
+Never append to current page URL 
+
+ 
+
+🔴 FIX 7: Chat — Fix Images, Videos, Emoji Picker, and Link Previews 
+
+A) Images must display inline: 
+
+Render as actual <img> tags — not "[Attachment]" text 
+
+Ensure Express serves uploads statically: app.use('/uploads', express.static('uploads')) 
+
+Image src must be the correct public URL (e.g., /uploads/filename.jpg) 
+
+Clicking image opens fullscreen lightbox 
+
+B) Videos must play inline: 
+
+Render as <video controls> with correct src URL 
+
+Support mp4 and mov 
+
+C) Add Emoji Picker: 
+
+Add emoji button (😊) next to attachment button in chat input 
+
+Opens emoji panel with common emojis organized by category 
+
+Clicking emoji inserts it at cursor position in the message input 
+
+Use emoji-mart library or a simple custom emoji grid 
+
+D) Fix Link Preview/Clickable Links: 
+
+If a message contains a URL (http:// or https://), render it as a clickable hyperlink that opens in a new tab 
+
+Show the link in cyan color to distinguish it from regular text 
+
+D) Fix Link Preview/Clickable Links: 
+
+If a message contains a URL (http:// or https://), render it as a clickable hyperlink that opens in a new tab 
+
+Show the link in cyan color to distinguish it from regular text 
+
+ 
+
+ 
+
+🔴 FIX 8: Full Mobile Responsiveness 
+
+The site doesn't display well on mobile. Fix completely: 
+
+Sidebar collapses into hamburger menu on mobile (< 768px) 
+
+All tables are horizontally scrollable on mobile 
+
+Availability schedule: horizontal scroll with fixed first column (Role + Player name) 
+
+All modals are full-screen or near-full-screen on mobile 
+
+Chat works well on mobile with keyboard open 
+
+Appropriate font sizes, button sizes, spacing for touch 
+
+Test breakpoints: mobile (< 768px), tablet (768–1024px), desktop (> 1024px) 
+
+Use Tailwind responsive prefixes consistently 
+
+🔴 FIX 9: Comprehensive Activity Logs (Two Separate Logs) 
+
+Add two separate, detailed activity log systems: 
+
+ 
+
+LOG 1: Team Activity Log (User Actions) 
+
+Already partially exists — expand it to cover EVERY possible user action: 
+
+User registered (username, device, IP) 
+
+User approved / rejected (by whom) 
+
+User banned / unbanned (by whom, reason if added) 
+
+User deleted (by whom) 
+
+User role assigned / changed (old role → new role, by whom) 
+
+User renamed (old name → new name, by whom) 
+
+User logged in / logged out (device, IP, location) 
+
+Session terminated remotely (by whom, which device) 
+
+Chat message sent (channel name, message preview first 50 chars) 
+
+Chat message deleted (by whom, original message content, original sender) 
+
+Chat channel created / renamed / deleted (by whom) 
+
+Account created by admin (username, role assigned) 
+
+Password changed (by whom — self or admin) 
+
+ 
+
+LOG 2: System/Internal Activity Log (Site Changes) 
+
+A completely separate log tab in Dashboard called "System Log" that tracks all internal site changes: 
+
+Player added / edited / deleted (player name, by whom) 
+
+Staff added / edited / deleted (staff name, by whom) 
+
+Availability slot changed (player name, day, old value → new value, by whom) 
+
+Event created / edited / deleted (event name, type, by whom) 
+
+Game result added / edited / deleted (game code, event name, by whom) 
+
+Game mode added / edited / deleted (name, by whom) 
+
+Map added / edited / deleted (name, game mode, by whom) 
+
+Stat field added / edited / deleted (name, game mode, by whom) 
+
+Roster role added / edited / deleted (name, type, by whom) 
+
+Availability time slot added / edited / deleted (label, by whom) 
+
+Site theme changed (old theme → new theme, by whom) 
+
+Any Dashboard setting changed 
+
+ 
+
+Both logs must include for every entry: 
+
+Timestamp (date + time) 
+
+Acting user (username + role badge) 
+
+Action type label (color-coded badge) 
+
+Full details of what changed 
+
+IP address and device info 
+
+ 
+
+Filter system for both logs (same filters apply to both): 
+
+Filter by action type (multi-select dropdown) 
+
+Filter by acting user (searchable dropdown) 
+
+Filter by target/affected user or item 
+
+Filter by date range (from → to) 
+
+Quick filters: "Bans only", "Deleted messages", "Availability changes", "Login/logout", "Settings changes" 
+
+Search bar to search inside the details text 
+
+Sort: newest first / oldest first 
+
+Pagination (50 entries per page) 
+
+ 
+
+🔴 Owner-Only: Delete Individual Log Entries 
+
+Only the Owner role can delete individual log entries from either log: 
+
+Each log entry has a trash/delete icon visible ONLY to Owner 
+
+Clicking it shows a confirmation: "Delete this log entry? This cannot be undone." 
+
+Deleting a log entry does NOT undo the action — it only removes the record from the log 
+
+Deleted log entries are NOT themselves logged (no meta-logging) 
+
+Admins and all other roles cannot delete log entries and cannot see the delete icon 
+
+ 
+
+Design: Keep the existing dark blue/cyan theme throughout. Do not remove or break any existing features. 
+
+ 

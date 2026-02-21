@@ -8,6 +8,8 @@ import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Moon } from "lucide-react";
 import Login from "@/pages/Login";
 import Home from "@/pages/Home";
 import Events from "@/pages/Events";
@@ -47,6 +49,42 @@ function Router() {
   );
 }
 
+function AfkOverlay() {
+  const [isAfk, setIsAfk] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const AFK_TIMEOUT = 10 * 60 * 1000;
+
+  const resetTimer = useCallback(() => {
+    if (isAfk) setIsAfk(false);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setIsAfk(true), AFK_TIMEOUT);
+  }, [isAfk]);
+
+  useEffect(() => {
+    const events = ["mousemove", "mousedown", "keydown", "touchstart", "scroll"];
+    events.forEach(e => window.addEventListener(e, resetTimer, { passive: true }));
+    timerRef.current = setTimeout(() => setIsAfk(true), AFK_TIMEOUT);
+    return () => {
+      events.forEach(e => window.removeEventListener(e, resetTimer));
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [resetTimer]);
+
+  if (!isAfk) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-background/95 backdrop-blur-sm cursor-pointer"
+      onClick={resetTimer}
+      data-testid="afk-overlay"
+    >
+      <Moon className="h-16 w-16 text-muted-foreground mb-6 animate-pulse" />
+      <h2 className="text-2xl font-bold text-foreground mb-2">You appear to be away</h2>
+      <p className="text-muted-foreground">Click anywhere or press any key to return</p>
+    </div>
+  );
+}
+
 function AuthenticatedApp() {
   const { user, isLoading } = useAuth();
 
@@ -68,20 +106,23 @@ function AuthenticatedApp() {
   };
 
   return (
-    <SidebarProvider style={style as React.CSSProperties}>
-      <div className="flex h-screen w-full">
-        <AppSidebar />
-        <div className="flex flex-col flex-1 min-w-0">
-          <header className="flex items-center justify-between gap-1 p-2 border-b sticky top-0 z-50 bg-background">
-            <SidebarTrigger data-testid="button-sidebar-toggle" />
-            <ThemeToggle />
-          </header>
-          <main className="flex-1 overflow-auto">
-            <Router />
-          </main>
+    <>
+      <AfkOverlay />
+      <SidebarProvider style={style as React.CSSProperties}>
+        <div className="flex h-screen w-full">
+          <AppSidebar />
+          <div className="flex flex-col flex-1 min-w-0">
+            <header className="flex items-center justify-between gap-1 p-2 border-b sticky top-0 z-50 bg-background">
+              <SidebarTrigger data-testid="button-sidebar-toggle" />
+              <ThemeToggle />
+            </header>
+            <main className="flex-1 overflow-auto">
+              <Router />
+            </main>
+          </div>
         </div>
-      </div>
-    </SidebarProvider>
+      </SidebarProvider>
+    </>
   );
 }
 

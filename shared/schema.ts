@@ -364,6 +364,8 @@ export const activityLogs = pgTable("activity_logs", {
   action: text("action").notNull(),
   details: text("details"),
   ipAddress: text("ip_address"),
+  deviceInfo: text("device_info"),
+  logType: text("log_type").notNull().default("team"),
   createdAt: text("created_at").default(sql`now()`),
 }, (table) => [
   index("activity_logs_team_id_idx").on(table.teamId),

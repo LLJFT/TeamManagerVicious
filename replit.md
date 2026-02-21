@@ -29,10 +29,19 @@ The frontend utilizes a modern sidebar navigation built with Shadcn, organized i
 - `/account`: User account settings
 
 ### Chat Features
-The integrated chat system supports channel-based messaging, file uploads via object storage (using presigned URLs), @mentions with autocomplete, and user role display. It includes permissions for viewing, sending, and deleting messages (own or any), and renders video attachments and provides download links for other file types.
+The integrated chat system supports channel-based messaging, file uploads via object storage (using presigned URLs), @mentions with autocomplete, clickable URL detection, and user role display. It includes permissions for viewing, sending, and deleting messages (own or any), and renders video attachments and provides download links for other file types.
+
+### Session Management
+Users can view their active login sessions on the Account Settings page, showing device info and expiration. Non-current sessions can be terminated individually. Admins can terminate all sessions for any user via the Dashboard. Device info (OS + browser) is parsed from user-agent and stored in the session object on login.
 
 ### Activity Logging
-Key actions are automatically logged, including logins, user status changes, and role modifications. The dashboard provides an activity log with filters for text, action type, and user.
+Key actions are automatically logged with dual log types: "team" (operational actions) and "system" (logins, user management). The dashboard provides separate Team Activity and System Log tabs with filters for text, action type, and user. Owner-only delete route supports clearing logs by type.
+
+### Online/Offline Status & AFK
+Users are considered online if `lastSeen` is within 2 minutes. The Dashboard Users tab shows green/gray indicators with device info. An AFK overlay activates after 10 minutes of inactivity (mousemove/keydown/touchstart/scroll reset the timer) and is dismissed with any interaction.
+
+### Username Management
+Case-insensitive unique username enforcement using `ilike` at all mutation points (register, admin create, account settings, admin rename). Admins can rename users via a Dashboard dialog.
 
 ### UI/UX and Theming
 The application features a modern, bright, and energetic theme with a color scheme of vibrant blues, teals, and coral accents. The design prioritizes a professional, clean interface with consistent spacing and UI elements. Dark mode support is integrated.

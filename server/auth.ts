@@ -135,6 +135,25 @@ export async function bootstrapDefaultAdmin() {
   console.log("Default admin user created (username: Admin, password: Admin)");
 }
 
+export function parseUserAgent(ua: string): string {
+  let os = "Unknown";
+  let browser = "Unknown";
+
+  if (/iPhone/i.test(ua)) os = "iPhone";
+  else if (/iPad/i.test(ua)) os = "iPad";
+  else if (/Android/i.test(ua)) os = "Android";
+  else if (/Mac OS/i.test(ua)) os = "Mac";
+  else if (/Windows/i.test(ua)) os = "Windows";
+  else if (/Linux/i.test(ua)) os = "Linux";
+
+  if (/Edg\//i.test(ua)) browser = "Edge";
+  else if (/Chrome/i.test(ua) && !/Edg/i.test(ua)) browser = "Chrome";
+  else if (/Safari/i.test(ua) && !/Chrome/i.test(ua)) browser = "Safari";
+  else if (/Firefox/i.test(ua)) browser = "Firefox";
+
+  return `${os} — ${browser}`;
+}
+
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (!req.session.userId) {
     return res.status(401).json({ message: "Not authenticated" });
@@ -160,6 +179,14 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   if (user.status === "pending") {
     return res.status(403).json({ message: "Your account is pending approval" });
   }
+
+  const userAgent = req.headers["user-agent"] || "";
+  const deviceInfo = parseUserAgent(userAgent);
+  db.update(users)
+    .set({ lastSeen: new Date().toISOString(), lastUserAgent: deviceInfo })
+    .where(eq(users.id, user.id))
+    .then(() => {})
+    .catch(() => {});
 
   next();
 }

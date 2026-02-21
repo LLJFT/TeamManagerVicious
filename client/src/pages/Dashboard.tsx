@@ -92,24 +92,48 @@ interface ActivityLogEntry {
   userId: string | null;
   action: string;
   details: string | null;
+  logType: string;
+  deviceInfo: string | null;
   createdAt: string | null;
   actorName: string;
 }
 
-function ActivityLogTab() {
+function ActivityLogPanel({ logType, title }: { logType: string; title: string }) {
+  const { user } = useAuth();
+  const { toast } = useToast();
   const [actionFilter, setActionFilter] = useState("all");
   const [userFilter, setUserFilter] = useState("all");
   const [searchText, setSearchText] = useState("");
 
   const { data: logs = [], isLoading } = useQuery<ActivityLogEntry[]>({
-    queryKey: ["/api/activity-logs"],
+    queryKey: ["/api/activity-logs", logType],
+    queryFn: async () => {
+      const res = await fetch(`/api/activity-logs?logType=${logType}`);
+      if (!res.ok) throw new Error("Failed to fetch logs");
+      return res.json();
+    },
     refetchInterval: 15000,
+  });
+
+  const clearLogsMutation = useMutation({
+    mutationFn: async () => {
+      const r = await apiRequest("DELETE", `/api/activity-logs?logType=${logType}`);
+      return r.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/activity-logs", logType] });
+      toast({ title: "Logs cleared" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
   const actionLabels: Record<string, string> = {
     login: "Logged in",
     user_status_change: "User status changed",
     user_role_change: "User role changed",
+    username_change: "Username changed",
+    admin_rename_user: "Admin renamed user",
+    admin_terminate_sessions: "Sessions terminated",
   };
 
   const uniqueActions = useMemo(() => Array.from(new Set(logs.map(l => l.action))), [logs]);
@@ -139,6 +163,8 @@ function ActivityLogTab() {
     }
   };
 
+  const isOwner = user?.role?.name === "Owner";
+
   return (
     <Card>
       <CardHeader className="pb-4 border-b border-border">
@@ -148,10 +174,22 @@ function ActivityLogTab() {
               <Clock className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <CardTitle className="text-xl">Activity Log</CardTitle>
-              <CardDescription>Recent actions and events ({filteredLogs.length} of {logs.length})</CardDescription>
+              <CardTitle className="text-xl">{title}</CardTitle>
+              <CardDescription>{filteredLogs.length} of {logs.length} entries</CardDescription>
             </div>
           </div>
+          {isOwner && logs.length > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => { if (confirm(`Clear all ${title.toLowerCase()} entries?`)) clearLogsMutation.mutate(); }}
+              disabled={clearLogsMutation.isPending}
+              data-testid={`button-clear-${logType}-logs`}
+            >
+              <Trash2 className="h-4 w-4 mr-1" />
+              Clear
+            </Button>
+          )}
         </div>
         <div className="flex items-center gap-2 mt-3 flex-wrap">
           <div className="relative min-w-[160px] flex-1 max-w-[250px]">
@@ -161,11 +199,11 @@ function ActivityLogTab() {
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
               className="pl-9"
-              data-testid="input-search-activity"
+              data-testid={`input-search-${logType}-activity`}
             />
           </div>
           <Select value={actionFilter} onValueChange={setActionFilter}>
-            <SelectTrigger className="w-[160px]" data-testid="select-action-filter">
+            <SelectTrigger className="w-[160px]" data-testid={`select-${logType}-action-filter`}>
               <SelectValue placeholder="Action type" />
             </SelectTrigger>
             <SelectContent>
@@ -176,7 +214,7 @@ function ActivityLogTab() {
             </SelectContent>
           </Select>
           <Select value={userFilter} onValueChange={setUserFilter}>
-            <SelectTrigger className="w-[140px]" data-testid="select-user-filter">
+            <SelectTrigger className="w-[140px]" data-testid={`select-${logType}-user-filter`}>
               <SelectValue placeholder="User" />
             </SelectTrigger>
             <SelectContent>
@@ -218,6 +256,9 @@ function ActivityLogTab() {
                   {log.details && (
                     <p className="text-xs text-muted-foreground mt-0.5">{log.details}</p>
                   )}
+                  {log.deviceInfo && (
+                    <p className="text-xs text-muted-foreground/60 mt-0.5">{log.deviceInfo}</p>
+                  )}
                 </div>
               </div>
             ))}
@@ -225,6 +266,15 @@ function ActivityLogTab() {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function ActivityLogTab() {
+  return (
+    <div className="space-y-6">
+      <ActivityLogPanel logType="team" title="Team Activity" />
+      <ActivityLogPanel logType="system" title="System Log" />
+    </div>
   );
 }
 
@@ -245,6 +295,9 @@ export default function Dashboard() {
   const [createUserPassword, setCreateUserPassword] = useState("");
   const [createUserRoleId, setCreateUserRoleId] = useState("");
   const [createUserStatus, setCreateUserStatus] = useState("active");
+  const [showRenameDialog, setShowRenameDialog] = useState(false);
+  const [renameUserId, setRenameUserId] = useState("");
+  const [renameNewUsername, setRenameNewUsername] = useState("");
 
   const [editingGameMode, setEditingGameMode] = useState<GameMode | undefined>();
   const [editingMap, setEditingMap] = useState<MapType | undefined>();
@@ -656,6 +709,32 @@ export default function Dashboard() {
       showSuccess("User created");
     },
     onError: (e: any) => showError(e.message || "Failed to create user"),
+  });
+
+  const renameUserMutation = useMutation({
+    mutationFn: async (data: { id: string; username: string }) => {
+      const r = await apiRequest("PUT", `/api/users/${data.id}/rename`, { username: data.username });
+      return r.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      setShowRenameDialog(false);
+      setRenameUserId("");
+      setRenameNewUsername("");
+      showSuccess("Username updated");
+    },
+    onError: (e: any) => showError(e.message || "Failed to rename user"),
+  });
+
+  const terminateUserSessionsMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const r = await apiRequest("DELETE", `/api/admin/sessions/${userId}`);
+      return r.json();
+    },
+    onSuccess: () => {
+      showSuccess("All sessions terminated");
+    },
+    onError: (e: any) => showError(e.message || "Failed to terminate sessions"),
   });
 
   const createRoleMutation = useMutation({
@@ -1136,7 +1215,20 @@ export default function Dashboard() {
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="flex flex-col min-w-0">
-                            <span className="font-medium text-foreground" data-testid={`text-username-${user.id}`}>{user.username}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-foreground" data-testid={`text-username-${user.id}`}>{user.username}</span>
+                              {user.lastSeen && (() => {
+                                const lastSeenMs = new Date(user.lastSeen).getTime();
+                                const isOnline = Date.now() - lastSeenMs < 2 * 60 * 1000;
+                                return (
+                                  <span
+                                    className={`inline-block h-2 w-2 rounded-full ${isOnline ? "bg-green-500" : "bg-muted-foreground/40"}`}
+                                    title={isOnline ? "Online" : "Offline"}
+                                    data-testid={`status-indicator-${user.id}`}
+                                  />
+                                );
+                              })()}
+                            </div>
                             <div className="flex flex-wrap items-center gap-2 mt-1">
                               <Badge
                                 variant={user.status === "active" ? "default" : user.status === "pending" ? "secondary" : "destructive"}
@@ -1162,7 +1254,7 @@ export default function Dashboard() {
                                 </span>
                                 {user.lastUserAgent && (
                                   <span data-testid={`text-device-${user.id}`} className="truncate max-w-[200px]" title={user.lastUserAgent}>
-                                    {user.lastUserAgent.includes("Mobile") ? "Mobile" : "Desktop"}
+                                    {user.lastUserAgent}
                                   </span>
                                 )}
                               </div>
@@ -1229,6 +1321,23 @@ export default function Dashboard() {
                               ))}
                             </SelectContent>
                           </Select>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => { setRenameUserId(user.id); setRenameNewUsername(user.username); setShowRenameDialog(true); }}
+                            data-testid={`button-rename-user-${user.id}`}
+                          >
+                            <Pencil className="h-4 w-4 mr-1" />
+                            Rename
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => { if (confirm("Terminate all sessions for this user?")) terminateUserSessionsMutation.mutate(user.id); }}
+                            data-testid={`button-terminate-sessions-${user.id}`}
+                          >
+                            Force Logout
+                          </Button>
                           <Button
                             size="icon"
                             variant="ghost"
@@ -1799,6 +1908,39 @@ export default function Dashboard() {
                   data-testid="button-submit-create-user"
                 >
                   Create Account
+                </Button>
+              </DialogFooter>
+            </div>
+          </DialogContent>
+        </Dialog>
+        <Dialog open={showRenameDialog} onOpenChange={setShowRenameDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Rename User</DialogTitle>
+              <DialogDescription>Enter a new username for this user.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>New Username</Label>
+                <Input
+                  value={renameNewUsername}
+                  onChange={(e) => setRenameNewUsername(e.target.value)}
+                  placeholder="Enter new username"
+                  data-testid="input-rename-username"
+                />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setShowRenameDialog(false)}>Cancel</Button>
+                <Button
+                  onClick={() => {
+                    if (renameNewUsername.trim()) {
+                      renameUserMutation.mutate({ id: renameUserId, username: renameNewUsername.trim() });
+                    }
+                  }}
+                  disabled={!renameNewUsername.trim() || renameUserMutation.isPending}
+                  data-testid="button-submit-rename"
+                >
+                  Rename
                 </Button>
               </DialogFooter>
             </div>

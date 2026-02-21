@@ -954,7 +954,7 @@ export default function EventDetails() {
                                   </Button>
                                 )}
                                 {game.link && (
-                                  <a href={game.link} target="_blank" rel="noopener noreferrer">
+                                  <a href={game.link.match(/^https?:\/\//) ? game.link : `https://${game.link}`} target="_blank" rel="noopener noreferrer">
                                     <Button size="sm" variant="outline" data-testid={`button-vod-link-${game.id}`}>
                                       <ExternalLink className="h-4 w-4" />
                                     </Button>

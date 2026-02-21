@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, ilike, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { requireAuth, requirePermission } from "./auth";
 import { getTeamId } from "./storage";
@@ -20,10 +20,10 @@ import {
 } from "@shared/schema";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 
-async function logActivity(userId: string | null, action: string, details?: string) {
+async function logActivity(userId: string | null, action: string, details?: string, logType: string = "team", deviceInfo?: string) {
   try {
     const teamId = getTeamId();
-    await db.insert(activityLogs).values({ teamId, userId, action, details });
+    await db.insert(activityLogs).values({ teamId, userId, action, details, logType, deviceInfo });
   } catch (err) {
     console.error("Failed to log activity:", err);
   }
@@ -40,7 +40,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const teamId = getTeamId();
       const [user] = await db.select().from(users)
-        .where(and(eq(users.username, username), eq(users.teamId, teamId)))
+        .where(and(ilike(users.username, username.trim()), eq(users.teamId, teamId)))
         .limit(1);
       if (!user) {
         return res.status(401).json({ message: "Invalid credentials" });
@@ -54,12 +54,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (user.status === "banned") {
         return res.status(403).json({ message: "Account has been banned" });
       }
-      req.session.userId = user.id;
       const userAgent = req.headers["user-agent"] || "";
+      const { parseUserAgent } = await import("./auth");
+      const deviceInfo = parseUserAgent(userAgent);
+      req.session.userId = user.id;
+      (req.session as any).deviceInfo = deviceInfo;
+      (req.session as any).createdAt = new Date().toISOString();
       await db.update(users)
-        .set({ lastSeen: new Date().toISOString(), lastUserAgent: userAgent })
+        .set({ lastSeen: new Date().toISOString(), lastUserAgent: deviceInfo })
         .where(eq(users.id, user.id));
-      logActivity(user.id, "login", `User ${user.username} logged in`);
+      logActivity(user.id, "login", `User ${user.username} logged in`, "system", deviceInfo);
       const { passwordHash, ...safeUser } = user;
       let role = null;
       if (user.roleId) {
@@ -80,7 +84,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const teamId = getTeamId();
       const [existing] = await db.select().from(users)
-        .where(and(eq(users.username, username), eq(users.teamId, teamId)))
+        .where(and(ilike(users.username, username.trim()), eq(users.teamId, teamId)))
         .limit(1);
       if (existing) {
         return res.status(409).json({ message: "Username already taken" });
@@ -153,12 +157,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const updates: any = {};
-      if (username && username !== currentUser.username) updates.username = username;
+      if (username && username.trim() !== currentUser.username) {
+        const teamId = getTeamId();
+        const [dup] = await db.select().from(users)
+          .where(and(ilike(users.username, username.trim()), eq(users.teamId, teamId)))
+          .limit(1);
+        if (dup && dup.id !== userId) return res.status(400).json({ message: "Username already taken" });
+        updates.username = username.trim();
+      }
       if (newPassword) updates.passwordHash = await bcrypt.hash(newPassword, 10);
       if (avatarUrl !== undefined) updates.avatarUrl = avatarUrl;
       
       if (Object.keys(updates).length > 0) {
         await db.update(users).set(updates).where(eq(users.id, userId));
+        if (updates.username) logActivity(userId, "username_change", `Changed username to ${updates.username}`, "system");
       }
       
       res.json({ success: true });
@@ -202,7 +214,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const teamId = getTeamId();
       
-      const existing = await db.select().from(users).where(and(eq(users.username, username), eq(users.teamId, teamId)));
+      const existing = await db.select().from(users).where(and(ilike(users.username, username.trim()), eq(users.teamId, teamId)));
       if (existing.length > 0) return res.status(400).json({ message: "Username already taken" });
       
       const passwordHash = await bcrypt.hash(password, 10);
@@ -285,6 +297,109 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .returning();
       if (!deleted) return res.status(404).json({ message: "User not found" });
       res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.put("/api/users/:id/rename", requireAuth, requirePermission("manage_users"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { username } = req.body;
+      if (!username || !username.trim()) return res.status(400).json({ message: "Username required" });
+      const teamId = getTeamId();
+      const [dup] = await db.select().from(users)
+        .where(and(ilike(users.username, username.trim()), eq(users.teamId, teamId)))
+        .limit(1);
+      if (dup && dup.id !== id) return res.status(400).json({ message: "Username already taken" });
+      const [updated] = await db.update(users)
+        .set({ username: username.trim() })
+        .where(and(eq(users.id, id), eq(users.teamId, teamId)))
+        .returning();
+      if (!updated) return res.status(404).json({ message: "User not found" });
+      logActivity(req.session.userId!, "admin_rename_user", `Renamed user to ${username.trim()}`, "system");
+      const { passwordHash, ...safeUser } = updated;
+      res.json(safeUser);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/sessions", requireAuth, async (req, res) => {
+    try {
+      const userId = String(req.session.userId);
+      const currentSid = req.sessionID;
+      const result = await db.execute(sql`
+        SELECT sid, sess, expire FROM "session" 
+        WHERE sess::jsonb->>'userId' = ${userId}
+        ORDER BY expire DESC
+      `);
+      const sessions = (result.rows || []).map((row: any) => {
+        const sess = typeof row.sess === "string" ? JSON.parse(row.sess) : row.sess;
+        return {
+          sid: row.sid,
+          isCurrent: row.sid === currentSid,
+          deviceInfo: sess.deviceInfo || null,
+          createdAt: sess.createdAt || null,
+          expiresAt: row.expire,
+        };
+      });
+      res.json(sessions);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/sessions/:sid", requireAuth, async (req, res) => {
+    try {
+      const { sid } = req.params;
+      const userId = req.session.userId;
+      const result = await db.execute(sql`
+        SELECT sess FROM "session" WHERE sid = ${sid}
+      `);
+      if (!result.rows || result.rows.length === 0) return res.status(404).json({ message: "Session not found" });
+      const sess = typeof result.rows[0].sess === "string" ? JSON.parse(result.rows[0].sess) : result.rows[0].sess;
+      if (String(sess.userId) !== String(userId)) {
+        return res.status(403).json({ message: "Cannot terminate another user's session" });
+      }
+      await db.execute(sql`DELETE FROM "session" WHERE sid = ${sid}`);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/admin/sessions/:userId", requireAuth, requirePermission("manage_users"), async (req, res) => {
+    try {
+      const { userId } = req.params;
+      await db.execute(sql`
+        DELETE FROM "session" WHERE sess::jsonb->>'userId' = ${userId}
+      `);
+      logActivity(req.session.userId!, "admin_terminate_sessions", `Terminated all sessions for user ${userId}`, "system");
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/admin/sessions/:userId", requireAuth, requirePermission("manage_users"), async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const result = await db.execute(sql`
+        SELECT sid, sess, expire FROM "session" 
+        WHERE sess::jsonb->>'userId' = ${userId}
+        ORDER BY expire DESC
+      `);
+      const sessions = (result.rows || []).map((row: any) => {
+        const sess = typeof row.sess === "string" ? JSON.parse(row.sess) : row.sess;
+        return {
+          sid: row.sid,
+          deviceInfo: sess.deviceInfo || null,
+          createdAt: sess.createdAt || null,
+          expiresAt: row.expire,
+        };
+      });
+      res.json(sessions);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -607,15 +722,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/activity-logs", requireAuth, requirePermission("view_activity_log"), async (req, res) => {
     try {
       const teamId = getTeamId();
+      const logTypeFilter = req.query.logType as string | undefined;
+      const conditions = [eq(activityLogs.teamId, teamId)];
+      if (logTypeFilter) {
+        conditions.push(eq(activityLogs.logType, logTypeFilter));
+      }
       const logs = await db.select().from(activityLogs)
-        .where(eq(activityLogs.teamId, teamId))
+        .where(and(...conditions))
         .orderBy(activityLogs.createdAt);
       const allUsers = await db.select().from(users).where(eq(users.teamId, teamId));
       const enriched = logs.map(l => {
         const actor = l.userId ? allUsers.find(u => u.id === l.userId) : null;
         return { ...l, actorName: actor?.username || "System" };
       });
-      res.json(enriched.reverse().slice(0, 200));
+      res.json(enriched.reverse().slice(0, 500));
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/activity-logs", requireAuth, requirePermission("view_activity_log"), async (req, res) => {
+    try {
+      const userId = req.session.userId!;
+      const teamId = getTeamId();
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      if (!user?.roleId) return res.status(403).json({ message: "Forbidden" });
+      const [role] = await db.select().from(roles).where(eq(roles.id, user.roleId));
+      if (role?.name !== "Owner") return res.status(403).json({ message: "Only the Owner can clear logs" });
+      const logTypeFilter = req.query.logType as string | undefined;
+      if (logTypeFilter) {
+        await db.delete(activityLogs).where(and(eq(activityLogs.teamId, teamId), eq(activityLogs.logType, logTypeFilter)));
+      } else {
+        await db.delete(activityLogs).where(eq(activityLogs.teamId, teamId));
+      }
+      res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }

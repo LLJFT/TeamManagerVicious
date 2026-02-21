@@ -5,11 +5,88 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, User, Lock, Save } from "lucide-react";
+import { ArrowLeft, User, Lock, Save, Monitor, Trash2 } from "lucide-react";
 import { Link } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+
+interface SessionInfo {
+  sid: string;
+  isCurrent: boolean;
+  deviceInfo: string | null;
+  createdAt: string | null;
+  expiresAt: string | null;
+}
+
+function SessionsCard() {
+  const { toast } = useToast();
+
+  const { data: sessions = [], isLoading } = useQuery<SessionInfo[]>({
+    queryKey: ["/api/sessions"],
+  });
+
+  const terminateSessionMutation = useMutation({
+    mutationFn: async (sid: string) => {
+      const r = await apiRequest("DELETE", `/api/sessions/${sid}`);
+      return r.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+      toast({ title: "Session terminated" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Monitor className="h-5 w-5" />
+          Active Sessions
+        </CardTitle>
+        <CardDescription>Manage your active login sessions</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <p className="text-muted-foreground text-sm">Loading sessions...</p>
+        ) : sessions.length === 0 ? (
+          <p className="text-muted-foreground text-sm">No active sessions found</p>
+        ) : (
+          <div className="space-y-3">
+            {sessions.map((session) => (
+              <div key={session.sid} className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border" data-testid={`session-${session.sid}`}>
+                <div className="flex items-center gap-3 min-w-0">
+                  <Monitor className="h-5 w-5 text-muted-foreground shrink-0" />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-medium">{session.deviceInfo || "Unknown device"}</span>
+                      {session.isCurrent && <Badge variant="secondary">Current</Badge>}
+                    </div>
+                    {session.expiresAt && (
+                      <span className="text-xs text-muted-foreground">Expires: {new Date(session.expiresAt).toLocaleDateString()}</span>
+                    )}
+                  </div>
+                </div>
+                {!session.isCurrent && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => terminateSessionMutation.mutate(session.sid)}
+                    disabled={terminateSessionMutation.isPending}
+                    data-testid={`button-terminate-session-${session.sid}`}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function AccountSettings() {
   const { user } = useAuth();
@@ -172,6 +249,8 @@ export default function AccountSettings() {
               </Button>
             </CardContent>
           </Card>
+
+          <SessionsCard />
         </div>
       </div>
     </div>
