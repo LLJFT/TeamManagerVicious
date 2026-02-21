@@ -266,7 +266,7 @@ export default function Chat() {
     const ids: string[] = [];
     let match: RegExpExecArray | null;
     while ((match = mentionRegex.exec(text)) !== null) {
-      const mentioned = activeUsers.find(u => u.username.toLowerCase() === match[1].toLowerCase());
+      const mentioned = activeUsers.find(u => u.username.toLowerCase() === match![1].toLowerCase());
       if (mentioned) ids.push(mentioned.id);
     }
     return ids;
