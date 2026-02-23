@@ -22,25 +22,9 @@ import {
 } from "@shared/schema";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import multer from "multer";
-import path from "path";
-import fs from "fs";
-
-const uploadsDir = path.join(process.cwd(), "uploads");
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-const uploadStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadsDir),
-  filename: (_req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname);
-    cb(null, uniqueSuffix + ext);
-  },
-});
 
 const upload = multer({
-  storage: uploadStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
 });
 
@@ -55,22 +39,33 @@ async function logActivity(userId: string | null, action: string, details?: stri
 
 export async function registerRoutes(app: Express): Promise<Server> {
 
-  const express = await import("express");
-  app.use("/uploads", express.default.static(uploadsDir));
-
-  // ==================== FILE UPLOAD ====================
-  app.post("/api/upload", requireAuth, requirePermission("send_messages"), upload.single("file"), (req, res) => {
+  // ==================== FILE UPLOAD (Object Storage) ====================
+  app.post("/api/upload", requireAuth, requirePermission("send_messages"), upload.single("file"), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
       }
+      const objectStorageService = new ObjectStorageService();
+      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
+      const normalizedPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+
+      const uploadResponse = await fetch(uploadURL, {
+        method: "PUT",
+        body: req.file.buffer,
+        headers: { "Content-Type": req.file.mimetype },
+      });
+      if (!uploadResponse.ok) {
+        throw new Error(`Object storage upload failed: ${uploadResponse.status}`);
+      }
+
       res.json({
-        url: `/uploads/${req.file.filename}`,
+        url: normalizedPath,
         originalName: req.file.originalname,
         mimeType: req.file.mimetype,
         size: req.file.size,
       });
     } catch (error: any) {
+      console.error("Upload error:", error);
       res.status(500).json({ message: error.message });
     }
   });

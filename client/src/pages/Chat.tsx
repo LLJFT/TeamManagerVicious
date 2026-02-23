@@ -18,7 +18,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { MessageSquare, Hash, Plus, Trash2, Send, Paperclip, X, AtSign, FileText, Download, Settings, Menu } from "lucide-react";
+import { MessageSquare, Hash, Plus, Trash2, Send, Paperclip, X, AtSign, FileText, Download, Settings, Menu, Mic, Square, Smile } from "lucide-react";
+import EmojiPicker, { Theme } from "emoji-picker-react";
 
 interface ChatChannelWithPerms {
   id: string;
@@ -70,6 +71,13 @@ export default function Chat() {
   const [showChannelSettings, setShowChannelSettings] = useState(false);
   const [editChannelName, setEditChannelName] = useState("");
   const [settingsChannelId, setSettingsChannelId] = useState<string | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordingChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
   const canManageChannels = hasPermission("manage_channels");
   const canSendMessages = hasPermission("send_messages");
 
@@ -351,6 +359,91 @@ export default function Chat() {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/mp4")
+        ? "audio/mp4"
+        : "audio/ogg";
+      const recorder = new MediaRecorder(stream, { mimeType });
+      recordingChunksRef.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) recordingChunksRef.current.push(e.data);
+      };
+      recorder.onstop = () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(recordingChunksRef.current, { type: mimeType });
+        const ext = mimeType.includes("webm") ? "webm" : mimeType.includes("mp4") ? "m4a" : "ogg";
+        const file = new File([blob], `voice-message.${ext}`, { type: mimeType });
+        setSelectedFile(file);
+        if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+        setRecordingTime(0);
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start(100);
+      setIsRecording(true);
+      setRecordingTime(0);
+      recordingTimerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000);
+    } catch {
+      toast({ title: "Microphone access denied", description: "Please allow microphone access to record voice messages.", variant: "destructive" });
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+    setIsRecording(false);
+  };
+
+  const cancelRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.ondataavailable = null;
+      mediaRecorderRef.current.onstop = null;
+      mediaRecorderRef.current.stream.getTracks().forEach(t => t.stop());
+      mediaRecorderRef.current.stop();
+    }
+    recordingChunksRef.current = [];
+    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    setRecordingTime(0);
+    setIsRecording(false);
+  };
+
+  const formatRecordingTime = (seconds: number): string => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  };
+
+  const onEmojiClick = (emojiData: { emoji: string }) => {
+    const cursor = inputRef.current?.selectionStart ?? messageText.length;
+    const before = messageText.slice(0, cursor);
+    const after = messageText.slice(cursor);
+    setMessageText(before + emojiData.emoji + after);
+    setShowEmojiPicker(false);
+    inputRef.current?.focus();
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    };
+    if (showEmojiPicker) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showEmojiPicker]);
+
+  useEffect(() => {
+    return () => {
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    };
+  }, []);
+
   const renderMessageContent = (text: string | null) => {
     if (!text) return null;
     const tokenRegex = /(https?:\/\/[^\s]+|(?:www\.)[^\s]+\.[a-z]{2,}[^\s]*|@\w+)/gi;
@@ -577,18 +670,17 @@ export default function Chat() {
                             </video>
                           </div>
                         )}
-                        {msg.attachmentUrl && msg.attachmentType?.startsWith("audio/") && (
+                        {msg.attachmentUrl && (msg.attachmentType?.startsWith("audio/") || /\.(mp3|m4a|ogg|wav|webm|aac|flac|opus)$/i.test(msg.attachmentName || msg.attachmentUrl)) && (
                           <div className="mt-1 max-w-sm">
                             <audio
                               controls
+                              src={msg.attachmentUrl}
                               className="w-full"
                               data-testid={`audio-attachment-${msg.id}`}
-                            >
-                              <source src={msg.attachmentUrl} type={msg.attachmentType} />
-                            </audio>
+                            />
                           </div>
                         )}
-                        {msg.attachmentUrl && !msg.attachmentType?.startsWith("image/") && !msg.attachmentType?.startsWith("video/") && !msg.attachmentType?.startsWith("audio/") && (
+                        {msg.attachmentUrl && !msg.attachmentType?.startsWith("image/") && !msg.attachmentType?.startsWith("video/") && !msg.attachmentType?.startsWith("audio/") && !/\.(mp3|m4a|ogg|wav|webm|aac|flac|opus)$/i.test(msg.attachmentName || msg.attachmentUrl) && (
                           <Card className="mt-1 p-3 max-w-sm" data-testid={`file-attachment-card-${msg.id}`}>
                             <div className="flex items-center gap-2">
                               <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
@@ -685,39 +777,93 @@ export default function Chat() {
                     </div>
                   )}
 
-                  <div className="flex gap-2">
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      onChange={handleFileSelect}
-                      className="hidden"
-                      data-testid="input-file-upload"
-                    />
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => fileInputRef.current?.click()}
-                      data-testid="button-attach-file"
-                    >
-                      <Paperclip />
-                    </Button>
-                    <Input
-                      ref={inputRef}
-                      placeholder={`Message #${selectedChannel.name}`}
-                      value={messageText}
-                      onChange={handleInputChange}
-                      onKeyDown={handleKeyDown}
-                      data-testid="input-message"
-                    />
-                    <Button
-                      size="icon"
-                      onClick={handleSendMessage}
-                      disabled={sendMessageMutation.isPending || uploading || (!messageText.trim() && !selectedFile)}
-                      data-testid="button-send-message"
-                    >
-                      <Send />
-                    </Button>
-                  </div>
+                  {showEmojiPicker && (
+                    <div ref={emojiPickerRef} className="absolute bottom-full left-0 mb-1 z-50" data-testid="emoji-picker-container">
+                      <EmojiPicker
+                        onEmojiClick={onEmojiClick}
+                        theme={document.documentElement.classList.contains("dark") ? Theme.DARK : Theme.LIGHT}
+                        width={320}
+                        height={400}
+                      />
+                    </div>
+                  )}
+
+                  {isRecording ? (
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-1 px-3 py-2 rounded-md bg-destructive/10 border border-destructive/30">
+                        <div className="h-2 w-2 rounded-full bg-destructive animate-pulse shrink-0" />
+                        <span className="text-sm font-medium text-destructive" data-testid="text-recording-time">
+                          Recording {formatRecordingTime(recordingTime)}
+                        </span>
+                      </div>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={cancelRecording}
+                        data-testid="button-cancel-recording"
+                      >
+                        <X />
+                      </Button>
+                      <Button
+                        size="icon"
+                        onClick={stopRecording}
+                        data-testid="button-stop-recording"
+                      >
+                        <Square className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileSelect}
+                        className="hidden"
+                        data-testid="input-file-upload"
+                      />
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => fileInputRef.current?.click()}
+                        data-testid="button-attach-file"
+                      >
+                        <Paperclip />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                        data-testid="button-emoji-picker"
+                      >
+                        <Smile />
+                      </Button>
+                      <Input
+                        ref={inputRef}
+                        placeholder={`Message #${selectedChannel.name}`}
+                        value={messageText}
+                        onChange={handleInputChange}
+                        onKeyDown={handleKeyDown}
+                        data-testid="input-message"
+                      />
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={startRecording}
+                        disabled={!!selectedFile}
+                        data-testid="button-voice-record"
+                      >
+                        <Mic />
+                      </Button>
+                      <Button
+                        size="icon"
+                        onClick={handleSendMessage}
+                        disabled={sendMessageMutation.isPending || uploading || (!messageText.trim() && !selectedFile)}
+                        data-testid="button-send-message"
+                      >
+                        <Send />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
