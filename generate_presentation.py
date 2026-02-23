@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Team Manager - Professional PDF Presentation Generator
-Generates a polished landscape A4 presentation with dark navy theme.
+Clean corporate SaaS pitch deck style.
 """
 
 import os
@@ -10,101 +10,105 @@ from reportlab.lib.units import inch, mm
 from reportlab.lib.colors import Color, HexColor, white, black
 from reportlab.pdfgen import canvas
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
 from PIL import Image as PILImage
 
 WIDTH, HEIGHT = landscape(A4)
 
-BG_COLOR = HexColor("#0a1628")
-BG_LIGHTER = HexColor("#0f1f38")
-BG_CARD = HexColor("#111d33")
+BG = HexColor("#0a1628")
+BG_SUBTLE = HexColor("#0e1b30")
 CYAN = HexColor("#00c8ff")
-CYAN_DIM = HexColor("#0090b8")
-CYAN_DARK = HexColor("#005570")
-WHITE = HexColor("#ffffff")
-WHITE_DIM = HexColor("#b0bec5")
-WHITE_FAINT = HexColor("#607080")
-GOLD = HexColor("#ffc107")
-CORAL = HexColor("#ff6b6b")
-GREEN = HexColor("#4caf50")
-ORANGE = HexColor("#ff9800")
+CYAN_MUTED = HexColor("#0090b8")
+TEXT_PRIMARY = HexColor("#ffffff")
+TEXT_SECONDARY = HexColor("#94a3b8")
+TEXT_TERTIARY = HexColor("#64748b")
+DIVIDER = HexColor("#1e293b")
+CARD_BG = HexColor("#0f1d32")
+GREEN = HexColor("#22c55e")
+FRAME_BG = HexColor("#f0f4f8")
 
-BOTTOM_BAR_H = 22
-MARGIN = 40
+MARGIN = 48
+FOOTER_H = 24
 
+SS_DIR = "screenshots_new/Screen shots_"
 SCREENSHOTS = {
-    "schedule": "uploads/schedule.png",
-    "events": "uploads/events.png",
-    "results": "uploads/results.png",
-    "stats": "uploads/stats.png",
-    "compare": "uploads/compare.png",
-    "opponents": "uploads/opponents.png",
-    "player_stats": "uploads/player_stats.png",
-    "players": "uploads/players.png",
-    "dashboard_users": "uploads/dashboard_users.png",
-    "dashboard_roles": "uploads/dashboard_roles.png",
-    "dashboard_log": "uploads/dashboard_log.png",
-    "chat": "uploads/chat.png",
+    "schedule": f"{SS_DIR}/schedule.png",
+    "schedule_manage": f"{SS_DIR}/schedule_manage.png",
+    "events": f"{SS_DIR}/events.png",
+    "results": f"{SS_DIR}/results.png",
+    "scoreboard": f"{SS_DIR}/scoreboard.png",
+    "stats": f"{SS_DIR}/stats.png",
+    "compare": f"{SS_DIR}/compare.png",
+    "stats_by_opponents": f"{SS_DIR}/stats_by_opponents.png",
+    "overall_player_stats": f"{SS_DIR}/overall_player_stats.png",
+    "player_stat_by_mode": f"{SS_DIR}/player_stat_by_mode.png",
+    "player_stats_vs_opponents": f"{SS_DIR}/player_stats_vs_opponents.png",
+    "players": f"{SS_DIR}/players.png",
+    "add_player": f"{SS_DIR}/add_player.png",
+    "view_staff": f"{SS_DIR}/view_staff.png",
+    "add_staff": f"{SS_DIR}/add_staff.png",
+    "attendance_add": f"{SS_DIR}/attendance_add.png",
+    "attendance_record": f"{SS_DIR}/attendance_record.png",
+    "chat": f"{SS_DIR}/chat.png",
+    "channel_settings": f"{SS_DIR}/channel_settings.png",
+    "dashboard_users": f"{SS_DIR}/dashboard_users.png",
+    "dashboard_roles": f"{SS_DIR}/dashboard_roles.png",
+    "create_role": f"{SS_DIR}/create_role.png",
+    "dashboard_team": f"{SS_DIR}/dashboard_team.png",
+    "dashboard_game_config": f"{SS_DIR}/dashboard_game_config.png",
+    "dashboard_log": f"{SS_DIR}/dashboard_log.png",
+    "stat_fields": f"{SS_DIR}/stat_fields.png",
 }
 
-FRAME_COLOR = HexColor("#f0f4f8")
-FRAME_PAD = 8
 
-
-def draw_background(c):
-    c.setFillColor(BG_COLOR)
+def draw_bg(c):
+    c.setFillColor(BG)
     c.rect(0, 0, WIDTH, HEIGHT, fill=1, stroke=0)
 
 
-def draw_bottom_bar(c, current_slide, total_slides):
-    bar_y = 0
-    c.setFillColor(HexColor("#060e1a"))
-    c.rect(0, bar_y, WIDTH, BOTTOM_BAR_H, fill=1, stroke=0)
+def draw_footer(c, slide_num, total):
+    c.setFillColor(HexColor("#060d18"))
+    c.rect(0, 0, WIDTH, FOOTER_H, fill=1, stroke=0)
 
-    progress_w = 200
-    progress_h = 4
-    progress_x = (WIDTH - progress_w) / 2
-    progress_y = bar_y + (BOTTOM_BAR_H - progress_h) / 2
+    c.setFillColor(TEXT_TERTIARY)
+    c.setFont("Helvetica", 7.5)
+    c.drawString(MARGIN, 8, "Team Manager")
 
-    c.setFillColor(HexColor("#1a2a40"))
-    c.roundRect(progress_x, progress_y, progress_w, progress_h, 2, fill=1, stroke=0)
+    c.setFillColor(TEXT_TERTIARY)
+    c.drawRightString(WIDTH - MARGIN, 8, f"{slide_num} / {total}")
 
-    fill_w = progress_w * (current_slide / total_slides)
-    if fill_w > 0:
+    bar_w = 120
+    bar_h = 2
+    bar_x = (WIDTH - bar_w) / 2
+    bar_y = FOOTER_H / 2 - 1
+    c.setFillColor(DIVIDER)
+    c.roundRect(bar_x, bar_y, bar_w, bar_h, 1, fill=1, stroke=0)
+    fill = bar_w * (slide_num / total)
+    if fill > 0:
         c.setFillColor(CYAN)
-        c.roundRect(progress_x, progress_y, fill_w, progress_h, 2, fill=1, stroke=0)
-
-    c.setFillColor(WHITE_FAINT)
-    c.setFont("Helvetica", 8)
-    c.drawString(MARGIN, bar_y + 7, "Team Manager")
-    c.drawRightString(WIDTH - MARGIN, bar_y + 7, "@2ndd")
+        c.roundRect(bar_x, bar_y, fill, bar_h, 1, fill=1, stroke=0)
 
 
-def draw_drop_shadow(c, x, y, w, h, offset=6, blur_steps=12):
-    for i in range(blur_steps, 0, -1):
-        alpha = 0.35 * (blur_steps - i + 1) / blur_steps
-        shadow_color = Color(0, 0, 0, alpha)
-        c.setFillColor(shadow_color)
-        expand = i * 2.0
+def draw_shadow(c, x, y, w, h):
+    for i in range(10, 0, -1):
+        alpha = 0.25 * (10 - i + 1) / 10
+        c.setFillColor(Color(0, 0, 0, alpha))
+        expand = i * 2.5
         c.roundRect(
-            x + offset - expand / 2,
-            y - offset - expand / 2,
+            x + 4 - expand / 2,
+            y - 6 - expand / 2,
             w + expand,
             h + expand,
-            6,
-            fill=1,
-            stroke=0,
+            6, fill=1, stroke=0,
         )
 
 
-def draw_screenshot(c, img_path, x, y, max_w, max_h):
+def draw_framed_screenshot(c, img_path, x, y, max_w, max_h):
     if not os.path.exists(img_path):
-        c.setFillColor(BG_CARD)
-        c.roundRect(x, y, max_w, max_h, 6, fill=1, stroke=0)
-        c.setFillColor(WHITE_FAINT)
-        c.setFont("Helvetica", 10)
-        c.drawCentredString(x + max_w / 2, y + max_h / 2, "Screenshot not available")
+        c.setFillColor(CARD_BG)
+        c.roundRect(x, y, max_w, max_h, 4, fill=1, stroke=0)
+        c.setFillColor(TEXT_TERTIARY)
+        c.setFont("Helvetica", 9)
+        c.drawCentredString(x + max_w / 2, y + max_h / 2, "[screenshot]")
         return
 
     try:
@@ -113,203 +117,226 @@ def draw_screenshot(c, img_path, x, y, max_w, max_h):
     except Exception:
         iw, ih = 1920, 1080
 
-    pad = FRAME_PAD
-    inner_max_w = max_w - pad * 2
-    inner_max_h = max_h - pad * 2
-
-    scale = min(inner_max_w / iw, inner_max_h / ih)
+    pad = 6
+    inner_w = max_w - pad * 2
+    inner_h = max_h - pad * 2
+    scale = min(inner_w / iw, inner_h / ih)
     draw_w = iw * scale
     draw_h = ih * scale
 
     frame_w = draw_w + pad * 2
     frame_h = draw_h + pad * 2
-
     frame_x = x + (max_w - frame_w) / 2
     frame_y = y + (max_h - frame_h) / 2
 
-    draw_drop_shadow(c, frame_x, frame_y, frame_w, frame_h, offset=8, blur_steps=14)
+    draw_shadow(c, frame_x, frame_y, frame_w, frame_h)
 
-    c.setFillColor(FRAME_COLOR)
-    c.roundRect(frame_x, frame_y, frame_w, frame_h, 6, fill=1, stroke=0)
-
-    img_x = frame_x + pad
-    img_y = frame_y + pad
+    c.setFillColor(FRAME_BG)
+    c.roundRect(frame_x, frame_y, frame_w, frame_h, 5, fill=1, stroke=0)
 
     c.drawImage(
-        img_path, img_x, img_y, draw_w, draw_h,
+        img_path, frame_x + pad, frame_y + pad, draw_w, draw_h,
         preserveAspectRatio=True, mask="auto"
     )
 
 
-def draw_feature_slide(c, slide_num, total, title, subtitle, bullets, screenshot_key,
-                        left_pct=0.30):
-    draw_background(c)
+def wrap_text(c, text, font_name, font_size, max_width):
+    words = text.split()
+    lines = []
+    current = ""
+    for word in words:
+        test = current + (" " if current else "") + word
+        if c.stringWidth(test, font_name, font_size) > max_width and current:
+            lines.append(current)
+            current = word
+        else:
+            current = test
+    if current:
+        lines.append(current)
+    return lines
 
-    left_w = WIDTH * left_pct
-    right_w = WIDTH * (1 - left_pct)
+
+def draw_title_slide(c, sn, total):
+    draw_bg(c)
+
+    c.setFillColor(TEXT_PRIMARY)
+    c.setFont("Helvetica-Bold", 42)
+    c.drawCentredString(WIDTH / 2, HEIGHT / 2 + 40, "Team Manager")
 
     c.setFillColor(CYAN)
-    c.setFont("Helvetica-Bold", 26)
-    title_y = HEIGHT - 100
-    max_title_w = left_w - MARGIN * 2
+    c.setFont("Helvetica", 16)
+    c.drawCentredString(WIDTH / 2, HEIGHT / 2, "Professional Esports Team Management")
 
-    words = title.split()
-    lines = []
-    current_line = ""
-    for word in words:
-        test = current_line + (" " if current_line else "") + word
-        if c.stringWidth(test, "Helvetica-Bold", 26) > max_title_w and current_line:
-            lines.append(current_line)
-            current_line = word
-        else:
-            current_line = test
-    if current_line:
-        lines.append(current_line)
+    c.setStrokeColor(DIVIDER)
+    c.setLineWidth(1)
+    lw = 60
+    c.line(WIDTH / 2 - lw, HEIGHT / 2 - 25, WIDTH / 2 + lw, HEIGHT / 2 - 25)
 
-    for i, line in enumerate(lines):
-        c.drawString(MARGIN, title_y - i * 32, line)
-    title_bottom = title_y - (len(lines) - 1) * 32
+    c.setFillColor(TEXT_SECONDARY)
+    c.setFont("Helvetica", 12)
+    c.drawCentredString(WIDTH / 2, HEIGHT / 2 - 50,
+                        "Streamline operations. Track performance. Win more.")
 
-    if subtitle:
-        c.setFillColor(WHITE_DIM)
-        c.setFont("Helvetica", 11)
-        c.drawString(MARGIN, title_bottom - 28, subtitle)
-        bullet_start_y = title_bottom - 60
-    else:
-        bullet_start_y = title_bottom - 40
+    c.setFillColor(TEXT_TERTIARY)
+    c.setFont("Helvetica", 10)
+    c.drawCentredString(WIDTH / 2, FOOTER_H + 40,
+                        "Built for competitive teams who take winning seriously")
 
-    c.setFont("Helvetica", 11)
-    line_height = 22
-    for i, bullet in enumerate(bullets):
-        by = bullet_start_y - i * line_height
-        c.setFillColor(CYAN)
-        c.drawString(MARGIN, by, "\u2022")
-        c.setFillColor(WHITE_DIM)
+    draw_footer(c, sn, total)
+    c.showPage()
 
-        bwords = bullet.split()
-        blines = []
-        bcurrent = ""
-        for word in bwords:
-            test = bcurrent + (" " if bcurrent else "") + word
-            if c.stringWidth(test, "Helvetica", 11) > max_title_w - 20 and bcurrent:
-                blines.append(bcurrent)
-                bcurrent = word
-            else:
-                bcurrent = test
-        if bcurrent:
-            blines.append(bcurrent)
 
-        for j, bline in enumerate(blines):
-            c.drawString(MARGIN + 14, by - j * 16, bline)
-        if len(blines) > 1:
-            bullet_start_y -= (len(blines) - 1) * 16
-
-    img_margin = 20
-    img_x = left_w + img_margin
-    img_y = BOTTOM_BAR_H + img_margin + 10
-    img_w = right_w - img_margin * 2
-    img_h = HEIGHT - img_y - img_margin - 10
+def draw_feature_slide(c, sn, total, title, subtitle, bullets, screenshot_key,
+                       layout="right"):
+    draw_bg(c)
 
     img_path = SCREENSHOTS.get(screenshot_key, "")
-    draw_screenshot(c, img_path, img_x, img_y, img_w, img_h)
+    has_image = os.path.exists(img_path) if img_path else False
 
-    draw_bottom_bar(c, slide_num, total)
+    if not has_image:
+        layout = "text_only"
+
+    if layout == "right":
+        text_x = MARGIN
+        text_w = WIDTH * 0.32 - MARGIN
+        img_x = WIDTH * 0.32
+        img_y = FOOTER_H + 20
+        img_w = WIDTH * 0.68 - MARGIN
+        img_h = HEIGHT - FOOTER_H - 40
+    elif layout == "left":
+        img_x = MARGIN
+        img_y = FOOTER_H + 20
+        img_w = WIDTH * 0.62 - MARGIN
+        img_h = HEIGHT - FOOTER_H - 40
+        text_x = WIDTH * 0.64
+        text_w = WIDTH - WIDTH * 0.64 - MARGIN
+    elif layout == "center":
+        text_x = MARGIN
+        text_w = WIDTH - MARGIN * 2
+        img_x = MARGIN + 40
+        img_y = FOOTER_H + 20
+        img_w = WIDTH - MARGIN * 2 - 80
+        img_h = HEIGHT - 200
+    else:
+        text_x = MARGIN
+        text_w = WIDTH - MARGIN * 2
+
+    title_y = HEIGHT - 70
+
+    c.setFillColor(TEXT_PRIMARY)
+    c.setFont("Helvetica-Bold", 24)
+    title_lines = wrap_text(c, title, "Helvetica-Bold", 24, text_w)
+    for i, line in enumerate(title_lines):
+        c.drawString(text_x, title_y - i * 30, line)
+    current_y = title_y - (len(title_lines) - 1) * 30
+
+    if subtitle:
+        current_y -= 24
+        c.setFillColor(TEXT_SECONDARY)
+        c.setFont("Helvetica", 11)
+        c.drawString(text_x, current_y, subtitle)
+
+    current_y -= 12
+    c.setStrokeColor(DIVIDER)
+    c.setLineWidth(0.5)
+    c.line(text_x, current_y, text_x + min(text_w, 200), current_y)
+
+    current_y -= 22
+
+    c.setFont("Helvetica", 10.5)
+    for bullet in bullets:
+        bl = wrap_text(c, bullet, "Helvetica", 10.5, text_w - 16)
+        for j, bline in enumerate(bl):
+            if j == 0:
+                c.setFillColor(CYAN)
+                c.drawString(text_x, current_y, "\u2022")
+            c.setFillColor(TEXT_SECONDARY)
+            c.drawString(text_x + 14, current_y, bline)
+            current_y -= 18
+
+    if layout in ("right", "left"):
+        draw_framed_screenshot(c, img_path, img_x, img_y, img_w, img_h)
+    elif layout == "center" and has_image:
+        draw_framed_screenshot(c, img_path, img_x, img_y, img_w, img_h)
+
+    draw_footer(c, sn, total)
     c.showPage()
 
 
-def draw_title_slide(c, slide_num, total):
-    draw_background(c)
+def draw_dual_screenshot_slide(c, sn, total, title, subtitle, key_left, key_right,
+                                label_left="", label_right=""):
+    draw_bg(c)
 
-    c.setFillColor(BG_LIGHTER)
-    c.rect(0, 0, WIDTH, HEIGHT, fill=1, stroke=0)
+    c.setFillColor(TEXT_PRIMARY)
+    c.setFont("Helvetica-Bold", 24)
+    c.drawCentredString(WIDTH / 2, HEIGHT - 55, title)
 
-    for i in range(5):
-        alpha = 0.03 * (5 - i)
-        c.setStrokeColor(Color(0, 0.78, 1, alpha))
-        c.setLineWidth(1)
-        r = 150 + i * 60
-        c.circle(WIDTH * 0.75, HEIGHT * 0.4, r, fill=0, stroke=1)
+    if subtitle:
+        c.setFillColor(TEXT_SECONDARY)
+        c.setFont("Helvetica", 11)
+        c.drawCentredString(WIDTH / 2, HEIGHT - 78, subtitle)
 
-    c.setFillColor(CYAN)
-    logo_x = WIDTH / 2
-    logo_y = HEIGHT - 160
-    c.circle(logo_x, logo_y, 30, fill=0, stroke=0)
-    c.setStrokeColor(CYAN)
-    c.setLineWidth(3)
-    c.circle(logo_x, logo_y, 30, fill=0, stroke=1)
-    c.setFont("Helvetica-Bold", 22)
-    c.drawCentredString(logo_x, logo_y - 8, "TM")
+    gap = 24
+    img_w = (WIDTH - MARGIN * 2 - gap) / 2
+    img_h = HEIGHT - 140
+    img_y = FOOTER_H + 20
 
-    c.setFillColor(WHITE)
-    c.setFont("Helvetica-Bold", 44)
-    c.drawCentredString(WIDTH / 2, HEIGHT / 2 + 30, "Team Manager")
+    draw_framed_screenshot(c, SCREENSHOTS.get(key_left, ""),
+                           MARGIN, img_y, img_w, img_h)
+    draw_framed_screenshot(c, SCREENSHOTS.get(key_right, ""),
+                           MARGIN + img_w + gap, img_y, img_w, img_h)
 
-    c.setFillColor(CYAN)
-    c.setFont("Helvetica", 18)
-    c.drawCentredString(WIDTH / 2, HEIGHT / 2 - 10, "Professional Esports Team Management Platform")
+    if label_left:
+        c.setFillColor(TEXT_TERTIARY)
+        c.setFont("Helvetica", 8.5)
+        c.drawCentredString(MARGIN + img_w / 2, img_y - 2, label_left)
+    if label_right:
+        c.setFillColor(TEXT_TERTIARY)
+        c.setFont("Helvetica", 8.5)
+        c.drawCentredString(MARGIN + img_w + gap + img_w / 2, img_y - 2, label_right)
 
-    line_w = 100
-    c.setStrokeColor(CYAN_DARK)
-    c.setLineWidth(2)
-    c.line(WIDTH / 2 - line_w / 2, HEIGHT / 2 - 35, WIDTH / 2 + line_w / 2, HEIGHT / 2 - 35)
-
-    c.setFillColor(WHITE_DIM)
-    c.setFont("Helvetica", 13)
-    c.drawCentredString(WIDTH / 2, HEIGHT / 2 - 60,
-                        "Streamline your team operations. Dominate the competition.")
-
-    c.setFillColor(WHITE_FAINT)
-    c.setFont("Helvetica", 10)
-    c.drawCentredString(WIDTH / 2, 80, "Built for competitive teams who take winning seriously")
-
-    draw_bottom_bar(c, slide_num, total)
+    draw_footer(c, sn, total)
     c.showPage()
 
 
-def draw_pricing_slide(c, slide_num, total):
-    draw_background(c)
+def draw_pricing_slide(c, sn, total):
+    draw_bg(c)
 
-    c.setFillColor(CYAN)
-    c.setFont("Helvetica-Bold", 32)
-    c.drawCentredString(WIDTH / 2, HEIGHT - 65, "Choose Your Plan")
-    c.setFillColor(WHITE_DIM)
-    c.setFont("Helvetica", 12)
-    c.drawCentredString(WIDTH / 2, HEIGHT - 88, "Flexible pricing that scales with your team")
+    c.setFillColor(TEXT_PRIMARY)
+    c.setFont("Helvetica-Bold", 28)
+    c.drawCentredString(WIDTH / 2, HEIGHT - 60, "Choose Your Plan")
+    c.setFillColor(TEXT_SECONDARY)
+    c.setFont("Helvetica", 11)
+    c.drawCentredString(WIDTH / 2, HEIGHT - 82, "Flexible pricing for teams of any size")
 
-    card_w = 230
-    card_h = 340
-    gap = 30
+    card_w = 220
+    card_h = 320
+    gap = 28
     total_w = card_w * 3 + gap * 2
     start_x = (WIDTH - total_w) / 2
-    card_y = HEIGHT / 2 - card_h / 2 - 10
+    card_y = HEIGHT / 2 - card_h / 2 - 15
 
     plans = [
         {
             "name": "Monthly",
             "price": "$40",
             "per": "/mo",
-            "discount": None,
-            "was": None,
-            "save": None,
+            "desc": "Essential tools",
             "best": False,
-            "total": None,
             "features": [
                 "Schedule Management",
                 "Events & Results",
-                "Players Management",
+                "Player Management",
                 "Match History",
-                "Dashboard (Users only)",
+                "Basic Dashboard",
             ],
         },
         {
             "name": "3 Months",
             "price": "$30",
             "per": "/mo",
-            "discount": "Save 25%",
-            "was": "$40/mo",
-            "save": "25%",
+            "desc": "$90 total  \u2022  Save 25%",
             "best": False,
-            "total": "$90 total",
             "features": [
                 "Everything in Monthly",
                 "Statistics & Analytics",
@@ -322,19 +349,16 @@ def draw_pricing_slide(c, slide_num, total):
             "name": "6 Months",
             "price": "$26",
             "per": "/mo",
-            "discount": "Save 35%",
-            "was": "$40/mo",
-            "save": "35%",
+            "desc": "$156 total  \u2022  Save 35%",
             "best": True,
-            "total": "$156 total",
             "features": [
                 "Everything in 3 Months",
-                "Unlimited Users",
+                "Unlimited Users & Storage",
                 "Full Admin Access",
-                "Game Config & Roles",
+                "Custom Roles & Permissions",
                 "Activity Log",
-                "Unlimited Storage",
-                "Custom Permissions",
+                "Game Config",
+                "Priority Support",
             ],
         },
     ]
@@ -342,240 +366,167 @@ def draw_pricing_slide(c, slide_num, total):
     for i, plan in enumerate(plans):
         cx = start_x + i * (card_w + gap)
         cy = card_y
+        ch = card_h
 
         if plan["best"]:
-            cy += 10
-            ch = card_h + 10
+            cy += 8
+            ch += 12
+
+            draw_shadow(c, cx - 2, cy - 2, card_w + 4, ch + 4)
             c.setStrokeColor(CYAN)
-            c.setLineWidth(2)
-            c.setFillColor(HexColor("#0a1e35"))
-            c.roundRect(cx, cy - 5, card_w, ch, 10, fill=1, stroke=1)
+            c.setLineWidth(1.5)
+            c.setFillColor(CARD_BG)
+            c.roundRect(cx, cy, card_w, ch, 8, fill=1, stroke=1)
 
-            banner_h = 24
             c.setFillColor(CYAN)
-            c.roundRect(cx, cy + ch - banner_h - 5, card_w, banner_h + 5, 10, fill=1, stroke=0)
-            c.setFillColor(HexColor("#0a1628"))
-            c.rect(cx, cy + ch - banner_h - 5, card_w, 10, fill=1, stroke=0)
-            c.setFillColor(CYAN)
-            c.roundRect(cx, cy + ch - banner_h, card_w, banner_h + 5, 10, fill=1, stroke=0)
-            c.setFillColor(BG_COLOR)
-            c.setFont("Helvetica-Bold", 11)
-            c.drawCentredString(cx + card_w / 2, cy + ch - banner_h + 5, "BEST VALUE")
+            badge_w = 80
+            badge_h = 20
+            badge_x = cx + card_w / 2 - badge_w / 2
+            badge_y = cy + ch - 6
+            c.roundRect(badge_x, badge_y - badge_h / 2, badge_w, badge_h, 10, fill=1, stroke=0)
+            c.setFillColor(BG)
+            c.setFont("Helvetica-Bold", 8)
+            c.drawCentredString(cx + card_w / 2, badge_y - 3, "BEST VALUE")
         else:
-            ch = card_h
-            c.setStrokeColor(HexColor("#1a3050"))
+            c.setStrokeColor(DIVIDER)
             c.setLineWidth(1)
-            c.setFillColor(BG_CARD)
-            c.roundRect(cx, cy, card_w, ch, 10, fill=1, stroke=1)
+            c.setFillColor(CARD_BG)
+            c.roundRect(cx, cy, card_w, ch, 8, fill=1, stroke=1)
 
-        content_top = cy + ch - (40 if plan["best"] else 20)
+        top = cy + ch - (35 if plan["best"] else 22)
 
-        c.setFillColor(WHITE)
-        c.setFont("Helvetica-Bold", 18)
-        c.drawCentredString(cx + card_w / 2, content_top - 10, plan["name"])
+        c.setFillColor(TEXT_SECONDARY)
+        c.setFont("Helvetica", 12)
+        c.drawCentredString(cx + card_w / 2, top, plan["name"])
 
-        c.setFillColor(CYAN if plan["best"] else WHITE)
-        c.setFont("Helvetica-Bold", 36)
-        price_w = c.stringWidth(plan["price"], "Helvetica-Bold", 36)
-        price_x = cx + card_w / 2 - price_w / 2 - 10
-        c.drawString(price_x, content_top - 55, plan["price"])
-        c.setFillColor(WHITE_DIM)
-        c.setFont("Helvetica", 14)
-        c.drawString(price_x + price_w + 2, content_top - 50, plan["per"])
+        c.setFillColor(TEXT_PRIMARY if not plan["best"] else CYAN)
+        c.setFont("Helvetica-Bold", 34)
+        pw = c.stringWidth(plan["price"], "Helvetica-Bold", 34)
+        px = cx + card_w / 2 - pw / 2 - 8
+        c.drawString(px, top - 42, plan["price"])
+        c.setFillColor(TEXT_SECONDARY)
+        c.setFont("Helvetica", 12)
+        c.drawString(px + pw + 2, top - 37, plan["per"])
 
-        info_y = content_top - 75
-        if plan["was"]:
-            c.setFillColor(WHITE_FAINT)
-            c.setFont("Helvetica", 9)
-            was_text = f"was {plan['was']}"
-            c.drawCentredString(cx + card_w / 2 - 30, info_y, was_text)
+        c.setFillColor(TEXT_TERTIARY)
+        c.setFont("Helvetica", 8.5)
+        c.drawCentredString(cx + card_w / 2, top - 60, plan["desc"])
 
-            c.setFillColor(GREEN)
-            c.setFont("Helvetica-Bold", 9)
-            c.drawCentredString(cx + card_w / 2 + 30, info_y, plan["discount"])
-            info_y -= 14
-
-        if plan["total"]:
-            c.setFillColor(WHITE_FAINT)
-            c.setFont("Helvetica", 9)
-            c.drawCentredString(cx + card_w / 2, info_y, plan["total"])
-
-        c.setStrokeColor(HexColor("#1a3050"))
+        c.setStrokeColor(DIVIDER)
         c.setLineWidth(0.5)
-        sep_y = content_top - 100
+        sep_y = top - 76
         c.line(cx + 20, sep_y, cx + card_w - 20, sep_y)
 
-        feat_y = sep_y - 20
-        c.setFont("Helvetica", 9.5)
+        fy = sep_y - 20
+        c.setFont("Helvetica", 9)
         for feat in plan["features"]:
-            c.setFillColor(CYAN)
-            c.drawString(cx + 25, feat_y, "\u2713")
-            c.setFillColor(WHITE_DIM)
-            c.drawString(cx + 40, feat_y, feat)
-            feat_y -= 18
+            c.setFillColor(CYAN if plan["best"] else GREEN)
+            c.drawString(cx + 22, fy, "\u2713")
+            c.setFillColor(TEXT_SECONDARY)
+            c.drawString(cx + 36, fy, feat)
+            fy -= 17
 
-    draw_bottom_bar(c, slide_num, total)
+    draw_footer(c, sn, total)
     c.showPage()
 
 
-def draw_custom_order_slide(c, slide_num, total):
-    draw_background(c)
+def draw_custom_order_slide(c, sn, total):
+    draw_bg(c)
 
-    for i in range(3):
-        alpha = 0.04 * (3 - i)
-        gc = Color(0, 0.78, 1, alpha)
-        c.setFillColor(gc)
-        c.roundRect(
-            MARGIN + i * 15, BOTTOM_BAR_H + 30 + i * 15,
-            WIDTH - MARGIN * 2 - i * 30, HEIGHT - BOTTOM_BAR_H - 60 - i * 30,
-            15, fill=1, stroke=0
-        )
+    box_w = 500
+    box_h = 260
+    box_x = WIDTH / 2 - box_w / 2
+    box_y = HEIGHT / 2 - box_h / 2
 
-    c.setFillColor(HexColor("#0d1f35"))
-    c.setStrokeColor(CYAN_DARK)
-    c.setLineWidth(1.5)
-    box_x = MARGIN + 50
-    box_y = BOTTOM_BAR_H + 80
-    box_w = WIDTH - MARGIN * 2 - 100
-    box_h = HEIGHT - BOTTOM_BAR_H - 150
-    c.roundRect(box_x, box_y, box_w, box_h, 12, fill=1, stroke=1)
+    c.setStrokeColor(DIVIDER)
+    c.setLineWidth(1)
+    c.setFillColor(CARD_BG)
+    c.roundRect(box_x, box_y, box_w, box_h, 8, fill=1, stroke=1)
 
-    c.setFillColor(CYAN)
-    c.setFont("Helvetica-Bold", 34)
-    c.drawCentredString(WIDTH / 2, box_y + box_h - 70, "Want something custom?")
+    c.setFillColor(TEXT_PRIMARY)
+    c.setFont("Helvetica-Bold", 28)
+    c.drawCentredString(WIDTH / 2, box_y + box_h - 50, "Want something custom?")
 
-    c.setStrokeColor(CYAN)
-    c.setLineWidth(2)
-    line_w = 60
-    c.line(WIDTH / 2 - line_w, box_y + box_h - 90, WIDTH / 2 + line_w, box_y + box_h - 90)
+    c.setStrokeColor(DIVIDER)
+    c.setLineWidth(0.5)
+    c.line(box_x + 60, box_y + box_h - 65, box_x + box_w - 60, box_y + box_h - 65)
 
-    body_lines = [
-        "We offer fully custom-built versions of Team Manager",
-        "tailored to your team's needs.",
+    lines = [
+        "We build fully custom versions of Team Manager",
+        "tailored to your team's specific needs.",
         "",
         "Different game. Different features. Different design.",
-        "Whatever you need, we'll build it.",
     ]
 
-    c.setFont("Helvetica", 15)
-    text_y = box_y + box_h - 135
-    for line in body_lines:
-        if line == "":
-            text_y -= 10
+    ty = box_y + box_h - 95
+    for line in lines:
+        if not line:
+            ty -= 8
             continue
         if "Different game" in line:
-            c.setFillColor(WHITE)
-            c.setFont("Helvetica-Bold", 15)
+            c.setFillColor(TEXT_PRIMARY)
+            c.setFont("Helvetica-Bold", 12)
         else:
-            c.setFillColor(WHITE_DIM)
-            c.setFont("Helvetica", 15)
-        c.drawCentredString(WIDTH / 2, text_y, line)
-        text_y -= 26
+            c.setFillColor(TEXT_SECONDARY)
+            c.setFont("Helvetica", 12)
+        c.drawCentredString(WIDTH / 2, ty, line)
+        ty -= 22
 
-    features = [
-        "Custom Game Support",
-        "Tailored Features",
-        "Unique Design",
-        "Priority Support",
-    ]
-
-    feat_y = text_y - 20
-    feat_gap = 160
-    total_feat_w = (len(features) - 1) * feat_gap
-    feat_start_x = WIDTH / 2 - total_feat_w / 2
-
-    for i, feat in enumerate(features):
-        fx = feat_start_x + i * feat_gap
+    items = ["Custom Game Support", "Tailored Features", "Unique Design", "Priority Support"]
+    item_gap = 130
+    total_iw = (len(items) - 1) * item_gap
+    ix_start = WIDTH / 2 - total_iw / 2
+    iy = box_y + 40
+    for i, item in enumerate(items):
+        ix = ix_start + i * item_gap
         c.setFillColor(CYAN)
-        c.circle(fx, feat_y + 12, 4, fill=1, stroke=0)
-        c.setFillColor(WHITE_DIM)
-        c.setFont("Helvetica", 11)
-        c.drawCentredString(fx, feat_y - 8, feat)
+        c.circle(ix, iy + 8, 3, fill=1, stroke=0)
+        c.setFillColor(TEXT_SECONDARY)
+        c.setFont("Helvetica", 9.5)
+        c.drawCentredString(ix, iy - 10, item)
 
-    c.setFillColor(CYAN)
-    cta_w = 180
-    cta_h = 36
-    cta_x = WIDTH / 2 - cta_w / 2
-    cta_y = box_y + 30
-    c.roundRect(cta_x, cta_y, cta_w, cta_h, 18, fill=1, stroke=0)
-    c.setFillColor(BG_COLOR)
-    c.setFont("Helvetica-Bold", 13)
-    c.drawCentredString(WIDTH / 2, cta_y + 11, "Contact Us Today")
-
-    draw_bottom_bar(c, slide_num, total)
+    draw_footer(c, sn, total)
     c.showPage()
 
 
-def draw_cta_slide(c, slide_num, total):
-    draw_background(c)
+def draw_cta_slide(c, sn, total):
+    draw_bg(c)
 
-    c.setFillColor(BG_LIGHTER)
-    c.rect(0, 0, WIDTH, HEIGHT, fill=1, stroke=0)
+    c.setFillColor(TEXT_PRIMARY)
+    c.setFont("Helvetica-Bold", 36)
+    c.drawCentredString(WIDTH / 2, HEIGHT / 2 + 80, "Get Started Today")
 
-    for i in range(4):
-        alpha = 0.025 * (4 - i)
-        c.setStrokeColor(Color(0, 0.78, 1, alpha))
-        c.setLineWidth(1)
-        r = 100 + i * 80
-        c.circle(WIDTH / 2, HEIGHT / 2, r, fill=0, stroke=1)
-
-    c.setFillColor(WHITE)
-    c.setFont("Helvetica-Bold", 40)
-    c.drawCentredString(WIDTH / 2, HEIGHT - 140, "Get Started Today")
-
-    c.setFillColor(WHITE_DIM)
-    c.setFont("Helvetica", 14)
-    c.drawCentredString(WIDTH / 2, HEIGHT - 175,
+    c.setFillColor(TEXT_SECONDARY)
+    c.setFont("Helvetica", 13)
+    c.drawCentredString(WIDTH / 2, HEIGHT / 2 + 48,
                         "Ready to take your team to the next level?")
 
-    c.setStrokeColor(CYAN_DARK)
-    c.setLineWidth(1)
-    box_w = 400
-    box_h = 160
+    box_w = 360
+    box_h = 120
     box_x = WIDTH / 2 - box_w / 2
-    box_y = HEIGHT / 2 - box_h / 2 - 10
-    c.setFillColor(HexColor("#0d1f35"))
-    c.roundRect(box_x, box_y, box_w, box_h, 12, fill=1, stroke=1)
+    box_y = HEIGHT / 2 - box_h / 2 - 20
 
-    contact_y = box_y + box_h - 40
+    c.setStrokeColor(DIVIDER)
+    c.setLineWidth(1)
+    c.setFillColor(CARD_BG)
+    c.roundRect(box_x, box_y, box_w, box_h, 8, fill=1, stroke=1)
 
-    c.setFillColor(CYAN)
-    c.setFont("Helvetica-Bold", 12)
-    c.drawCentredString(WIDTH / 2, contact_y + 10, "CONTACT US")
+    c.setFillColor(TEXT_TERTIARY)
+    c.setFont("Helvetica", 10)
+    c.drawString(box_x + 30, box_y + box_h - 40, "Discord")
+    c.drawString(box_x + 30, box_y + box_h - 75, "Email")
 
-    c.setStrokeColor(HexColor("#1a3050"))
-    c.setLineWidth(0.5)
-    c.line(box_x + 40, contact_y, box_x + box_w - 40, contact_y)
+    c.setFillColor(TEXT_PRIMARY)
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(box_x + 120, box_y + box_h - 42, "@2ndd")
+    c.drawString(box_x + 120, box_y + box_h - 77, "lljftpp@gmail.com")
 
-    c.setFillColor(WHITE_FAINT)
-    c.setFont("Helvetica", 11)
-    c.drawString(box_x + 50, contact_y - 35, "Discord")
-    c.setFillColor(WHITE)
-    c.setFont("Helvetica-Bold", 20)
-    c.drawString(box_x + 150, contact_y - 40, "@2ndd")
-
-    c.setFillColor(WHITE_FAINT)
-    c.setFont("Helvetica", 11)
-    c.drawString(box_x + 50, contact_y - 80, "Email")
-    c.setFillColor(WHITE)
-    c.setFont("Helvetica-Bold", 20)
-    c.drawString(box_x + 150, contact_y - 85, "lljftpp@gmail.com")
-
-    c.setFillColor(CYAN)
-    cta_w = 200
-    cta_h = 40
-    cta_x = WIDTH / 2 - cta_w / 2
-    cta_y = box_y - 60
-    c.roundRect(cta_x, cta_y, cta_w, cta_h, 20, fill=1, stroke=0)
-    c.setFillColor(BG_COLOR)
-    c.setFont("Helvetica-Bold", 14)
-    c.drawCentredString(WIDTH / 2, cta_y + 13, "Let's Build Together")
-
-    c.setFillColor(WHITE_FAINT)
+    c.setFillColor(TEXT_TERTIARY)
     c.setFont("Helvetica", 9)
-    c.drawCentredString(WIDTH / 2, 55, "Team Manager  |  Professional Esports Management  |  @2ndd")
+    c.drawCentredString(WIDTH / 2, FOOTER_H + 30,
+                        "Team Manager  |  @2ndd")
 
-    draw_bottom_bar(c, slide_num, total)
+    draw_footer(c, sn, total)
     c.showPage()
 
 
@@ -584,6 +535,7 @@ def generate_pdf():
 
     slides = [
         ("title", None),
+
         ("feature", {
             "title": "Schedule",
             "subtitle": "Weekly availability at a glance",
@@ -591,11 +543,24 @@ def generate_pdf():
                 "Persistent weekly availability grid",
                 "Per-player time slot management",
                 "Staff availability tracking",
-                "Availability overview with statistics",
-                "Coverage percentage and status",
+                "Coverage percentage and status indicators",
             ],
             "screenshot": "schedule",
+            "layout": "center",
         }),
+
+        ("feature", {
+            "title": "Schedule Management",
+            "subtitle": "Full control over availability slots",
+            "bullets": [
+                "Add and edit time slots per player",
+                "Manage staff availability alongside players",
+                "Visual weekly grid overview",
+                "Quick availability status updates",
+            ],
+            "screenshot": "schedule_manage",
+        }),
+
         ("feature", {
             "title": "Events Calendar",
             "subtitle": "Organize scrims, tournaments, and more",
@@ -608,6 +573,7 @@ def generate_pdf():
             ],
             "screenshot": "events",
         }),
+
         ("feature", {
             "title": "Events & Results",
             "subtitle": "Track outcomes and performance",
@@ -620,6 +586,7 @@ def generate_pdf():
             ],
             "screenshot": "results",
         }),
+
         ("feature", {
             "title": "Game Scoreboard",
             "subtitle": "Detailed game-level tracking",
@@ -630,44 +597,31 @@ def generate_pdf():
                 "Scoreboard image uploads",
                 "VOD link support",
             ],
-            "screenshot": "results",
+            "screenshot": "scoreboard",
         }),
+
         ("feature", {
             "title": "Overall Statistics",
             "subtitle": "Combined performance across all events",
             "bullets": [
                 "Event and game win rates",
-                "Performance by game mode",
-                "Performance by map",
+                "Performance by game mode and map",
                 "Overall, monthly, and seasonal filters",
                 "Scrim vs tournament breakdown",
             ],
             "screenshot": "stats",
+            "layout": "center",
         }),
-        ("feature", {
+
+        ("dual", {
             "title": "Compare & Opponents",
-            "subtitle": "Deep-dive performance analysis",
-            "bullets": [
-                "Season vs season comparison",
-                "Month vs month analysis",
-                "Performance trend tracking",
-                "Win rate change indicators",
-                "Best modes and maps per period",
-            ],
-            "screenshot": "compare",
+            "subtitle": "Deep-dive performance analysis across seasons and rivals",
+            "key_left": "compare",
+            "key_right": "stats_by_opponents",
+            "label_left": "Season Comparison",
+            "label_right": "Stats by Opponent",
         }),
-        ("feature", {
-            "title": "Stats by Opponent",
-            "subtitle": "Performance analysis against each team",
-            "bullets": [
-                "Per-opponent win rates",
-                "Best modes and maps vs each team",
-                "Strength indicators",
-                "Match history per opponent",
-                "Sortable by most matches played",
-            ],
-            "screenshot": "opponents",
-        }),
+
         ("feature", {
             "title": "Player Statistics",
             "subtitle": "Per-player stat aggregations and breakdowns",
@@ -678,35 +632,34 @@ def generate_pdf():
                 "Per-opponent performance tracking",
                 "Dynamic custom stat fields",
             ],
-            "screenshot": "player_stats",
+            "screenshot": "overall_player_stats",
         }),
+
+        ("dual", {
+            "title": "Player Performance",
+            "subtitle": "Mode-specific breakdowns and opponent matchup analysis",
+            "key_left": "player_stat_by_mode",
+            "key_right": "player_stats_vs_opponents",
+            "label_left": "Stats by Mode",
+            "label_right": "Stats vs Opponents",
+        }),
+
         ("feature", {
-            "title": "Player Stats by Mode",
-            "subtitle": "Granular performance per game mode",
+            "title": "Stat Fields",
+            "subtitle": "Fully customizable stat tracking",
             "bullets": [
-                "Stat breakdown per game mode",
-                "Kills, deaths, objectives tracked",
-                "Mode-specific averages",
-                "Custom stat field support",
-                "Toggle between overall and mode view",
+                "Create custom stat fields",
+                "Define per-game tracking metrics",
+                "Flexible field types",
+                "Organize by category",
             ],
-            "screenshot": "player_stats",
+            "screenshot": "stat_fields",
+            "layout": "center",
         }),
+
         ("feature", {
-            "title": "Player vs Opponents",
-            "subtitle": "Individual matchup breakdowns",
-            "bullets": [
-                "Per-player stats against each opponent",
-                "Win rate badges per matchup",
-                "Expandable stat details",
-                "Kill/death/objective breakdowns",
-                "Cross-opponent comparisons",
-            ],
-            "screenshot": "opponents",
-        }),
-        ("feature", {
-            "title": "Players & Attendance",
-            "subtitle": "Manage your roster and track attendance",
+            "title": "Players & Roster",
+            "subtitle": "Manage your full team roster",
             "bullets": [
                 "Full player roster management",
                 "Role assignments (AR, SUB, Flex)",
@@ -716,55 +669,61 @@ def generate_pdf():
             ],
             "screenshot": "players",
         }),
-        ("feature", {
-            "title": "Roles & Permissions",
-            "subtitle": "Granular access control system",
-            "bullets": [
-                "32 granular permissions across 8 categories",
-                "Custom role creation and editing",
-                "Owner, Admin, and Member defaults",
-                "Per-role permission toggles",
-                "Category-based permission groups",
-            ],
-            "screenshot": "dashboard_roles",
+
+        ("dual", {
+            "title": "Staff & Players",
+            "subtitle": "Add and manage players and staff with detailed profiles",
+            "key_left": "add_player",
+            "key_right": "view_staff",
+            "label_left": "Add Player",
+            "label_right": "Staff View",
         }),
+
+        ("feature", {
+            "title": "Attendance Tracking",
+            "subtitle": "Link attendance to events with detailed records",
+            "bullets": [
+                "Date picker with event linking",
+                "Status: Attended, Late, Absent",
+                "Optional notes and ringer tracking",
+                "Complete attendance timeline",
+                "Filterable history per player",
+            ],
+            "screenshot": "attendance_record",
+            "layout": "center",
+        }),
+
         ("feature", {
             "title": "Team Chat",
             "subtitle": "Discord-style integrated messaging",
             "bullets": [
                 "Channel-based conversations",
-                "File sharing and image preview",
-                "Video and audio playback",
+                "File sharing and media preview",
                 "Voice message recording",
-                "Emoji support and @mentions",
-                "Role-based message permissions",
+                "@mentions and role display",
+                "Permission-based access control",
             ],
             "screenshot": "chat",
         }),
-        ("feature", {
-            "title": "Dashboard & Users",
-            "subtitle": "Full administrative control",
-            "bullets": [
-                "User management and approval",
-                "Role assignment (Owner/Admin/Member)",
-                "Player linking per user",
-                "Ban/unban and force logout",
-                "Account creation and renaming",
-            ],
-            "screenshot": "dashboard_users",
+
+        ("dual", {
+            "title": "Dashboard",
+            "subtitle": "Full administrative control over users, roles, and team settings",
+            "key_left": "dashboard_users",
+            "key_right": "dashboard_roles",
+            "label_left": "User Management",
+            "label_right": "Roles & Permissions",
         }),
-        ("feature", {
-            "title": "Activity Log",
-            "subtitle": "Complete audit trail of all actions",
-            "bullets": [
-                "Team activity and system log",
-                "44 tracked action types",
-                "Filterable by action and user",
-                "Per-entry deletion (Owner only)",
-                "Login tracking with device info",
-            ],
-            "screenshot": "dashboard_log",
+
+        ("dual", {
+            "title": "Configuration",
+            "subtitle": "Game config, team settings, and comprehensive activity logging",
+            "key_left": "dashboard_game_config",
+            "key_right": "dashboard_log",
+            "label_left": "Game Configuration",
+            "label_right": "Activity Log",
         }),
+
         ("pricing", None),
         ("custom", None),
         ("cta", None),
@@ -775,28 +734,39 @@ def generate_pdf():
     c.setTitle("Team Manager - Professional Esports Management Platform")
     c.setAuthor("@2ndd")
 
-    for idx, (slide_type, data) in enumerate(slides):
-        slide_num = idx + 1
+    for idx, (stype, data) in enumerate(slides):
+        sn = idx + 1
 
-        if slide_type == "title":
-            draw_title_slide(c, slide_num, total_slides)
-        elif slide_type == "feature":
+        if stype == "title":
+            draw_title_slide(c, sn, total_slides)
+        elif stype == "feature":
+            layout = data.get("layout", "right")
             draw_feature_slide(
-                c, slide_num, total_slides,
+                c, sn, total_slides,
                 data["title"], data["subtitle"],
-                data["bullets"], data["screenshot"]
+                data["bullets"], data["screenshot"],
+                layout=layout,
             )
-        elif slide_type == "pricing":
-            draw_pricing_slide(c, slide_num, total_slides)
-        elif slide_type == "custom":
-            draw_custom_order_slide(c, slide_num, total_slides)
-        elif slide_type == "cta":
-            draw_cta_slide(c, slide_num, total_slides)
+        elif stype == "dual":
+            draw_dual_screenshot_slide(
+                c, sn, total_slides,
+                data["title"], data["subtitle"],
+                data["key_left"], data["key_right"],
+                data.get("label_left", ""), data.get("label_right", ""),
+            )
+        elif stype == "pricing":
+            draw_pricing_slide(c, sn, total_slides)
+        elif stype == "custom":
+            draw_custom_order_slide(c, sn, total_slides)
+        elif stype == "cta":
+            draw_cta_slide(c, sn, total_slides)
 
     c.save()
+
+    file_size = os.path.getsize(output_path) / 1024
     print(f"PDF generated: {output_path}")
     print(f"Total slides: {total_slides}")
-    print(f"File size: {os.path.getsize(output_path) / 1024:.1f} KB")
+    print(f"File size: {file_size:.1f} KB")
 
 
 if __name__ == "__main__":
