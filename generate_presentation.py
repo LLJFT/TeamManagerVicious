@@ -37,20 +37,19 @@ SCREENSHOTS = {
     "schedule": "uploads/schedule.png",
     "events": "uploads/events.png",
     "results": "uploads/results.png",
-    "scoreboard": "attached_assets/scoreboard_1771832282497.png",
     "stats": "uploads/stats.png",
     "compare": "uploads/compare.png",
     "opponents": "uploads/opponents.png",
     "player_stats": "uploads/player_stats.png",
-    "player_by_mode": "attached_assets/player_stat_by_mode_1771832364652.png",
-    "player_vs_opp": "attached_assets/player_stats_vs_opponents_1771832378197.png",
     "players": "uploads/players.png",
-    "attendance_add": "attached_assets/attendance_add_1771832428257.png",
-    "attendance_record": "attached_assets/attendance_record_1771832428257.png",
     "dashboard_users": "uploads/dashboard_users.png",
+    "dashboard_roles": "uploads/dashboard_roles.png",
     "dashboard_log": "uploads/dashboard_log.png",
     "chat": "uploads/chat.png",
 }
+
+FRAME_COLOR = HexColor("#f0f4f8")
+FRAME_PAD = 8
 
 
 def draw_background(c):
@@ -82,18 +81,18 @@ def draw_bottom_bar(c, current_slide, total_slides):
     c.drawRightString(WIDTH - MARGIN, bar_y + 7, "@2ndd")
 
 
-def draw_drop_shadow(c, x, y, w, h, offset=4, blur_steps=6):
+def draw_drop_shadow(c, x, y, w, h, offset=6, blur_steps=12):
     for i in range(blur_steps, 0, -1):
-        alpha = 0.08 * (blur_steps - i + 1) / blur_steps
+        alpha = 0.35 * (blur_steps - i + 1) / blur_steps
         shadow_color = Color(0, 0, 0, alpha)
         c.setFillColor(shadow_color)
-        expand = i * 1.5
+        expand = i * 2.0
         c.roundRect(
             x + offset - expand / 2,
             y - offset - expand / 2,
             w + expand,
             h + expand,
-            4,
+            6,
             fill=1,
             stroke=0,
         )
@@ -114,21 +113,30 @@ def draw_screenshot(c, img_path, x, y, max_w, max_h):
     except Exception:
         iw, ih = 1920, 1080
 
-    scale = min(max_w / iw, max_h / ih)
+    pad = FRAME_PAD
+    inner_max_w = max_w - pad * 2
+    inner_max_h = max_h - pad * 2
+
+    scale = min(inner_max_w / iw, inner_max_h / ih)
     draw_w = iw * scale
     draw_h = ih * scale
 
-    draw_x = x + (max_w - draw_w) / 2
-    draw_y = y + (max_h - draw_h) / 2
+    frame_w = draw_w + pad * 2
+    frame_h = draw_h + pad * 2
 
-    draw_drop_shadow(c, draw_x, draw_y, draw_w, draw_h, offset=5, blur_steps=8)
+    frame_x = x + (max_w - frame_w) / 2
+    frame_y = y + (max_h - frame_h) / 2
 
-    c.setStrokeColor(HexColor("#1a3050"))
-    c.setLineWidth(1)
-    c.roundRect(draw_x - 1, draw_y - 1, draw_w + 2, draw_h + 2, 4, fill=0, stroke=1)
+    draw_drop_shadow(c, frame_x, frame_y, frame_w, frame_h, offset=8, blur_steps=14)
+
+    c.setFillColor(FRAME_COLOR)
+    c.roundRect(frame_x, frame_y, frame_w, frame_h, 6, fill=1, stroke=0)
+
+    img_x = frame_x + pad
+    img_y = frame_y + pad
 
     c.drawImage(
-        img_path, draw_x, draw_y, draw_w, draw_h,
+        img_path, img_x, img_y, draw_w, draw_h,
         preserveAspectRatio=True, mask="auto"
     )
 
@@ -622,7 +630,7 @@ def generate_pdf():
                 "Scoreboard image uploads",
                 "VOD link support",
             ],
-            "screenshot": "scoreboard",
+            "screenshot": "results",
         }),
         ("feature", {
             "title": "Overall Statistics",
@@ -682,7 +690,7 @@ def generate_pdf():
                 "Custom stat field support",
                 "Toggle between overall and mode view",
             ],
-            "screenshot": "player_by_mode",
+            "screenshot": "player_stats",
         }),
         ("feature", {
             "title": "Player vs Opponents",
@@ -694,7 +702,7 @@ def generate_pdf():
                 "Kill/death/objective breakdowns",
                 "Cross-opponent comparisons",
             ],
-            "screenshot": "player_vs_opp",
+            "screenshot": "opponents",
         }),
         ("feature", {
             "title": "Players & Attendance",
@@ -709,28 +717,16 @@ def generate_pdf():
             "screenshot": "players",
         }),
         ("feature", {
-            "title": "Add Attendance",
-            "subtitle": "Quick and easy record creation",
+            "title": "Roles & Permissions",
+            "subtitle": "Granular access control system",
             "bullets": [
-                "Date picker with event linking",
-                "Status selection (Attended/Late/Absent)",
-                "Optional notes per record",
-                "Ringer name tracking",
-                "Event auto-population",
+                "32 granular permissions across 8 categories",
+                "Custom role creation and editing",
+                "Owner, Admin, and Member defaults",
+                "Per-role permission toggles",
+                "Category-based permission groups",
             ],
-            "screenshot": "attendance_add",
-        }),
-        ("feature", {
-            "title": "Attendance History",
-            "subtitle": "Detailed per-player attendance tracking",
-            "bullets": [
-                "Complete attendance timeline",
-                "Status badges per record",
-                "Event-linked history view",
-                "Filterable and searchable",
-                "Individual record management",
-            ],
-            "screenshot": "attendance_record",
+            "screenshot": "dashboard_roles",
         }),
         ("feature", {
             "title": "Team Chat",
