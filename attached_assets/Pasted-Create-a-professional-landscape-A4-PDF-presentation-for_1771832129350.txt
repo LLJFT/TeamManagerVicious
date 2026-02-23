@@ -1,0 +1,43 @@
+Create a professional landscape A4 PDF presentation for my Team Manager platform using Python + reportlab. Use as many slides as needed to showcase everything properly — quality over quantity.
+Design rules:
+
+Dark navy background #0a1628, cyan accents #00c8ff
+Each feature slide: one large screenshot filling the right side (~70%) + clean left panel with title and bullet points
+Give everything room to breathe — don't crowd slides
+Drop shadow behind every screenshot
+Bottom bar on every slide: progress bar + "Team Manager" left + "@2ndd" right
+
+Use the actual screenshots from the project folder for each slide.
+Content to cover (one or more slides per section as needed):
+
+Title screen
+Schedule (weekly availability grid)
+Events & Results (scrims, tournaments, scoreboard)
+Statistics (win rates, game modes, maps)
+Player Stats (leaderboard, by mode, vs opponents)
+Players & Attendance
+Chat (channels, file sharing, voice, emoji)
+Dashboard (users, roles, permissions, activity log)
+Staff management
+Pricing (see below)
+Custom Order slide (see below)
+Final CTA
+
+Pricing slide — 3 plans, make them look premium:
+Monthly — $40/mo · No discount · Includes: Schedule, Events & Results, Players Management, History, Dashboard (Users only)
+3 Months — $90 total · $30/mo · was $40/mo · Save 25% · Includes everything in Monthly + Statistics, Player Stats & Stat Fields, Compare & Opponents
+6 Months — $156 total · $26/mo · was $40/mo · Save 35% · BEST VALUE — Includes everything above + Unlimited Users, Full Admin Access, Game Config & Roles, Activity Log, Unlimited Storage, Custom Permissions
+Highlight 6 Months with cyan border and "Best Value" banner.
+Custom Order slide — make it stand out:
+Title: "Want something custom?"
+Body: We offer fully custom-built versions of Team Manager tailored to your team's needs — different game, different features, different design. Whatever you need, we'll build it.
+Make this slide visually different from the others — use a subtle gradient or highlight to make it feel special and premium.
+Final CTA slide:
+Title: "Get Started Today"
+Contact options displayed clearly and beautifully:
+
+Discord: @2ndd
+Email: lljftpp@gmail.com
+
+Make the contact info large, clean, and easy to read. This is the last thing they see — make it memorable.
+Overall note: This presentation will be shown to very important people. Make every slide look polished and premium. No clutter, no placeholder text, no generic filler. Every word and every pixel should count.
