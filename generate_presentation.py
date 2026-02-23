@@ -34,22 +34,22 @@ BOTTOM_BAR_H = 22
 MARGIN = 40
 
 SCREENSHOTS = {
-    "schedule": "attached_assets/schedule_1771832178273.png",
-    "events": "attached_assets/events_1771832242732.png",
-    "results": "attached_assets/results_1771832268661.png",
+    "schedule": "uploads/schedule.png",
+    "events": "uploads/events.png",
+    "results": "uploads/results.png",
     "scoreboard": "attached_assets/scoreboard_1771832282497.png",
-    "stats": "attached_assets/stats_1771832308481.png",
-    "compare": "attached_assets/compare_1771832327906.png",
-    "opponents": "attached_assets/stats_by_opponents_1771832338457.png",
-    "player_stats": "attached_assets/overall_player_stats_1771832352596.png",
+    "stats": "uploads/stats.png",
+    "compare": "uploads/compare.png",
+    "opponents": "uploads/opponents.png",
+    "player_stats": "uploads/player_stats.png",
     "player_by_mode": "attached_assets/player_stat_by_mode_1771832364652.png",
     "player_vs_opp": "attached_assets/player_stats_vs_opponents_1771832378197.png",
-    "players": "attached_assets/players_1771832407396.png",
+    "players": "uploads/players.png",
     "attendance_add": "attached_assets/attendance_add_1771832428257.png",
     "attendance_record": "attached_assets/attendance_record_1771832428257.png",
-    "dashboard_users": "attached_assets/Dashboard_users_1771832454665.png",
-    "dashboard_log": "attached_assets/dashboard_log_1771832486246.png",
-    "chat": "attached_assets/chat_1771832562415.png",
+    "dashboard_users": "uploads/dashboard_users.png",
+    "dashboard_log": "uploads/dashboard_log.png",
+    "chat": "uploads/chat.png",
 }
 
 
