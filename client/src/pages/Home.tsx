@@ -10,6 +10,7 @@ import type { PlayerAvailability, AvailabilityOption } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { useGame } from "@/hooks/use-game";
 
 interface StaffMember {
   id: string;
@@ -21,7 +22,9 @@ interface StaffMember {
 export default function Home() {
   const { toast } = useToast();
   const { user, hasPermission } = useAuth();
+  const { currentGame } = useGame();
   const currentDate = format(new Date(), "MMM dd");
+  const gameName = currentGame?.name || "Team";
   const canEditAll = hasPermission("edit_all_availability");
   const canEditOwn = hasPermission("edit_own_availability");
   const linkedPlayerId = user?.playerId || null;
@@ -190,10 +193,10 @@ export default function Home() {
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-4 border-b border-border">
             <div>
               <h1 className="text-3xl font-bold text-foreground mb-1" data-testid="text-page-title">
-                Marvel Rivals
+                {gameName}
               </h1>
               <p className="text-lg font-semibold text-primary" data-testid="text-week-range">
-                The Vicious Availability Times ({currentDate})
+                Availability Times ({currentDate})
               </p>
             </div>
           </div>

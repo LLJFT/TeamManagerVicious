@@ -4,7 +4,7 @@ import connectPgSimple from "connect-pg-simple";
 import { eq, and } from "drizzle-orm";
 import { db, pool } from "./db";
 import { getTeamId } from "./storage";
-import { roles, users, allPermissions, availabilitySlots, rosterRoles, chatChannels, type Permission } from "@shared/schema";
+import { roles, users, allPermissions, supportedGames, userGameAssignments, SUPPORTED_GAMES_LIST, type Permission } from "@shared/schema";
 import type { Express, Request, Response, NextFunction } from "express";
 
 declare module "express-session" {
@@ -35,52 +35,22 @@ export function setupAuth(app: Express) {
   );
 }
 
-async function seedDefaults(teamId: string) {
-  const existingSlots = await db.select().from(availabilitySlots).where(eq(availabilitySlots.teamId, teamId)).limit(1);
-  if (existingSlots.length === 0) {
-    const defaultSlots = [
-      { label: "18:00-20:00", sortOrder: 0 },
-      { label: "20:00-22:00", sortOrder: 1 },
-      { label: "All Blocks", sortOrder: 2 },
-      { label: "Unknown", sortOrder: 3 },
-      { label: "Can't", sortOrder: 4 },
-    ];
-    await db.insert(availabilitySlots).values(
-      defaultSlots.map((s) => ({ teamId, label: s.label, sortOrder: s.sortOrder }))
-    );
-    console.log("Default availability slots seeded");
-  }
+async function seedSupportedGames() {
+  const existing = await db.select().from(supportedGames).limit(1);
+  if (existing.length > 0) return;
 
-  const existingRosterRoles = await db.select().from(rosterRoles).where(eq(rosterRoles.teamId, teamId)).limit(1);
-  if (existingRosterRoles.length === 0) {
-    const defaultPlayerRoles = [
-      { name: "Tank", type: "player", sortOrder: 0 },
-      { name: "DPS", type: "player", sortOrder: 1 },
-      { name: "Support", type: "player", sortOrder: 2 },
-      { name: "Flex", type: "player", sortOrder: 3 },
-    ];
-    const defaultStaffRoles = [
-      { name: "Coach", type: "staff", sortOrder: 0 },
-      { name: "Analyst", type: "staff", sortOrder: 1 },
-      { name: "Manager", type: "staff", sortOrder: 2 },
-    ];
-    await db.insert(rosterRoles).values(
-      [...defaultPlayerRoles, ...defaultStaffRoles].map((r) => ({ teamId, name: r.name, type: r.type, sortOrder: r.sortOrder }))
-    );
-    console.log("Default roster roles seeded");
+  for (const game of SUPPORTED_GAMES_LIST) {
+    await db.insert(supportedGames)
+      .values({ slug: game.slug, name: game.name, sortOrder: game.sortOrder })
+      .onConflictDoNothing();
   }
-
-  const existingChannels = await db.select().from(chatChannels).where(eq(chatChannels.teamId, teamId)).limit(1);
-  if (existingChannels.length === 0) {
-    await db.insert(chatChannels).values({ teamId, name: "general" });
-    console.log("Default chat channel 'general' seeded");
-  }
+  console.log("Supported games seeded");
 }
 
 export async function bootstrapDefaultAdmin() {
   const teamId = getTeamId();
 
-  await seedDefaults(teamId);
+  await seedSupportedGames();
 
   const existingUsers = await db
     .select()
@@ -124,13 +94,25 @@ export async function bootstrapDefaultAdmin() {
 
   const passwordHash = bcrypt.hashSync("Admin", 10);
 
-  await db.insert(users).values({
+  const [adminUser] = await db.insert(users).values({
     teamId,
     username: "Admin",
     passwordHash,
     roleId: ownerRole.id,
+    orgRole: "super_admin",
     status: "active",
-  });
+  }).returning();
+
+  const allGames = await db.select().from(supportedGames);
+  for (const game of allGames) {
+    await db.insert(userGameAssignments).values({
+      teamId,
+      userId: adminUser.id,
+      gameId: game.id,
+      assignedRole: "super_admin",
+      status: "approved",
+    });
+  }
 
   console.log("Default admin user created (username: Admin, password: Admin)");
 }
@@ -198,14 +180,21 @@ export function requirePermission(permission: string) {
     }
 
     const teamId = getTeamId();
-
     const [user] = await db
       .select()
       .from(users)
       .where(and(eq(users.id, req.session.userId), eq(users.teamId, teamId)))
       .limit(1);
 
-    if (!user || !user.roleId) {
+    if (!user) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    if (user.orgRole === "super_admin" || user.orgRole === "org_admin") {
+      return next();
+    }
+
+    if (!user.roleId) {
       return res.status(403).json({ message: "Forbidden" });
     }
 
@@ -230,4 +219,79 @@ export function requirePermission(permission: string) {
 
     next();
   };
+}
+
+export function requireOrgRole(...allowedRoles: string[]) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.session.userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const teamId = getTeamId();
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(and(eq(users.id, req.session.userId), eq(users.teamId, teamId)))
+      .limit(1);
+
+    if (!user) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    if (user.orgRole === "super_admin") {
+      return next();
+    }
+
+    if (!allowedRoles.includes(user.orgRole || "")) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    next();
+  };
+}
+
+export async function requireGameAccess(req: Request, res: Response, next: NextFunction) {
+  if (!req.session.userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  const teamId = getTeamId();
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(and(eq(users.id, req.session.userId), eq(users.teamId, teamId)))
+    .limit(1);
+
+  if (!user) {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+
+  if (user.orgRole === "super_admin" || user.orgRole === "org_admin") {
+    return next();
+  }
+
+  const gameSlug = req.params.gameSlug;
+  if (!gameSlug) {
+    return res.status(400).json({ message: "Game slug required" });
+  }
+
+  const [game] = await db.select().from(supportedGames).where(eq(supportedGames.slug, gameSlug)).limit(1);
+  if (!game) {
+    return res.status(404).json({ message: "Game not found" });
+  }
+
+  const [assignment] = await db.select().from(userGameAssignments)
+    .where(and(
+      eq(userGameAssignments.userId, user.id),
+      eq(userGameAssignments.gameId, game.id),
+      eq(userGameAssignments.status, "approved"),
+      eq(userGameAssignments.teamId, teamId)
+    ))
+    .limit(1);
+
+  if (!assignment) {
+    return res.status(403).json({ message: "You do not have access to this game" });
+  }
+
+  next();
 }

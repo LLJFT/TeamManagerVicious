@@ -1,15 +1,17 @@
 import { createContext, useContext, useCallback, useEffect, type ReactNode } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { UserWithRole, Permission } from "@shared/schema";
+import type { UserWithRole, Permission, OrgRole } from "@shared/schema";
 
 interface AuthContextType {
   user: UserWithRole | null;
   isLoading: boolean;
   login: (username: string, password: string) => Promise<UserWithRole>;
-  register: (username: string, password: string) => Promise<any>;
+  register: (username: string, password: string, selectedGames?: string[], selectedRole?: string) => Promise<any>;
   logout: () => Promise<void>;
   hasPermission: (perm: Permission) => boolean;
+  hasOrgRole: (...roles: OrgRole[]) => boolean;
+  hasGameAccess: (gameId: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -42,8 +44,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const registerMutation = useMutation({
-    mutationFn: async ({ username, password }: { username: string; password: string }) => {
-      const res = await apiRequest("POST", "/api/auth/register", { username, password });
+    mutationFn: async ({ username, password, selectedGames, selectedRole }: { username: string; password: string; selectedGames?: string[]; selectedRole?: string }) => {
+      const res = await apiRequest("POST", "/api/auth/register", { username, password, selectedGames, selectedRole });
       return res.json();
     },
   });
@@ -62,8 +64,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return loginMutation.mutateAsync({ username, password });
   }, [loginMutation]);
 
-  const register = useCallback(async (username: string, password: string) => {
-    return registerMutation.mutateAsync({ username, password });
+  const register = useCallback(async (username: string, password: string, selectedGames?: string[], selectedRole?: string) => {
+    return registerMutation.mutateAsync({ username, password, selectedGames, selectedRole });
   }, [registerMutation]);
 
   const logout = useCallback(async () => {
@@ -71,10 +73,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [logoutMutation]);
 
   const hasPermission = useCallback((perm: Permission): boolean => {
-    if (!user?.role) return false;
+    if (!user) return false;
+    if (user.orgRole === "super_admin" || user.orgRole === "org_admin") return true;
+    if (!user.role) return false;
     if (user.role.name === "Owner") return true;
     const perms = user.role.permissions as string[];
     return perms.includes(perm);
+  }, [user]);
+
+  const hasOrgRole = useCallback((...roles: OrgRole[]): boolean => {
+    if (!user) return false;
+    if (user.orgRole === "super_admin") return true;
+    return roles.includes(user.orgRole as OrgRole);
+  }, [user]);
+
+  const hasGameAccess = useCallback((gameId: string): boolean => {
+    if (!user) return false;
+    if (user.orgRole === "super_admin" || user.orgRole === "org_admin") return true;
+    if (!user.gameAssignments) return false;
+    return user.gameAssignments.some(a => a.gameId === gameId && a.status === "approved");
   }, [user]);
 
   return (
@@ -85,6 +102,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       register,
       logout,
       hasPermission,
+      hasOrgRole,
+      hasGameAccess,
     }}>
       {children}
     </AuthContext.Provider>

@@ -5,12 +5,15 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
+import { GameProvider, useGame } from "@/hooks/use-game";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { NotificationBell } from "@/components/NotificationBell";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Moon } from "lucide-react";
+import { Moon, Loader2 } from "lucide-react";
 import Login from "@/pages/Login";
+import GamesHome from "@/pages/GamesHome";
 import Home from "@/pages/Home";
 import Events from "@/pages/Events";
 import EventDetails from "@/pages/EventDetails";
@@ -27,24 +30,50 @@ import AccountSettings from "@/pages/AccountSettings";
 import PlayerStats from "@/pages/PlayerStats";
 import NotFound from "@/pages/not-found";
 
-function Router() {
+function GameRoutes({ slug }: { slug: string }) {
   return (
     <Switch>
-      <Route path="/" component={Home} />
-      <Route path="/events" component={Events} />
-      <Route path="/events/:id" component={EventDetails} />
-      <Route path="/results" component={EventsResults} />
-      <Route path="/history" component={History} />
-      <Route path="/stats" component={UnifiedStats} />
-      <Route path="/compare" component={Compare} />
-      <Route path="/opponents" component={OpponentStats} />
-      <Route path="/players" component={Players} />
-      <Route path="/dashboard" component={Dashboard} />
-      <Route path="/staff" component={StaffPage} />
-      <Route path="/chat" component={Chat} />
-      <Route path="/account" component={AccountSettings} />
-      <Route path="/player-stats" component={PlayerStats} />
+      <Route path={`/${slug}`} component={Home} />
+      <Route path={`/${slug}/events`} component={Events} />
+      <Route path={`/${slug}/events/:id`} component={EventDetails} />
+      <Route path={`/${slug}/results`} component={EventsResults} />
+      <Route path={`/${slug}/history`} component={History} />
+      <Route path={`/${slug}/stats`} component={UnifiedStats} />
+      <Route path={`/${slug}/compare`} component={Compare} />
+      <Route path={`/${slug}/opponents`} component={OpponentStats} />
+      <Route path={`/${slug}/players`} component={Players} />
+      <Route path={`/${slug}/dashboard`} component={Dashboard} />
+      <Route path={`/${slug}/staff`} component={StaffPage} />
+      <Route path={`/${slug}/chat`} component={Chat} />
+      <Route path={`/${slug}/player-stats`} component={PlayerStats} />
       <Route component={NotFound} />
+    </Switch>
+  );
+}
+
+function MainContent() {
+  const { currentGame, gameSlug, allGames, isLoading } = useGame();
+
+  if (currentGame && gameSlug) {
+    return <GameRoutes slug={gameSlug} />;
+  }
+
+  return (
+    <Switch>
+      <Route path="/" component={GamesHome} />
+      <Route path="/account" component={AccountSettings} />
+      <Route>
+        {() => {
+          if (isLoading) {
+            return (
+              <div className="flex items-center justify-center h-full p-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            );
+          }
+          return <NotFound />;
+        }}
+      </Route>
     </Switch>
   );
 }
@@ -108,20 +137,25 @@ function AuthenticatedApp() {
   return (
     <>
       <AfkOverlay />
-      <SidebarProvider style={style as React.CSSProperties}>
-        <div className="flex h-screen w-full">
-          <AppSidebar />
-          <div className="flex flex-col flex-1 min-w-0">
-            <header className="flex items-center justify-between gap-1 p-2 border-b sticky top-0 z-50 bg-background">
-              <SidebarTrigger data-testid="button-sidebar-toggle" />
-              <ThemeToggle />
-            </header>
-            <main className="flex-1 overflow-auto">
-              <Router />
-            </main>
+      <GameProvider>
+        <SidebarProvider style={style as React.CSSProperties}>
+          <div className="flex h-screen w-full">
+            <AppSidebar />
+            <div className="flex flex-col flex-1 min-w-0">
+              <header className="flex items-center justify-between gap-1 p-2 border-b sticky top-0 z-50 bg-background">
+                <SidebarTrigger data-testid="button-sidebar-toggle" />
+                <div className="flex items-center gap-1">
+                  <NotificationBell />
+                  <ThemeToggle />
+                </div>
+              </header>
+              <main className="flex-1 overflow-auto">
+                <MainContent />
+              </main>
+            </div>
           </div>
-        </div>
-      </SidebarProvider>
+        </SidebarProvider>
+      </GameProvider>
     </>
   );
 }

@@ -13,6 +13,9 @@ export const availabilityOptions = [
 
 export const roleTypes = ["Tank", "DPS", "Support", "Flex", "Manager", "Analyst", "Coach"] as const;
 
+export const orgRoles = ["super_admin", "org_admin", "game_manager", "coach_analyst", "player"] as const;
+export type OrgRole = typeof orgRoles[number];
+
 export const allPermissions = [
   "view_schedule",
   "edit_own_availability",
@@ -114,9 +117,47 @@ export const eventResults = ["win", "loss", "draw", "pending"] as const;
 
 export const attendanceStatuses = ["attended", "late", "absent"] as const;
 
+export const assignmentStatuses = ["pending", "approved", "rejected"] as const;
+export type AssignmentStatus = typeof assignmentStatuses[number];
+
+export const supportedGames = pgTable("supported_games", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  slug: text("slug").notNull().unique(),
+  name: text("name").notNull(),
+  sortOrder: integer("sort_order").default(0),
+});
+
+export const SUPPORTED_GAMES_LIST = [
+  { slug: "dota2", name: "Dota 2", sortOrder: 0 },
+  { slug: "cs", name: "Counter-Strike", sortOrder: 1 },
+  { slug: "valorant", name: "VALORANT", sortOrder: 2 },
+  { slug: "mlbb", name: "Mobile Legends", sortOrder: 3 },
+  { slug: "lol", name: "League of Legends", sortOrder: 4 },
+  { slug: "rocket-league", name: "Rocket League", sortOrder: 5 },
+  { slug: "pubg-mobile", name: "PUBG Mobile", sortOrder: 6 },
+  { slug: "overwatch", name: "Overwatch", sortOrder: 7 },
+  { slug: "r6", name: "Rainbow Six", sortOrder: 8 },
+  { slug: "apex", name: "Apex Legends", sortOrder: 9 },
+  { slug: "fighting-games", name: "Fighting Games", sortOrder: 10 },
+  { slug: "pubg", name: "PUBG", sortOrder: 11 },
+  { slug: "hok", name: "Honor of Kings", sortOrder: 12 },
+  { slug: "brawl-stars", name: "Brawl Stars", sortOrder: 13 },
+  { slug: "cod", name: "Call of Duty", sortOrder: 14 },
+  { slug: "marvel-rivals", name: "Marvel Rivals", sortOrder: 15 },
+  { slug: "ea-fc", name: "EA Sports FC", sortOrder: 16 },
+  { slug: "free-fire", name: "Free Fire", sortOrder: 17 },
+  { slug: "fortnite", name: "Fortnite", sortOrder: 18 },
+  { slug: "tft", name: "Teamfight Tactics", sortOrder: 19 },
+  { slug: "crossfire", name: "CrossFire", sortOrder: 20 },
+  { slug: "deadlock", name: "Deadlock", sortOrder: 21 },
+  { slug: "trackmania", name: "Trackmania", sortOrder: 22 },
+  { slug: "the-finals", name: "The Finals", sortOrder: 23 },
+] as const;
+
 export const players = pgTable("players", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
   name: text("name").notNull(),
   role: text("role").notNull(),
   fullName: text("full_name"),
@@ -124,11 +165,13 @@ export const players = pgTable("players", {
   snapchat: text("snapchat"),
 }, (table) => [
   index("players_team_id_idx").on(table.teamId),
+  index("players_game_id_idx").on(table.gameId),
 ]);
 
 export const attendance = pgTable("attendance", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
   playerId: varchar("player_id").references(() => players.id, { onDelete: "set null" }),
   date: text("date").notNull(),
   eventId: varchar("event_id").references(() => events.id, { onDelete: "set null" }),
@@ -137,41 +180,49 @@ export const attendance = pgTable("attendance", {
   ringer: text("ringer"),
 }, (table) => [
   index("attendance_team_id_idx").on(table.teamId),
+  index("attendance_game_id_idx").on(table.gameId),
 ]);
 
 export const teamNotes = pgTable("team_notes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
   senderName: text("sender_name").notNull(),
   message: text("message").notNull(),
   timestamp: text("timestamp").notNull(),
 }, (table) => [
   index("team_notes_team_id_idx").on(table.teamId),
+  index("team_notes_game_id_idx").on(table.gameId),
 ]);
 
 export const schedules = pgTable("schedules", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
   weekStartDate: text("week_start_date").notNull(),
   weekEndDate: text("week_end_date").notNull(),
   scheduleData: jsonb("schedule_data").notNull(),
   googleSheetId: text("google_sheet_id"),
 }, (table) => [
   index("schedules_team_id_idx").on(table.teamId),
+  index("schedules_game_id_idx").on(table.gameId),
 ]);
 
 export const settings = pgTable("settings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
   key: text("key").notNull(),
   value: text("value").notNull(),
 }, (table) => [
   index("settings_team_id_idx").on(table.teamId),
+  index("settings_game_id_idx").on(table.gameId),
 ]);
 
 export const events = pgTable("events", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
   title: text("title").notNull(),
   eventType: text("event_type").notNull(),
   date: text("date").notNull(),
@@ -183,39 +234,47 @@ export const events = pgTable("events", {
   seasonId: varchar("season_id"),
 }, (table) => [
   index("events_team_id_idx").on(table.teamId),
+  index("events_game_id_idx").on(table.gameId),
 ]);
 
 export const seasons = pgTable("seasons", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
   name: text("name").notNull(),
   description: text("description"),
 }, (table) => [
   index("seasons_team_id_idx").on(table.teamId),
+  index("seasons_game_id_idx").on(table.gameId),
 ]);
 
 export const gameModes = pgTable("game_modes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
   name: text("name").notNull(),
   sortOrder: text("sort_order").default("0"),
 }, (table) => [
   index("game_modes_team_id_idx").on(table.teamId),
+  index("game_modes_game_id_idx").on(table.gameId),
 ]);
 
 export const maps = pgTable("maps", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
   name: text("name").notNull(),
   gameModeId: varchar("game_mode_id").notNull().references(() => gameModes.id, { onDelete: "restrict" }),
   sortOrder: text("sort_order").default("0"),
 }, (table) => [
   index("maps_team_id_idx").on(table.teamId),
+  index("maps_game_id_idx").on(table.gameId),
 ]);
 
 export const games = pgTable("games", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
   eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "restrict" }),
   gameCode: text("game_code").notNull(),
   score: text("score").notNull(),
@@ -226,48 +285,56 @@ export const games = pgTable("games", {
   link: text("link"),
 }, (table) => [
   index("games_team_id_idx").on(table.teamId),
+  index("games_game_id_idx").on(table.gameId),
 ]);
 
 export const offDays = pgTable("off_days", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
   date: text("date").notNull(),
 }, (table) => [
   index("off_days_team_id_idx").on(table.teamId),
+  index("off_days_game_id_idx").on(table.gameId),
 ]);
 
 export const statFields = pgTable("stat_fields", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
   name: text("name").notNull(),
   gameModeId: varchar("game_mode_id").notNull().references(() => gameModes.id, { onDelete: "restrict" }),
   createdAt: text("created_at").default(sql`now()`),
 }, (table) => [
   index("stat_fields_team_id_idx").on(table.teamId),
+  index("stat_fields_game_id_idx").on(table.gameId),
 ]);
 
 export const playerGameStats = pgTable("player_game_stats", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
-  gameId: varchar("game_id").notNull().references(() => games.id, { onDelete: "cascade" }),
+  gameId: varchar("game_id"),
+  matchId: varchar("match_id").notNull().references(() => games.id, { onDelete: "cascade" }),
   playerId: varchar("player_id").references(() => players.id, { onDelete: "set null" }),
   statFieldId: varchar("stat_field_id").references(() => statFields.id, { onDelete: "set null" }),
   value: text("value").notNull().default("0"),
   createdAt: text("created_at").default(sql`now()`),
 }, (table) => [
   index("player_game_stats_team_id_idx").on(table.teamId),
+  index("player_game_stats_game_id_idx").on(table.gameId),
 ]);
 
-// Auth & Roles
 export const roles = pgTable("roles", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
   name: text("name").notNull(),
   isSystem: boolean("is_system").default(false),
   permissions: jsonb("permissions").notNull().default(sql`'[]'::jsonb`),
   createdAt: text("created_at").default(sql`now()`),
 }, (table) => [
   index("roles_team_id_idx").on(table.teamId),
+  index("roles_game_id_idx").on(table.gameId),
 ]);
 
 export const users = pgTable("users", {
@@ -276,6 +343,7 @@ export const users = pgTable("users", {
   username: text("username").notNull(),
   passwordHash: text("password_hash").notNull(),
   avatarUrl: text("avatar_url"),
+  orgRole: text("org_role").default("player"),
   roleId: varchar("role_id").references(() => roles.id),
   playerId: varchar("player_id").references(() => players.id),
   status: text("status").notNull().default("pending"),
@@ -286,32 +354,62 @@ export const users = pgTable("users", {
   index("users_team_id_idx").on(table.teamId),
 ]);
 
-// Availability Slots
+export const userGameAssignments = pgTable("user_game_assignments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  gameId: varchar("game_id").notNull().references(() => supportedGames.id, { onDelete: "cascade" }),
+  assignedRole: text("assigned_role").notNull().default("player"),
+  status: text("status").notNull().default("pending"),
+  createdAt: text("created_at").default(sql`now()`),
+}, (table) => [
+  index("user_game_assignments_team_id_idx").on(table.teamId),
+  index("user_game_assignments_user_id_idx").on(table.userId),
+  index("user_game_assignments_game_id_idx").on(table.gameId),
+]);
+
+export const notifications = pgTable("notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  message: text("message").notNull(),
+  type: text("type").notNull().default("info"),
+  read: boolean("read").notNull().default(false),
+  relatedId: varchar("related_id"),
+  createdAt: text("created_at").default(sql`now()`),
+}, (table) => [
+  index("notifications_team_id_idx").on(table.teamId),
+  index("notifications_user_id_idx").on(table.userId),
+]);
+
 export const availabilitySlots = pgTable("availability_slots", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
   label: text("label").notNull(),
   sortOrder: integer("sort_order").default(0),
   createdAt: text("created_at").default(sql`now()`),
 }, (table) => [
   index("availability_slots_team_id_idx").on(table.teamId),
+  index("availability_slots_game_id_idx").on(table.gameId),
 ]);
 
-// Player/Staff Role Types (for roster, not auth)
 export const rosterRoles = pgTable("roster_roles", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
   name: text("name").notNull(),
   type: text("type").notNull().default("player"),
   sortOrder: integer("sort_order").default(0),
 }, (table) => [
   index("roster_roles_team_id_idx").on(table.teamId),
+  index("roster_roles_game_id_idx").on(table.gameId),
 ]);
 
-// Staff members (separate from players)
 export const staff = pgTable("staff", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
   name: text("name").notNull(),
   role: text("role").notNull(),
   fullName: text("full_name"),
@@ -319,21 +417,24 @@ export const staff = pgTable("staff", {
   snapchat: text("snapchat"),
 }, (table) => [
   index("staff_team_id_idx").on(table.teamId),
+  index("staff_game_id_idx").on(table.gameId),
 ]);
 
-// Chat
 export const chatChannels = pgTable("chat_channels", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
   name: text("name").notNull(),
   createdAt: text("created_at").default(sql`now()`),
 }, (table) => [
   index("chat_channels_team_id_idx").on(table.teamId),
+  index("chat_channels_game_id_idx").on(table.gameId),
 ]);
 
 export const chatMessages = pgTable("chat_messages", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
   channelId: varchar("channel_id").notNull().references(() => chatChannels.id, { onDelete: "cascade" }),
   userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }),
   message: text("message"),
@@ -345,12 +446,14 @@ export const chatMessages = pgTable("chat_messages", {
   createdAt: text("created_at").default(sql`now()`),
 }, (table) => [
   index("chat_messages_team_id_idx").on(table.teamId),
+  index("chat_messages_game_id_idx").on(table.gameId),
   index("chat_messages_channel_id_idx").on(table.channelId),
 ]);
 
 export const chatChannelPermissions = pgTable("chat_channel_permissions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
   channelId: varchar("channel_id").notNull().references(() => chatChannels.id, { onDelete: "cascade" }),
   roleId: varchar("role_id").notNull().references(() => roles.id, { onDelete: "cascade" }),
   canView: boolean("can_view").notNull().default(true),
@@ -358,11 +461,13 @@ export const chatChannelPermissions = pgTable("chat_channel_permissions", {
   createdAt: text("created_at").default(sql`now()`),
 }, (table) => [
   index("chat_channel_permissions_team_id_idx").on(table.teamId),
+  index("chat_channel_permissions_game_id_idx").on(table.gameId),
 ]);
 
 export const activityLogs = pgTable("activity_logs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
   userId: varchar("user_id"),
   action: text("action").notNull(),
   details: text("details"),
@@ -372,100 +477,119 @@ export const activityLogs = pgTable("activity_logs", {
   createdAt: text("created_at").default(sql`now()`),
 }, (table) => [
   index("activity_logs_team_id_idx").on(table.teamId),
+  index("activity_logs_game_id_idx").on(table.gameId),
 ]);
 
 export const playerAvailability = pgTable("player_availability", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
   playerId: varchar("player_id").notNull().references(() => players.id, { onDelete: "cascade" }),
   day: text("day").notNull(),
   availability: text("availability").notNull().default("unknown"),
 }, (table) => [
   index("player_availability_team_id_idx").on(table.teamId),
+  index("player_availability_game_id_idx").on(table.gameId),
   index("player_availability_player_id_idx").on(table.playerId),
 ]);
 
 export const staffAvailability = pgTable("staff_availability", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
   staffId: varchar("staff_id").notNull().references(() => staff.id, { onDelete: "cascade" }),
   day: text("day").notNull(),
   availability: text("availability").notNull().default("unknown"),
 }, (table) => [
   index("staff_availability_team_id_idx").on(table.teamId),
+  index("staff_availability_game_id_idx").on(table.gameId),
   index("staff_availability_staff_id_idx").on(table.staffId),
 ]);
 
 export const insertPlayerSchema = createInsertSchema(players).omit({
   id: true,
   teamId: true,
+  gameId: true,
 });
 
 export const insertScheduleSchema = createInsertSchema(schedules).omit({
   id: true,
   teamId: true,
+  gameId: true,
 });
 
 export const insertSettingSchema = createInsertSchema(settings).omit({
   id: true,
   teamId: true,
+  gameId: true,
 });
 
 export const insertEventSchema = createInsertSchema(events).omit({
   id: true,
   teamId: true,
+  gameId: true,
 });
 
 export const insertAttendanceSchema = createInsertSchema(attendance).omit({
   id: true,
   teamId: true,
+  gameId: true,
 });
 
 export const insertTeamNotesSchema = createInsertSchema(teamNotes).omit({
   id: true,
   teamId: true,
+  gameId: true,
 });
 
 export const insertGameSchema = createInsertSchema(games).omit({
   id: true,
   teamId: true,
+  gameId: true,
 });
 
 export const insertSeasonSchema = createInsertSchema(seasons).omit({
   id: true,
   teamId: true,
+  gameId: true,
 });
 
 export const insertGameModeSchema = createInsertSchema(gameModes).omit({
   id: true,
   teamId: true,
+  gameId: true,
 });
 
 export const insertMapSchema = createInsertSchema(maps).omit({
   id: true,
   teamId: true,
+  gameId: true,
 });
 
 export const insertOffDaySchema = createInsertSchema(offDays).omit({
   id: true,
   teamId: true,
+  gameId: true,
 });
 
 export const insertStatFieldSchema = createInsertSchema(statFields).omit({
   id: true,
   teamId: true,
+  gameId: true,
   createdAt: true,
 });
 
 export const insertPlayerGameStatSchema = createInsertSchema(playerGameStats).omit({
   id: true,
   teamId: true,
+  gameId: true,
   createdAt: true,
 });
 
 export const insertRoleSchema = createInsertSchema(roles).omit({
   id: true,
   teamId: true,
+  gameId: true,
   createdAt: true,
 });
 
@@ -478,35 +602,43 @@ export const insertUserSchema = createInsertSchema(users).omit({
 export const insertAvailabilitySlotSchema = createInsertSchema(availabilitySlots).omit({
   id: true,
   teamId: true,
+  gameId: true,
   createdAt: true,
 });
 
 export const insertRosterRoleSchema = createInsertSchema(rosterRoles).omit({
   id: true,
   teamId: true,
+  gameId: true,
 });
 
 export const insertStaffSchema = createInsertSchema(staff).omit({
   id: true,
   teamId: true,
+  gameId: true,
 });
 
 export const insertChatChannelSchema = createInsertSchema(chatChannels).omit({
   id: true,
   teamId: true,
+  gameId: true,
   createdAt: true,
 });
 
 export const insertChatMessageSchema = createInsertSchema(chatMessages).omit({
   id: true,
   teamId: true,
+  gameId: true,
   createdAt: true,
 });
 
-export const insertChatChannelPermissionSchema = createInsertSchema(chatChannelPermissions).omit({ id: true, teamId: true, createdAt: true });
-export const insertActivityLogSchema = createInsertSchema(activityLogs).omit({ id: true, teamId: true, createdAt: true });
-export const insertPlayerAvailabilitySchema = createInsertSchema(playerAvailability).omit({ id: true, teamId: true });
-export const insertStaffAvailabilitySchema = createInsertSchema(staffAvailability).omit({ id: true, teamId: true });
+export const insertSupportedGameSchema = createInsertSchema(supportedGames).omit({ id: true });
+export const insertUserGameAssignmentSchema = createInsertSchema(userGameAssignments).omit({ id: true, teamId: true, createdAt: true });
+export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, teamId: true, createdAt: true });
+export const insertChatChannelPermissionSchema = createInsertSchema(chatChannelPermissions).omit({ id: true, teamId: true, gameId: true, createdAt: true });
+export const insertActivityLogSchema = createInsertSchema(activityLogs).omit({ id: true, teamId: true, gameId: true, createdAt: true });
+export const insertPlayerAvailabilitySchema = createInsertSchema(playerAvailability).omit({ id: true, teamId: true, gameId: true });
+export const insertStaffAvailabilitySchema = createInsertSchema(staffAvailability).omit({ id: true, teamId: true, gameId: true });
 
 export type AvailabilityOption = typeof availabilityOptions[number];
 export type GameResult = typeof gameResultOptions[number];
@@ -585,6 +717,15 @@ export type InsertPlayerAvailability = z.infer<typeof insertPlayerAvailabilitySc
 export type StaffAvailabilityRecord = typeof staffAvailability.$inferSelect;
 export type InsertStaffAvailability = z.infer<typeof insertStaffAvailabilitySchema>;
 
+export type SupportedGame = typeof supportedGames.$inferSelect;
+export type InsertSupportedGame = z.infer<typeof insertSupportedGameSchema>;
+
+export type UserGameAssignment = typeof userGameAssignments.$inferSelect;
+export type InsertUserGameAssignment = z.infer<typeof insertUserGameAssignmentSchema>;
+
+export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+
 export interface PlayerAvailability {
   playerId: string;
   playerName: string;
@@ -600,4 +741,5 @@ export interface ScheduleData {
 
 export interface UserWithRole extends Omit<User, 'passwordHash'> {
   role: Role | null;
+  gameAssignments?: UserGameAssignment[];
 }
