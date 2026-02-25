@@ -1,0 +1,43 @@
+ممتاز! 🔥
+الحين أرسل له هذه الرسالة في الـ Remix:
+
+I want to transform this app into a multi-game esports management platform. Here’s the full plan:
+Overall Structure:
+	∙	vicious.services — home page (after login only)
+	∙	vicious.services/valorant — Valorant roster
+	∙	vicious.services/pubg — PUBG Mobile roster
+	∙	vicious.services/cod — COD roster
+	∙	(and so on for each game)
+The 24 games to support:
+Dota 2, Counter-Strike, VALORANT, Mobile Legends, League of Legends, Rocket League, PUBG Mobile, Overwatch, Rainbow Six, Apex Legends, Fighting Games, PUBG, Honor of Kings, Brawl Stars, Call of Duty, Marvel Rivals, EA Sports FC, Free Fire, Fortnite, Teamfight Tactics, CrossFire, Deadlock, Trackmania, The Finals
+User roles & permissions:
+	∙	Super Admin (me) — sees everything across all games
+	∙	Org Admin — sees all games in their organization + attendance dashboard + results dashboard + pending registrations
+	∙	Game Manager — can be assigned to one or multiple games, manages those games only
+	∙	Coach/Analyst — sees their game only
+	∙	Player — sees their game only
+Registration flow:
+	1.	User goes to vicious.services
+	2.	Clicks Register — enters: username + selects game(s) + selects role
+	3.	Sees waiting page: “Your request is under review”
+	4.	Request appears in TWO places simultaneously:
+	∙	Org Admin dashboard (home)
+	∙	Game Manager dashboard (for that specific game)
+	5.	Either one can approve or reject
+	6.	On approval → user gets in-app notification (no email needed, no email required at registration)
+	7.	User can now access their game page(s)
+Home page (after login):
+Shows all 24 games as cards. Games the user has access to = clickable. Others = locked 🔒
+Org Admin home dashboard shows:
+	1.	Attendance summary per game (Attended / Late / Absent from actual events — NOT availability)
+	2.	Recent results per game (Win/Loss)
+	3.	All users list with their game and role
+	4.	Pending registration requests
+Game Manager can be assigned to multiple games — e.g. Sara manages Valorant + Fortnite
+IMPORTANT rules:
+	∙	Do NOT break any existing functionality
+	∙	Each game’s data is completely isolated — org_id + game_id on every record
+	∙	No data can cross between games or organizations
+	∙	Do this step by step, starting with the database structure first, then the home page, then registration flow, then permissions
+
+هذي الرسالة تغطي كل شي قلناه. أرسلها وشوف وش يقول! 🚀​​​​​​​​​​​​​​​​
