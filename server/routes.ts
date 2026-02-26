@@ -2209,7 +2209,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/all-rosters", requireAuth, async (req, res) => {
     try {
       const teamId = getTeamId();
-      const allGamesList = await db.select().from(supportedGames).where(eq(supportedGames.teamId, teamId));
+      const allGamesList = await db.select().from(supportedGames);
       const result: Record<string, any[]> = {};
 
       for (const game of allGamesList) {
