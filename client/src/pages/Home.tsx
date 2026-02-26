@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { ScheduleTable } from "@/components/ScheduleTable";
 import { PlayerManager } from "@/components/PlayerManager";
@@ -17,6 +18,7 @@ interface StaffMember {
   name: string;
   role: string;
   teamId: string | null;
+  userId: string | null;
 }
 
 export default function Home() {
@@ -41,6 +43,12 @@ export default function Home() {
   const { data: staffMembers = [] } = useQuery<StaffMember[]>({
     queryKey: ["/api/staff"],
   });
+
+  const linkedStaffId = useMemo(() => {
+    if (!user || !canEditOwn) return null;
+    const linked = staffMembers.find(s => s.userId === user.id);
+    return linked?.id || null;
+  }, [user, staffMembers, canEditOwn]);
 
   const { data: playerAvailabilities = [] } = useQuery<PlayerAvailabilityRecord[]>({
     queryKey: ["/api/player-availability"],
@@ -239,6 +247,7 @@ export default function Home() {
                 isLoading={false}
                 canEditAll={canEditAll}
                 editablePlayerId={canEditOwn ? linkedPlayerId : null}
+                editableStaffId={linkedStaffId}
               />
 
               <WeeklyAvailabilityOverview scheduleData={scheduleData} />

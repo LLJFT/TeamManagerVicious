@@ -8,9 +8,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Lock, Users, Trophy, Clock, UserCheck, UserX, CheckCircle, XCircle, LayoutDashboard, Gamepad2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { SupportedGame } from "@shared/schema";
+import type { SupportedGame, OrgRole } from "@shared/schema";
+import { orgRoleLabels } from "@shared/schema";
 import {
   SiValorant, SiLeagueoflegends, SiCounterstrike, SiDota2, SiPubg,
+  SiEa, SiActivision, SiEpicgames, SiUbisoft, SiRiotgames,
 } from "react-icons/si";
 
 const GAME_COLORS: Record<string, string> = {
@@ -38,15 +40,23 @@ const GAME_COLORS: Record<string, string> = {
   "trackmania":   "#009DDC",
   "the-finals":   "#FFD700",
   "fighting-games":"#9333EA",
+  "warzone":      "#8CC63F",
+  "efootball":    "#1D5BA4",
 };
 
 const SI_ICONS: Record<string, any> = {
-  "valorant": SiValorant,
-  "lol":      SiLeagueoflegends,
-  "cs":       SiCounterstrike,
-  "dota2":    SiDota2,
-  "pubg":     SiPubg,
-  "pubg-mobile": SiPubg,
+  "valorant":     SiValorant,
+  "lol":          SiLeagueoflegends,
+  "cs":           SiCounterstrike,
+  "dota2":        SiDota2,
+  "pubg":         SiPubg,
+  "pubg-mobile":  SiPubg,
+  "ea-fc":        SiEa,
+  "cod":          SiActivision,
+  "warzone":      SiActivision,
+  "fortnite":     SiEpicgames,
+  "r6":           SiUbisoft,
+  "tft":          SiRiotgames,
 };
 
 function GameIcon({ slug, name }: { slug: string; name: string }) {
@@ -262,7 +272,7 @@ export default function GamesHome() {
                         <div key={u.id} className="flex items-center justify-between gap-2 px-4 py-3" data-testid={`user-row-${u.id}`}>
                           <div className="flex items-center gap-2 min-w-0 flex-wrap">
                             <span className="font-medium">{u.username}</span>
-                            <Badge variant="outline">{u.orgRole || "player"}</Badge>
+                            <Badge variant="outline">{orgRoleLabels[(u.orgRole as OrgRole) || "player"] || u.orgRole}</Badge>
                             <Badge variant={u.status === "active" ? "default" : u.status === "pending" ? "secondary" : "destructive"}>
                               {u.status}
                             </Badge>

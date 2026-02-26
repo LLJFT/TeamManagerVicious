@@ -36,15 +36,17 @@ export function setupAuth(app: Express) {
 }
 
 async function seedSupportedGames() {
-  const existing = await db.select().from(supportedGames).limit(1);
-  if (existing.length > 0) return;
+  const existing = await db.select().from(supportedGames);
+  const existingSlugs = new Set(existing.map(g => g.slug));
 
   for (const game of SUPPORTED_GAMES_LIST) {
-    await db.insert(supportedGames)
-      .values({ slug: game.slug, name: game.name, sortOrder: game.sortOrder })
-      .onConflictDoNothing();
+    if (!existingSlugs.has(game.slug)) {
+      await db.insert(supportedGames)
+        .values({ slug: game.slug, name: game.name, sortOrder: game.sortOrder })
+        .onConflictDoNothing();
+    }
   }
-  console.log("Supported games seeded");
+  if (existing.length === 0) console.log("Supported games seeded");
 }
 
 export async function bootstrapDefaultAdmin() {
@@ -251,8 +253,9 @@ export function requireOrgRole(...allowedRoles: string[]) {
 }
 
 export async function requireGameAccess(req: Request, res: Response, next: NextFunction) {
-  if (!req.session.userId) {
-    return res.status(401).json({ message: "Unauthorized" });
+  const gameId = (req.query.gameId as string) || null;
+  if (!gameId || !req.session.userId) {
+    return next();
   }
 
   const teamId = getTeamId();
@@ -270,20 +273,10 @@ export async function requireGameAccess(req: Request, res: Response, next: NextF
     return next();
   }
 
-  const gameSlug = req.params.gameSlug;
-  if (!gameSlug) {
-    return res.status(400).json({ message: "Game slug required" });
-  }
-
-  const [game] = await db.select().from(supportedGames).where(eq(supportedGames.slug, gameSlug)).limit(1);
-  if (!game) {
-    return res.status(404).json({ message: "Game not found" });
-  }
-
   const [assignment] = await db.select().from(userGameAssignments)
     .where(and(
       eq(userGameAssignments.userId, user.id),
-      eq(userGameAssignments.gameId, game.id),
+      eq(userGameAssignments.gameId, gameId),
       eq(userGameAssignments.status, "approved"),
       eq(userGameAssignments.teamId, teamId)
     ))

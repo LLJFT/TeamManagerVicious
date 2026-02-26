@@ -30,6 +30,7 @@ interface ScheduleTableProps {
   isLoading?: boolean;
   canEditAll?: boolean;
   editablePlayerId?: string | null;
+  editableStaffId?: string | null;
 }
 
 const roleColorPalette = [
@@ -68,6 +69,7 @@ export function ScheduleTable({
   isLoading,
   canEditAll = true,
   editablePlayerId = null,
+  editableStaffId = null,
 }: ScheduleTableProps) {
   const tableRef = useRef<HTMLDivElement>(null);
 
@@ -215,7 +217,7 @@ export function ScheduleTable({
                           <Select
                             value={avail}
                             onValueChange={(value: string) => onStaffAvailabilityChange(s.id, day as DayOfWeek, value)}
-                            disabled={isLoading || !canEditAll}
+                            disabled={isLoading || !(canEditAll || editableStaffId === s.id)}
                           >
                             <SelectTrigger className={`w-full h-9 text-xs font-medium ${getAvailabilityColor(avail)} border-0`} data-testid={`select-staff-avail-${s.id}-${day}`}>
                               <SelectValue><span className="truncate">{avail}</span></SelectValue>

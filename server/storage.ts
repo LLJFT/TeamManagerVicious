@@ -18,31 +18,34 @@ function gameFilter(table: any, gameId: string | null | undefined) {
   return undefined;
 }
 
-function buildWhere(teamId: string, table: any, gameId?: string | null) {
+function buildWhere(teamId: string, table: any, gameId?: string | null, rosterId?: string | null) {
   const conditions = [eq(table.teamId, teamId)];
   if (gameId) {
     conditions.push(eq(table.gameId, gameId));
+  }
+  if (rosterId && table.rosterId) {
+    conditions.push(eq(table.rosterId, rosterId));
   }
   return and(...conditions);
 }
 
 export interface IStorage {
-  getSchedule(weekStartDate: string, weekEndDate: string, gameId?: string | null): Promise<Schedule | undefined>;
-  saveSchedule(schedule: InsertSchedule, gameId?: string | null): Promise<Schedule>;
-  getAllPlayers(gameId?: string | null): Promise<Player[]>;
+  getSchedule(weekStartDate: string, weekEndDate: string, gameId?: string | null, rosterId?: string | null): Promise<Schedule | undefined>;
+  saveSchedule(schedule: InsertSchedule, gameId?: string | null, rosterId?: string | null): Promise<Schedule>;
+  getAllPlayers(gameId?: string | null, rosterId?: string | null): Promise<Player[]>;
   getPlayer(id: string): Promise<Player | undefined>;
-  addPlayer(player: InsertPlayer, gameId?: string | null): Promise<Player>;
+  addPlayer(player: InsertPlayer, gameId?: string | null, rosterId?: string | null): Promise<Player>;
   updatePlayer(id: string, player: Partial<InsertPlayer>): Promise<Player>;
   removePlayer(id: string): Promise<boolean>;
   getSetting(key: string, gameId?: string | null): Promise<string | null>;
   setSetting(key: string, value: string, gameId?: string | null): Promise<Setting>;
-  getAllEvents(gameId?: string | null): Promise<Event[]>;
-  addEvent(event: InsertEvent, gameId?: string | null): Promise<Event>;
+  getAllEvents(gameId?: string | null, rosterId?: string | null): Promise<Event[]>;
+  addEvent(event: InsertEvent, gameId?: string | null, rosterId?: string | null): Promise<Event>;
   updateEvent(id: string, event: Partial<InsertEvent>): Promise<Event>;
   removeEvent(id: string): Promise<boolean>;
-  getAllAttendance(gameId?: string | null): Promise<Attendance[]>;
+  getAllAttendance(gameId?: string | null, rosterId?: string | null): Promise<Attendance[]>;
   getAttendanceByPlayerId(playerId: string): Promise<Attendance[]>;
-  addAttendance(attendance: InsertAttendance, gameId?: string | null): Promise<Attendance>;
+  addAttendance(attendance: InsertAttendance, gameId?: string | null, rosterId?: string | null): Promise<Attendance>;
   updateAttendance(id: string, attendance: Partial<InsertAttendance>): Promise<Attendance>;
   removeAttendance(id: string): Promise<boolean>;
   getTeamNotes(gameId?: string | null): Promise<TeamNotes[]>;
@@ -78,15 +81,15 @@ export interface IStorage {
   removeStatField(id: string): Promise<boolean>;
   getPlayerGameStats(matchId: string): Promise<PlayerGameStat[]>;
   savePlayerGameStats(matchId: string, stats: InsertPlayerGameStat[], gameId?: string | null): Promise<PlayerGameStat[]>;
-  getPlayerAvailabilities(gameId?: string | null): Promise<PlayerAvailabilityRecord[]>;
-  savePlayerAvailability(playerId: string, day: string, availability: string, gameId?: string | null): Promise<PlayerAvailabilityRecord>;
+  getPlayerAvailabilities(gameId?: string | null, rosterId?: string | null): Promise<PlayerAvailabilityRecord[]>;
+  savePlayerAvailability(playerId: string, day: string, availability: string, gameId?: string | null, rosterId?: string | null): Promise<PlayerAvailabilityRecord>;
   deletePlayerAvailabilities(playerId: string): Promise<boolean>;
-  getStaffAvailabilities(gameId?: string | null): Promise<StaffAvailabilityRecord[]>;
-  saveStaffAvailability(staffId: string, day: string, availability: string, gameId?: string | null): Promise<StaffAvailabilityRecord>;
+  getStaffAvailabilities(gameId?: string | null, rosterId?: string | null): Promise<StaffAvailabilityRecord[]>;
+  saveStaffAvailability(staffId: string, day: string, availability: string, gameId?: string | null, rosterId?: string | null): Promise<StaffAvailabilityRecord>;
   deleteStaffAvailabilities(staffId: string): Promise<boolean>;
-  getAllAvailabilitySlots(gameId?: string | null): Promise<AvailabilitySlot[]>;
-  getAllRosterRoles(gameId?: string | null): Promise<RosterRole[]>;
-  getAllStaff(gameId?: string | null): Promise<Staff[]>;
+  getAllAvailabilitySlots(gameId?: string | null, rosterId?: string | null): Promise<AvailabilitySlot[]>;
+  getAllRosterRoles(gameId?: string | null, rosterId?: string | null): Promise<RosterRole[]>;
+  getAllStaff(gameId?: string | null, rosterId?: string | null): Promise<Staff[]>;
   getSupportedGames(): Promise<SupportedGame[]>;
   getSupportedGameBySlug(slug: string): Promise<SupportedGame | undefined>;
   getUserGameAssignments(userId: string): Promise<UserGameAssignment[]>;
@@ -101,7 +104,7 @@ export interface IStorage {
 }
 
 export class DbStorage implements IStorage {
-  async getSchedule(weekStartDate: string, weekEndDate: string, gameId?: string | null): Promise<Schedule | undefined> {
+  async getSchedule(weekStartDate: string, weekEndDate: string, gameId?: string | null, rosterId?: string | null): Promise<Schedule | undefined> {
     const teamId = getTeamId();
     const conditions = [
       eq(schedules.teamId, teamId),
@@ -109,13 +112,14 @@ export class DbStorage implements IStorage {
       eq(schedules.weekEndDate, weekEndDate),
     ];
     if (gameId) conditions.push(eq(schedules.gameId, gameId));
+    if (rosterId) conditions.push(eq(schedules.rosterId, rosterId));
     const result = await db.select().from(schedules).where(and(...conditions)).limit(1);
     return result[0];
   }
 
-  async saveSchedule(insertSchedule: InsertSchedule, gameId?: string | null): Promise<Schedule> {
+  async saveSchedule(insertSchedule: InsertSchedule, gameId?: string | null, rosterId?: string | null): Promise<Schedule> {
     const teamId = getTeamId();
-    const existing = await this.getSchedule(insertSchedule.weekStartDate, insertSchedule.weekEndDate, gameId);
+    const existing = await this.getSchedule(insertSchedule.weekStartDate, insertSchedule.weekEndDate, gameId, rosterId);
 
     if (existing) {
       const updated = await db
@@ -128,14 +132,14 @@ export class DbStorage implements IStorage {
 
     const inserted = await db
       .insert(schedules)
-      .values({ ...insertSchedule, teamId, gameId })
+      .values({ ...insertSchedule, teamId, gameId, rosterId })
       .returning();
     return inserted[0];
   }
 
-  async getAllPlayers(gameId?: string | null): Promise<Player[]> {
+  async getAllPlayers(gameId?: string | null, rosterId?: string | null): Promise<Player[]> {
     const teamId = getTeamId();
-    return await db.select().from(players).where(buildWhere(teamId, players, gameId));
+    return await db.select().from(players).where(buildWhere(teamId, players, gameId, rosterId));
   }
 
   async getPlayer(id: string): Promise<Player | undefined> {
@@ -144,9 +148,9 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  async addPlayer(insertPlayer: InsertPlayer, gameId?: string | null): Promise<Player> {
+  async addPlayer(insertPlayer: InsertPlayer, gameId?: string | null, rosterId?: string | null): Promise<Player> {
     const teamId = getTeamId();
-    const inserted = await db.insert(players).values({ ...insertPlayer, teamId, gameId }).returning();
+    const inserted = await db.insert(players).values({ ...insertPlayer, teamId, gameId, rosterId }).returning();
     return inserted[0];
   }
 
@@ -185,14 +189,14 @@ export class DbStorage implements IStorage {
     return inserted[0];
   }
 
-  async getAllEvents(gameId?: string | null): Promise<Event[]> {
+  async getAllEvents(gameId?: string | null, rosterId?: string | null): Promise<Event[]> {
     const teamId = getTeamId();
-    return await db.select().from(events).where(buildWhere(teamId, events, gameId));
+    return await db.select().from(events).where(buildWhere(teamId, events, gameId, rosterId));
   }
 
-  async addEvent(insertEvent: InsertEvent, gameId?: string | null): Promise<Event> {
+  async addEvent(insertEvent: InsertEvent, gameId?: string | null, rosterId?: string | null): Promise<Event> {
     const teamId = getTeamId();
-    const inserted = await db.insert(events).values({ ...insertEvent, teamId, gameId }).returning();
+    const inserted = await db.insert(events).values({ ...insertEvent, teamId, gameId, rosterId }).returning();
     return inserted[0];
   }
 
@@ -208,9 +212,9 @@ export class DbStorage implements IStorage {
     return deleted.length > 0;
   }
 
-  async getAllAttendance(gameId?: string | null): Promise<Attendance[]> {
+  async getAllAttendance(gameId?: string | null, rosterId?: string | null): Promise<Attendance[]> {
     const teamId = getTeamId();
-    return await db.select().from(attendance).where(buildWhere(teamId, attendance, gameId));
+    return await db.select().from(attendance).where(buildWhere(teamId, attendance, gameId, rosterId));
   }
 
   async getAttendanceByPlayerId(playerId: string): Promise<Attendance[]> {
@@ -218,9 +222,9 @@ export class DbStorage implements IStorage {
     return await db.select().from(attendance).where(and(eq(attendance.playerId, playerId), eq(attendance.teamId, teamId)));
   }
 
-  async addAttendance(insertAttendance: InsertAttendance, gameId?: string | null): Promise<Attendance> {
+  async addAttendance(insertAttendance: InsertAttendance, gameId?: string | null, rosterId?: string | null): Promise<Attendance> {
     const teamId = getTeamId();
-    const inserted = await db.insert(attendance).values({ ...insertAttendance, teamId, gameId }).returning();
+    const inserted = await db.insert(attendance).values({ ...insertAttendance, teamId, gameId, rosterId }).returning();
     return inserted[0];
   }
 
@@ -485,12 +489,12 @@ export class DbStorage implements IStorage {
     return inserted;
   }
 
-  async getPlayerAvailabilities(gameId?: string | null): Promise<PlayerAvailabilityRecord[]> {
+  async getPlayerAvailabilities(gameId?: string | null, rosterId?: string | null): Promise<PlayerAvailabilityRecord[]> {
     const teamId = getTeamId();
-    return await db.select().from(playerAvailability).where(buildWhere(teamId, playerAvailability, gameId));
+    return await db.select().from(playerAvailability).where(buildWhere(teamId, playerAvailability, gameId, rosterId));
   }
 
-  async savePlayerAvailability(playerId: string, day: string, availability: string, gameId?: string | null): Promise<PlayerAvailabilityRecord> {
+  async savePlayerAvailability(playerId: string, day: string, availability: string, gameId?: string | null, rosterId?: string | null): Promise<PlayerAvailabilityRecord> {
     const teamId = getTeamId();
     const existing = await db.select().from(playerAvailability)
       .where(and(eq(playerAvailability.teamId, teamId), eq(playerAvailability.playerId, playerId), eq(playerAvailability.day, day)))
@@ -501,7 +505,7 @@ export class DbStorage implements IStorage {
       return updated;
     }
 
-    const [inserted] = await db.insert(playerAvailability).values({ teamId, gameId, playerId, day, availability }).returning();
+    const [inserted] = await db.insert(playerAvailability).values({ teamId, gameId, rosterId, playerId, day, availability }).returning();
     return inserted;
   }
 
@@ -511,12 +515,12 @@ export class DbStorage implements IStorage {
     return true;
   }
 
-  async getStaffAvailabilities(gameId?: string | null): Promise<StaffAvailabilityRecord[]> {
+  async getStaffAvailabilities(gameId?: string | null, rosterId?: string | null): Promise<StaffAvailabilityRecord[]> {
     const teamId = getTeamId();
-    return await db.select().from(staffAvailability).where(buildWhere(teamId, staffAvailability, gameId));
+    return await db.select().from(staffAvailability).where(buildWhere(teamId, staffAvailability, gameId, rosterId));
   }
 
-  async saveStaffAvailability(staffId: string, day: string, availability: string, gameId?: string | null): Promise<StaffAvailabilityRecord> {
+  async saveStaffAvailability(staffId: string, day: string, availability: string, gameId?: string | null, rosterId?: string | null): Promise<StaffAvailabilityRecord> {
     const teamId = getTeamId();
     const existing = await db.select().from(staffAvailability)
       .where(and(eq(staffAvailability.teamId, teamId), eq(staffAvailability.staffId, staffId), eq(staffAvailability.day, day)))
@@ -527,7 +531,7 @@ export class DbStorage implements IStorage {
       return updated;
     }
 
-    const [inserted] = await db.insert(staffAvailability).values({ teamId, gameId, staffId, day, availability }).returning();
+    const [inserted] = await db.insert(staffAvailability).values({ teamId, gameId, rosterId, staffId, day, availability }).returning();
     return inserted;
   }
 
@@ -537,19 +541,19 @@ export class DbStorage implements IStorage {
     return true;
   }
 
-  async getAllAvailabilitySlots(gameId?: string | null): Promise<AvailabilitySlot[]> {
+  async getAllAvailabilitySlots(gameId?: string | null, rosterId?: string | null): Promise<AvailabilitySlot[]> {
     const teamId = getTeamId();
-    return await db.select().from(availabilitySlots).where(buildWhere(teamId, availabilitySlots, gameId));
+    return await db.select().from(availabilitySlots).where(buildWhere(teamId, availabilitySlots, gameId, rosterId));
   }
 
-  async getAllRosterRoles(gameId?: string | null): Promise<RosterRole[]> {
+  async getAllRosterRoles(gameId?: string | null, rosterId?: string | null): Promise<RosterRole[]> {
     const teamId = getTeamId();
-    return await db.select().from(rosterRoles).where(buildWhere(teamId, rosterRoles, gameId));
+    return await db.select().from(rosterRoles).where(buildWhere(teamId, rosterRoles, gameId, rosterId));
   }
 
-  async getAllStaff(gameId?: string | null): Promise<Staff[]> {
+  async getAllStaff(gameId?: string | null, rosterId?: string | null): Promise<Staff[]> {
     const teamId = getTeamId();
-    return await db.select().from(staffTable).where(buildWhere(teamId, staffTable, gameId));
+    return await db.select().from(staffTable).where(buildWhere(teamId, staffTable, gameId, rosterId));
   }
 
   async getSupportedGames(): Promise<SupportedGame[]> {

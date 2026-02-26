@@ -1,6 +1,7 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
 let _currentGameId: string | null = null;
+let _currentRosterId: string | null = null;
 
 export function setCurrentGameId(gameId: string | null) {
   _currentGameId = gameId;
@@ -8,6 +9,14 @@ export function setCurrentGameId(gameId: string | null) {
 
 export function getCurrentGameId() {
   return _currentGameId;
+}
+
+export function setCurrentRosterId(rosterId: string | null) {
+  _currentRosterId = rosterId;
+}
+
+export function getCurrentRosterId() {
+  return _currentRosterId;
 }
 
 async function throwIfResNotOk(res: Response) {
@@ -24,7 +33,7 @@ export const GAME_SCOPED_PREFIXES = [
   "/api/player-game-stats", "/api/player-availability", "/api/staff-availability",
   "/api/availability-slots", "/api/roster-roles", "/api/chat",
   "/api/all-games", "/api/all-games-stats", "/api/player-stats-summary",
-  "/api/settings",
+  "/api/settings", "/api/rosters",
 ];
 
 function shouldAppendGameId(url: string): boolean {
@@ -34,7 +43,11 @@ function shouldAppendGameId(url: string): boolean {
 function appendGameId(url: string, gameId: string): string {
   if (url.includes("gameId=")) return url;
   const separator = url.includes("?") ? "&" : "?";
-  return `${url}${separator}gameId=${gameId}`;
+  let result = `${url}${separator}gameId=${gameId}`;
+  if (_currentRosterId && !url.includes("rosterId=")) {
+    result += `&rosterId=${_currentRosterId}`;
+  }
+  return result;
 }
 
 export async function apiRequest(

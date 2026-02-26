@@ -16,6 +16,14 @@ export const roleTypes = ["Tank", "DPS", "Support", "Flex", "Manager", "Analyst"
 export const orgRoles = ["super_admin", "org_admin", "game_manager", "coach_analyst", "player"] as const;
 export type OrgRole = typeof orgRoles[number];
 
+export const orgRoleLabels: Record<OrgRole, string> = {
+  super_admin: "Super Admin",
+  org_admin: "Management",
+  game_manager: "Game Manager",
+  coach_analyst: "Staff",
+  player: "Player",
+};
+
 export const allPermissions = [
   "view_schedule",
   "edit_own_availability",
@@ -127,6 +135,18 @@ export const supportedGames = pgTable("supported_games", {
   sortOrder: integer("sort_order").default(0),
 });
 
+export const rosters = pgTable("rosters", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  gameId: varchar("game_id").notNull().references(() => supportedGames.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  slug: text("slug").notNull(),
+  sortOrder: integer("sort_order").default(0),
+}, (table) => [
+  index("rosters_team_id_idx").on(table.teamId),
+  index("rosters_game_id_idx").on(table.gameId),
+]);
+
 export const SUPPORTED_GAMES_LIST = [
   { slug: "dota2", name: "Dota 2", sortOrder: 0 },
   { slug: "cs", name: "Counter-Strike", sortOrder: 1 },
@@ -152,12 +172,15 @@ export const SUPPORTED_GAMES_LIST = [
   { slug: "deadlock", name: "Deadlock", sortOrder: 21 },
   { slug: "trackmania", name: "Trackmania", sortOrder: 22 },
   { slug: "the-finals", name: "The Finals", sortOrder: 23 },
+  { slug: "warzone", name: "Warzone", sortOrder: 24 },
+  { slug: "efootball", name: "eFootball", sortOrder: 25 },
 ] as const;
 
 export const players = pgTable("players", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
   gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   role: text("role").notNull(),
   fullName: text("full_name"),
@@ -166,12 +189,14 @@ export const players = pgTable("players", {
 }, (table) => [
   index("players_team_id_idx").on(table.teamId),
   index("players_game_id_idx").on(table.gameId),
+  index("players_roster_id_idx").on(table.rosterId),
 ]);
 
 export const attendance = pgTable("attendance", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
   gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
   playerId: varchar("player_id").references(() => players.id, { onDelete: "set null" }),
   date: text("date").notNull(),
   eventId: varchar("event_id").references(() => events.id, { onDelete: "set null" }),
@@ -199,6 +224,7 @@ export const schedules = pgTable("schedules", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
   gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
   weekStartDate: text("week_start_date").notNull(),
   weekEndDate: text("week_end_date").notNull(),
   scheduleData: jsonb("schedule_data").notNull(),
@@ -223,6 +249,7 @@ export const events = pgTable("events", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
   gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
   title: text("title").notNull(),
   eventType: text("event_type").notNull(),
   date: text("date").notNull(),
@@ -386,6 +413,7 @@ export const availabilitySlots = pgTable("availability_slots", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
   gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
   label: text("label").notNull(),
   sortOrder: integer("sort_order").default(0),
   createdAt: text("created_at").default(sql`now()`),
@@ -398,6 +426,7 @@ export const rosterRoles = pgTable("roster_roles", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
   gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   type: text("type").notNull().default("player"),
   sortOrder: integer("sort_order").default(0),
@@ -410,6 +439,7 @@ export const staff = pgTable("staff", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
   gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   role: text("role").notNull(),
   fullName: text("full_name"),
@@ -485,6 +515,7 @@ export const playerAvailability = pgTable("player_availability", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
   gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
   playerId: varchar("player_id").notNull().references(() => players.id, { onDelete: "cascade" }),
   day: text("day").notNull(),
   availability: text("availability").notNull().default("unknown"),
@@ -498,6 +529,7 @@ export const staffAvailability = pgTable("staff_availability", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
   gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
   staffId: varchar("staff_id").notNull().references(() => staff.id, { onDelete: "cascade" }),
   day: text("day").notNull(),
   availability: text("availability").notNull().default("unknown"),
@@ -507,10 +539,16 @@ export const staffAvailability = pgTable("staff_availability", {
   index("staff_availability_staff_id_idx").on(table.staffId),
 ]);
 
+export const insertRosterSchema = createInsertSchema(rosters).omit({
+  id: true,
+  teamId: true,
+});
+
 export const insertPlayerSchema = createInsertSchema(players).omit({
   id: true,
   teamId: true,
   gameId: true,
+  rosterId: true,
 });
 
 export const insertScheduleSchema = createInsertSchema(schedules).omit({
@@ -717,6 +755,9 @@ export type PlayerAvailabilityRecord = typeof playerAvailability.$inferSelect;
 export type InsertPlayerAvailability = z.infer<typeof insertPlayerAvailabilitySchema>;
 export type StaffAvailabilityRecord = typeof staffAvailability.$inferSelect;
 export type InsertStaffAvailability = z.infer<typeof insertStaffAvailabilitySchema>;
+
+export type Roster = typeof rosters.$inferSelect;
+export type InsertRoster = z.infer<typeof insertRosterSchema>;
 
 export type SupportedGame = typeof supportedGames.$inferSelect;
 export type InsertSupportedGame = z.infer<typeof insertSupportedGameSchema>;

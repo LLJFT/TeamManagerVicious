@@ -22,8 +22,11 @@ import {
 } from "lucide-react";
 import {
   SiValorant, SiLeagueoflegends, SiCounterstrike, SiDota2, SiPubg,
+  SiEa, SiActivision, SiEpicgames, SiUbisoft, SiRiotgames,
 } from "react-icons/si";
-import type { Permission } from "@shared/schema";
+import type { Permission, OrgRole } from "@shared/schema";
+import { orgRoleLabels } from "@shared/schema";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const GAME_COLORS: Record<string, string> = {
   "valorant":     "#FF4655",
@@ -50,15 +53,23 @@ const GAME_COLORS: Record<string, string> = {
   "trackmania":   "#009DDC",
   "the-finals":   "#FFD700",
   "fighting-games":"#9333EA",
+  "warzone":      "#8CC63F",
+  "efootball":    "#1D5BA4",
 };
 
 const SI_ICONS: Record<string, any> = {
-  "valorant": SiValorant,
-  "lol":      SiLeagueoflegends,
-  "cs":       SiCounterstrike,
-  "dota2":    SiDota2,
-  "pubg":     SiPubg,
-  "pubg-mobile": SiPubg,
+  "valorant":     SiValorant,
+  "lol":          SiLeagueoflegends,
+  "cs":           SiCounterstrike,
+  "dota2":        SiDota2,
+  "pubg":         SiPubg,
+  "pubg-mobile":  SiPubg,
+  "ea-fc":        SiEa,
+  "cod":          SiActivision,
+  "warzone":      SiActivision,
+  "fortnite":     SiEpicgames,
+  "r6":           SiUbisoft,
+  "tft":          SiRiotgames,
 };
 
 function GameBadge({ slug, name }: { slug: string; name: string }) {
@@ -105,7 +116,7 @@ function makeGameItems(prefix: string) {
 export function AppSidebar() {
   const [location] = useLocation();
   const { user, logout, hasPermission } = useAuth();
-  const { currentGame, gameSlug } = useGame();
+  const { currentGame, gameSlug, rosters, currentRoster, setRosterId, rosterId } = useGame();
 
   const { data: orgLogoUrl } = useQuery<string | null>({
     queryKey: ["/api/org-setting/org_logo"],
@@ -131,6 +142,20 @@ export function AppSidebar() {
               <GameBadge slug={currentGame.slug} name={currentGame.name} />
               <span className="text-sm font-bold truncate">{currentGame.name}</span>
             </div>
+            {rosters.length > 1 && (
+              <Select value={rosterId || ""} onValueChange={(val) => setRosterId(val)}>
+                <SelectTrigger className="h-8 text-xs" data-testid="select-roster">
+                  <SelectValue placeholder="Select Roster" />
+                </SelectTrigger>
+                <SelectContent>
+                  {rosters.map(r => (
+                    <SelectItem key={r.id} value={r.id} data-testid={`roster-option-${r.slug}`}>
+                      {r.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
         ) : (
           <div className="flex items-center gap-2">
@@ -238,7 +263,7 @@ export function AppSidebar() {
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
             <p className="text-sm font-medium truncate">{user?.username}</p>
-            <p className="text-xs text-muted-foreground truncate">{user?.orgRole || user?.role?.name}</p>
+            <p className="text-xs text-muted-foreground truncate">{orgRoleLabels[(user?.orgRole as OrgRole) || "player"] || user?.role?.name}</p>
           </div>
           <Button
             variant="ghost"

@@ -33,6 +33,10 @@ function getGameId(req: any): string | null {
   return (req.query.gameId as string) || null;
 }
 
+function getRosterId(req: any): string | null {
+  return (req.query.rosterId as string) || null;
+}
+
 async function logActivity(userId: string | null, action: string, details?: string, logType: string = "team", deviceInfo?: string) {
   try {
     const teamId = getTeamId();
@@ -43,6 +47,18 @@ async function logActivity(userId: string | null, action: string, details?: stri
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+
+  const gameAccessPaths = [
+    "/api/players", "/api/events", "/api/attendance", "/api/schedule",
+    "/api/staff", "/api/chat", "/api/availability-slots", "/api/roster-roles",
+    "/api/player-availability", "/api/staff-availability", "/api/seasons",
+    "/api/game-modes", "/api/maps", "/api/games", "/api/off-days",
+    "/api/stat-fields", "/api/player-stats-summary", "/api/team-notes",
+    "/api/activity-logs",
+  ];
+  for (const path of gameAccessPaths) {
+    app.use(path, requireGameAccess);
+  }
 
   // ==================== FILE UPLOAD (Object Storage) ====================
   app.post("/api/upload", requireAuth, requirePermission("send_messages"), upload.single("file"), async (req, res) => {
@@ -260,7 +276,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/users", requireAuth, requirePermission("manage_users"), async (req, res) => {
     try {
       const teamId = getTeamId();
-      const allUsers = await db.select().from(users).where(eq(users.teamId, teamId));
+      const gameId = getGameId(req);
+      let allUsers = await db.select().from(users).where(eq(users.teamId, teamId));
+
+      if (gameId) {
+        const gameAssigns = await db.select().from(userGameAssignments)
+          .where(and(eq(userGameAssignments.teamId, teamId), eq(userGameAssignments.gameId, gameId), eq(userGameAssignments.status, "approved")));
+        const gameUserIds = new Set(gameAssigns.map(a => a.userId));
+        const orgAdmins = allUsers.filter(u => u.orgRole === "org_admin" || u.orgRole === "super_admin");
+        allUsers = allUsers.filter(u => gameUserIds.has(u.id) || u.orgRole === "org_admin" || u.orgRole === "super_admin");
+      }
+
       const allRoles = await db.select().from(roles).where(eq(roles.teamId, teamId));
       const result: UserWithRole[] = allUsers.map(u => {
         const { passwordHash, ...safeUser } = u;
@@ -322,6 +348,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const { roleId } = req.body;
       const teamId = getTeamId();
+
+      if (id === req.session.userId) {
+        return res.status(403).json({ message: "You cannot change your own role" });
+      }
+
+      const ROLE_RANK: Record<string, number> = { "Owner": 4, "Admin": 3, "Staff": 2, "Member": 1 };
+      const allRoles = await db.select().from(roles).where(eq(roles.teamId, teamId));
+
+      const [currentUser] = await db.select().from(users).where(eq(users.id, req.session.userId!));
+      const [targetUser] = await db.select().from(users).where(and(eq(users.id, id), eq(users.teamId, teamId)));
+      if (!targetUser) return res.status(404).json({ message: "User not found" });
+
+      const actorRole = allRoles.find(r => r.id === currentUser?.roleId);
+      const targetCurrentRole = allRoles.find(r => r.id === targetUser.roleId);
+      const actorRank = actorRole ? (ROLE_RANK[actorRole.name] || 0) : 0;
+      const targetRank = targetCurrentRole ? (ROLE_RANK[targetCurrentRole.name] || 0) : 0;
+
+      if (targetRank >= actorRank) {
+        return res.status(403).json({ message: "Cannot change the role of someone with equal or higher rank" });
+      }
+
+      if (targetCurrentRole?.name === "Admin" && actorRole?.name !== "Owner") {
+        return res.status(403).json({ message: "Only the Owner can change Admin roles" });
+      }
+
+      const newRole = allRoles.find(r => r.id === roleId);
+      const newRank = newRole ? (ROLE_RANK[newRole.name] || 0) : 0;
+      if (newRank >= actorRank) {
+        return res.status(403).json({ message: "Cannot assign a role equal to or higher than your own" });
+      }
+
       const [updated] = await db.update(users)
         .set({ roleId })
         .where(and(eq(users.id, id), eq(users.teamId, teamId)))
@@ -478,7 +535,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/roles", requireAuth, async (req, res) => {
     try {
       const teamId = getTeamId();
-      const allRoles = await db.select().from(roles).where(eq(roles.teamId, teamId));
+      const gameId = getGameId(req);
+      const conditions: any[] = [eq(roles.teamId, teamId)];
+      if (gameId) conditions.push(eq(roles.gameId, gameId));
+      let allRoles = await db.select().from(roles).where(and(...conditions));
+
+      if (gameId && allRoles.length === 0) {
+        const ownerPerms = [...allPermissions] as string[];
+        const staffPerms = allPermissions.filter(p => p !== "manage_roles") as string[];
+        const memberPerms = [
+          "view_schedule", "edit_own_availability", "view_events", "view_results",
+          "view_players", "view_statistics", "view_player_stats", "view_history",
+          "view_compare", "view_opponents", "view_chat", "send_messages", "delete_own_messages",
+        ] as string[];
+
+        const defaults = [
+          { name: "Owner", permissions: ownerPerms, isSystem: true },
+          { name: "Admin", permissions: staffPerms, isSystem: true },
+          { name: "Staff", permissions: staffPerms, isSystem: true },
+          { name: "Member", permissions: memberPerms, isSystem: true },
+        ];
+
+        for (const d of defaults) {
+          await db.insert(roles).values({ teamId, gameId, name: d.name, permissions: d.permissions, isSystem: d.isSystem });
+        }
+        allRoles = await db.select().from(roles).where(and(...conditions));
+      }
+
       res.json(allRoles);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -488,9 +571,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/roles", requireAuth, requirePermission("manage_roles"), async (req, res) => {
     try {
       const teamId = getTeamId();
+      const gameId = getGameId(req);
       const { name, permissions } = req.body;
       const [role] = await db.insert(roles).values({
-        teamId, name, permissions: permissions || [], isSystem: false,
+        teamId, gameId, name, permissions: permissions || [], isSystem: false,
       }).returning();
       logActivity(req.session.userId!, "create_role", `Created role "${name}"`);
       res.json(role);
@@ -544,8 +628,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const teamId = getTeamId();
       const gid = getGameId(req);
+      const rid = getRosterId(req);
       const conditions: any[] = [eq(staffTable.teamId, teamId)];
       if (gid) conditions.push(eq(staffTable.gameId, gid));
+      if (rid) conditions.push(eq(staffTable.rosterId, rid));
       const allStaff = await db.select().from(staffTable).where(and(...conditions));
       res.json(allStaff);
     } catch (error: any) {
@@ -557,8 +643,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const teamId = getTeamId();
       const gid = getGameId(req);
+      const rid = getRosterId(req);
       const validatedData = insertStaffSchema.parse(req.body);
-      const [newStaff] = await db.insert(staffTable).values({ ...validatedData, teamId, gameId: gid }).returning();
+      const [newStaff] = await db.insert(staffTable).values({ ...validatedData, teamId, gameId: gid, rosterId: rid }).returning();
       logActivity(req.session.userId!, "add_staff", `Added staff member "${newStaff.name}"`);
       res.json(newStaff);
     } catch (error: any) {
@@ -871,8 +958,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const teamId = getTeamId();
       const gid = getGameId(req);
+      const rid = getRosterId(req);
       const conditions: any[] = [eq(availabilitySlots.teamId, teamId)];
       if (gid) conditions.push(eq(availabilitySlots.gameId, gid));
+      if (rid) conditions.push(eq(availabilitySlots.rosterId, rid));
       const slots = await db.select().from(availabilitySlots).where(and(...conditions));
       res.json(slots);
     } catch (error: any) {
@@ -884,8 +973,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const teamId = getTeamId();
       const gid = getGameId(req);
+      const rid = getRosterId(req);
       const validatedData = insertAvailabilitySlotSchema.parse(req.body);
-      const [slot] = await db.insert(availabilitySlots).values({ ...validatedData, teamId, gameId: gid }).returning();
+      const [slot] = await db.insert(availabilitySlots).values({ ...validatedData, teamId, gameId: gid, rosterId: rid }).returning();
       logActivity(req.session.userId!, "add_availability_slot", `Added availability slot "${slot.label}"`);
       res.json(slot);
     } catch (error: any) {
@@ -930,8 +1020,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const teamId = getTeamId();
       const gid = getGameId(req);
+      const rid = getRosterId(req);
       const conditions: any[] = [eq(rosterRoles.teamId, teamId)];
       if (gid) conditions.push(eq(rosterRoles.gameId, gid));
+      if (rid) conditions.push(eq(rosterRoles.rosterId, rid));
       const rr = await db.select().from(rosterRoles).where(and(...conditions));
       res.json(rr);
     } catch (error: any) {
@@ -943,8 +1035,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const teamId = getTeamId();
       const gid = getGameId(req);
+      const rid = getRosterId(req);
       const validatedData = insertRosterRoleSchema.parse(req.body);
-      const [rr] = await db.insert(rosterRoles).values({ ...validatedData, teamId, gameId: gid }).returning();
+      const [rr] = await db.insert(rosterRoles).values({ ...validatedData, teamId, gameId: gid, rosterId: rid }).returning();
       logActivity(req.session.userId!, "add_roster_role", `Added roster role "${rr.name}"`);
       res.json(rr);
     } catch (error: any) {
@@ -988,7 +1081,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ==================== PLAYER AVAILABILITY ====================
   app.get("/api/player-availability", requireAuth, async (req, res) => {
     try {
-      const records = await storage.getPlayerAvailabilities(getGameId(req));
+      const records = await storage.getPlayerAvailabilities(getGameId(req), getRosterId(req));
       res.json(records);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1017,7 +1110,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "No permission to edit this player's availability" });
       }
 
-      const record = await storage.savePlayerAvailability(playerId, day, availability, getGameId(req));
+      const record = await storage.savePlayerAvailability(playerId, day, availability, getGameId(req), getRosterId(req));
       res.json(record);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1047,7 +1140,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!hasEditAll && !(hasEditOwn && isOwnPlayer)) {
           return res.status(403).json({ message: "No permission to edit this player's availability" });
         }
-        const record = await storage.savePlayerAvailability(playerId, day, availability, gid);
+        const record = await storage.savePlayerAvailability(playerId, day, availability, gid, getRosterId(req));
         results.push(record);
       }
       res.json(results);
@@ -1059,7 +1152,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ==================== STAFF AVAILABILITY ====================
   app.get("/api/staff-availability", requireAuth, async (req, res) => {
     try {
-      const records = await storage.getStaffAvailabilities(getGameId(req));
+      const records = await storage.getStaffAvailabilities(getGameId(req), getRosterId(req));
       res.json(records);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1072,7 +1165,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!staffId || !day || !availability) {
         return res.status(400).json({ message: "staffId, day, and availability required" });
       }
-      const record = await storage.saveStaffAvailability(staffId, day, availability, getGameId(req));
+      const record = await storage.saveStaffAvailability(staffId, day, availability, getGameId(req), getRosterId(req));
       res.json(record);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1086,9 +1179,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "updates must be an array" });
       }
       const gid = getGameId(req);
+      const rid = getRosterId(req);
       const results = [];
       for (const { staffId, day, availability } of updates) {
-        const record = await storage.saveStaffAvailability(staffId, day, availability, gid);
+        const record = await storage.saveStaffAvailability(staffId, day, availability, gid, rid);
         results.push(record);
       }
       res.json(results);
@@ -1109,10 +1203,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const gid = getGameId(req);
+      const rid = getRosterId(req);
       const schedule = await storage.getSchedule(
         weekStartDate as string, 
         weekEndDate as string,
-        gid
+        gid, rid
       );
 
       if (schedule) {
@@ -1123,7 +1218,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         weekStartDate: weekStartDate as string,
         weekEndDate: weekEndDate as string,
         scheduleData: { players: [] } as any,
-      }, gid);
+      }, gid, rid);
 
       return res.json(emptySchedule);
     } catch (error: any) {
@@ -1136,7 +1231,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertScheduleSchema.parse(req.body);
 
-      const schedule = await storage.saveSchedule(validatedData, getGameId(req));
+      const schedule = await storage.saveSchedule(validatedData, getGameId(req), getRosterId(req));
 
       res.json(schedule);
     } catch (error: any) {
@@ -1150,7 +1245,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/players", requireAuth, async (req, res) => {
     try {
-      const players = await storage.getAllPlayers(getGameId(req));
+      const players = await storage.getAllPlayers(getGameId(req), getRosterId(req));
       res.json(players);
     } catch (error: any) {
       console.error('Error in GET /api/players:', error);
@@ -1161,7 +1256,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/players", requireAuth, requirePermission("add_players"), async (req, res) => {
     try {
       const validatedData = insertPlayerSchema.parse(req.body);
-      const player = await storage.addPlayer(validatedData, getGameId(req));
+      const player = await storage.addPlayer(validatedData, getGameId(req), getRosterId(req));
       logActivity(req.session.userId!, "add_player", `Added player "${player.name}"`);
       res.json(player);
     } catch (error: any) {
@@ -1191,7 +1286,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/events", requireAuth, requirePermission("view_events"), async (req, res) => {
     try {
-      const events = await storage.getAllEvents(getGameId(req));
+      const events = await storage.getAllEvents(getGameId(req), getRosterId(req));
       res.json(events);
     } catch (error: any) {
       console.error('Error in GET /api/events:', error);
@@ -1202,7 +1297,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/events", requireAuth, requirePermission("create_events"), async (req, res) => {
     try {
       const validatedData = insertEventSchema.parse(req.body);
-      const event = await storage.addEvent(validatedData, getGameId(req));
+      const event = await storage.addEvent(validatedData, getGameId(req), getRosterId(req));
       logActivity(req.session.userId!, "create_event", `Created event "${event.title}"`);
       res.json(event);
     } catch (error: any) {
@@ -1264,7 +1359,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/attendance", requireAuth, async (req, res) => {
     try {
-      const attendance = await storage.getAllAttendance(getGameId(req));
+      const attendance = await storage.getAllAttendance(getGameId(req), getRosterId(req));
       res.json(attendance);
     } catch (error: any) {
       console.error('Error in GET /api/attendance:', error);
@@ -1275,7 +1370,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/attendance", requireAuth, requirePermission("edit_events"), async (req, res) => {
     try {
       const validatedData = insertAttendanceSchema.parse(req.body);
-      const attendance = await storage.addAttendance(validatedData, getGameId(req));
+      const attendance = await storage.addAttendance(validatedData, getGameId(req), getRosterId(req));
       res.json(attendance);
     } catch (error: any) {
       console.error('Error in POST /api/attendance:', error);
@@ -2013,6 +2108,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==================== ROSTERS ====================
+  app.get("/api/rosters", requireAuth, async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const gameId = getGameId(req);
+      if (!gameId) return res.status(400).json({ message: "gameId required" });
+
+      const { rosters: rostersTable } = await import("@shared/schema");
+      let allRosters = await db.select().from(rostersTable)
+        .where(and(eq(rostersTable.teamId, teamId), eq(rostersTable.gameId, gameId)));
+
+      if (allRosters.length === 0) {
+        const defaults = [
+          { name: "Main Roster", slug: "main", sortOrder: 0 },
+          { name: "Academy", slug: "academy", sortOrder: 1 },
+          { name: "Bench", slug: "bench", sortOrder: 2 },
+        ];
+        for (const d of defaults) {
+          await db.insert(rostersTable).values({ teamId, gameId, name: d.name, slug: d.slug, sortOrder: d.sortOrder });
+        }
+        allRosters = await db.select().from(rostersTable)
+          .where(and(eq(rostersTable.teamId, teamId), eq(rostersTable.gameId, gameId)));
+      }
+
+      res.json(allRosters);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/rosters", requireAuth, requirePermission("manage_users"), async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const gameId = getGameId(req);
+      if (!gameId) return res.status(400).json({ message: "gameId required" });
+
+      const { name, slug } = req.body;
+      if (!name || !slug) return res.status(400).json({ message: "name and slug are required" });
+
+      const { rosters: rostersTable } = await import("@shared/schema");
+      const [roster] = await db.insert(rostersTable)
+        .values({ teamId, gameId, name, slug: slug.toLowerCase().replace(/\s+/g, '-') })
+        .returning();
+      res.json(roster);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.patch("/api/rosters/:id", requireAuth, requirePermission("manage_users"), async (req, res) => {
+    try {
+      const { name } = req.body;
+      const { rosters: rostersTable } = await import("@shared/schema");
+      const [updated] = await db.update(rostersTable)
+        .set({ name })
+        .where(eq(rostersTable.id, req.params.id))
+        .returning();
+      if (!updated) return res.status(404).json({ message: "Roster not found" });
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/rosters/:id", requireAuth, requirePermission("manage_users"), async (req, res) => {
+    try {
+      const { rosters: rostersTable } = await import("@shared/schema");
+      const [deleted] = await db.delete(rostersTable)
+        .where(eq(rostersTable.id, req.params.id))
+        .returning();
+      if (!deleted) return res.status(404).json({ message: "Roster not found" });
+      res.json({ message: "Roster deleted" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // ==================== ORG DASHBOARD ====================
   app.get("/api/org-dashboard", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
     try {
@@ -2117,11 +2289,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/users", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+  app.get("/api/org-users", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
     try {
       const teamId = getTeamId();
       const allUsers = await db.select().from(users).where(eq(users.teamId, teamId));
-      const safeUsers = allUsers.map(u => { const { passwordHash, ...safe } = u; return safe; });
+      const allAssignments = await db.select().from(userGameAssignments).where(eq(userGameAssignments.teamId, teamId));
+      const safeUsers = allUsers.map(u => {
+        const { passwordHash, ...safe } = u;
+        return { ...safe, games: allAssignments.filter(a => a.userId === u.id) };
+      });
       res.json(safeUsers);
     } catch (error: any) {
       res.status(500).json({ message: error.message });

@@ -154,24 +154,9 @@ export default function Login() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="player">
-                        <div className="flex flex-col">
-                          <span>Player</span>
-                          <span className="text-xs text-muted-foreground">Select one game</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="staff">
-                        <div className="flex flex-col">
-                          <span>Staff</span>
-                          <span className="text-xs text-muted-foreground">Coach, Analyst, Team Manager — one or more games</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="management">
-                        <div className="flex flex-col">
-                          <span>Management</span>
-                          <span className="text-xs text-muted-foreground">Founder, CEO, Esports Manager — all games</span>
-                        </div>
-                      </SelectItem>
+                      <SelectItem value="player">Player</SelectItem>
+                      <SelectItem value="staff">Staff</SelectItem>
+                      <SelectItem value="management">Management</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

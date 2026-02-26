@@ -1,0 +1,76 @@
+Fix all these issues carefully, one by one. Test each before moving to the next. Do NOT break existing functionality.
+
+🔴 CRITICAL — URL access bypass
+Any logged-in user can access any game by typing /fortnite directly in the URL even without access, and their role from another game carries over. Fix this: if a user has no access to a game, redirect them to home. Permissions must be completely isolated per game — admin in Overwatch = no role in Fortnite unless explicitly granted.
+🔴 CRITICAL — Roles and permissions not isolated per game
+Editing a role's permissions in one game changes it in ALL games. Adding a role in one game adds it everywhere. Fix this: roles and permissions must be completely isolated by game_id.
+🔴 CRITICAL — Users can change their own role / demote others
+A user can change their own role or demote others. Fix:
+
+A user can NEVER change their own role
+Only Owner can change Admin roles
+Nobody can demote someone of equal or higher rank
+
+🔴 CRITICAL — Game dashboard shows all users
+The Users tab in each game's dashboard must only show users who have access to THAT specific game only.
+🔴 CRITICAL — Staff cannot edit their own availability
+After linking a staff member to a user account, they still cannot edit their availability. Players can. Fix staff so they can edit their own availability after being linked.
+🔴 CRITICAL — Pending registration appears in all game dashboards
+When someone registers and requests access to Overwatch only, their pending request should appear ONLY in Overwatch's dashboard — not in every other game's dashboard. Fix this so pending requests only appear in the dashboard of the game they requested. They can also be approved from the Home Dashboard (see below). When approved from either place, the approval is reflected in both logs.
+
+🟡 Registration — Remove hint text under roles
+Remove the description text under each role in the register form. Show only: Player, Staff, Management — no subtitles.
+🟡 Role label — coach_analyst → Staff
+Everywhere "coach_analyst" appears in the UI, display it as "Staff".
+🟡 Default roles for every new game: Owner, Admin, Staff, Member
+Default permissions:
+
+Staff: all permissions EXCEPT "Manage Roles"
+Member: View Schedule, Edit Own Availability, View Events, View Results, View Players, View Statistics, View Player Stats, View History, View Compare, View Opponents, View Chat, Send Messages, Delete Own Messages
+
+🟡 Management role — org-level, above Admin
+Management users have full access to ALL games automatically (no need to manually add them to each game). They are ranked above Admin. Each management user has a custom title shown as their label (CEO, Founder, Co-CEO, Esports Manager, etc.). They can do everything an Owner can do across all games. Management is controlled from the Home Dashboard only — NOT from individual game dashboards.
+🟡 Multiple rosters per game
+Each game supports 3 completely separate rosters:
+
+Main (Men's/Youth)
+Academy
+Women's
+
+Each roster has its own: schedule, players, events, results, stats, staff, and chat. When a user clicks a game from the home page, show a sub-selection to pick which roster to enter. Each roster is fully isolated — data from Main never appears in Academy or Women's.
+🟡 Add new games with proper icons
+Add: Warzone, eFootball
+Also add proper icons/logos for ALL games that currently show text abbreviations: Honor of Kings, Brawl Stars, Call of Duty, Marvel Rivals, EA Sports FC, Free Fire, Fortnite, Teamfight Tactics, CrossFire, Deadlock, Trackmania, The Finals, Fighting Games, Mobile Legends, Rainbow Six, Apex Legends, Overwatch, Rocket League, PUBG Mobile, PUBG.
+
+🟡 Home Dashboard tab — complete and powerful
+Replace the current basic home dashboard with a full control panel. This is the central hub for org admins and management. It must include:
+Org Settings section:
+
+Upload and change organization logo (replaces the shield icon everywhere)
+Set organization name
+Manage which games are active or inactive for the org
+Add new games to the org
+
+User Management section:
+
+Full list of all users across all games
+Each user shows: username, role, which games they have access to, status (active/pending/banned)
+Ability to: approve/reject pending users, add a user to a specific game manually, remove a user from a game, change their role per game
+Ability to create a new user account directly from here
+
+Pending Registrations section:
+
+All pending requests across all games in one place
+Each request shows: username, requested game, requested role
+Approve or reject from here — approval syncs with the game's own dashboard log
+
+Rosters Overview section:
+
+Shows each active game with its 3 rosters (Main, Academy, Women's)
+Each roster card shows: number of players, last 3 results (W/L), attendance rate this week
+
+Management Users section:
+
+Add/remove management users
+Set their custom title (CEO, Founder, Co-CEO, Esports Manager, etc.)
+Management users automatically get full access to all games
