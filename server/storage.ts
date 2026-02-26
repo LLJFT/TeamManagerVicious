@@ -1,5 +1,5 @@
 import type { Player, InsertPlayer, Schedule, InsertSchedule, Setting, InsertSetting, Event, InsertEvent, Attendance, InsertAttendance, TeamNotes, InsertTeamNotes, Game, InsertGame, GameMode, InsertGameMode, Map, InsertMap, Season, InsertSeason, OffDay, InsertOffDay, StatField, InsertStatField, PlayerGameStat, InsertPlayerGameStat, PlayerAvailabilityRecord, InsertPlayerAvailability, StaffAvailabilityRecord, InsertStaffAvailability, Staff, InsertStaff, AvailabilitySlot, RosterRole, SupportedGame, UserGameAssignment, Notification } from "@shared/schema";
-import { players, schedules, settings, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays, statFields, playerGameStats, playerAvailability, staffAvailability, staff as staffTable, availabilitySlots, rosterRoles, supportedGames, userGameAssignments, notifications, users } from "@shared/schema";
+import { players, schedules, settings, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays, statFields, playerGameStats, playerAvailability, staffAvailability, staff as staffTable, availabilitySlots, rosterRoles, supportedGames, userGameAssignments, notifications, users, rosters } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, isNull, desc } from "drizzle-orm";
 
@@ -93,7 +93,7 @@ export interface IStorage {
   getSupportedGames(): Promise<SupportedGame[]>;
   getSupportedGameBySlug(slug: string): Promise<SupportedGame | undefined>;
   getUserGameAssignments(userId: string): Promise<UserGameAssignment[]>;
-  getAllPendingAssignments(gameId?: string | null): Promise<(UserGameAssignment & { username: string; gameName: string; gameSlug: string })[]>;
+  getAllPendingAssignments(gameId?: string | null): Promise<(UserGameAssignment & { username: string; gameName: string; gameSlug: string; rosterName: string | null })[]>;
   createUserGameAssignment(teamId: string, userId: string, gameId: string, assignedRole: string): Promise<UserGameAssignment>;
   approveUserGameAssignment(id: string): Promise<UserGameAssignment>;
   rejectUserGameAssignment(id: string): Promise<UserGameAssignment>;
@@ -571,7 +571,7 @@ export class DbStorage implements IStorage {
       .where(and(eq(userGameAssignments.userId, userId), eq(userGameAssignments.teamId, teamId)));
   }
 
-  async getAllPendingAssignments(gameId?: string | null): Promise<(UserGameAssignment & { username: string; gameName: string; gameSlug: string })[]> {
+  async getAllPendingAssignments(gameId?: string | null): Promise<(UserGameAssignment & { username: string; gameName: string; gameSlug: string; rosterName: string | null })[]> {
     const teamId = getTeamId();
     const conditions = [
       eq(userGameAssignments.teamId, teamId),
@@ -585,16 +585,21 @@ export class DbStorage implements IStorage {
         teamId: userGameAssignments.teamId,
         userId: userGameAssignments.userId,
         gameId: userGameAssignments.gameId,
+        rosterId: userGameAssignments.rosterId,
         assignedRole: userGameAssignments.assignedRole,
         status: userGameAssignments.status,
+        approvalGameStatus: userGameAssignments.approvalGameStatus,
+        approvalOrgStatus: userGameAssignments.approvalOrgStatus,
         createdAt: userGameAssignments.createdAt,
         username: users.username,
         gameName: supportedGames.name,
         gameSlug: supportedGames.slug,
+        rosterName: rosters.name,
       })
       .from(userGameAssignments)
       .innerJoin(users, eq(userGameAssignments.userId, users.id))
       .innerJoin(supportedGames, eq(userGameAssignments.gameId, supportedGames.id))
+      .leftJoin(rosters, eq(userGameAssignments.rosterId, rosters.id))
       .where(and(...conditions));
 
     return results;

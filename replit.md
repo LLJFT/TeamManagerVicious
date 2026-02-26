@@ -2,7 +2,7 @@
 
 ## Overview
 
-This application is a comprehensive multi-game esports management platform for "The Vicious" organization. It supports 26 different games with full per-game data isolation and multiple rosters per game. Features include: team scheduling and availability tracking, event calendar and results, player and staff management, role-based access control with org-level and game-level roles, registration with game selection and approval workflow, a Discord-style team chat, statistics dashboards, and seasonal management.
+This application is a comprehensive multi-game esports management platform for "The Vicious" organization. It supports 29 different games with full per-game data isolation and multiple rosters per game (First Team, Academy, Women). Features include: team scheduling and availability tracking, event calendar and results, player and staff management, role-based access control with org-level and game-level roles, two-step registration approval workflow (game-level + org-level), a Discord-style team chat, statistics dashboards, and seasonal management.
 
 ## User Preferences
 
@@ -11,12 +11,12 @@ Preferred communication style: Simple, everyday language.
 ## System Architecture
 
 ### Multi-Game Structure
-The platform is organized around a central home page showing 26 game cards. Users are assigned to specific games via `user_game_assignments`. All game data (players, events, attendance, etc.) is isolated by `gameId` and optionally by `rosterId`. Routes are prefixed by game slug: `/:gameSlug/*` (e.g., `/valorant/players`).
+The platform is organized around a central home page showing roster-level cards grouped by game. Each game has 3 default rosters (First Team, Academy, Women) shown as independent cards. Users are assigned to specific games via `user_game_assignments` with optional `rosterId` scoping. All game data is isolated by `gameId` and `rosterId`. Routes are prefixed by game slug: `/:gameSlug/*` (e.g., `/valorant/players`).
 
-The 26 supported games: Dota 2, Counter-Strike, VALORANT, Mobile Legends, League of Legends, Rocket League, PUBG Mobile, Overwatch, Rainbow Six, Apex Legends, Fighting Games, PUBG, Honor of Kings, Brawl Stars, Call of Duty, Marvel Rivals, EA Sports FC, Free Fire, Fortnite, Teamfight Tactics, CrossFire, Deadlock, Trackmania, The Finals, Warzone, eFootball.
+The 29 supported games: Dota 2, Counter-Strike, VALORANT, Mobile Legends, League of Legends, Rocket League, PUBG Mobile, Overwatch, Rainbow Six, Apex Legends, Fighting Games, PUBG, Honor of Kings, Brawl Stars, Call of Duty, Marvel Rivals, EA Sports FC, Free Fire, Fortnite, Teamfight Tactics, CrossFire, Deadlock, Trackmania, The Finals, Warzone, eFootball, Free Fire Mobile, Honor of Kings Mobile, Call of Duty Mobile.
 
 ### Roster System
-Each game supports multiple rosters (Main Roster, Academy, Bench by default). Rosters are auto-seeded when first accessed. Data isolation: players, events, attendance, staff, availability, schedules are all filterable by `rosterId`. A roster selector in the sidebar allows switching between rosters. The `rosters` table stores: id, teamId, gameId, name, slug, sortOrder.
+Each game supports multiple rosters (First Team, Academy, Women by default). Rosters are auto-seeded when first accessed via `/api/rosters` or `/api/all-rosters`. Data isolation: players, events, attendance, staff, availability, schedules are all filterable by `rosterId`. A roster selector in the sidebar allows switching between rosters. The `rosters` table stores: id, teamId, gameId, name, slug, sortOrder. On the home page, each roster appears as an independent card grouped under its game.
 
 ### Role System
 - **super_admin**: Superuser access (reserved for platform owner)
@@ -28,7 +28,10 @@ Each game supports multiple rosters (Main Roster, Academy, Bench by default). Ro
 Role hierarchy for game-level roles: Owner(4) > Admin(3) > Staff(2) > Member(1). Only higher ranks can modify lower ranks' roles. Default game roles (Owner, Admin, Staff, Member) auto-seed when first accessed.
 
 ### Authentication & Authorization
-Session-based authentication with `bcrypt` for password hashing, using `express-session` and `connect-pg-simple`. Registration requires game selection, role selection, and admin approval. New registrations create `user_game_assignments` with `status: "pending"`. The `requireAuth`, `requirePermission`, `requireOrgRole`, and `requireGameAccess` middleware chain enforces all access rules.
+Session-based authentication with `bcrypt` for password hashing, using `express-session` and `connect-pg-simple`. Registration requires game selection, role selection, and admin approval. New registrations create `user_game_assignments` with `status: "pending"` and two-step approval fields (`approvalGameStatus`, `approvalOrgStatus`). Both must be "approved" for user access. The `requireAuth`, `requirePermission`, `requireOrgRole`, and `requireGameAccess` middleware chain enforces all access rules.
+
+### Permission Hierarchy Enforcement
+Rank system: super_admin(6) > org_admin(5) > Owner(4) > Admin(3) > Staff(2) > Member(1). `getUserRank()` combines orgRole and system role. `checkRankGuard()` blocks lower-ranked users from modifying higher-ranked users across all actions: delete, rename, force logout, create user, and status change.
 
 ### Permission System
 32 granular permissions grouped into 8 categories: Schedule, Events, Results, Players, Statistics, Chat, Staff, and Dashboard. Each role has a predefined set of permissions, and custom roles with granular permissions are also supported.

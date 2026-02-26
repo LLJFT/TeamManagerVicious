@@ -174,6 +174,9 @@ export const SUPPORTED_GAMES_LIST = [
   { slug: "the-finals", name: "The Finals", sortOrder: 23 },
   { slug: "warzone", name: "Warzone", sortOrder: 24 },
   { slug: "efootball", name: "eFootball", sortOrder: 25 },
+  { slug: "free-fire-mobile", name: "Free Fire Mobile", sortOrder: 26 },
+  { slug: "hok-mobile", name: "Honor of Kings Mobile", sortOrder: 27 },
+  { slug: "cod-mobile", name: "Call of Duty Mobile", sortOrder: 28 },
 ] as const;
 
 export const players = pgTable("players", {
@@ -386,13 +389,17 @@ export const userGameAssignments = pgTable("user_game_assignments", {
   teamId: varchar("team_id"),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   gameId: varchar("game_id").notNull().references(() => supportedGames.id, { onDelete: "cascade" }),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
   assignedRole: text("assigned_role").notNull().default("player"),
   status: text("status").notNull().default("pending"),
+  approvalGameStatus: text("approval_game_status").notNull().default("pending"),
+  approvalOrgStatus: text("approval_org_status").notNull().default("pending"),
   createdAt: text("created_at").default(sql`now()`),
 }, (table) => [
   index("user_game_assignments_team_id_idx").on(table.teamId),
   index("user_game_assignments_user_id_idx").on(table.userId),
   index("user_game_assignments_game_id_idx").on(table.gameId),
+  index("user_game_assignments_roster_id_idx").on(table.rosterId),
 ]);
 
 export const notifications = pgTable("notifications", {

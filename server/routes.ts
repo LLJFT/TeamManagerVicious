@@ -18,7 +18,7 @@ import {
   players, events, attendance, games, gameModes, maps, seasons, offDays,
   statFields as statFieldsTable,
   staff as staffTable,
-  supportedGames, userGameAssignments, notifications,
+  supportedGames, userGameAssignments, notifications, rosters,
   type UserWithRole,
 } from "@shared/schema";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
@@ -35,6 +35,40 @@ function getGameId(req: any): string | null {
 
 function getRosterId(req: any): string | null {
   return (req.query.rosterId as string) || null;
+}
+
+const ORG_ROLE_RANK: Record<string, number> = {
+  super_admin: 6,
+  org_admin: 5,
+  game_manager: 4,
+  coach_analyst: 2,
+  player: 1,
+};
+
+const SYSTEM_ROLE_RANK: Record<string, number> = {
+  Owner: 4,
+  Admin: 3,
+  Staff: 2,
+  Member: 1,
+};
+
+function getUserRank(user: any, allRoles: any[]): number {
+  const orgRank = ORG_ROLE_RANK[user.orgRole] || 0;
+  const role = allRoles.find((r: any) => r.id === user.roleId);
+  const sysRank = role ? (SYSTEM_ROLE_RANK[role.name] || 0) : 0;
+  return Math.max(orgRank, sysRank);
+}
+
+async function checkRankGuard(actorId: string, targetId: string, teamId: string): Promise<string | null> {
+  if (actorId === targetId) return "Cannot perform this action on yourself";
+  const allRoles_r = await db.select().from(roles).where(eq(roles.teamId, teamId));
+  const [actor] = await db.select().from(users).where(and(eq(users.id, actorId), eq(users.teamId, teamId)));
+  const [target] = await db.select().from(users).where(and(eq(users.id, targetId), eq(users.teamId, teamId)));
+  if (!actor || !target) return "User not found";
+  const actorRank = getUserRank(actor, allRoles_r);
+  const targetRank = getUserRank(target, allRoles_r);
+  if (targetRank >= actorRank) return "Cannot perform this action on a user with equal or higher rank";
+  return null;
 }
 
 async function logActivity(userId: string | null, action: string, details?: string, logType: string = "team", deviceInfo?: string) {
@@ -305,6 +339,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!username || !password) return res.status(400).json({ message: "Username and password required" });
       
       const teamId = getTeamId();
+
+      if (roleId) {
+        const allRolesArr = await db.select().from(roles).where(eq(roles.teamId, teamId));
+        const [actor] = await db.select().from(users).where(eq(users.id, req.session.userId!));
+        const actorRank = getUserRank(actor, allRolesArr);
+        const newRole = allRolesArr.find(r => r.id === roleId);
+        const newRank = newRole ? (SYSTEM_ROLE_RANK[newRole.name] || 0) : 0;
+        if (newRank >= actorRank) {
+          return res.status(403).json({ message: "Cannot create a user with a role equal to or higher than your own" });
+        }
+      }
       
       const existing = await db.select().from(users).where(and(ilike(users.username, username.trim()), eq(users.teamId, teamId)));
       if (existing.length > 0) return res.status(400).json({ message: "Username already taken" });
@@ -330,6 +375,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const { status } = req.body;
       const teamId = getTeamId();
+      if (id !== req.session.userId) {
+        const rankError = await checkRankGuard(req.session.userId!, id, teamId);
+        if (rankError) return res.status(403).json({ message: rankError });
+      }
       const [updated] = await db.update(users)
         .set({ status })
         .where(and(eq(users.id, id), eq(users.teamId, teamId)))
@@ -349,32 +398,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { roleId } = req.body;
       const teamId = getTeamId();
 
-      if (id === req.session.userId) {
-        return res.status(403).json({ message: "You cannot change your own role" });
-      }
+      const rankError = await checkRankGuard(req.session.userId!, id, teamId);
+      if (rankError) return res.status(403).json({ message: rankError });
 
-      const ROLE_RANK: Record<string, number> = { "Owner": 4, "Admin": 3, "Staff": 2, "Member": 1 };
-      const allRoles = await db.select().from(roles).where(eq(roles.teamId, teamId));
+      const allRolesArr = await db.select().from(roles).where(eq(roles.teamId, teamId));
+      const [actor] = await db.select().from(users).where(eq(users.id, req.session.userId!));
+      const actorRank = getUserRank(actor, allRolesArr);
 
-      const [currentUser] = await db.select().from(users).where(eq(users.id, req.session.userId!));
-      const [targetUser] = await db.select().from(users).where(and(eq(users.id, id), eq(users.teamId, teamId)));
-      if (!targetUser) return res.status(404).json({ message: "User not found" });
-
-      const actorRole = allRoles.find(r => r.id === currentUser?.roleId);
-      const targetCurrentRole = allRoles.find(r => r.id === targetUser.roleId);
-      const actorRank = actorRole ? (ROLE_RANK[actorRole.name] || 0) : 0;
-      const targetRank = targetCurrentRole ? (ROLE_RANK[targetCurrentRole.name] || 0) : 0;
-
-      if (targetRank >= actorRank) {
-        return res.status(403).json({ message: "Cannot change the role of someone with equal or higher rank" });
-      }
-
-      if (targetCurrentRole?.name === "Admin" && actorRole?.name !== "Owner") {
-        return res.status(403).json({ message: "Only the Owner can change Admin roles" });
-      }
-
-      const newRole = allRoles.find(r => r.id === roleId);
-      const newRank = newRole ? (ROLE_RANK[newRole.name] || 0) : 0;
+      const newRole = allRolesArr.find(r => r.id === roleId);
+      const newRank = newRole ? (SYSTEM_ROLE_RANK[newRole.name] || 0) : 0;
       if (newRank >= actorRank) {
         return res.status(403).json({ message: "Cannot assign a role equal to or higher than your own" });
       }
@@ -414,9 +446,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const teamId = getTeamId();
-      if (id === req.session.userId) {
-        return res.status(400).json({ message: "Cannot delete your own account" });
-      }
+      const rankError = await checkRankGuard(req.session.userId!, id, teamId);
+      if (rankError) return res.status(403).json({ message: rankError });
       const [deleted] = await db.delete(users)
         .where(and(eq(users.id, id), eq(users.teamId, teamId)))
         .returning();
@@ -434,6 +465,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { username } = req.body;
       if (!username || !username.trim()) return res.status(400).json({ message: "Username required" });
       const teamId = getTeamId();
+      if (id !== req.session.userId) {
+        const rankError = await checkRankGuard(req.session.userId!, id, teamId);
+        if (rankError) return res.status(403).json({ message: rankError });
+      }
       const [dup] = await db.select().from(users)
         .where(and(ilike(users.username, username.trim()), eq(users.teamId, teamId)))
         .limit(1);
@@ -498,6 +533,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/admin/sessions/:userId", requireAuth, requirePermission("manage_users"), async (req, res) => {
     try {
       const { userId } = req.params;
+      const teamId = getTeamId();
+      const rankError = await checkRankGuard(req.session.userId!, userId, teamId);
+      if (rankError) return res.status(403).json({ message: rankError });
       await db.execute(sql`
         DELETE FROM "session" WHERE sess::jsonb->>'userId' = ${userId}
       `);
@@ -2031,28 +2069,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/game-assignments/:id/approve", requireAuth, requireOrgRole("org_admin", "game_manager"), async (req, res) => {
+  app.post("/api/game-assignments/:id/approve-game", requireAuth, requireOrgRole("org_admin", "game_manager"), async (req, res) => {
     try {
-      const assignment = await storage.approveUserGameAssignment(req.params.id);
-      if (!assignment) return res.status(404).json({ message: "Assignment not found" });
+      const [existing] = await db.select().from(userGameAssignments).where(eq(userGameAssignments.id, req.params.id)).limit(1);
+      if (!existing) return res.status(404).json({ message: "Assignment not found" });
+
+      const [updated] = await db.update(userGameAssignments)
+        .set({ approvalGameStatus: "approved" })
+        .where(eq(userGameAssignments.id, req.params.id))
+        .returning();
 
       const teamId = getTeamId();
-      const [user] = await db.select().from(users).where(eq(users.id, assignment.userId)).limit(1);
+      const [user] = await db.select().from(users).where(eq(users.id, updated.userId)).limit(1);
+      const [game] = await db.select().from(supportedGames).where(eq(supportedGames.id, updated.gameId)).limit(1);
+
+      if (updated.approvalGameStatus === "approved" && updated.approvalOrgStatus === "approved") {
+        await db.update(userGameAssignments).set({ status: "approved" }).where(eq(userGameAssignments.id, updated.id));
+        if (user && user.status === "pending") {
+          await db.update(users).set({ status: "active" }).where(eq(users.id, user.id));
+        }
+        await storage.createNotification(teamId, updated.userId, `Your access to ${game?.name || "a game"} has been fully approved!`, "approval", updated.id);
+      } else {
+        await storage.createNotification(teamId, updated.userId, `Your access to ${game?.name || "a game"} has been approved at the game level. Awaiting org approval.`, "info", updated.id);
+      }
+
+      logActivity(req.session.userId!, "approve_assignment_game", `Game-approved ${user?.username}'s access to ${game?.name}`, "team");
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/game-assignments/:id/approve-org", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+    try {
+      const [existing] = await db.select().from(userGameAssignments).where(eq(userGameAssignments.id, req.params.id)).limit(1);
+      if (!existing) return res.status(404).json({ message: "Assignment not found" });
+
+      const [updated] = await db.update(userGameAssignments)
+        .set({ approvalOrgStatus: "approved" })
+        .where(eq(userGameAssignments.id, req.params.id))
+        .returning();
+
+      const teamId = getTeamId();
+      const [user] = await db.select().from(users).where(eq(users.id, updated.userId)).limit(1);
+      const [game] = await db.select().from(supportedGames).where(eq(supportedGames.id, updated.gameId)).limit(1);
+
+      if (updated.approvalGameStatus === "approved" && updated.approvalOrgStatus === "approved") {
+        await db.update(userGameAssignments).set({ status: "approved" }).where(eq(userGameAssignments.id, updated.id));
+        if (user && user.status === "pending") {
+          await db.update(users).set({ status: "active" }).where(eq(users.id, user.id));
+        }
+        await storage.createNotification(teamId, updated.userId, `Your access to ${game?.name || "a game"} has been fully approved!`, "approval", updated.id);
+      } else {
+        await storage.createNotification(teamId, updated.userId, `Your access to ${game?.name || "a game"} has been approved at the org level. Awaiting game-level approval.`, "info", updated.id);
+      }
+
+      logActivity(req.session.userId!, "approve_assignment_org", `Org-approved ${user?.username}'s access to ${game?.name}`, "team");
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/game-assignments/:id/approve", requireAuth, requireOrgRole("org_admin", "game_manager"), async (req, res) => {
+    try {
+      const [updated] = await db.update(userGameAssignments)
+        .set({ status: "approved", approvalGameStatus: "approved", approvalOrgStatus: "approved" })
+        .where(eq(userGameAssignments.id, req.params.id))
+        .returning();
+      if (!updated) return res.status(404).json({ message: "Assignment not found" });
+
+      const teamId = getTeamId();
+      const [user] = await db.select().from(users).where(eq(users.id, updated.userId)).limit(1);
       if (user && user.status === "pending") {
         await db.update(users).set({ status: "active" }).where(eq(users.id, user.id));
       }
 
-      const [game] = await db.select().from(supportedGames).where(eq(supportedGames.id, assignment.gameId)).limit(1);
-      await storage.createNotification(
-        teamId,
-        assignment.userId,
-        `Your access to ${game?.name || "a game"} has been approved!`,
-        "approval",
-        assignment.id
-      );
+      const [game] = await db.select().from(supportedGames).where(eq(supportedGames.id, updated.gameId)).limit(1);
+      await storage.createNotification(teamId, updated.userId, `Your access to ${game?.name || "a game"} has been approved!`, "approval", updated.id);
 
       logActivity(req.session.userId!, "approve_assignment", `Approved ${user?.username}'s access to ${game?.name}`, "team");
-      res.json(assignment);
+      res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -2108,6 +2205,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==================== ALL ROSTERS (for home page) ====================
+  app.get("/api/all-rosters", requireAuth, async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const allGamesList = await db.select().from(supportedGames).where(eq(supportedGames.teamId, teamId));
+      const result: Record<string, any[]> = {};
+
+      for (const game of allGamesList) {
+        let gameRosters = await db.select().from(rosters)
+          .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, game.id)));
+
+        if (gameRosters.length === 0) {
+          const defaults = [
+            { name: "First Team", slug: "first-team", sortOrder: 0 },
+            { name: "Academy", slug: "academy", sortOrder: 1 },
+            { name: "Women", slug: "women", sortOrder: 2 },
+          ];
+          for (const d of defaults) {
+            await db.insert(rosters).values({ teamId, gameId: game.id, name: d.name, slug: d.slug, sortOrder: d.sortOrder });
+          }
+          gameRosters = await db.select().from(rosters)
+            .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, game.id)));
+        }
+
+        result[game.id] = gameRosters;
+      }
+
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // ==================== ROSTERS ====================
   app.get("/api/rosters", requireAuth, async (req, res) => {
     try {
@@ -2115,21 +2245,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const gameId = getGameId(req);
       if (!gameId) return res.status(400).json({ message: "gameId required" });
 
-      const { rosters: rostersTable } = await import("@shared/schema");
-      let allRosters = await db.select().from(rostersTable)
-        .where(and(eq(rostersTable.teamId, teamId), eq(rostersTable.gameId, gameId)));
+      let allRosters = await db.select().from(rosters)
+        .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, gameId)));
 
       if (allRosters.length === 0) {
         const defaults = [
-          { name: "Main Roster", slug: "main", sortOrder: 0 },
+          { name: "First Team", slug: "first-team", sortOrder: 0 },
           { name: "Academy", slug: "academy", sortOrder: 1 },
-          { name: "Bench", slug: "bench", sortOrder: 2 },
+          { name: "Women", slug: "women", sortOrder: 2 },
         ];
         for (const d of defaults) {
-          await db.insert(rostersTable).values({ teamId, gameId, name: d.name, slug: d.slug, sortOrder: d.sortOrder });
+          await db.insert(rosters).values({ teamId, gameId, name: d.name, slug: d.slug, sortOrder: d.sortOrder });
         }
-        allRosters = await db.select().from(rostersTable)
-          .where(and(eq(rostersTable.teamId, teamId), eq(rostersTable.gameId, gameId)));
+        allRosters = await db.select().from(rosters)
+          .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, gameId)));
       }
 
       res.json(allRosters);
@@ -2147,8 +2276,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { name, slug } = req.body;
       if (!name || !slug) return res.status(400).json({ message: "name and slug are required" });
 
-      const { rosters: rostersTable } = await import("@shared/schema");
-      const [roster] = await db.insert(rostersTable)
+      const [roster] = await db.insert(rosters)
         .values({ teamId, gameId, name, slug: slug.toLowerCase().replace(/\s+/g, '-') })
         .returning();
       res.json(roster);
@@ -2160,10 +2288,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/rosters/:id", requireAuth, requirePermission("manage_users"), async (req, res) => {
     try {
       const { name } = req.body;
-      const { rosters: rostersTable } = await import("@shared/schema");
-      const [updated] = await db.update(rostersTable)
+      const [updated] = await db.update(rosters)
         .set({ name })
-        .where(eq(rostersTable.id, req.params.id))
+        .where(eq(rosters.id, req.params.id))
         .returning();
       if (!updated) return res.status(404).json({ message: "Roster not found" });
       res.json(updated);
@@ -2174,9 +2301,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/rosters/:id", requireAuth, requirePermission("manage_users"), async (req, res) => {
     try {
-      const { rosters: rostersTable } = await import("@shared/schema");
-      const [deleted] = await db.delete(rostersTable)
-        .where(eq(rostersTable.id, req.params.id))
+      const [deleted] = await db.delete(rosters)
+        .where(eq(rosters.id, req.params.id))
         .returning();
       if (!deleted) return res.status(404).json({ message: "Roster not found" });
       res.json({ message: "Roster deleted" });

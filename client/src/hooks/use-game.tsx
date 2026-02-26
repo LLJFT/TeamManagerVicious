@@ -59,8 +59,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (selectedRosterId && rosters.some(r => r.id === selectedRosterId)) {
       return selectedRosterId;
     }
-    const mainRoster = rosters.find(r => r.slug === "main");
-    return mainRoster?.id || rosters[0]?.id || null;
+    const firstTeam = rosters.find(r => r.slug === "first-team") || rosters.find(r => r.slug === "main");
+    return firstTeam?.id || rosters[0]?.id || null;
   }, [gameId, selectedRosterId, rosters]);
 
   const currentRoster = rosters.find(r => r.id === rosterId) || null;

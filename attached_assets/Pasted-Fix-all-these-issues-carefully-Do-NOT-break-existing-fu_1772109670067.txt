@@ -1,0 +1,45 @@
+Fix all these issues carefully. Do NOT break existing functionality. Work through them one by one and test each.
+🔴 CRITICAL — Registration request appears in ALL game dashboards
+When a user registers and requests access to Warzone only, the pending request appears in every single game's dashboard. Fix this: a registration request must ONLY appear in the dashboard of the game the user requested. Additionally, there must be TWO approval steps:
+
+The game's Owner/Admin approves the user into that specific game
+A super_admin or org-level admin must also approve them to access the platform at all
+If only the game approves them, they can log in but Warzone stays locked. Both approvals are needed for full access.
+
+🔴 CRITICAL — Permission hierarchy violations in game dashboard
+Even though role changes were fixed, these vulnerabilities still exist in the game dashboard:
+
+A lower-ranked user can rename a higher-ranked user
+A lower-ranked user can Force Logout a higher-ranked user
+A lower-ranked user can delete a higher-ranked user
+A lower-ranked user can create an account with a role higher than their own
+Fix ALL of these: every action (rename, force logout, delete, create account, change role) must be blocked if the target user has equal or higher rank than the acting user. Rank order: super_admin > Management > Owner > Admin > Staff > Member.
+
+🔴 CRITICAL — Roster sub-types (First Team / Academy / Women)
+The current Academy/Bench/Women system has too many shared data problems (same calendar, same stats, etc.). Fix this properly: treat each roster type as a completely independent entity — exactly like a separate game. Each of (First Team, Academy, Women) for every game should appear on the Home page as its own separate card, with its own schedule, players, events, results, stats, staff, and chat. They share nothing. Name them: "Warzone — First Team", "Warzone — Academy", "Warzone — Women". They appear as separate cards on the home page just like separate games.
+🟡 Game icons — use Liquipedia standard
+All games must have proper icons matching what Liquipedia uses for each game. Check Liquipedia's icon for each game and use the same logo. Apply to ALL games including: Honor of Kings, Brawl Stars, Call of Duty, Marvel Rivals, EA Sports FC, Free Fire, Fortnite, Teamfight Tactics, CrossFire, Deadlock, Trackmania, The Finals, Fighting Games, Mobile Legends, Rainbow Six, Apex Legends, Overwatch, Rocket League, PUBG Mobile, PUBG, Warzone, eFootball. Each roster type (First Team / Academy / Women) of the same game shares the same icon.
+🟡 Add new games
+Add these 3 new games with proper Liquipedia-style icons:
+
+Free Fire Mobile
+Honor of Kings Mobile
+Call of Duty Mobile
+
+🟡 Home Dashboard tab — full control panel
+Build a complete Dashboard tab on the home page with two sections:
+Dashboard section:
+
+All pending registrations across all games in one place — approve/reject from here (counts as the org-level approval)
+Full user list: every user, their role, which games/rosters they have access to, their status
+Per-roster overview: last 3 results (W/L) + attendance rate this week for each roster
+Ability to manually add a user to any game/roster
+Ability to change a user's role in any game from here
+
+Settings section (separate tab/page):
+
+Upload organization logo — replaces the shield icon everywhere in the platform
+Set organization name — shown as "[Org Name] Availability Times" in game pages
+Manage which games/rosters are active or inactive
+Add new game rosters to the org
+Full permission control: set default permissions per role across the platform
