@@ -415,6 +415,7 @@ export const staff = pgTable("staff", {
   fullName: text("full_name"),
   phone: text("phone"),
   snapchat: text("snapchat"),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }),
 }, (table) => [
   index("staff_team_id_idx").on(table.teamId),
   index("staff_game_id_idx").on(table.gameId),

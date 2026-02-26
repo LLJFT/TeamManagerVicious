@@ -1,6 +1,7 @@
 import { useLocation, Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useGame } from "@/hooks/use-game";
+import { useQuery } from "@tanstack/react-query";
 import {
   Sidebar,
   SidebarContent,
@@ -14,13 +15,69 @@ import {
   SidebarHeader,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Home, Calendar, Users, BarChart3, Settings, MessageSquare,
   LogOut, Trophy, Clock, GitCompare, Target, Shield,
-  UserCog, ClipboardList, ArrowLeft, Gamepad2,
+  UserCog, ClipboardList, ArrowLeft,
 } from "lucide-react";
+import {
+  SiValorant, SiLeagueoflegends, SiCounterstrike, SiDota2, SiPubg,
+} from "react-icons/si";
 import type { Permission } from "@shared/schema";
+
+const GAME_COLORS: Record<string, string> = {
+  "valorant":     "#FF4655",
+  "lol":          "#C89B3C",
+  "cs":           "#F0A03E",
+  "dota2":        "#9B1C1F",
+  "pubg":         "#F5A623",
+  "pubg-mobile":  "#F5A623",
+  "overwatch":    "#FA9C1E",
+  "apex":         "#CD3333",
+  "fortnite":     "#00C3FF",
+  "rocket-league":"#0066FF",
+  "r6":           "#009BDE",
+  "cod":          "#8CC63F",
+  "mlbb":         "#1A7EC6",
+  "hok":          "#FFB800",
+  "brawl-stars":  "#FF2A6D",
+  "marvel-rivals":"#E62429",
+  "ea-fc":        "#00B2FF",
+  "free-fire":    "#FF6B00",
+  "tft":          "#C8AA6E",
+  "crossfire":    "#00A1E0",
+  "deadlock":     "#6B4226",
+  "trackmania":   "#009DDC",
+  "the-finals":   "#FFD700",
+  "fighting-games":"#9333EA",
+};
+
+const SI_ICONS: Record<string, any> = {
+  "valorant": SiValorant,
+  "lol":      SiLeagueoflegends,
+  "cs":       SiCounterstrike,
+  "dota2":    SiDota2,
+  "pubg":     SiPubg,
+  "pubg-mobile": SiPubg,
+};
+
+function GameBadge({ slug, name }: { slug: string; name: string }) {
+  const SIIcon = SI_ICONS[slug];
+  const color = GAME_COLORS[slug] || "#6B7280";
+  if (SIIcon) {
+    return (
+      <div className="h-6 w-6 rounded flex items-center justify-center flex-shrink-0" style={{ background: `${color}20` }}>
+        <SIIcon style={{ color, fontSize: 14 }} />
+      </div>
+    );
+  }
+  const abbr = name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+  return (
+    <div className="h-6 w-6 rounded flex items-center justify-center flex-shrink-0 text-[10px] font-bold" style={{ background: `${color}20`, color }}>
+      {abbr}
+    </div>
+  );
+}
 
 function makeGameItems(prefix: string) {
   return {
@@ -50,9 +107,13 @@ export function AppSidebar() {
   const { user, logout, hasPermission } = useAuth();
   const { currentGame, gameSlug } = useGame();
 
+  const { data: orgLogoUrl } = useQuery<string | null>({
+    queryKey: ["/api/org-setting/org_logo"],
+    staleTime: 1000 * 60 * 5,
+  });
+
   const inGameContext = !!currentGame && !!gameSlug;
   const prefix = inGameContext ? `/${gameSlug}` : "";
-
   const navItems = inGameContext ? makeGameItems(prefix) : null;
 
   return (
@@ -67,86 +128,84 @@ export function AppSidebar() {
               </Button>
             </Link>
             <div className="flex items-center gap-2">
-              <Gamepad2 className="h-5 w-5 text-primary" />
-              <span className="text-sm font-bold">{currentGame.name}</span>
+              <GameBadge slug={currentGame.slug} name={currentGame.name} />
+              <span className="text-sm font-bold truncate">{currentGame.name}</span>
             </div>
           </div>
         ) : (
           <div className="flex items-center gap-2">
-            <Shield className="h-6 w-6 text-primary" />
-            <span className="text-lg font-bold">Vicious</span>
+            {orgLogoUrl ? (
+              <img
+                src={orgLogoUrl}
+                alt="Organization Logo"
+                className="h-8 w-8 rounded object-contain flex-shrink-0"
+                data-testid="img-org-logo"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+              />
+            ) : (
+              <Shield className="h-6 w-6 text-primary flex-shrink-0" />
+            )}
+            <span className="text-lg font-bold truncate">Vicious</span>
           </div>
         )}
       </SidebarHeader>
+
       <SidebarContent>
         {inGameContext && navItems ? (
           <>
-            {(() => {
-              const visibleMain = navItems.main.filter(item => hasPermission(item.permission));
-              const visibleStats = navItems.stats.filter(item => hasPermission(item.permission));
-              const visibleMgmt = navItems.management.filter(item => hasPermission(item.permission));
-              return (
-                <>
-                  {visibleMain.length > 0 && (
-                    <SidebarGroup>
-                      <SidebarGroupLabel>Main</SidebarGroupLabel>
-                      <SidebarGroupContent>
-                        <SidebarMenu>
-                          {visibleMain.map((item) => (
-                            <SidebarMenuItem key={item.title}>
-                              <SidebarMenuButton asChild isActive={location === item.url}>
-                                <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, '-')}`}>
-                                  <item.icon />
-                                  <span>{item.title}</span>
-                                </Link>
-                              </SidebarMenuButton>
-                            </SidebarMenuItem>
-                          ))}
-                        </SidebarMenu>
-                      </SidebarGroupContent>
-                    </SidebarGroup>
-                  )}
-                  {visibleStats.length > 0 && (
-                    <SidebarGroup>
-                      <SidebarGroupLabel>Analytics</SidebarGroupLabel>
-                      <SidebarGroupContent>
-                        <SidebarMenu>
-                          {visibleStats.map((item) => (
-                            <SidebarMenuItem key={item.title}>
-                              <SidebarMenuButton asChild isActive={location === item.url}>
-                                <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, '-')}`}>
-                                  <item.icon />
-                                  <span>{item.title}</span>
-                                </Link>
-                              </SidebarMenuButton>
-                            </SidebarMenuItem>
-                          ))}
-                        </SidebarMenu>
-                      </SidebarGroupContent>
-                    </SidebarGroup>
-                  )}
-                  {visibleMgmt.length > 0 && (
-                    <SidebarGroup>
-                      <SidebarGroupLabel>Management</SidebarGroupLabel>
-                      <SidebarGroupContent>
-                        <SidebarMenu>
-                          {visibleMgmt.map((item) => (
-                            <SidebarMenuItem key={item.title}>
-                              <SidebarMenuButton asChild isActive={location === item.url}>
-                                <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, '-')}`}>
-                                  <item.icon />
-                                  <span>{item.title}</span>
-                                </Link>
-                              </SidebarMenuButton>
-                            </SidebarMenuItem>
-                          ))}
-                        </SidebarMenu>
-                      </SidebarGroupContent>
-                    </SidebarGroup>
-                  )}
-                </>
-              );
-            })()}
+            <SidebarGroup>
+              <SidebarGroupLabel>Main</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {navItems.main.filter(item => hasPermission(item.permission)).map(item => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild isActive={location === item.url || (item.url === prefix && location === prefix)}>
+                        <Link href={item.url}>
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            <SidebarGroup>
+              <SidebarGroupLabel>Analytics</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {navItems.stats.filter(item => hasPermission(item.permission)).map(item => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild isActive={location === item.url}>
+                        <Link href={item.url}>
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            <SidebarGroup>
+              <SidebarGroupLabel>Management</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {navItems.management.filter(item => hasPermission(item.permission)).map(item => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild isActive={location === item.url}>
+                        <Link href={item.url}>
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
           </>
         ) : (
           <SidebarGroup>
@@ -155,16 +214,16 @@ export function AppSidebar() {
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={location === "/"}>
-                    <Link href="/" data-testid="nav-home">
-                      <Home />
+                    <Link href="/">
+                      <Home className="h-4 w-4" />
                       <span>Home</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={location === "/account"}>
-                    <Link href="/account" data-testid="nav-account">
-                      <Settings />
+                    <Link href="/account">
+                      <UserCog className="h-4 w-4" />
                       <span>Account</span>
                     </Link>
                   </SidebarMenuButton>
@@ -174,34 +233,22 @@ export function AppSidebar() {
           </SidebarGroup>
         )}
       </SidebarContent>
+
       <SidebarFooter className="p-4">
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-              <span className="text-sm font-semibold text-primary">
-                {user?.username?.charAt(0).toUpperCase()}
-              </span>
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-medium truncate">{user?.username}</p>
-              <Badge variant="secondary" className="text-xs">{user?.orgRole || "player"}</Badge>
-            </div>
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-sm font-medium truncate">{user?.username}</p>
+            <p className="text-xs text-muted-foreground truncate">{user?.orgRole || user?.role?.name}</p>
           </div>
-          <div className="flex items-center gap-1">
-            <Link href="/account">
-              <Button size="icon" variant="ghost" data-testid="button-account-settings">
-                <Settings className="h-4 w-4" />
-              </Button>
-            </Link>
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={() => logout()}
-              data-testid="button-logout"
-            >
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={logout}
+            data-testid="button-logout"
+            title="Sign out"
+          >
+            <LogOut className="h-4 w-4" />
+          </Button>
         </div>
       </SidebarFooter>
     </Sidebar>

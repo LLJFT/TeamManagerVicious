@@ -25,6 +25,11 @@ export default function Home() {
   const { currentGame } = useGame();
   const currentDate = format(new Date(), "MMM dd");
   const gameName = currentGame?.name || "Team";
+  const { data: orgNameSetting } = useQuery<string | null>({
+    queryKey: ["/api/org-setting/org_name"],
+    staleTime: 1000 * 60 * 10,
+  });
+  const orgName = orgNameSetting || "Team";
   const canEditAll = hasPermission("edit_all_availability");
   const canEditOwn = hasPermission("edit_own_availability");
   const linkedPlayerId = user?.playerId || null;
@@ -196,7 +201,7 @@ export default function Home() {
                 {gameName}
               </h1>
               <p className="text-lg font-semibold text-primary" data-testid="text-week-range">
-                Availability Times ({currentDate})
+                {orgName} Availability Times ({currentDate})
               </p>
             </div>
           </div>

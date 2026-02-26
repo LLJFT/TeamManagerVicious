@@ -17,7 +17,7 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
-const GAME_SCOPED_PREFIXES = [
+export const GAME_SCOPED_PREFIXES = [
   "/api/players", "/api/events", "/api/games", "/api/attendance",
   "/api/staff", "/api/schedule", "/api/team-notes", "/api/off-days",
   "/api/game-modes", "/api/maps", "/api/seasons", "/api/stat-fields",

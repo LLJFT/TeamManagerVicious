@@ -10,7 +10,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { NotificationBell } from "@/components/NotificationBell";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, type CSSProperties } from "react";
 import { Moon, Loader2 } from "lucide-react";
 import Login from "@/pages/Login";
 import GamesHome from "@/pages/GamesHome";
@@ -138,7 +138,7 @@ function AuthenticatedApp() {
     <>
       <AfkOverlay />
       <GameProvider>
-        <SidebarProvider style={style as React.CSSProperties}>
+        <SidebarProvider style={style as CSSProperties}>
           <div className="flex h-screen w-full">
             <AppSidebar />
             <div className="flex flex-col flex-1 min-w-0">

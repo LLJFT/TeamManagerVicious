@@ -10,9 +10,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { UserCog, Plus, Pencil, Trash2, Phone, User } from "lucide-react";
+import { UserCog, Plus, Pencil, Trash2, Phone, User, Link2, LinkIcon } from "lucide-react";
 import type { Staff } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -42,12 +49,20 @@ export default function StaffPage() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
   const [staffToDelete, setStaffToDelete] = useState<Staff | null>(null);
+  const [staffToLink, setStaffToLink] = useState<Staff | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [formData, setFormData] = useState<StaffFormData>(emptyForm);
 
   const { data: staffList = [], isLoading } = useQuery<Staff[]>({
     queryKey: ["/api/staff"],
+  });
+
+  const { data: allUsers = [] } = useQuery<any[]>({
+    queryKey: ["/api/users"],
+    enabled: canManage,
   });
 
   const createMutation = useMutation({
@@ -93,6 +108,22 @@ export default function StaffPage() {
     },
   });
 
+  const linkUserMutation = useMutation({
+    mutationFn: async ({ staffId, userId }: { staffId: string; userId: string | null }) => {
+      await apiRequest("PUT", `/api/staff/${staffId}/link-user`, { userId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/staff"] });
+      toast({ title: "Account link updated" });
+      setLinkDialogOpen(false);
+      setStaffToLink(null);
+      setSelectedUserId("");
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to update account link", description: error.message, variant: "destructive" });
+    },
+  });
+
   function closeDialog() {
     setDialogOpen(false);
     setEditingStaff(null);
@@ -122,6 +153,12 @@ export default function StaffPage() {
     setDeleteDialogOpen(true);
   }
 
+  function openLinkDialog(s: Staff) {
+    setStaffToLink(s);
+    setSelectedUserId((s as any).userId || "");
+    setLinkDialogOpen(true);
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!formData.name.trim() || !formData.role.trim()) return;
@@ -136,6 +173,12 @@ export default function StaffPage() {
   function handleConfirmDelete() {
     if (staffToDelete) {
       deleteMutation.mutate(staffToDelete.id);
+    }
+  }
+
+  function handleLinkUser() {
+    if (staffToLink) {
+      linkUserMutation.mutate({ staffId: staffToLink.id, userId: selectedUserId || null });
     }
   }
 
@@ -201,59 +244,77 @@ export default function StaffPage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {staffList.map((s) => (
-            <Card key={s.id} data-testid={`card-staff-${s.id}`}>
-              <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-                <CardTitle className="text-lg" data-testid={`text-staff-name-${s.id}`}>{s.name}</CardTitle>
-                <Badge variant="secondary" data-testid={`badge-staff-role-${s.id}`}>{s.role}</Badge>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 text-sm text-muted-foreground">
-                  {s.fullName && (
-                    <div className="flex items-center gap-2" data-testid={`text-staff-fullname-${s.id}`}>
-                      <User className="h-4 w-4 shrink-0" />
-                      <span>{s.fullName}</span>
-                    </div>
-                  )}
-                  {s.phone && (
-                    <div className="flex items-center gap-2" data-testid={`text-staff-phone-${s.id}`}>
-                      <Phone className="h-4 w-4 shrink-0" />
-                      <span>{s.phone}</span>
-                    </div>
-                  )}
-                  {s.snapchat && (
-                    <div className="flex items-center gap-2" data-testid={`text-staff-snapchat-${s.id}`}>
-                      <span className="font-medium text-xs">SC:</span>
-                      <span>{s.snapchat}</span>
-                    </div>
-                  )}
-                </div>
-
-                {canManage && (
-                  <div className="flex items-center gap-2 mt-4 pt-3 border-t">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => openEditDialog(s)}
-                      data-testid={`button-edit-staff-${s.id}`}
-                    >
-                      <Pencil className="h-4 w-4 mr-1" />
-                      Edit
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => openDeleteDialog(s)}
-                      data-testid={`button-delete-staff-${s.id}`}
-                    >
-                      <Trash2 className="h-4 w-4 mr-1" />
-                      Delete
-                    </Button>
+          {staffList.map((s) => {
+            const linkedUser = allUsers.find((u: any) => u.id === (s as any).userId);
+            return (
+              <Card key={s.id} data-testid={`card-staff-${s.id}`}>
+                <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+                  <CardTitle className="text-lg" data-testid={`text-staff-name-${s.id}`}>{s.name}</CardTitle>
+                  <Badge variant="secondary" data-testid={`badge-staff-role-${s.id}`}>{s.role}</Badge>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    {s.fullName && (
+                      <div className="flex items-center gap-2" data-testid={`text-staff-fullname-${s.id}`}>
+                        <User className="h-4 w-4 shrink-0" />
+                        <span>{s.fullName}</span>
+                      </div>
+                    )}
+                    {s.phone && (
+                      <div className="flex items-center gap-2" data-testid={`text-staff-phone-${s.id}`}>
+                        <Phone className="h-4 w-4 shrink-0" />
+                        <span>{s.phone}</span>
+                      </div>
+                    )}
+                    {s.snapchat && (
+                      <div className="flex items-center gap-2" data-testid={`text-staff-snapchat-${s.id}`}>
+                        <span className="font-medium text-xs">SC:</span>
+                        <span>{s.snapchat}</span>
+                      </div>
+                    )}
+                    {linkedUser && (
+                      <div className="flex items-center gap-2" data-testid={`text-staff-linked-${s.id}`}>
+                        <Link2 className="h-4 w-4 shrink-0 text-primary" />
+                        <span className="text-primary">{linkedUser.username}</span>
+                      </div>
+                    )}
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+
+                  {canManage && (
+                    <div className="flex items-center gap-2 mt-4 pt-3 border-t flex-wrap">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openEditDialog(s)}
+                        data-testid={`button-edit-staff-${s.id}`}
+                      >
+                        <Pencil className="h-4 w-4 mr-1" />
+                        Edit
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openLinkDialog(s)}
+                        data-testid={`button-link-staff-${s.id}`}
+                      >
+                        <LinkIcon className="h-4 w-4 mr-1" />
+                        {(s as any).userId ? "Relink" : "Link"}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openDeleteDialog(s)}
+                        data-testid={`button-delete-staff-${s.id}`}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Delete
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
 
@@ -326,6 +387,42 @@ export default function StaffPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={linkDialogOpen} onOpenChange={(open) => { if (!open) { setLinkDialogOpen(false); setStaffToLink(null); setSelectedUserId(""); } }}>
+        <DialogContent data-testid="dialog-link-staff">
+          <DialogHeader>
+            <DialogTitle>Link Account to {staffToLink?.name}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Link a user account to this staff member to associate their activity with this profile.
+          </p>
+          <div className="space-y-2">
+            <Label>User Account</Label>
+            <Select
+              value={selectedUserId || "none"}
+              onValueChange={(val) => setSelectedUserId(val === "none" ? "" : val)}
+            >
+              <SelectTrigger data-testid="select-link-user">
+                <SelectValue placeholder="Select a user..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No linked account</SelectItem>
+                {allUsers.map((u: any) => (
+                  <SelectItem key={u.id} value={u.id}>{u.username}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setLinkDialogOpen(false); setStaffToLink(null); setSelectedUserId(""); }} data-testid="button-cancel-link">
+              Cancel
+            </Button>
+            <Button onClick={handleLinkUser} disabled={linkUserMutation.isPending} data-testid="button-save-link">
+              {linkUserMutation.isPending ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

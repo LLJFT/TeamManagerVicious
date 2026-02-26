@@ -21,7 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryKey: ["/api/auth/me"],
     retry: false,
     staleTime: 1000 * 60 * 5,
-    refetchInterval: 30000,
+    refetchInterval: (query) => (query.state.data ? 30000 : false),
   });
 
   useEffect(() => {

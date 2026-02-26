@@ -1,0 +1,27 @@
+Here are all the fixes and improvements needed. Fix them one by one and test each before moving to the next:
+🔴 CRITICAL BUG — Data not isolated between games
+When I add an event, player, or anything in CrossFire, it appears in ALL other games too. Every piece of data must be completely isolated by game_id. An event in CrossFire should NEVER appear in Valorant or any other game, even if they have the same name. Fix the database queries to always filter by game_id.
+🔴 CRITICAL BUG — Register page auto-logout
+If a user stays on the register page for too long, they get kicked back to login. This is caused by the auth refresh interval that checks if the user is banned/kicked. Fix this so the refresh check does NOT apply to unauthenticated pages like register and login — only apply it to logged-in users inside the app.
+🟡 Registration — Role options
+Change the Role dropdown from (Player / Coach/Analyst) to these 3 options:
+	∙	Player — can only select ONE game
+	∙	Staff — can select one or more games. Staff are people like Coach, Team Manager, Analyst, etc. After approval, they choose their specific title (Coach / Analyst / Team Manager / etc.)
+	∙	Management — does NOT select games. They automatically get access to all active games in the org. Management titles include: Founder, CEO, Co-CEO, Esports Manager, and others. Management users do NOT have an availability schedule.
+🟡 Home page — Organization logo
+Replace the shield icon in the top left with the organization’s logo. Add a setting in the org settings where I can upload any image and it replaces the shield everywhere.
+🟡 Home page — Game icons
+Replace the text abbreviation badges (like “CF”, “VAL”, “MR”) on game cards with the actual official game logos/icons.
+🟡 Home page — Add Dashboard tab
+Add a Dashboard tab on the home page for super_admin and org admins. From this tab they can: see all users, manage their game access, approve/reject registrations. Currently the only way to manage users is through each game’s dashboard separately.
+🟡 Game page — Top left icon
+Replace the game icon in the top left of each game page with the actual official game logo.
+🟡 Game page — Subtitle
+Change “Availability Times (Feb 26)” to “[Org Name] Availability Times (Feb 26)” — e.g. “Vicious Availability Times (Feb 26)”
+🟡 Dashboard Team tab — Default values
+When a new game is created, automatically pre-fill these defaults so they don’t start empty:
+	∙	Availability Slots: Unknown, 18:00-20:00, 20:00-22:00, All Blocks, Can’t
+	∙	Roster Roles: Tank, DPS, Support
+The values in Dashboard → Team should be the single source of truth — the schedule page must read from these, not have its own hardcoded values.
+🟡 Staff — Link user account to staff
+Add the ability to link an existing user account to a staff member, the same way players are linked to user 

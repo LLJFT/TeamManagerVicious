@@ -5,11 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, UserPlus, LogIn, Clock, Check } from "lucide-react";
+import { Shield, UserPlus, LogIn, Clock, Check, Lock } from "lucide-react";
 import type { SupportedGame } from "@shared/schema";
+
+type RegisterRole = "player" | "staff" | "management";
 
 export default function Login() {
   const { login, register } = useAuth();
@@ -18,8 +19,10 @@ export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [selectedGames, setSelectedGames] = useState<string[]>([]);
-  const [selectedRole, setSelectedRole] = useState<string>("player");
+  const [selectedRole, setSelectedRole] = useState<RegisterRole>("player");
   const [loading, setLoading] = useState(false);
+
+  const needsGameSelection = selectedRole === "player" || selectedRole === "staff";
 
   const { data: allGames = [] } = useQuery<SupportedGame[]>({
     queryKey: ["/api/supported-games"],
@@ -27,9 +30,18 @@ export default function Login() {
   });
 
   const toggleGame = (gameId: string) => {
-    setSelectedGames(prev =>
-      prev.includes(gameId) ? prev.filter(id => id !== gameId) : [...prev, gameId]
-    );
+    if (selectedRole === "player") {
+      setSelectedGames(prev => prev.includes(gameId) ? [] : [gameId]);
+    } else {
+      setSelectedGames(prev =>
+        prev.includes(gameId) ? prev.filter(id => id !== gameId) : [...prev, gameId]
+      );
+    }
+  };
+
+  const handleRoleChange = (r: RegisterRole) => {
+    setSelectedRole(r);
+    setSelectedGames([]);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -40,12 +52,12 @@ export default function Login() {
       if (mode === "login") {
         await login(username, password);
       } else if (mode === "register") {
-        if (selectedGames.length === 0) {
+        if (needsGameSelection && selectedGames.length === 0) {
           toast({ title: "Select at least one game", variant: "destructive" });
           setLoading(false);
           return;
         }
-        await register(username, password, selectedGames, selectedRole);
+        await register(username, password, needsGameSelection ? selectedGames : [], selectedRole);
         setMode("pending");
       }
     } catch (err: any) {
@@ -104,7 +116,7 @@ export default function Login() {
           <CardDescription>
             {mode === "login"
               ? "Enter your credentials to access the platform"
-              : "Register and select your game(s)"}
+              : "Register for access to the platform"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -137,49 +149,81 @@ export default function Login() {
               <>
                 <div className="space-y-2">
                   <Label>Role</Label>
-                  <Select value={selectedRole} onValueChange={setSelectedRole}>
+                  <Select value={selectedRole} onValueChange={(v) => handleRoleChange(v as RegisterRole)}>
                     <SelectTrigger data-testid="select-role">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="player">Player</SelectItem>
-                      <SelectItem value="coach_analyst">Coach / Analyst</SelectItem>
+                      <SelectItem value="player">
+                        <div className="flex flex-col">
+                          <span>Player</span>
+                          <span className="text-xs text-muted-foreground">Select one game</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="staff">
+                        <div className="flex flex-col">
+                          <span>Staff</span>
+                          <span className="text-xs text-muted-foreground">Coach, Analyst, Team Manager — one or more games</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="management">
+                        <div className="flex flex-col">
+                          <span>Management</span>
+                          <span className="text-xs text-muted-foreground">Founder, CEO, Esports Manager — all games</span>
+                        </div>
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Select Game(s)</Label>
-                  <div className="grid grid-cols-2 gap-1.5 max-h-[200px] overflow-auto border rounded-md p-2">
-                    {allGames.map(game => {
-                      const isSelected = selectedGames.includes(game.id);
-                      return (
-                        <button
-                          key={game.id}
-                          type="button"
-                          className={`flex items-center gap-1.5 p-1.5 rounded-md text-xs text-left transition-colors ${
-                            isSelected ? "bg-primary/10 text-primary" : "hover-elevate"
-                          }`}
-                          onClick={() => toggleGame(game.id)}
-                          data-testid={`toggle-game-${game.slug}`}
-                        >
-                          {isSelected && <Check className="h-3 w-3 flex-shrink-0" />}
-                          <span className="truncate">{game.name}</span>
-                        </button>
-                      );
-                    })}
+                {selectedRole === "management" && (
+                  <div className="flex items-center gap-2 p-3 rounded-md bg-muted/50 text-sm text-muted-foreground">
+                    <Lock className="h-4 w-4 flex-shrink-0" />
+                    <span>Management gets access to all active games after approval.</span>
                   </div>
-                  {selectedGames.length > 0 && (
-                    <p className="text-xs text-muted-foreground">{selectedGames.length} game(s) selected</p>
-                  )}
-                </div>
+                )}
+
+                {needsGameSelection && (
+                  <div className="space-y-2">
+                    <Label>
+                      {selectedRole === "player" ? "Select Game (choose one)" : "Select Game(s)"}
+                    </Label>
+                    <div className="grid grid-cols-2 gap-1.5 max-h-[200px] overflow-auto border rounded-md p-2">
+                      {allGames.map(game => {
+                        const isSelected = selectedGames.includes(game.id);
+                        return (
+                          <button
+                            key={game.id}
+                            type="button"
+                            className={`flex items-center gap-1.5 p-1.5 rounded-md text-xs text-left transition-colors ${
+                              isSelected ? "bg-primary/10 text-primary" : "hover-elevate"
+                            }`}
+                            onClick={() => toggleGame(game.id)}
+                            data-testid={`toggle-game-${game.slug}`}
+                          >
+                            {isSelected && <Check className="h-3 w-3 flex-shrink-0" />}
+                            <span className="truncate">{game.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {selectedGames.length > 0 && (
+                      <p className="text-xs text-muted-foreground">{selectedGames.length} game(s) selected</p>
+                    )}
+                  </div>
+                )}
               </>
             )}
 
             <Button
               type="submit"
               className="w-full"
-              disabled={loading || !username.trim() || !password.trim() || (mode === "register" && selectedGames.length === 0)}
+              disabled={
+                loading ||
+                !username.trim() ||
+                !password.trim() ||
+                (mode === "register" && needsGameSelection && selectedGames.length === 0)
+              }
               data-testid="button-auth-submit"
             >
               {loading ? (

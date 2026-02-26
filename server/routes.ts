@@ -136,7 +136,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const [memberRole] = await db.select().from(roles)
         .where(and(eq(roles.name, "Member"), eq(roles.teamId, teamId)))
         .limit(1);
-      const orgRole = selectedRole || "player";
+      // Map frontend role to orgRole
+      let orgRole: string;
+      if (selectedRole === "management") {
+        orgRole = "org_admin";
+      } else if (selectedRole === "staff") {
+        orgRole = "coach_analyst";
+      } else {
+        orgRole = "player";
+      }
+
       const passwordHash = bcrypt.hashSync(password, 10);
       const [newUser] = await db.insert(users).values({
         teamId,
@@ -147,14 +156,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: "pending",
       }).returning();
 
-      if (selectedGames && Array.isArray(selectedGames) && selectedGames.length > 0) {
+      // Management gets access to all games on approval (no individual game assignments needed)
+      // Player/Staff get game-specific assignments
+      if (selectedRole !== "management" && selectedGames && Array.isArray(selectedGames) && selectedGames.length > 0) {
         for (const gameId of selectedGames) {
           await storage.createUserGameAssignment(teamId, newUser.id, gameId, orgRole);
         }
       }
 
       const { passwordHash: _, ...safeUser } = newUser;
-      logActivity(null, "register", `User ${username} registered (pending approval) for ${selectedGames?.length || 0} game(s)`, "system");
+      logActivity(null, "register", `User ${username} registered as ${selectedRole || "player"} (pending approval)`, "system");
       res.json({ ...safeUser, message: "Registration successful. Awaiting approval." });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -2046,6 +2057,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
         users: usersWithRoles,
         pendingRegistrations: pendingAssignments,
       });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ==================== ORG SETTINGS (no gameId) ====================
+  app.get("/api/org-setting/:key", requireAuth, async (req, res) => {
+    try {
+      const { key } = req.params;
+      const value = await storage.getSetting(key, null);
+      res.json(value);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.put("/api/org-setting/:key", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+    try {
+      const { key } = req.params;
+      const { value } = req.body;
+      if (typeof value !== "string") return res.status(400).json({ message: "value must be a string" });
+      const setting = await storage.setSetting(key, value, null);
+      res.json(setting);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ==================== STAFF USER LINKING ====================
+  app.put("/api/staff/:id/link-user", requireAuth, requirePermission("manage_staff"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { userId } = req.body;
+      const teamId = getTeamId();
+      await db
+        .update(staffTable)
+        .set({ userId: userId || null })
+        .where(and(eq(staffTable.id, id), eq(staffTable.teamId, teamId)));
+      const updated = await db.select().from(staffTable).where(eq(staffTable.id, id));
+      res.json(updated[0]);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ==================== USER MANAGEMENT ====================
+  app.post("/api/users/:id/approve", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = getTeamId();
+      await db.update(users).set({ status: "active" }).where(and(eq(users.id, id), eq(users.teamId, teamId)));
+      await db.update(userGameAssignments)
+        .set({ status: "approved" })
+        .where(and(eq(userGameAssignments.userId, id), eq(userGameAssignments.teamId, teamId), eq(userGameAssignments.status, "pending")));
+      res.json({ message: "User approved" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/users", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const allUsers = await db.select().from(users).where(eq(users.teamId, teamId));
+      const safeUsers = allUsers.map(u => { const { passwordHash, ...safe } = u; return safe; });
+      res.json(safeUsers);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }

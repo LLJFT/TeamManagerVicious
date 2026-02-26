@@ -1,7 +1,7 @@
-import { createContext, useContext, useEffect, useMemo, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { setCurrentGameId } from "@/lib/queryClient";
+import { setCurrentGameId, queryClient, GAME_SCOPED_PREFIXES } from "@/lib/queryClient";
 import type { SupportedGame } from "@shared/schema";
 
 interface GameContextValue {
@@ -37,11 +37,23 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const currentGame = gameSlug ? allGames.find(g => g.slug === gameSlug) || null : null;
   const gameId = currentGame?.id || null;
 
+  // Set gameId SYNCHRONOUSLY before children render so their queries get the right gameId
+  setCurrentGameId(gameId);
+
+  const prevGameIdRef = useRef<string | null | undefined>(undefined);
+
   useEffect(() => {
-    setCurrentGameId(gameId);
-    return () => {
-      setCurrentGameId(null);
-    };
+    if (prevGameIdRef.current !== undefined && prevGameIdRef.current !== gameId) {
+      // Game changed: clear all game-scoped cache so stale data from another game isn't shown
+      queryClient.removeQueries({
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          if (typeof key !== "string") return false;
+          return GAME_SCOPED_PREFIXES.some(prefix => key.startsWith(prefix));
+        },
+      });
+    }
+    prevGameIdRef.current = gameId;
   }, [gameId]);
 
   return (
