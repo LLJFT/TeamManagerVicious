@@ -65,10 +65,10 @@ function GameAccessGate({ slug }: { slug: string }) {
 }
 
 function MainContent() {
-  const { currentGame, gameSlug, allGames, isLoading } = useGame();
+  const { currentGame, gameSlug, fullSlug, allGames, isLoading } = useGame();
 
-  if (currentGame && gameSlug) {
-    return <GameAccessGate slug={gameSlug} />;
+  if (currentGame && fullSlug) {
+    return <GameAccessGate slug={fullSlug} />;
   }
 
   return (

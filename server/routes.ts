@@ -188,7 +188,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         orgRole = "player";
       }
 
-      let finalUsername = username.trim();
+      const baseUsername = username.trim();
+      let displayName = baseUsername;
       let selectedGameId: string | null = null;
       let selectedRosterId: string | null = null;
 
@@ -201,7 +202,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           let suffix = abbrev;
           if (rosterType === "academy") suffix = `${abbrev}_AC`;
           else if (rosterType === "women") suffix = `${abbrev}_W`;
-          finalUsername = `${finalUsername}_${suffix}`;
+          displayName = `${baseUsername}_${suffix}`;
 
           const rosterNameMap: Record<string, string> = { first_team: "First Team", academy: "Academy", women: "Women" };
           const rosterName = rosterNameMap[rosterType] || "First Team";
@@ -215,7 +216,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const [existing] = await db.select().from(users)
-        .where(and(ilike(users.username, finalUsername), eq(users.teamId, teamId)))
+        .where(and(ilike(users.username, baseUsername), eq(users.teamId, teamId)))
         .limit(1);
       if (existing) {
         return res.status(409).json({ message: "Username already taken" });
@@ -228,7 +229,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const passwordHash = bcrypt.hashSync(password, 10);
       const [newUser] = await db.insert(users).values({
         teamId,
-        username: finalUsername,
+        username: baseUsername,
+        displayName,
         passwordHash,
         roleId: memberRole?.id || null,
         orgRole,
@@ -240,7 +242,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { passwordHash: _, ...safeUser } = newUser;
-      logActivity(null, "register", `User ${finalUsername} registered as ${selectedRole || "player"} (pending approval)`, "system");
+      logActivity(null, "register", `User ${displayName} registered as ${selectedRole || "player"} (pending approval)`, "system");
       res.json({ ...safeUser, message: "Registration successful. Awaiting approval." });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -2084,6 +2086,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==================== USER GAME ASSIGNMENTS ====================
+  app.post("/api/game-assignments", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const { userId, gameId, rosterId, assignedRole } = req.body;
+      if (!userId || !gameId) return res.status(400).json({ message: "userId and gameId required" });
+
+      const existing = await db.select().from(userGameAssignments)
+        .where(and(
+          eq(userGameAssignments.userId, userId),
+          eq(userGameAssignments.gameId, gameId),
+          eq(userGameAssignments.teamId, teamId),
+          rosterId ? eq(userGameAssignments.rosterId, rosterId) : sql`TRUE`
+        ))
+        .limit(1);
+      if (existing.length > 0) return res.status(400).json({ message: "User already has this game assignment" });
+
+      const [assignment] = await db.insert(userGameAssignments)
+        .values({
+          teamId,
+          userId,
+          gameId,
+          rosterId: rosterId || null,
+          assignedRole: assignedRole || "player",
+          status: "approved",
+          approvalGameStatus: "approved",
+          approvalOrgStatus: "approved",
+        })
+        .returning();
+
+      const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      if (user && user.status === "pending") {
+        await db.update(users).set({ status: "active" }).where(eq(users.id, userId));
+      }
+
+      logActivity(req.session.userId!, "assign_game", `Assigned ${user?.username} to game`, "team");
+      res.json(assignment);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/game-assignments/:id", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+    try {
+      const [deleted] = await db.delete(userGameAssignments)
+        .where(eq(userGameAssignments.id, req.params.id))
+        .returning();
+      if (!deleted) return res.status(404).json({ message: "Assignment not found" });
+
+      const [user] = await db.select().from(users).where(eq(users.id, deleted.userId)).limit(1);
+      logActivity(req.session.userId!, "remove_game_access", `Removed ${user?.username}'s game access`, "team");
+      res.json(deleted);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   app.get("/api/game-assignments/pending", requireAuth, requireOrgRole("org_admin", "game_manager"), async (req, res) => {
     try {
       const gameId = req.query.gameId as string | undefined;

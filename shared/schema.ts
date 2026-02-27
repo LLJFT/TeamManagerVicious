@@ -403,6 +403,7 @@ export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
   username: text("username").notNull(),
+  displayName: text("display_name"),
   passwordHash: text("password_hash").notNull(),
   avatarUrl: text("avatar_url"),
   orgRole: text("org_role").default("player"),

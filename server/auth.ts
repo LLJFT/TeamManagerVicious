@@ -65,6 +65,7 @@ async function runMigrations() {
     await db.execute(sql`ALTER TABLE user_game_assignments ADD COLUMN IF NOT EXISTS approval_game_status TEXT NOT NULL DEFAULT 'pending'`);
     await db.execute(sql`ALTER TABLE user_game_assignments ADD COLUMN IF NOT EXISTS approval_org_status TEXT NOT NULL DEFAULT 'pending'`);
     await db.execute(sql`UPDATE user_game_assignments SET approval_game_status = 'approved', approval_org_status = 'approved' WHERE status = 'approved' AND approval_game_status = 'pending'`);
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT`);
     console.log("[migrations] Schema migrations applied successfully");
   } catch (e: any) {
     console.error("[migrations] Migration error:", e.message);

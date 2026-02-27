@@ -7,6 +7,7 @@ import type { SupportedGame, Roster } from "@shared/schema";
 interface GameContextValue {
   currentGame: SupportedGame | null;
   gameSlug: string | null;
+  fullSlug: string | null;
   allGames: SupportedGame[];
   isLoading: boolean;
   gameId: string | null;
@@ -20,6 +21,7 @@ interface GameContextValue {
 const GameContext = createContext<GameContextValue>({
   currentGame: null,
   gameSlug: null,
+  fullSlug: null,
   allGames: [],
   isLoading: true,
   gameId: null,
@@ -30,19 +32,53 @@ const GameContext = createContext<GameContextValue>({
   rostersLoading: false,
 });
 
+const ROSTER_SUFFIXES: Record<string, string> = {
+  "_academy": "academy",
+  "_women": "women",
+};
+
+export function rosterUrlSlug(gameSlug: string, rosterSlug: string): string {
+  if (rosterSlug === "first-team" || rosterSlug === "main") return gameSlug;
+  if (rosterSlug === "academy") return `${gameSlug}_academy`;
+  if (rosterSlug === "women") return `${gameSlug}_women`;
+  return `${gameSlug}_${rosterSlug}`;
+}
+
+function parseCompositeSlug(urlSlug: string, allGames: SupportedGame[]): { gameSlug: string; rosterHint: string | null } | null {
+  if (urlSlug === "account") return null;
+  if (allGames.some(g => g.slug === urlSlug)) {
+    return { gameSlug: urlSlug, rosterHint: null };
+  }
+  for (const [suffix, rosterType] of Object.entries(ROSTER_SUFFIXES)) {
+    if (urlSlug.endsWith(suffix)) {
+      const base = urlSlug.slice(0, -suffix.length);
+      if (allGames.some(g => g.slug === base)) {
+        return { gameSlug: base, rosterHint: rosterType };
+      }
+    }
+  }
+  return null;
+}
+
 export function GameProvider({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const { data: allGames = [], isLoading } = useQuery<SupportedGame[]>({
     queryKey: ["/api/supported-games"],
   });
 
-  const gameSlug = useMemo(() => {
+  const parsed = useMemo(() => {
     const match = location.match(/^\/([^/]+)/);
     if (!match) return null;
-    const slug = match[1];
-    if (slug === "account") return null;
-    return allGames.some(g => g.slug === slug) ? slug : null;
+    return parseCompositeSlug(match[1], allGames);
   }, [location, allGames]);
+
+  const gameSlug = parsed?.gameSlug || null;
+  const rosterHint = parsed?.rosterHint || null;
+
+  const fullSlug = useMemo(() => {
+    const match = location.match(/^\/([^/]+)/);
+    return match ? match[1] : null;
+  }, [location]);
 
   const currentGame = gameSlug ? allGames.find(g => g.slug === gameSlug) || null : null;
   const gameId = currentGame?.id || null;
@@ -59,9 +95,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (selectedRosterId && rosters.some(r => r.id === selectedRosterId)) {
       return selectedRosterId;
     }
+    if (rosterHint) {
+      const hintRoster = rosters.find(r => r.slug === rosterHint);
+      if (hintRoster) return hintRoster.id;
+    }
     const firstTeam = rosters.find(r => r.slug === "first-team") || rosters.find(r => r.slug === "main");
     return firstTeam?.id || rosters[0]?.id || null;
-  }, [gameId, selectedRosterId, rosters]);
+  }, [gameId, selectedRosterId, rosters, rosterHint]);
 
   const currentRoster = rosters.find(r => r.id === rosterId) || null;
 
@@ -96,6 +136,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const rosterScopedPrefixes = [
         "/api/players", "/api/schedule", "/api/player-availability",
         "/api/staff-availability", "/api/staff", "/api/attendance",
+        "/api/events", "/api/roster-roles", "/api/availability-slots",
       ];
       queryClient.removeQueries({
         predicate: (query) => {
@@ -110,7 +151,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   return (
     <GameContext.Provider value={{
-      currentGame, gameSlug, allGames, isLoading, gameId,
+      currentGame, gameSlug, fullSlug, allGames, isLoading, gameId,
       rosters, currentRoster, rosterId,
       setRosterId: setSelectedRosterId,
       rostersLoading,

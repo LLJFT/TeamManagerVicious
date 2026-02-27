@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { SupportedGame, OrgRole, Roster } from "@shared/schema";
 import { orgRoleLabels } from "@shared/schema";
-import { useGame } from "@/hooks/use-game";
+import { useGame, rosterUrlSlug } from "@/hooks/use-game";
 import { useToast } from "@/hooks/use-toast";
 import { GameIcon } from "@/components/game-icon";
 import { ObjectUploader } from "@/components/ObjectUploader";
@@ -67,8 +67,8 @@ export default function GamesHome() {
   });
 
   const approveMutation = useMutation({
-    mutationFn: ({ id, type }: { id: string; type: "game" | "org" }) =>
-      apiRequest("POST", `/api/game-assignments/${id}/approve-${type}`),
+    mutationFn: (id: string) =>
+      apiRequest("POST", `/api/game-assignments/${id}/approve`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/game-assignments/pending"] });
       queryClient.invalidateQueries({ queryKey: ["/api/org-dashboard"] });
@@ -114,7 +114,8 @@ export default function GamesHome() {
     const canAccess = roster.id ? hasRosterAccess(game.id, roster.id) : hasGameAccess(game.id);
     if (!canAccess) return;
     setRosterId(roster.id || null);
-    navigate(`/${game.slug}`);
+    const url = `/${rosterUrlSlug(game.slug, roster.slug)}`;
+    navigate(url);
   };
 
   const showDashboardTab = hasOrgRole("org_admin", "game_manager");
@@ -210,32 +211,15 @@ export default function GamesHome() {
                           <Badge variant="secondary">{pa.gameName}</Badge>
                           {pa.rosterName && <Badge variant="outline">{pa.rosterName}</Badge>}
                           <Badge variant="outline">{pa.assignedRole}</Badge>
-                          {pa.approvalGameStatus === "approved" && (
-                            <Badge variant="default" className="text-[10px]">Game Approved</Badge>
-                          )}
-                          {pa.approvalOrgStatus === "approved" && (
-                            <Badge variant="default" className="text-[10px]">Org Approved</Badge>
-                          )}
                         </div>
                         <div className="flex items-center gap-1 flex-shrink-0">
-                          {isAdmin && pa.approvalOrgStatus !== "approved" && (
-                            <Button size="sm" variant="outline" className="gap-1 text-xs"
-                              onClick={() => approveMutation.mutate({ id: pa.id, type: "org" })}
-                              disabled={approveMutation.isPending}
-                              data-testid={`button-approve-org-${pa.id}`}>
-                              <ShieldCheck className="h-3 w-3" />
-                              Org Approve
-                            </Button>
-                          )}
-                          {pa.approvalGameStatus !== "approved" && (
-                            <Button size="sm" variant="outline" className="gap-1 text-xs"
-                              onClick={() => approveMutation.mutate({ id: pa.id, type: "game" })}
-                              disabled={approveMutation.isPending}
-                              data-testid={`button-approve-game-${pa.id}`}>
-                              <CheckCircle className="h-3 w-3" />
-                              Game Approve
-                            </Button>
-                          )}
+                          <Button size="sm" variant="outline" className="gap-1 text-xs"
+                            onClick={() => approveMutation.mutate(pa.id)}
+                            disabled={approveMutation.isPending}
+                            data-testid={`button-approve-${pa.id}`}>
+                            <CheckCircle className="h-3 w-3" />
+                            Approve
+                          </Button>
                           <Button size="icon" variant="ghost"
                             onClick={() => rejectMutation.mutate(pa.id)}
                             disabled={rejectMutation.isPending}
@@ -664,6 +648,10 @@ function OrgSettings({ allGames, dashboard }: { allGames: SupportedGame[]; dashb
         </Card>
       )}
 
+      {dashboard?.users && (
+        <GameAccessSection users={dashboard.users} allGames={allGames} />
+      )}
+
       <Card>
         <CardHeader className="pb-3 gap-2">
           <CardTitle className="text-base flex items-center gap-2">
@@ -692,6 +680,112 @@ function OrgSettings({ allGames, dashboard }: { allGames: SupportedGame[]; dashb
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function GameAccessSection({ users, allGames }: { users: any[]; allGames: SupportedGame[] }) {
+  const { toast } = useToast();
+  const [addingFor, setAddingFor] = useState<string | null>(null);
+  const [selectedGameId, setSelectedGameId] = useState<string>("");
+
+  const assignGameMutation = useMutation({
+    mutationFn: ({ userId, gameId }: { userId: string; gameId: string }) =>
+      apiRequest("POST", "/api/game-assignments", { userId, gameId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/org-dashboard"] });
+      setAddingFor(null);
+      setSelectedGameId("");
+      toast({ title: "Game access granted" });
+    },
+    onError: (err: any) => {
+      toast({ title: err.message || "Failed to assign", variant: "destructive" });
+    },
+  });
+
+  const removeAccessMutation = useMutation({
+    mutationFn: (assignmentId: string) =>
+      apiRequest("DELETE", `/api/game-assignments/${assignmentId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/org-dashboard"] });
+      toast({ title: "Game access removed" });
+    },
+  });
+
+  return (
+    <Card>
+      <CardHeader className="pb-3 gap-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Gamepad2 className="h-4 w-4" />
+          Manage Game Access
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="divide-y max-h-[400px] overflow-auto">
+          {users.map((u: any) => (
+            <div key={u.id} className="px-4 py-3" data-testid={`game-access-row-${u.id}`}>
+              <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                <span className="font-medium text-sm">{u.displayName || u.username}</span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="gap-1 text-xs"
+                  onClick={() => setAddingFor(addingFor === u.id ? null : u.id)}
+                  data-testid={`button-add-game-${u.id}`}
+                >
+                  <Plus className="h-3 w-3" />
+                  Add Game
+                </Button>
+              </div>
+              {addingFor === u.id && (
+                <div className="flex items-center gap-2 mb-2">
+                  <Select value={selectedGameId} onValueChange={setSelectedGameId}>
+                    <SelectTrigger className="w-[180px]" data-testid={`select-game-for-${u.id}`}>
+                      <SelectValue placeholder="Select game" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allGames
+                        .filter(g => !u.games?.some((ug: any) => ug.gameId === g.id))
+                        .map(g => (
+                          <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="sm"
+                    disabled={!selectedGameId || assignGameMutation.isPending}
+                    onClick={() => assignGameMutation.mutate({ userId: u.id, gameId: selectedGameId })}
+                    data-testid={`button-confirm-add-game-${u.id}`}
+                  >
+                    Assign
+                  </Button>
+                </div>
+              )}
+              <div className="flex flex-wrap gap-1">
+                {u.games?.map((g: any) => {
+                  const gameName = allGames.find(sg => sg.id === g.gameId)?.name || "Unknown";
+                  return (
+                    <Badge key={g.id} variant="secondary" className="text-xs gap-1">
+                      {gameName}
+                      <button
+                        type="button"
+                        className="ml-0.5 opacity-60 hover:opacity-100"
+                        onClick={() => removeAccessMutation.mutate(g.id)}
+                        data-testid={`button-remove-game-${g.id}`}
+                      >
+                        <XCircle className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  );
+                })}
+                {(!u.games || u.games.length === 0) && (
+                  <span className="text-xs text-muted-foreground">No game access</span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

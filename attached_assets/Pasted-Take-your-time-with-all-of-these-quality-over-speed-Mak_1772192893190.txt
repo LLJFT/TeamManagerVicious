@@ -1,0 +1,45 @@
+Take your time with all of these — quality over speed. Make sure every single requirement is implemented correctly before moving on. Do not rush.
+🔴 CRITICAL — Logo upload does nothing
+The logo upload button accepts the image but nothing happens after — the logo doesn’t save, doesn’t replace the shield, and doesn’t persist. Fix the entire upload flow: upload → save to storage → replace shield icon everywhere → persist across sessions and page refreshes.
+🔴 CRITICAL — Events page returns 404
+Navigating to an event detail page returns “404 Page Not Found”. Fix the routing so event pages load correctly.
+🔴 CRITICAL — Roster pages share the same URL causing data conflicts
+Currently all rosters of the same game share /dota2 which causes First Team data to show when visiting Academy or Women. Fix by giving each roster its own unique URL:
+	∙	First Team: /dota2
+	∙	Academy: /dota2_academy
+	∙	Women: /dota2_women
+Apply this pattern to ALL games. This will completely eliminate roster data conflicts.
+🔴 CRITICAL — Roster Roles and Availability Slots not visible in Dashboard
+The defaults (Tank, DPS, Support and Unknown, 18:00-20:00, 20:00-22:00, All Blocks, Can’t) exist in the system but don’t appear in Dashboard → Team → Roster Roles / Availability Slots. So when an admin tries to edit them, it errors and freezes. Fix this: make the defaults actually appear as editable entries in the Dashboard Team tab from the moment a roster is created.
+🔴 CRITICAL — Username suffix changes the actual login username
+When a user registers for Dota 2, their username is permanently changed to ahmed_D2 — so they can no longer log in with ahmed. This is wrong. The suffix should only be a display label shown inside the platform — the actual login username must stay exactly as the user typed it during registration. Never modify the real username.
+🔴 CRITICAL — Roster page title shows wrong roster name
+When visiting Dota 2 Academy, the top-left and page title still show “First Team”. Fix this: each roster URL must load its own correct data and display its own correct name. The page title should show “Dota 2 — Academy”, “Dota 2 — Women”, etc.
+🟡 Pending Registrations — simplify to one approval
+Remove the two-button system (Org Approve / Game Approve). Replace with a single Approve button. One approval is enough to grant full access.
+🟡 Pending Registrations — allow editing before approval
+In the pending registrations list, allow the admin to edit the request before approving:
+	∙	Change which game/roster they’re being approved for
+	∙	Change their role
+Then approve with the updated values.
+🟡 Settings — remaining sections to add
+Add these as clearly separated sections in the Settings page:
+	∙	Manage Management Permissions
+	∙	Manage Game Access for All Users
+	∙	Manage Game Access for the Org
+	∙	Activity Log for Main Page (not game-level)
+	∙	Add Game (name, abbreviation, icon)
+	∙	Edit Game (name, abbreviation, slug, active rosters)
+	∙	Edit Game Icons (grid of all games, click to upload new icon)
+	∙	Management Chat (separate chat only visible to Management role users)
+🟡 Staff — make optional per roster
+The Staff section should be optional. Roster owners can choose to enable or disable it. If disabled, staff section is hidden entirely.
+🟡 Staff — can edit own availability after being linked
+When a staff member is linked to a user account, they must be able to edit their own availability in the schedule — same as players.
+🟡 Chat improvements
+	∙	Fix media persistence: images, videos, and audio files must remain accessible permanently and not break after time
+	∙	Add voice message recording button (hold to record, release to send)
+	∙	Add emoji picker button next to the attachment icon
+	∙	Support all audio formats: MP3, M4A, OGG, WAV, WEBM, AAC
+🟡 Dashboard Team — Availability Slots and Roster Roles as single source of truth
+All availability slot options and roster roles shown in the schedule must come from Dashboard → Team settings. Changes there must reflect 

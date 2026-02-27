@@ -226,9 +226,12 @@ export default function Login() {
                 )}
 
                 {previewUsername && (
-                  <div className="flex items-center gap-2 p-3 rounded-md bg-muted/50 text-sm">
-                    <span className="text-muted-foreground">Your username:</span>
-                    <span className="font-medium" data-testid="text-username-preview">{previewUsername}</span>
+                  <div className="p-3 rounded-md bg-muted/50 text-sm space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">Display name:</span>
+                      <span className="font-medium" data-testid="text-username-preview">{previewUsername}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">You will log in with your original username: <strong>{username.trim()}</strong></p>
                   </div>
                 )}
               </>

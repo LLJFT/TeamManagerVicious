@@ -52,7 +52,7 @@ function makeGameItems(prefix: string) {
 export function AppSidebar() {
   const [location] = useLocation();
   const { user, logout, hasPermission } = useAuth();
-  const { currentGame, gameSlug, currentRoster } = useGame();
+  const { currentGame, gameSlug, fullSlug, currentRoster } = useGame();
 
   const { data: orgLogoUrl } = useQuery<string | null>({
     queryKey: ["/api/org-setting/org_logo"],
@@ -65,7 +65,7 @@ export function AppSidebar() {
   const [logoError, setLogoError] = useState(false);
 
   const inGameContext = !!currentGame && !!gameSlug;
-  const prefix = inGameContext ? `/${gameSlug}` : "";
+  const prefix = inGameContext ? `/${fullSlug || gameSlug}` : "";
   const navItems = inGameContext ? makeGameItems(prefix) : null;
 
   return (
