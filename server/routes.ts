@@ -2343,28 +2343,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const allSupportedGames = await storage.getSupportedGames();
       const allUsers = await db.select().from(users).where(eq(users.teamId, teamId));
       const allAssignments = await db.select().from(userGameAssignments).where(eq(userGameAssignments.teamId, teamId));
+      const allRostersRows = await db.select().from(rosters).where(eq(rosters.teamId, teamId));
       const pendingAssignments = await storage.getAllPendingAssignments();
 
-      const gameSummaries = [];
+      const rosterSummaries = [];
       for (const game of allSupportedGames) {
+        const gameRosters = allRostersRows.filter(r => r.gameId === game.id);
         const gameEvents = await db.select().from(events).where(and(eq(events.teamId, teamId), eq(events.gameId, game.id)));
         const gameAttendance = await db.select().from(attendance).where(and(eq(attendance.teamId, teamId), eq(attendance.gameId, game.id)));
+        const gamePlayers = await db.select().from(players).where(and(eq(players.teamId, teamId), eq(players.gameId, game.id)));
 
-        const attended = gameAttendance.filter(a => a.status === "attended").length;
-        const late = gameAttendance.filter(a => a.status === "late").length;
-        const absent = gameAttendance.filter(a => a.status === "absent").length;
+        for (const roster of gameRosters) {
+          const rosterAttendance = gameAttendance.filter(a => a.rosterId === roster.id);
+          const rosterEvents = gameEvents.filter(e => e.rosterId === roster.id);
+          const rosterPlayers = gamePlayers.filter(p => p.rosterId === roster.id);
+          const rosterAssignments = allAssignments.filter(a => a.gameId === game.id && a.rosterId === roster.id && a.status === "approved");
 
-        const recentEvents = gameEvents.slice(-5);
-        const results = recentEvents.map(e => ({ title: e.title, result: e.result, date: e.date }));
+          const attended = rosterAttendance.filter(a => a.status === "attended").length;
+          const late = rosterAttendance.filter(a => a.status === "late").length;
+          const absent = rosterAttendance.filter(a => a.status === "absent").length;
 
-        gameSummaries.push({
-          gameId: game.id,
-          gameName: game.name,
-          gameSlug: game.slug,
-          attendance: { attended, late, absent },
-          recentResults: results,
-          playerCount: allAssignments.filter(a => a.gameId === game.id && a.status === "approved").length,
-        });
+          const now = new Date().toISOString().split("T")[0];
+          const pastEvents = rosterEvents.filter(e => e.date && e.date <= now).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+          const upcomingEvents = rosterEvents.filter(e => e.date && e.date > now).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+
+          const recentResults = pastEvents.slice(0, 3).map(e => ({ title: e.title, result: e.result, date: e.date }));
+          const nextEvents = upcomingEvents.slice(0, 3).map(e => ({ title: e.title, date: e.date, time: e.time }));
+
+          const members = rosterPlayers.map(p => ({
+            id: p.id,
+            name: p.name,
+            role: p.role,
+          }));
+
+          rosterSummaries.push({
+            gameId: game.id,
+            gameName: game.name,
+            gameSlug: game.slug,
+            rosterId: roster.id,
+            rosterName: roster.name,
+            rosterSlug: roster.slug,
+            attendance: { attended, late, absent },
+            recentResults,
+            nextEvents,
+            memberCount: rosterAssignments.length + rosterPlayers.length,
+            members,
+          });
+        }
       }
 
       const usersWithRoles = allUsers.map(u => {
@@ -2376,7 +2401,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       res.json({
-        gameSummaries,
+        rosterSummaries,
         users: usersWithRoles,
         pendingRegistrations: pendingAssignments,
       });
@@ -2450,6 +2475,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return { ...safe, games: allAssignments.filter(a => a.userId === u.id) };
       });
       res.json(safeUsers);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.put("/api/users/:id/org-role", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { orgRole } = req.body;
+      const teamId = getTeamId();
+      const validRoles = ["player", "coach_analyst", "game_manager", "org_admin"];
+      if (!validRoles.includes(orgRole)) return res.status(400).json({ message: "Invalid role" });
+      await db.update(users).set({ orgRole }).where(and(eq(users.id, id), eq(users.teamId, teamId)));
+      logActivity(req.session.userId!, "change_org_role", `Changed user role to ${orgRole}`, "team");
+      res.json({ message: "Role updated" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/org-activity-logs", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const logs = await db.select().from(activityLogs)
+        .where(eq(activityLogs.teamId, teamId))
+        .orderBy(activityLogs.createdAt)
+        .limit(100);
+      res.json(logs.reverse());
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }

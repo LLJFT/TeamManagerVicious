@@ -34,6 +34,7 @@ export const GAME_SCOPED_PREFIXES = [
   "/api/availability-slots", "/api/roster-roles", "/api/chat",
   "/api/all-games", "/api/all-games-stats", "/api/player-stats-summary",
   "/api/settings", "/api/rosters",
+  "/api/users", "/api/roles", "/api/activity-logs",
 ];
 
 function shouldAppendGameId(url: string): boolean {

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useLocation, Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useGame } from "@/hooks/use-game";
@@ -57,6 +58,11 @@ export function AppSidebar() {
     queryKey: ["/api/org-setting/org_logo"],
     staleTime: 1000 * 60 * 5,
   });
+  const { data: orgName } = useQuery<string | null>({
+    queryKey: ["/api/org-setting/org_name"],
+    staleTime: 1000 * 60 * 5,
+  });
+  const [logoError, setLogoError] = useState(false);
 
   const inGameContext = !!currentGame && !!gameSlug;
   const prefix = inGameContext ? `/${gameSlug}` : "";
@@ -69,7 +75,11 @@ export function AppSidebar() {
           <div className="space-y-2">
             <Link href="/">
               <Button variant="ghost" size="sm" className="w-full justify-start gap-2 -ml-2" data-testid="button-back-home">
-                <ArrowLeft className="h-4 w-4" />
+                {orgLogoUrl && !logoError ? (
+                  <img src={orgLogoUrl} alt="Logo" className="h-5 w-5 rounded object-contain flex-shrink-0" onError={() => setLogoError(true)} />
+                ) : (
+                  <ArrowLeft className="h-4 w-4" />
+                )}
                 <span>All Games</span>
               </Button>
             </Link>
@@ -85,18 +95,18 @@ export function AppSidebar() {
           </div>
         ) : (
           <div className="flex items-center gap-2">
-            {orgLogoUrl ? (
+            {orgLogoUrl && !logoError ? (
               <img
                 src={orgLogoUrl}
                 alt="Organization Logo"
                 className="h-8 w-8 rounded object-contain flex-shrink-0"
                 data-testid="img-org-logo"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                onError={() => setLogoError(true)}
               />
             ) : (
               <Shield className="h-6 w-6 text-primary flex-shrink-0" />
             )}
-            <span className="text-lg font-bold truncate">Vicious</span>
+            <span className="text-lg font-bold truncate">{orgName || "Vicious"}</span>
           </div>
         )}
       </SidebarHeader>
