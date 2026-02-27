@@ -20,75 +20,10 @@ import {
   LogOut, Trophy, Clock, GitCompare, Target, Shield,
   UserCog, ClipboardList, ArrowLeft,
 } from "lucide-react";
-import {
-  SiValorant, SiLeagueoflegends, SiCounterstrike, SiDota2, SiPubg,
-  SiEa, SiActivision, SiEpicgames, SiUbisoft, SiRiotgames,
-} from "react-icons/si";
 import type { Permission, OrgRole } from "@shared/schema";
 import { orgRoleLabels } from "@shared/schema";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
-const GAME_COLORS: Record<string, string> = {
-  "valorant":     "#FF4655",
-  "lol":          "#C89B3C",
-  "cs":           "#F0A03E",
-  "dota2":        "#9B1C1F",
-  "pubg":         "#F5A623",
-  "pubg-mobile":  "#F5A623",
-  "overwatch":    "#FA9C1E",
-  "apex":         "#CD3333",
-  "fortnite":     "#00C3FF",
-  "rocket-league":"#0066FF",
-  "r6":           "#009BDE",
-  "cod":          "#8CC63F",
-  "mlbb":         "#1A7EC6",
-  "hok":          "#FFB800",
-  "brawl-stars":  "#FF2A6D",
-  "marvel-rivals":"#E62429",
-  "ea-fc":        "#00B2FF",
-  "free-fire":    "#FF6B00",
-  "tft":          "#C8AA6E",
-  "crossfire":    "#00A1E0",
-  "deadlock":     "#6B4226",
-  "trackmania":   "#009DDC",
-  "the-finals":   "#FFD700",
-  "fighting-games":"#9333EA",
-  "warzone":      "#8CC63F",
-  "efootball":    "#1D5BA4",
-};
-
-const SI_ICONS: Record<string, any> = {
-  "valorant":     SiValorant,
-  "lol":          SiLeagueoflegends,
-  "cs":           SiCounterstrike,
-  "dota2":        SiDota2,
-  "pubg":         SiPubg,
-  "pubg-mobile":  SiPubg,
-  "ea-fc":        SiEa,
-  "cod":          SiActivision,
-  "warzone":      SiActivision,
-  "fortnite":     SiEpicgames,
-  "r6":           SiUbisoft,
-  "tft":          SiRiotgames,
-};
-
-function GameBadge({ slug, name }: { slug: string; name: string }) {
-  const SIIcon = SI_ICONS[slug];
-  const color = GAME_COLORS[slug] || "#6B7280";
-  if (SIIcon) {
-    return (
-      <div className="h-6 w-6 rounded flex items-center justify-center flex-shrink-0" style={{ background: `${color}20` }}>
-        <SIIcon style={{ color, fontSize: 14 }} />
-      </div>
-    );
-  }
-  const abbr = name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
-  return (
-    <div className="h-6 w-6 rounded flex items-center justify-center flex-shrink-0 text-[10px] font-bold" style={{ background: `${color}20`, color }}>
-      {abbr}
-    </div>
-  );
-}
+import { Badge } from "@/components/ui/badge";
+import { GameBadge } from "@/components/game-icon";
 
 function makeGameItems(prefix: string) {
   return {
@@ -116,7 +51,7 @@ function makeGameItems(prefix: string) {
 export function AppSidebar() {
   const [location] = useLocation();
   const { user, logout, hasPermission } = useAuth();
-  const { currentGame, gameSlug, rosters, currentRoster, setRosterId, rosterId } = useGame();
+  const { currentGame, gameSlug, currentRoster } = useGame();
 
   const { data: orgLogoUrl } = useQuery<string | null>({
     queryKey: ["/api/org-setting/org_logo"],
@@ -142,19 +77,10 @@ export function AppSidebar() {
               <GameBadge slug={currentGame.slug} name={currentGame.name} />
               <span className="text-sm font-bold truncate">{currentGame.name}</span>
             </div>
-            {rosters.length > 1 && (
-              <Select value={rosterId || ""} onValueChange={(val) => setRosterId(val)}>
-                <SelectTrigger className="h-8 text-xs" data-testid="select-roster">
-                  <SelectValue placeholder="Select Roster" />
-                </SelectTrigger>
-                <SelectContent>
-                  {rosters.map(r => (
-                    <SelectItem key={r.id} value={r.id} data-testid={`roster-option-${r.slug}`}>
-                      {r.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {currentRoster && (
+              <Badge variant="secondary" className="text-xs w-fit" data-testid="badge-roster-name">
+                {currentRoster.name}
+              </Badge>
             )}
           </div>
         ) : (

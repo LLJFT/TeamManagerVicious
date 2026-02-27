@@ -1,0 +1,65 @@
+Fix all these issues carefully. Do NOT break existing functionality. 
+
+🔴 CRITICAL — Chat page crashes the entire app When navigating to any game's chat page, the whole app freezes/hangs. Refreshing fixes it but the chat never loads. Debug and fix the chat page so it loads properly without crashing or hanging the app. 
+
+🔴 CRITICAL — Game dashboard Users tab shows ALL users instead of game-specific users This is still not fixed. When viewing Rainbow Six dashboard → Users, it shows every user on the platform including those who registered for completely different games. Fix this properly using a different approach: when a user registers for a specific game, automatically append the game abbreviation to their username as a suffix so they are clearly tied to that game. Username format: [username]_[ABBREVIATION] 
+
+Game abbreviations: Dota 2=D2, Counter-Strike=CS, VALORANT=VALO, Mobile Legends=MLBB, League of Legends=LoL, Rocket League=RL, PUBG Mobile=PUBGM, Overwatch=OW, Rainbow Six=R6, Apex Legends=APEX, Fighting Games=FG, PUBG=PUBG, Honor of Kings=HOK, Brawl Stars=BS, Marvel Rivals=MR, EA Sports FC=FC, Free Fire=FF, Fortnite=FN, Teamfight Tactics=TFT, CrossFire=CF, Deadlock=DL, The Finals=TF, Warzone=WZ, eFootball=EF, Free Fire Mobile=FFM, Honor of Kings Mobile=HOKM, Call of Duty Mobile=CDM 
+
+Roster suffix: First Team = abbreviation only (R6), Academy = R6_AC, Women = R6_W 
+
+Example: user "Ahmed" registers for Rainbow Six First Team → username becomes Ahmed_R6 
+
+🔴 CRITICAL — Roster access is shared across all 3 types When a user is given access to a game (e.g. Warzone), they automatically get access to First Team, Academy, AND Women's rosters. Fix this: each roster type (First Team, Academy, Women) must be treated as a completely independent entity with its own separate access. Being approved for Warzone First Team does NOT grant access to Warzone Academy or Warzone Women. The user must be specifically approved for each one separately. 
+
+🔴 CRITICAL — Remove roster switcher dropdown inside game pages The dropdown in the top-left of game pages that lets you switch between First Team/Academy/Women must be removed. Each roster is its own separate page accessed from the Home screen only. There should be no way to switch rosters from inside a roster page — the user must go back to Home. 
+
+🟡 Settings page — add all missing sections The Settings tab must include ALL of these sections as separate items in the left sidebar or as clearly separated sections: 
+
+Organization Name (already exists ✅) 
+
+Upload Team Logo (already exists ✅) 
+
+Organization Logo (replaces the shield) Add an upload section in Settings where I can upload the organization's logo image. Once uploaded: 
+
+It replaces the shield icon in the top-left of the sidebar everywhere on the platform 
+
+It also appears in the top-left when inside any game/roster page 
+
+The logo must persist and load correctly on every page 
+
+Dynamic Theme based on Logo After uploading a logo, add a "Generate Theme" button. When clicked: 
+
+Automatically extract the dominant colors from the uploaded logo 
+
+Apply those colors as the platform's accent/theme colors (buttons, highlights, sidebar accents, active states) 
+
+Example: if I upload Twisted Minds logo (purple/black), the theme shifts to match their brand colors 
+
+The theme must be saved and persist across sessions — not reset on refresh 
+
+Manage Management Permissions 
+
+Manage Game Access for All Users 
+
+Manage Game Access for the Org / Org Management 
+
+Activity Log for Main Page (not game page) 
+
+Manage All Users 
+
+Add Game 
+
+Edit Game 
+
+Edit Game Icons 
+
+Chat (for Management only) 
+
+🟡 Home Dashboard — split into proper sections The Dashboard tab must have these as separate clearly labeled sections: 
+
+Roster Overview (separate section): shows per-roster attendance stats and number of registered members with access. Each roster shown separately (e.g. "Warzone — First Team", "Warzone — Academy", "Warzone — Women" as 3 separate entries). Click to expand and see members list with their attendance. 
+
+Event Overview (separate section): shows all games/rosters collapsed. Click any one to expand and see: last 3 events with results and dates + next 3 upcoming events. 
+
+🟡 Game icons — upload from  file I'm uploading a file with 18 correct game icon images. Use these exact images for their corresponding games. Some images are dark mode, some light mode, some default — fix each one so it displays correctly on the dark navy background (use the dark/transparent version when available, otherwise add a subtle background so light icons are visible). 

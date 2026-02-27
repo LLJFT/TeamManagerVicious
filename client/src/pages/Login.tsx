@@ -9,8 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Shield, UserPlus, LogIn, Clock, Check, Lock } from "lucide-react";
 import type { SupportedGame } from "@shared/schema";
+import { GAME_ABBREVIATIONS } from "@shared/schema";
 
 type RegisterRole = "player" | "staff" | "management";
+type RosterType = "first_team" | "academy" | "women";
 
 export default function Login() {
   const { login, register } = useAuth();
@@ -20,6 +22,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [selectedGames, setSelectedGames] = useState<string[]>([]);
   const [selectedRole, setSelectedRole] = useState<RegisterRole>("player");
+  const [selectedRosterType, setSelectedRosterType] = useState<RosterType>("first_team");
   const [loading, setLoading] = useState(false);
 
   const needsGameSelection = selectedRole === "player" || selectedRole === "staff";
@@ -42,7 +45,15 @@ export default function Login() {
   const handleRoleChange = (r: RegisterRole) => {
     setSelectedRole(r);
     setSelectedGames([]);
+    setSelectedRosterType("first_team");
   };
+
+  const selectedGameSlug = needsGameSelection && selectedGames.length > 0
+    ? allGames.find(g => g.id === selectedGames[0])?.slug || ""
+    : "";
+  const gameAbbrev = selectedGameSlug ? (GAME_ABBREVIATIONS[selectedGameSlug] || selectedGameSlug.toUpperCase()) : "";
+  const rosterSuffix = selectedRosterType === "academy" ? `${gameAbbrev}_AC` : selectedRosterType === "women" ? `${gameAbbrev}_W` : gameAbbrev;
+  const previewUsername = username.trim() && gameAbbrev ? `${username.trim()}_${rosterSuffix}` : "";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,7 +68,7 @@ export default function Login() {
           setLoading(false);
           return;
         }
-        await register(username, password, needsGameSelection ? selectedGames : [], selectedRole);
+        await register(username, password, needsGameSelection ? selectedGames : [], selectedRole, needsGameSelection ? selectedRosterType : undefined);
         setMode("pending");
       }
     } catch (err: any) {
@@ -195,6 +206,29 @@ export default function Login() {
                     {selectedGames.length > 0 && (
                       <p className="text-xs text-muted-foreground">{selectedGames.length} game(s) selected</p>
                     )}
+                  </div>
+                )}
+
+                {needsGameSelection && selectedGames.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Roster</Label>
+                    <Select value={selectedRosterType} onValueChange={(v) => setSelectedRosterType(v as RosterType)}>
+                      <SelectTrigger data-testid="select-roster-type">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="first_team">First Team</SelectItem>
+                        <SelectItem value="academy">Academy</SelectItem>
+                        <SelectItem value="women">Women</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {previewUsername && (
+                  <div className="flex items-center gap-2 p-3 rounded-md bg-muted/50 text-sm">
+                    <span className="text-muted-foreground">Your username:</span>
+                    <span className="font-medium" data-testid="text-username-preview">{previewUsername}</span>
                   </div>
                 )}
               </>

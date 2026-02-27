@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, lazy, Suspense } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -19,7 +19,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { MessageSquare, Hash, Plus, Trash2, Send, Paperclip, X, AtSign, FileText, Download, Settings, Menu, Mic, Square, Smile } from "lucide-react";
-import EmojiPicker, { Theme } from "emoji-picker-react";
+import { Theme } from "emoji-picker-react";
+
+const LazyEmojiPicker = lazy(() => import("emoji-picker-react"));
 
 interface ChatChannelWithPerms {
   id: string;
@@ -779,12 +781,14 @@ export default function Chat() {
 
                   {showEmojiPicker && (
                     <div ref={emojiPickerRef} className="absolute bottom-full left-0 mb-1 z-50" data-testid="emoji-picker-container">
-                      <EmojiPicker
-                        onEmojiClick={onEmojiClick}
-                        theme={document.documentElement.classList.contains("dark") ? Theme.DARK : Theme.LIGHT}
-                        width={320}
-                        height={400}
-                      />
+                      <Suspense fallback={<div className="w-[320px] h-[400px] flex items-center justify-center bg-popover border rounded-md text-sm text-muted-foreground">Loading...</div>}>
+                        <LazyEmojiPicker
+                          onEmojiClick={onEmojiClick}
+                          theme={document.documentElement.classList.contains("dark") ? Theme.DARK : Theme.LIGHT}
+                          width={320}
+                          height={400}
+                        />
+                      </Suspense>
                     </div>
                   )}
 

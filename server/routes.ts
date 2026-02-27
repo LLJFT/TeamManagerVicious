@@ -20,6 +20,7 @@ import {
   staff as staffTable,
   supportedGames, userGameAssignments, notifications, rosters,
   type UserWithRole,
+  GAME_ABBREVIATIONS,
 } from "@shared/schema";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import multer from "multer";
@@ -172,21 +173,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/auth/register", async (req, res) => {
     try {
-      const { username, password, selectedGames, selectedRole } = req.body;
+      const { username, password, selectedGames, selectedRole, selectedRosterType } = req.body;
       if (!username || !password) {
         return res.status(400).json({ message: "Username and password required" });
       }
       const teamId = getTeamId();
-      const [existing] = await db.select().from(users)
-        .where(and(ilike(users.username, username.trim()), eq(users.teamId, teamId)))
-        .limit(1);
-      if (existing) {
-        return res.status(409).json({ message: "Username already taken" });
-      }
-      const [memberRole] = await db.select().from(roles)
-        .where(and(eq(roles.name, "Member"), eq(roles.teamId, teamId)))
-        .limit(1);
-      // Map frontend role to orgRole
+
       let orgRole: string;
       if (selectedRole === "management") {
         orgRole = "org_admin";
@@ -196,26 +188,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
         orgRole = "player";
       }
 
+      let finalUsername = username.trim();
+      let selectedGameId: string | null = null;
+      let selectedRosterId: string | null = null;
+
+      if (selectedRole !== "management" && selectedGames && Array.isArray(selectedGames) && selectedGames.length > 0) {
+        selectedGameId = selectedGames[0];
+        const [game] = await db.select().from(supportedGames).where(eq(supportedGames.id, selectedGameId!)).limit(1);
+        if (game) {
+          const abbrev = GAME_ABBREVIATIONS[game.slug] || game.slug.toUpperCase();
+          const rosterType = selectedRosterType || "first_team";
+          let suffix = abbrev;
+          if (rosterType === "academy") suffix = `${abbrev}_AC`;
+          else if (rosterType === "women") suffix = `${abbrev}_W`;
+          finalUsername = `${finalUsername}_${suffix}`;
+
+          const rosterNameMap: Record<string, string> = { first_team: "First Team", academy: "Academy", women: "Women" };
+          const rosterName = rosterNameMap[rosterType] || "First Team";
+          const [roster] = await db.select().from(rosters)
+            .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, game.id), eq(rosters.name, rosterName)))
+            .limit(1);
+          if (roster) {
+            selectedRosterId = roster.id;
+          }
+        }
+      }
+
+      const [existing] = await db.select().from(users)
+        .where(and(ilike(users.username, finalUsername), eq(users.teamId, teamId)))
+        .limit(1);
+      if (existing) {
+        return res.status(409).json({ message: "Username already taken" });
+      }
+
+      const [memberRole] = await db.select().from(roles)
+        .where(and(eq(roles.name, "Member"), eq(roles.teamId, teamId)))
+        .limit(1);
+
       const passwordHash = bcrypt.hashSync(password, 10);
       const [newUser] = await db.insert(users).values({
         teamId,
-        username,
+        username: finalUsername,
         passwordHash,
         roleId: memberRole?.id || null,
         orgRole,
         status: "pending",
       }).returning();
 
-      // Management gets access to all games on approval (no individual game assignments needed)
-      // Player/Staff get game-specific assignments
-      if (selectedRole !== "management" && selectedGames && Array.isArray(selectedGames) && selectedGames.length > 0) {
-        for (const gameId of selectedGames) {
-          await storage.createUserGameAssignment(teamId, newUser.id, gameId, orgRole);
-        }
+      if (selectedGameId) {
+        await storage.createUserGameAssignment(teamId, newUser.id, selectedGameId, orgRole, selectedRosterId || undefined);
       }
 
       const { passwordHash: _, ...safeUser } = newUser;
-      logActivity(null, "register", `User ${username} registered as ${selectedRole || "player"} (pending approval)`, "system");
+      logActivity(null, "register", `User ${finalUsername} registered as ${selectedRole || "player"} (pending approval)`, "system");
       res.json({ ...safeUser, message: "Registration successful. Awaiting approval." });
     } catch (error: any) {
       res.status(500).json({ message: error.message });

@@ -94,7 +94,7 @@ export interface IStorage {
   getSupportedGameBySlug(slug: string): Promise<SupportedGame | undefined>;
   getUserGameAssignments(userId: string): Promise<UserGameAssignment[]>;
   getAllPendingAssignments(gameId?: string | null): Promise<(UserGameAssignment & { username: string; gameName: string; gameSlug: string; rosterName: string | null })[]>;
-  createUserGameAssignment(teamId: string, userId: string, gameId: string, assignedRole: string): Promise<UserGameAssignment>;
+  createUserGameAssignment(teamId: string, userId: string, gameId: string, assignedRole: string, rosterId?: string): Promise<UserGameAssignment>;
   approveUserGameAssignment(id: string): Promise<UserGameAssignment>;
   rejectUserGameAssignment(id: string): Promise<UserGameAssignment>;
   getNotifications(userId: string): Promise<Notification[]>;
@@ -605,9 +605,9 @@ export class DbStorage implements IStorage {
     return results;
   }
 
-  async createUserGameAssignment(teamId: string, userId: string, gameId: string, assignedRole: string): Promise<UserGameAssignment> {
+  async createUserGameAssignment(teamId: string, userId: string, gameId: string, assignedRole: string, rosterId?: string): Promise<UserGameAssignment> {
     const [inserted] = await db.insert(userGameAssignments)
-      .values({ teamId, userId, gameId, assignedRole, status: "pending" })
+      .values({ teamId, userId, gameId, assignedRole, status: "pending", ...(rosterId ? { rosterId } : {}) })
       .returning();
     return inserted;
   }

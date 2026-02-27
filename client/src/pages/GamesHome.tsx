@@ -12,82 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { SupportedGame, OrgRole, Roster } from "@shared/schema";
 import { orgRoleLabels } from "@shared/schema";
-import {
-  SiValorant, SiLeagueoflegends, SiCounterstrike, SiDota2, SiPubg,
-  SiEa, SiActivision, SiEpicgames, SiUbisoft, SiRiotgames,
-} from "react-icons/si";
 import { useGame } from "@/hooks/use-game";
 import { useToast } from "@/hooks/use-toast";
-
-const GAME_COLORS: Record<string, string> = {
-  "valorant":     "#FF4655",
-  "lol":          "#C89B3C",
-  "cs":           "#F0A03E",
-  "dota2":        "#9B1C1F",
-  "pubg":         "#F5A623",
-  "pubg-mobile":  "#F5A623",
-  "overwatch":    "#FA9C1E",
-  "apex":         "#CD3333",
-  "fortnite":     "#00C3FF",
-  "rocket-league":"#0066FF",
-  "r6":           "#009BDE",
-  "cod":          "#8CC63F",
-  "cod-mobile":   "#8CC63F",
-  "mlbb":         "#1A7EC6",
-  "hok":          "#FFB800",
-  "hok-mobile":   "#FFB800",
-  "brawl-stars":  "#FF2A6D",
-  "marvel-rivals":"#E62429",
-  "ea-fc":        "#00B2FF",
-  "free-fire":    "#FF6B00",
-  "free-fire-mobile": "#FF6B00",
-  "tft":          "#C8AA6E",
-  "crossfire":    "#00A1E0",
-  "deadlock":     "#6B4226",
-  "trackmania":   "#009DDC",
-  "the-finals":   "#FFD700",
-  "fighting-games":"#9333EA",
-  "warzone":      "#8CC63F",
-  "efootball":    "#1D5BA4",
-};
-
-const SI_ICONS: Record<string, any> = {
-  "valorant":     SiValorant,
-  "lol":          SiLeagueoflegends,
-  "cs":           SiCounterstrike,
-  "dota2":        SiDota2,
-  "pubg":         SiPubg,
-  "pubg-mobile":  SiPubg,
-  "ea-fc":        SiEa,
-  "cod":          SiActivision,
-  "cod-mobile":   SiActivision,
-  "warzone":      SiActivision,
-  "fortnite":     SiEpicgames,
-  "r6":           SiUbisoft,
-  "tft":          SiRiotgames,
-};
-
-export function GameIcon({ slug, name, size = "md" }: { slug: string; name: string; size?: "sm" | "md" }) {
-  const SIIcon = SI_ICONS[slug];
-  const color = GAME_COLORS[slug] || "#6B7280";
-  const abbr = name.split(" ").map(w => w[0]).join("").slice(0, 3).toUpperCase();
-  const dim = size === "sm" ? "h-7 w-7" : "h-10 w-10";
-  const iconSize = size === "sm" ? 14 : 22;
-  const textSize = size === "sm" ? "text-[9px]" : "text-xs";
-
-  if (SIIcon) {
-    return (
-      <div className={`${dim} rounded-md flex items-center justify-center flex-shrink-0`} style={{ background: `${color}20` }}>
-        <SIIcon style={{ color, fontSize: iconSize }} />
-      </div>
-    );
-  }
-  return (
-    <div className={`${dim} rounded-md flex items-center justify-center font-bold ${textSize} flex-shrink-0`} style={{ background: `${color}20`, color }}>
-      {abbr}
-    </div>
-  );
-}
+import { GameIcon } from "@/components/game-icon";
 
 const ROSTER_TYPE_LABELS: Record<string, string> = {
   "first-team": "First Team",
@@ -114,7 +41,7 @@ interface RosterCardData {
 }
 
 export default function GamesHome() {
-  const { user, hasGameAccess, hasOrgRole } = useAuth();
+  const { user, hasGameAccess, hasRosterAccess, hasOrgRole } = useAuth();
   const [, navigate] = useLocation();
   const { setRosterId } = useGame();
   const { toast } = useToast();
@@ -183,7 +110,8 @@ export default function GamesHome() {
   }
 
   const handleRosterCardClick = (game: SupportedGame, roster: Roster) => {
-    if (!hasGameAccess(game.id)) return;
+    const canAccess = roster.id ? hasRosterAccess(game.id, roster.id) : hasGameAccess(game.id);
+    if (!canAccess) return;
     setRosterId(roster.id || null);
     navigate(`/${game.slug}`);
   };
@@ -234,7 +162,7 @@ export default function GamesHome() {
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                     {gameRosters.map(({ roster }) => {
-                      const hasAccess = hasGameAccess(game.id);
+                      const hasAccess = roster.id ? hasRosterAccess(game.id, roster.id) : hasGameAccess(game.id);
                       return (
                         <Card
                           key={`${game.id}-${roster.slug}`}

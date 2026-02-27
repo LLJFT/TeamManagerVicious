@@ -179,6 +179,38 @@ export const SUPPORTED_GAMES_LIST = [
   { slug: "cod-mobile", name: "Call of Duty Mobile", sortOrder: 28 },
 ] as const;
 
+export const GAME_ABBREVIATIONS: Record<string, string> = {
+  "dota2": "D2",
+  "cs": "CS",
+  "valorant": "VALO",
+  "mlbb": "MLBB",
+  "lol": "LoL",
+  "rocket-league": "RL",
+  "pubg-mobile": "PUBGM",
+  "overwatch": "OW",
+  "r6": "R6",
+  "apex": "APEX",
+  "fighting-games": "FG",
+  "pubg": "PUBG",
+  "hok": "HOK",
+  "brawl-stars": "BS",
+  "cod": "COD",
+  "marvel-rivals": "MR",
+  "ea-fc": "FC",
+  "free-fire": "FF",
+  "fortnite": "FN",
+  "tft": "TFT",
+  "crossfire": "CF",
+  "deadlock": "DL",
+  "trackmania": "TM",
+  "the-finals": "TF",
+  "warzone": "WZ",
+  "efootball": "EF",
+  "free-fire-mobile": "FFM",
+  "hok-mobile": "HOKM",
+  "cod-mobile": "CDM",
+};
+
 export const players = pgTable("players", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),

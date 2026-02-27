@@ -7,11 +7,12 @@ interface AuthContextType {
   user: UserWithRole | null;
   isLoading: boolean;
   login: (username: string, password: string) => Promise<UserWithRole>;
-  register: (username: string, password: string, selectedGames?: string[], selectedRole?: string) => Promise<any>;
+  register: (username: string, password: string, selectedGames?: string[], selectedRole?: string, selectedRosterType?: string) => Promise<any>;
   logout: () => Promise<void>;
   hasPermission: (perm: Permission) => boolean;
   hasOrgRole: (...roles: OrgRole[]) => boolean;
   hasGameAccess: (gameId: string) => boolean;
+  hasRosterAccess: (gameId: string, rosterId: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -44,8 +45,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const registerMutation = useMutation({
-    mutationFn: async ({ username, password, selectedGames, selectedRole }: { username: string; password: string; selectedGames?: string[]; selectedRole?: string }) => {
-      const res = await apiRequest("POST", "/api/auth/register", { username, password, selectedGames, selectedRole });
+    mutationFn: async ({ username, password, selectedGames, selectedRole, selectedRosterType }: { username: string; password: string; selectedGames?: string[]; selectedRole?: string; selectedRosterType?: string }) => {
+      const res = await apiRequest("POST", "/api/auth/register", { username, password, selectedGames, selectedRole, selectedRosterType });
       return res.json();
     },
   });
@@ -64,8 +65,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return loginMutation.mutateAsync({ username, password });
   }, [loginMutation]);
 
-  const register = useCallback(async (username: string, password: string, selectedGames?: string[], selectedRole?: string) => {
-    return registerMutation.mutateAsync({ username, password, selectedGames, selectedRole });
+  const register = useCallback(async (username: string, password: string, selectedGames?: string[], selectedRole?: string, selectedRosterType?: string) => {
+    return registerMutation.mutateAsync({ username, password, selectedGames, selectedRole, selectedRosterType });
   }, [registerMutation]);
 
   const logout = useCallback(async () => {
@@ -94,6 +95,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return user.gameAssignments.some(a => a.gameId === gameId && a.status === "approved");
   }, [user]);
 
+  const hasRosterAccess = useCallback((gameId: string, rosterId: string): boolean => {
+    if (!user) return false;
+    if (user.orgRole === "super_admin" || user.orgRole === "org_admin") return true;
+    if (!user.gameAssignments) return false;
+    if (user.orgRole === "game_manager") {
+      return user.gameAssignments.some(a => a.gameId === gameId && a.status === "approved");
+    }
+    return user.gameAssignments.some(a => a.gameId === gameId && a.rosterId === rosterId && a.status === "approved");
+  }, [user]);
+
   return (
     <AuthContext.Provider value={{
       user: user ?? null,
@@ -104,6 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       hasPermission,
       hasOrgRole,
       hasGameAccess,
+      hasRosterAccess,
     }}>
       {children}
     </AuthContext.Provider>
