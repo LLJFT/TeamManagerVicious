@@ -1,0 +1,56 @@
+Take your time with all of this. Quality over speed. The platform must be clean, organized, and professional.
+🔴 CRITICAL — Organization Logo still not saving
+The logo upload UI exists but the logo doesn’t save or replace the shield. Fix the complete upload flow: select image → upload to storage → save URL to database → immediately replace the shield icon in the sidebar everywhere → persist across all sessions and page refreshes.
+🔴 CRITICAL — Organization Name not replacing sidebar text
+When I save an organization name in Settings, it must replace the hardcoded text next to the logo/shield in the top-left sidebar. Do NOT break the existing behavior where org name appears next to “Availability Times” in game pages.
+🔴 CRITICAL — Availability Slots and Roster Roles defaults
+The defaults show “0 configured” in Dashboard → Team. Fix: when a roster is created, automatically insert default values as real editable database records. Defaults: Slots = Unknown, 18:00-20:00, 20:00-22:00, All Blocks, Can’t — Roles = Tank, DPS, Support, Flex. These defaults must be fully editable and deletable like any other entry — treat them as normal records, not hardcoded values.
+🔴 CRITICAL — Activity logs not isolated
+Each game’s activity log must only show actions within that specific game/roster. Platform-level events must only appear in Settings → Activity Log. Logs must never cross between games or between games and the home platform. Also verify: if a Management or Super Admin user makes changes inside a game or writes in chat, their name must appear correctly in that game’s logs and chat — they just must not appear in the Users tab of that game.
+🔴 CRITICAL — Game dashboard Users tab shows Management and Super Admin
+Management and Super Admin must never appear in individual game Users tabs. However they must still be visible in chat, activity logs, and anywhere they take actions inside the game.
+🔴 CRITICAL — New users have no in-game role after approval
+When approved for a game: Players get “Member” role automatically, Staff get “Staff” role automatically, Management get full permissions inside the game — rename “Owner” role inside games to “Management”. Super Admin can still change roles manually.
+🔴 CRITICAL — Ban/Delete/Force Logout must work in both directions
+Action taken anywhere (Home, Settings, or inside a game) must reflect everywhere immediately:
+	∙	Ban from anywhere → cannot log in, removed from all rosters
+	∙	Ban inside a game → banned from that game AND platform entirely
+	∙	Delete from anywhere → fully deleted from platform and all games
+	∙	Force Logout → kicks all active sessions immediately
+	∙	Unban → fully restores all access
+🔴 CRITICAL — Results page is broken
+Fix completely: add results per game/roster, display correctly, fully isolated per game/roster.
+🔴 CRITICAL — Chat crashes the app
+Fix completely:
+	∙	Must open without freezing
+	∙	Text, images, videos, audio, voice messages all working
+	∙	All files persist permanently
+	∙	Emoji picker works
+	∙	Voice recording button (hold to record, release to send)
+	∙	All audio formats: MP3, M4A, OGG, WAV, WEBM, AAC
+	∙	Test it yourself end to end after fixing
+🔴 CRITICAL — Login is case-sensitive for username and password
+Currently “aMin” and “amin” are treated as different passwords. Fix: login must be case-insensitive for both username and password — the user should be able to log in regardless of capitalization.
+🟡 Forgot Password feature
+Add a “Forgot Password” link on the login page. Flow:
+	∙	User clicks “Forgot Password” and submits their username
+	∙	A reset request appears in a new “Password Resets” section in the Home dashboard (visible to admins/management with access to this section)
+	∙	Admin can generate a reset link and share it with the user
+	∙	User opens the link and sets a new password
+No email required — the reset is handled manually by admins.
+🟡 Registration — only show org’s active games and roster types
+When someone registers (Player or Staff), the game selection must only show the games and roster types (First Team, Academy, Women) that are active for this organization. Do not show all games on the platform — only what the org has enabled.
+🟡 Home — Calendar view
+Add a Calendar tab on the home page showing all events across all games in one unified calendar. Features:
+	∙	Shows every event from every game/roster on its date
+	∙	Click a date to see all events happening that day
+	∙	Filters: by game+roster (specific — “Dota 2 First Team” not just “Dota 2”), by event type, by name
+	∙	Clean and easy to read
+🟡 Home — reorganize into clean separate tabs/sidebar items
+Don’t cram everything into Settings. Structure it cleanly:
+	∙	Games — browse and enter game rosters
+	∙	Dashboard — pending registrations, roster overview, event overview, password reset requests
+	∙	Calendar — unified calendar across all games
+	∙	Users — full user management (view all, ban/delete/rename/force logout/change role, create account)
+	∙	Roles — manage platform-level roles (Player, Staff, Game Manager, Management) and permissions
+	∙	Game Access — (1) manage access per user, (2) manage access for Management per game/roster

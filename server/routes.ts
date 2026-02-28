@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db";
-import { eq, and, ilike, sql } from "drizzle-orm";
+import { eq, and, ilike, sql, isNull } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { requireAuth, requirePermission, requireOrgRole, requireGameAccess } from "./auth";
 import { getTeamId } from "./storage";
@@ -48,6 +48,7 @@ const ORG_ROLE_RANK: Record<string, number> = {
 
 const SYSTEM_ROLE_RANK: Record<string, number> = {
   Owner: 4,
+  Management: 4,
   Admin: 3,
   Staff: 2,
   Member: 1,
@@ -72,12 +73,49 @@ async function checkRankGuard(actorId: string, targetId: string, teamId: string)
   return null;
 }
 
-async function logActivity(userId: string | null, action: string, details?: string, logType: string = "team", deviceInfo?: string) {
+async function logActivity(userId: string | null, action: string, details?: string, logType: string = "team", deviceInfo?: string, gameId?: string | null) {
   try {
     const teamId = getTeamId();
-    await db.insert(activityLogs).values({ teamId, userId, action, details, logType, deviceInfo });
+    await db.insert(activityLogs).values({ teamId, userId, action, details, logType, deviceInfo, gameId: gameId || null });
   } catch (err) {
     console.error("Failed to log activity:", err);
+  }
+}
+
+async function seedRosterDefaults(teamId: string, gameId: string, rosterId: string) {
+  try {
+    const existingSlots = await db.select().from(availabilitySlots)
+      .where(and(eq(availabilitySlots.teamId, teamId), eq(availabilitySlots.gameId, gameId), eq(availabilitySlots.rosterId, rosterId)))
+      .limit(1);
+    if (existingSlots.length === 0) {
+      const defaultSlots = [
+        { label: "Unknown", sortOrder: 0 },
+        { label: "18:00-20:00", sortOrder: 1 },
+        { label: "20:00-22:00", sortOrder: 2 },
+        { label: "All Blocks", sortOrder: 3 },
+        { label: "Can't", sortOrder: 4 },
+      ];
+      for (const s of defaultSlots) {
+        await db.insert(availabilitySlots).values({ teamId, gameId, rosterId, label: s.label, sortOrder: s.sortOrder });
+      }
+    }
+
+    const existingRoles = await db.select().from(rosterRoles)
+      .where(and(eq(rosterRoles.teamId, teamId), eq(rosterRoles.gameId, gameId), eq(rosterRoles.rosterId, rosterId)))
+      .limit(1);
+    if (existingRoles.length === 0) {
+      const defaultRoles = [
+        { name: "Tank", type: "role", sortOrder: 0 },
+        { name: "DPS", type: "role", sortOrder: 1 },
+        { name: "Support", type: "role", sortOrder: 2 },
+        { name: "Flex", type: "role", sortOrder: 3 },
+      ];
+      for (const r of defaultRoles) {
+        await db.insert(rosterRoles).values({ teamId, gameId, rosterId, name: r.name, type: r.type, sortOrder: r.sortOrder });
+      }
+    }
+  } catch (err) {
+    console.error("Failed to seed roster defaults:", err);
   }
 }
 
@@ -140,7 +178,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!user) {
         return res.status(401).json({ message: "Invalid credentials" });
       }
-      if (!bcrypt.compareSync(password, user.passwordHash)) {
+      if (!bcrypt.compareSync(password.toLowerCase(), user.passwordHash)) {
         return res.status(401).json({ message: "Invalid credentials" });
       }
       if (user.status === "pending") {
@@ -226,7 +264,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(and(eq(roles.name, "Member"), eq(roles.teamId, teamId)))
         .limit(1);
 
-      const passwordHash = bcrypt.hashSync(password, 10);
+      const passwordHash = bcrypt.hashSync(password.toLowerCase(), 10);
       const [newUser] = await db.insert(users).values({
         teamId,
         username: baseUsername,
@@ -295,7 +333,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (newPassword) {
         if (!currentPassword) return res.status(400).json({ message: "Current password required" });
-        const valid = await bcrypt.compare(currentPassword, currentUser.passwordHash);
+        const valid = await bcrypt.compare(currentPassword.toLowerCase(), currentUser.passwordHash);
         if (!valid) return res.status(400).json({ message: "Current password is incorrect" });
       }
       
@@ -308,7 +346,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (dup && dup.id !== userId) return res.status(400).json({ message: "Username already taken" });
         updates.username = username.trim();
       }
-      if (newPassword) updates.passwordHash = await bcrypt.hash(newPassword, 10);
+      if (newPassword) updates.passwordHash = await bcrypt.hash(newPassword.toLowerCase(), 10);
       if (avatarUrl !== undefined) updates.avatarUrl = avatarUrl;
       
       if (Object.keys(updates).length > 0) {
@@ -344,8 +382,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const gameAssigns = await db.select().from(userGameAssignments)
           .where(and(eq(userGameAssignments.teamId, teamId), eq(userGameAssignments.gameId, gameId), eq(userGameAssignments.status, "approved")));
         const gameUserIds = new Set(gameAssigns.map(a => a.userId));
-        const orgAdmins = allUsers.filter(u => u.orgRole === "org_admin" || u.orgRole === "super_admin");
-        allUsers = allUsers.filter(u => gameUserIds.has(u.id) || u.orgRole === "org_admin" || u.orgRole === "super_admin");
+        allUsers = allUsers.filter(u => gameUserIds.has(u.id) && u.orgRole !== "org_admin" && u.orgRole !== "super_admin");
       }
 
       const allRoles = await db.select().from(roles).where(eq(roles.teamId, teamId));
@@ -381,7 +418,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const existing = await db.select().from(users).where(and(ilike(users.username, username.trim()), eq(users.teamId, teamId)));
       if (existing.length > 0) return res.status(400).json({ message: "Username already taken" });
       
-      const passwordHash = await bcrypt.hash(password, 10);
+      const passwordHash = await bcrypt.hash(password.toLowerCase(), 10);
       const [newUser] = await db.insert(users).values({
         teamId,
         username,
@@ -963,8 +1000,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/activity-logs", requireAuth, requirePermission("view_activity_log"), async (req, res) => {
     try {
       const teamId = getTeamId();
+      const gameId = getGameId(req);
       const logTypeFilter = req.query.logType as string | undefined;
-      const conditions = [eq(activityLogs.teamId, teamId)];
+      const conditions: any[] = [eq(activityLogs.teamId, teamId)];
+      if (gameId) {
+        conditions.push(eq(activityLogs.gameId, gameId));
+      }
       if (logTypeFilter) {
         conditions.push(eq(activityLogs.logType, logTypeFilter));
       }
@@ -2228,6 +2269,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await db.update(users).set({ status: "active" }).where(eq(users.id, user.id));
       }
 
+      const allRolesArr = await db.select().from(roles).where(eq(roles.teamId, teamId));
+      const assignedRole = updated.assignedRole || "player";
+      let targetRoleName = "Member";
+      if (assignedRole === "coach_analyst" || assignedRole === "staff") targetRoleName = "Staff";
+      else if (assignedRole === "org_admin" || assignedRole === "management") targetRoleName = "Management";
+      const targetRole = allRolesArr.find(r => r.name === targetRoleName) || allRolesArr.find(r => r.name === "Member");
+      if (targetRole && user && !user.roleId) {
+        await db.update(users).set({ roleId: targetRole.id }).where(eq(users.id, user.id));
+      }
+
       const [game] = await db.select().from(supportedGames).where(eq(supportedGames.id, updated.gameId)).limit(1);
       await storage.createNotification(teamId, updated.userId, `Your access to ${game?.name || "a game"} has been approved!`, "approval", updated.id);
 
@@ -2310,6 +2361,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           gameRosters = await db.select().from(rosters)
             .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, game.id)));
+          for (const r of gameRosters) {
+            await seedRosterDefaults(teamId, game.id, r.id);
+          }
         }
 
         result[game.id] = gameRosters;
@@ -2342,6 +2396,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         allRosters = await db.select().from(rosters)
           .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, gameId)));
+        for (const r of allRosters) {
+          await seedRosterDefaults(teamId, gameId, r.id);
+        }
       }
 
       res.json(allRosters);
@@ -2463,6 +2520,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
         users: usersWithRoles,
         pendingRegistrations: pendingAssignments,
       });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ==================== ORG-LEVEL MANAGEMENT CHAT (no gameId) ====================
+  app.get("/api/org-chat/messages", requireAuth, requireOrgRole("org_admin", "game_manager"), async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      let [channel] = await db.select().from(chatChannels)
+        .where(and(eq(chatChannels.teamId, teamId), isNull(chatChannels.gameId), eq(chatChannels.name, "Management")))
+        .limit(1);
+      if (!channel) {
+        [channel] = await db.insert(chatChannels).values({ teamId, gameId: null, name: "Management" }).returning();
+      }
+      const msgs = await db.select().from(chatMessages)
+        .where(and(eq(chatMessages.teamId, teamId), eq(chatMessages.channelId, channel.id)))
+        .orderBy(chatMessages.createdAt)
+        .limit(100);
+      const allUsers = await db.select().from(users).where(eq(users.teamId, teamId));
+      const enriched = msgs.map(m => {
+        const sender = allUsers.find(u => u.id === m.userId);
+        return { ...m, senderName: sender?.username || "Unknown" };
+      });
+      res.json(enriched);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/org-chat/messages", requireAuth, requireOrgRole("org_admin", "game_manager"), async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const { content } = req.body;
+      if (!content || !content.trim()) return res.status(400).json({ message: "Message content required" });
+      let [channel] = await db.select().from(chatChannels)
+        .where(and(eq(chatChannels.teamId, teamId), isNull(chatChannels.gameId), eq(chatChannels.name, "Management")))
+        .limit(1);
+      if (!channel) {
+        [channel] = await db.insert(chatChannels).values({ teamId, gameId: null, name: "Management" }).returning();
+      }
+      const [msg] = await db.insert(chatMessages).values({
+        teamId, gameId: null, channelId: channel.id,
+        userId: req.session.userId!, content: content.trim(),
+      }).returning();
+      const [sender] = await db.select().from(users).where(eq(users.id, req.session.userId!));
+      res.json({ ...msg, senderName: sender?.username || "Unknown" });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }

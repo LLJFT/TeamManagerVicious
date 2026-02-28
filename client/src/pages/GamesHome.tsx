@@ -5,7 +5,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Lock, Users, Trophy, Clock, UserCheck, UserX, CheckCircle, XCircle, LayoutDashboard, Gamepad2, ShieldCheck, Settings, Upload, Plus, ChevronDown, ChevronRight, Calendar, Image, Palette, Activity, Shield } from "lucide-react";
+import { Lock, Users, Trophy, Clock, UserCheck, UserX, CheckCircle, XCircle, LayoutDashboard, Gamepad2, ShieldCheck, Settings, Upload, Plus, ChevronDown, ChevronRight, Calendar, Image, Palette, Activity, Shield, MessageSquare, Send } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -652,6 +653,8 @@ function OrgSettings({ allGames, dashboard }: { allGames: SupportedGame[]; dashb
         <GameAccessSection users={dashboard.users} allGames={allGames} />
       )}
 
+      <ManagementChat />
+
       <Card>
         <CardHeader className="pb-3 gap-2">
           <CardTitle className="text-base flex items-center gap-2">
@@ -783,6 +786,93 @@ function GameAccessSection({ users, allGames }: { users: any[]; allGames: Suppor
               </div>
             </div>
           ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ManagementChat() {
+  const { user } = useAuth();
+  const [message, setMessage] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const { data: messages = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/org-chat/messages"],
+    refetchInterval: 5000,
+  });
+
+  const sendMutation = useMutation({
+    mutationFn: (content: string) => apiRequest("POST", "/api/org-chat/messages", { content }),
+    onSuccess: () => {
+      setMessage("");
+      queryClient.invalidateQueries({ queryKey: ["/api/org-chat/messages"] });
+    },
+  });
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const handleSend = () => {
+    if (!message.trim()) return;
+    sendMutation.mutate(message.trim());
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3 gap-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          <MessageSquare className="h-4 w-4" />
+          Management Chat
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="border rounded-md h-[250px] overflow-auto p-3 space-y-2 bg-muted/30">
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading messages...</p>
+          ) : messages.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No messages yet. Start the conversation.</p>
+          ) : (
+            messages.map((msg: any) => {
+              const isOwn = msg.userId === user?.id;
+              return (
+                <div key={msg.id} className={`flex flex-col ${isOwn ? "items-end" : "items-start"}`} data-testid={`org-chat-msg-${msg.id}`}>
+                  <span className="text-[10px] text-muted-foreground mb-0.5">{msg.senderName}</span>
+                  <div className={`px-3 py-1.5 rounded-md text-sm max-w-[80%] ${isOwn ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
+                    {msg.content}
+                  </div>
+                </div>
+              );
+            })
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+        <div className="flex items-end gap-2">
+          <Textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Type a message..."
+            className="resize-none text-sm min-h-[38px] max-h-[100px]"
+            rows={1}
+            data-testid="input-org-chat-message"
+          />
+          <Button
+            size="icon"
+            onClick={handleSend}
+            disabled={!message.trim() || sendMutation.isPending}
+            data-testid="button-send-org-chat"
+          >
+            <Send className="h-4 w-4" />
+          </Button>
         </div>
       </CardContent>
     </Card>

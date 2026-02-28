@@ -118,7 +118,7 @@ export async function bootstrapDefaultAdmin() {
     permissions: memberPermissions,
   });
 
-  const passwordHash = bcrypt.hashSync("Admin", 10);
+  const passwordHash = bcrypt.hashSync("admin", 10);
 
   const [adminUser] = await db.insert(users).values({
     teamId,
