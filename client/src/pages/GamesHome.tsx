@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Lock, Users, Trophy, Clock, UserCheck, UserX, CheckCircle, XCircle, LayoutDashboard, Gamepad2, ShieldCheck, Settings, Upload, Plus, ChevronDown, ChevronRight, Calendar, Image, Palette, Activity, Shield, MessageSquare, Send } from "lucide-react";
+import { Lock, Users, Trophy, Clock, UserCheck, UserX, CheckCircle, XCircle, LayoutDashboard, Gamepad2, ShieldCheck, Settings, Upload, Plus, ChevronDown, ChevronRight, Calendar as CalendarIcon, Image, Palette, Activity, Shield, MessageSquare, Send } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ import { useGame, rosterUrlSlug } from "@/hooks/use-game";
 import { useToast } from "@/hooks/use-toast";
 import { GameIcon } from "@/components/game-icon";
 import { ObjectUploader } from "@/components/ObjectUploader";
+import { Calendar } from "@/components/ui/calendar";
 
 const ROSTER_TYPE_LABELS: Record<string, string> = {
   "first-team": "First Team",
@@ -60,6 +61,10 @@ export default function GamesHome() {
   const { data: dashboard } = useQuery<any>({
     queryKey: ["/api/org-dashboard"],
     enabled: isAdmin,
+  });
+
+  const { data: allEvents = [] } = useQuery<any[]>({
+    queryKey: ["/api/all-events"],
   });
 
   const { data: pendingAssignments = [] } = useQuery<any[]>({
@@ -153,46 +158,56 @@ export default function GamesHome() {
         </div>
 
         <TabsContent value="games" className="mt-0">
-          <div className="space-y-6">
-            {allGames.map((game) => {
-              const gameRosters = rosterCards.filter(rc => rc.game.id === game.id);
-              if (gameRosters.length === 0) return null;
-              return (
-                <div key={game.id}>
-                  <div className="flex items-center gap-2 mb-2">
-                    <GameIcon slug={game.slug} name={game.name} size="sm" />
-                    <h2 className="text-sm font-semibold text-muted-foreground">{game.name}</h2>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                    {gameRosters.map(({ roster }) => {
-                      const hasAccess = roster.id ? hasRosterAccess(game.id, roster.id) : hasGameAccess(game.id);
-                      return (
-                        <Card
-                          key={`${game.id}-${roster.slug}`}
-                          className={`relative cursor-pointer transition-opacity ${hasAccess ? "hover-elevate" : "opacity-40"}`}
-                          data-testid={`card-roster-${game.slug}-${roster.slug}`}
-                          onClick={() => handleRosterCardClick(game, roster)}
-                        >
-                          <CardContent className="p-4 flex items-center gap-3">
-                            {!hasAccess && (
-                              <div className="absolute top-2 right-2">
-                                <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-6">
+              {allGames.map((game) => {
+                const gameRosters = rosterCards.filter(rc => rc.game.id === game.id);
+                if (gameRosters.length === 0) return null;
+                return (
+                  <div key={game.id}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <GameIcon slug={game.slug} name={game.name} size="sm" />
+                      <h2 className="text-sm font-semibold text-muted-foreground">{game.name}</h2>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {gameRosters.map(({ roster }) => {
+                        const hasAccess = roster.id ? hasRosterAccess(game.id, roster.id) : hasGameAccess(game.id);
+                        return (
+                          <Card
+                            key={`${game.id}-${roster.slug}`}
+                            className={`relative cursor-pointer transition-opacity ${hasAccess ? "hover-elevate" : "opacity-40"}`}
+                            data-testid={`card-roster-${game.slug}-${roster.slug}`}
+                            onClick={() => handleRosterCardClick(game, roster)}
+                          >
+                            <CardContent className="p-4 flex items-center gap-3">
+                              {!hasAccess && (
+                                <div className="absolute top-2 right-2">
+                                  <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                                </div>
+                              )}
+                              <GameIcon slug={game.slug} name={game.name} />
+                              <div className="flex flex-col gap-1 min-w-0">
+                                <span className="text-sm font-medium leading-tight">{game.name}</span>
+                                <RosterBadge slug={roster.slug} />
                               </div>
-                            )}
-                            <GameIcon slug={game.slug} name={game.name} />
-                            <div className="flex flex-col gap-1 min-w-0">
-                              <span className="text-sm font-medium leading-tight">{game.name}</span>
-                              <RosterBadge slug={roster.slug} />
-                            </div>
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
+            <div className="space-y-6">
+              <EventCalendarWidget events={allEvents} />
+            </div>
           </div>
+          {showDashboardTab && (
+            <div className="mt-6">
+              <ManagementChat />
+            </div>
+          )}
         </TabsContent>
 
         {showDashboardTab && (
@@ -321,7 +336,7 @@ function EventOverviewSection({ dashboard, allGames, isAdmin }: { dashboard: any
   return (
     <div>
       <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-        <Calendar className="h-5 w-5" />
+        <CalendarIcon className="h-5 w-5" />
         Event Overview
       </h2>
       <div className="space-y-2">
@@ -789,6 +804,110 @@ function GameAccessSection({ users, allGames }: { users: any[]; allGames: Suppor
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function EventCalendarWidget({ events }: { events: any[] }) {
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+
+  const eventsByDate = useMemo(() => {
+    const map: Record<string, any[]> = {};
+    for (const evt of events) {
+      if (!evt.date) continue;
+      const key = evt.date;
+      if (!map[key]) map[key] = [];
+      map[key].push(evt);
+    }
+    return map;
+  }, [events]);
+
+  const datesWithEvents = useMemo(() => {
+    return Object.keys(eventsByDate).map(d => new Date(d + "T00:00:00"));
+  }, [eventsByDate]);
+
+  const selectedDateStr = selectedDate
+    ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(2, "0")}`
+    : "";
+  const selectedEvents = selectedDateStr ? (eventsByDate[selectedDateStr] || []) : [];
+
+  const today = new Date().toISOString().split("T")[0];
+  const upcomingEvents = useMemo(() => {
+    return events
+      .filter(e => e.date && e.date >= today)
+      .sort((a, b) => (a.date || "").localeCompare(b.date || ""))
+      .slice(0, 5);
+  }, [events, today]);
+
+  return (
+    <>
+      <Card>
+        <CardHeader className="pb-2 gap-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <CalendarIcon className="h-4 w-4" />
+            Event Calendar
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex justify-center">
+          <Calendar
+            mode="single"
+            selected={selectedDate}
+            onSelect={setSelectedDate}
+            modifiers={{ hasEvent: datesWithEvents }}
+            modifiersClassNames={{ hasEvent: "ring-2 ring-primary/40 ring-inset" }}
+            data-testid="calendar-widget"
+          />
+        </CardContent>
+        {selectedEvents.length > 0 && (
+          <CardContent className="pt-0 space-y-1.5">
+            <p className="text-xs font-medium text-muted-foreground">
+              Events on {selectedDate?.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+            </p>
+            {selectedEvents.map((evt: any, i: number) => (
+              <div key={evt.id || i} className="flex items-center justify-between gap-2 text-sm py-1" data-testid={`calendar-event-${evt.id || i}`}>
+                <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                  <span className="font-medium truncate">{evt.title}</span>
+                  <Badge variant="secondary" className="text-[10px]">{evt.gameName}</Badge>
+                </div>
+                {evt.time && <span className="text-xs text-muted-foreground flex-shrink-0">{evt.time}</span>}
+              </div>
+            ))}
+          </CardContent>
+        )}
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2 gap-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Clock className="h-4 w-4" />
+            Upcoming Events
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {upcomingEvents.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No upcoming events</p>
+          ) : (
+            <div className="space-y-2">
+              {upcomingEvents.map((evt: any, i: number) => (
+                <div key={evt.id || i} className="flex items-center justify-between gap-2 text-sm" data-testid={`upcoming-event-${evt.id || i}`}>
+                  <div className="flex flex-col gap-0.5 min-w-0">
+                    <span className="font-medium truncate">{evt.title}</span>
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <Badge variant="secondary" className="text-[10px]">{evt.gameName}</Badge>
+                      {evt.rosterName && <Badge variant="outline" className="text-[10px]">{evt.rosterName}</Badge>}
+                      {evt.eventType && <span className="text-[10px] text-muted-foreground">{evt.eventType}</span>}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end flex-shrink-0">
+                    <span className="text-xs text-muted-foreground">{evt.date}</span>
+                    {evt.time && <span className="text-[10px] text-muted-foreground">{evt.time}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </>
   );
 }
 

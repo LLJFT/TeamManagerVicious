@@ -40,13 +40,13 @@ When users register for a game+roster, a display name is generated with a game/r
 - **coach_analyst** (Staff): Read-heavy access to assigned games
 - **player**: Minimal access (own availability, view schedule)
 
-Role hierarchy for game-level roles: Owner(4) > Admin(3) > Staff(2) > Member(1). Only higher ranks can modify lower ranks' roles. Default game roles (Owner, Admin, Staff, Member) auto-seed when first accessed.
+Role hierarchy for game-level roles: Management(4) > Admin(3) > Staff(2) > Member(1). Only higher ranks can modify lower ranks' roles. Default game roles (Management, Admin, Staff, Member) auto-seed when first accessed. Legacy "Owner" role name is still accepted for backward compatibility.
 
 ### Authentication & Authorization
 Session-based authentication with `bcrypt` for password hashing, using `express-session` and `connect-pg-simple`. Registration requires game selection, roster selection, role selection, and admin approval. New registrations create `user_game_assignments` with `status: "pending"` and two-step approval fields (`approvalGameStatus`, `approvalOrgStatus`). Both must be "approved" for user access. The `requireAuth`, `requirePermission`, `requireOrgRole`, and `requireGameAccess` middleware chain enforces all access rules.
 
 ### Permission Hierarchy Enforcement
-Rank system: super_admin(6) > org_admin(5) > Owner(4) > Admin(3) > Staff(2) > Member(1). `getUserRank()` combines orgRole and system role. `checkRankGuard()` blocks lower-ranked users from modifying higher-ranked users across all actions: delete, rename, force logout, create user, and status change.
+Rank system: super_admin(6) > org_admin(5) > Management/Owner(4) > Admin(3) > Staff(2) > Member(1). `getUserRank()` combines orgRole and system role. `checkRankGuard()` blocks lower-ranked users from modifying higher-ranked users across all actions: delete, rename, force logout, create user, and status change.
 
 ### Permission System
 32 granular permissions grouped into 8 categories: Schedule, Events, Results, Players, Statistics, Chat, Staff, and Dashboard. Each role has a predefined set of permissions, and custom roles with granular permissions are also supported.
@@ -123,7 +123,22 @@ Backend: `/api/org-dashboard` returns `rosterSummaries` array (per-roster, not p
 - `client/src/lib/queryClient.ts`: API client with gameId/rosterId auto-injection
 
 ### Chat System
-Channel-based messaging with file uploads via object storage (presigned URLs), @mentions with autocomplete, clickable URL detection, and user role display. Video attachments and file download links supported. The emoji picker is lazy-loaded to prevent page freezing.
+Channel-based messaging with file uploads via object storage (presigned URLs), @mentions with autocomplete, clickable URL detection, and user role display. Video, audio (voice messages), and file attachments supported. The emoji picker is lazy-loaded to prevent page freezing. Chat queries use custom queryFn for proper URL construction (not relying on default fetcher for nested paths like `/api/chat/channels/:id/messages`).
+
+### Ban/Delete Propagation
+When a user is banned at org level, all their game assignments are also set to "banned" and their sessions are invalidated. When unbanned, game assignments are restored to "approved". When a user is deleted, all game assignments and sessions are cleaned up first.
+
+### Activity Log Isolation
+All game-scoped logActivity calls include `gameId` parameter. Org-level activity logs (`/api/org-activity-logs`) filter by `isNull(gameId)` to only show platform-level actions. Game-level activity logs are scoped by gameId.
+
+### Admin Password Reset
+Admins can reset any user's password via `PUT /api/users/:id/reset-password`. Generates a random 8-character temporary password, hashes with bcrypt (lowercase), and returns the temp password. Protected by rank guard.
+
+### Home Page Calendar
+The org home page includes an `EventCalendarWidget` showing a mini calendar with event date indicators and an upcoming events list. Fetches all events across all games via `/api/all-events`.
+
+### Registration Active Games Filter
+The `/api/supported-games` endpoint filters to only show games that have at least one roster configured, ensuring the registration game selector only shows active games.
 
 ### Database Tables
 Core: `users`, `supported_games`, `user_game_assignments`, `notifications`, `rosters`

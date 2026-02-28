@@ -47,8 +47,8 @@ const ORG_ROLE_RANK: Record<string, number> = {
 };
 
 const SYSTEM_ROLE_RANK: Record<string, number> = {
-  Owner: 4,
   Management: 4,
+  Owner: 4,
   Admin: 3,
   Staff: 2,
   Member: 1,
@@ -448,7 +448,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(and(eq(users.id, id), eq(users.teamId, teamId)))
         .returning();
       if (!updated) return res.status(404).json({ message: "User not found" });
-      logActivity(req.session.userId!, "user_status_change", `Changed ${updated.username} status to ${status}`);
+
+      if (status === "banned") {
+        await db.update(userGameAssignments)
+          .set({ status: "banned" })
+          .where(and(eq(userGameAssignments.userId, id), eq(userGameAssignments.teamId, teamId)));
+        await db.execute(sql`DELETE FROM "session" WHERE sess::jsonb->>'userId' = ${id}`);
+      } else if (status === "active") {
+        await db.update(userGameAssignments)
+          .set({ status: "approved" })
+          .where(and(eq(userGameAssignments.userId, id), eq(userGameAssignments.teamId, teamId), eq(userGameAssignments.status, "banned")));
+      }
+
+      logActivity(req.session.userId!, "user_status_change", `Changed ${updated.username} status to ${status}`, "team", undefined, getGameId(req));
       const { passwordHash, ...safeUser } = updated;
       res.json(safeUser);
     } catch (error: any) {
@@ -480,7 +492,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(and(eq(users.id, id), eq(users.teamId, teamId)))
         .returning();
       if (!updated) return res.status(404).json({ message: "User not found" });
-      logActivity(req.session.userId!, "user_role_change", `Changed ${updated.username} role`);
+      logActivity(req.session.userId!, "user_role_change", `Changed ${updated.username} role`, "team", undefined, getGameId(req));
       const { passwordHash, ...safeUser } = updated;
       res.json(safeUser);
     } catch (error: any) {
@@ -512,12 +524,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teamId = getTeamId();
       const rankError = await checkRankGuard(req.session.userId!, id, teamId);
       if (rankError) return res.status(403).json({ message: rankError });
+      await db.delete(userGameAssignments).where(and(eq(userGameAssignments.userId, id), eq(userGameAssignments.teamId, teamId)));
+      await db.execute(sql`DELETE FROM "session" WHERE sess::jsonb->>'userId' = ${id}`);
       const [deleted] = await db.delete(users)
         .where(and(eq(users.id, id), eq(users.teamId, teamId)))
         .returning();
       if (!deleted) return res.status(404).json({ message: "User not found" });
       logActivity(req.session.userId!, "delete_user", `Deleted user ${deleted.username}`, "system");
       res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.put("/api/users/:id/reset-password", requireAuth, requirePermission("manage_users"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = getTeamId();
+      const rankError = await checkRankGuard(req.session.userId!, id, teamId);
+      if (rankError) return res.status(403).json({ message: rankError });
+      const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+      let tempPassword = "";
+      for (let i = 0; i < 8; i++) {
+        tempPassword += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      const passwordHash = bcrypt.hashSync(tempPassword.toLowerCase(), 10);
+      const [updated] = await db.update(users)
+        .set({ passwordHash })
+        .where(and(eq(users.id, id), eq(users.teamId, teamId)))
+        .returning();
+      if (!updated) return res.status(404).json({ message: "User not found" });
+      logActivity(req.session.userId!, "reset_password", `Reset password for ${updated.username}`, "system");
+      res.json({ tempPassword });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -652,7 +690,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ] as string[];
 
         const defaults = [
-          { name: "Owner", permissions: ownerPerms, isSystem: true },
+          { name: "Management", permissions: ownerPerms, isSystem: true },
           { name: "Admin", permissions: staffPerms, isSystem: true },
           { name: "Staff", permissions: staffPerms, isSystem: true },
           { name: "Member", permissions: memberPerms, isSystem: true },
@@ -678,7 +716,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const [role] = await db.insert(roles).values({
         teamId, gameId, name, permissions: permissions || [], isSystem: false,
       }).returning();
-      logActivity(req.session.userId!, "create_role", `Created role "${name}"`);
+      logActivity(req.session.userId!, "create_role", `Created role "${name}"`, "team", undefined, getGameId(req));
       res.json(role);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -694,14 +732,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(and(eq(roles.id, id), eq(roles.teamId, teamId)))
         .limit(1);
       if (!existing) return res.status(404).json({ message: "Role not found" });
-      if (existing.name === "Owner") return res.status(403).json({ message: "Cannot modify Owner role" });
+      if (existing.name === "Management" || existing.name === "Owner") return res.status(403).json({ message: "Cannot modify Management role" });
       const updateData: any = {};
       if (name !== undefined) updateData.name = name;
       if (permissions !== undefined) updateData.permissions = permissions;
       const [updated] = await db.update(roles).set(updateData)
         .where(and(eq(roles.id, id), eq(roles.teamId, teamId)))
         .returning();
-      logActivity(req.session.userId!, "edit_role", `Updated role "${updated.name}"`);
+      logActivity(req.session.userId!, "edit_role", `Updated role "${updated.name}"`, "team", undefined, getGameId(req));
       res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -718,7 +756,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!existing) return res.status(404).json({ message: "Role not found" });
       if (existing.isSystem) return res.status(403).json({ message: "Cannot delete system roles" });
       await db.delete(roles).where(and(eq(roles.id, id), eq(roles.teamId, teamId)));
-      logActivity(req.session.userId!, "delete_role", `Deleted role "${existing.name}"`);
+      logActivity(req.session.userId!, "delete_role", `Deleted role "${existing.name}"`, "team", undefined, getGameId(req));
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -748,7 +786,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const rid = getRosterId(req);
       const validatedData = insertStaffSchema.parse(req.body);
       const [newStaff] = await db.insert(staffTable).values({ ...validatedData, teamId, gameId: gid, rosterId: rid }).returning();
-      logActivity(req.session.userId!, "add_staff", `Added staff member "${newStaff.name}"`);
+      logActivity(req.session.userId!, "add_staff", `Added staff member "${newStaff.name}"`, "team", undefined, getGameId(req));
       res.json(newStaff);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -764,7 +802,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(and(eq(staffTable.id, id), eq(staffTable.teamId, teamId)))
         .returning();
       if (!updated) return res.status(404).json({ message: "Staff not found" });
-      logActivity(req.session.userId!, "edit_staff", `Updated staff member "${updated.name}"`);
+      logActivity(req.session.userId!, "edit_staff", `Updated staff member "${updated.name}"`, "team", undefined, getGameId(req));
       res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -779,7 +817,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(and(eq(staffTable.id, id), eq(staffTable.teamId, teamId)))
         .returning();
       if (!deleted) return res.status(404).json({ message: "Staff not found" });
-      logActivity(req.session.userId!, "remove_staff", `Removed staff member "${deleted.name}"`);
+      logActivity(req.session.userId!, "remove_staff", `Removed staff member "${deleted.name}"`, "team", undefined, getGameId(req));
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -823,7 +861,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { name } = req.body;
       const gid = getGameId(req);
       const [channel] = await db.insert(chatChannels).values({ teamId, name, gameId: gid }).returning();
-      logActivity(req.session.userId!, "create_channel", `Created chat channel "${channel.name}"`);
+      logActivity(req.session.userId!, "create_channel", `Created chat channel "${channel.name}"`, "team", undefined, getGameId(req));
       res.json(channel);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -841,7 +879,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(and(eq(chatChannels.id, id), eq(chatChannels.teamId, teamId)))
         .returning();
       if (!updated) return res.status(404).json({ message: "Channel not found" });
-      logActivity(req.session.userId!, "edit_channel", `Updated chat channel`);
+      logActivity(req.session.userId!, "edit_channel", `Updated chat channel`, "team", undefined, getGameId(req));
       res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -853,7 +891,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const teamId = getTeamId();
       await db.delete(chatChannels).where(and(eq(chatChannels.id, id), eq(chatChannels.teamId, teamId)));
-      logActivity(req.session.userId!, "delete_channel", `Deleted chat channel`);
+      logActivity(req.session.userId!, "delete_channel", `Deleted chat channel`, "team", undefined, getGameId(req));
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -924,7 +962,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ? await db.select().from(roles).where(eq(roles.id, currentUser.roleId)).limit(1)
         : [null];
       const perms = (userRole?.permissions as string[]) || [];
-      const isOwner = userRole?.name === "Owner";
+      const isOwner = userRole?.name === "Management" || userRole?.name === "Owner";
       const isOwnMessage = msg.userId === userId;
 
       if (!isOwner && !isOwnMessage && !perms.includes("delete_any_message")) {
@@ -938,7 +976,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       await db.delete(chatMessages).where(and(eq(chatMessages.id, id), eq(chatMessages.teamId, teamId)));
-      logActivity(req.session.userId!, "delete_message", `Deleted chat message`);
+      logActivity(req.session.userId!, "delete_message", `Deleted chat message`, "team", undefined, getGameId(req));
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1030,7 +1068,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const [user] = await db.select().from(users).where(eq(users.id, userId));
       if (!user?.roleId) return res.status(403).json({ message: "Forbidden" });
       const [role] = await db.select().from(roles).where(eq(roles.id, user.roleId));
-      if (role?.name !== "Owner") return res.status(403).json({ message: "Only the Owner can clear logs" });
+      if (role?.name !== "Management" && role?.name !== "Owner") return res.status(403).json({ message: "Only Management can clear logs" });
       const logTypeFilter = req.query.logType as string | undefined;
       if (logTypeFilter) {
         await db.delete(activityLogs).where(and(eq(activityLogs.teamId, teamId), eq(activityLogs.logType, logTypeFilter)));
@@ -1050,7 +1088,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const [user] = await db.select().from(users).where(eq(users.id, userId));
       if (!user?.roleId) return res.status(403).json({ message: "Forbidden" });
       const [role] = await db.select().from(roles).where(eq(roles.id, user.roleId));
-      if (role?.name !== "Owner") return res.status(403).json({ message: "Only the Owner can delete log entries" });
+      if (role?.name !== "Management" && role?.name !== "Owner") return res.status(403).json({ message: "Only Management can delete log entries" });
       const { id } = req.params;
       await db.delete(activityLogs).where(and(eq(activityLogs.id, id), eq(activityLogs.teamId, teamId)));
       res.json({ success: true });
@@ -1082,7 +1120,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const rid = getRosterId(req);
       const validatedData = insertAvailabilitySlotSchema.parse(req.body);
       const [slot] = await db.insert(availabilitySlots).values({ ...validatedData, teamId, gameId: gid, rosterId: rid }).returning();
-      logActivity(req.session.userId!, "add_availability_slot", `Added availability slot "${slot.label}"`);
+      logActivity(req.session.userId!, "add_availability_slot", `Added availability slot "${slot.label}"`, "team", undefined, getGameId(req));
       res.json(slot);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1101,7 +1139,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(and(eq(availabilitySlots.id, id), eq(availabilitySlots.teamId, teamId)))
         .returning();
       if (!updated) return res.status(404).json({ message: "Slot not found" });
-      logActivity(req.session.userId!, "edit_availability_slot", `Updated availability slot`);
+      logActivity(req.session.userId!, "edit_availability_slot", `Updated availability slot`, "team", undefined, getGameId(req));
       res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1114,7 +1152,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teamId = getTeamId();
       await db.delete(availabilitySlots)
         .where(and(eq(availabilitySlots.id, id), eq(availabilitySlots.teamId, teamId)));
-      logActivity(req.session.userId!, "delete_availability_slot", `Deleted availability slot`);
+      logActivity(req.session.userId!, "delete_availability_slot", `Deleted availability slot`, "team", undefined, getGameId(req));
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1144,7 +1182,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const rid = getRosterId(req);
       const validatedData = insertRosterRoleSchema.parse(req.body);
       const [rr] = await db.insert(rosterRoles).values({ ...validatedData, teamId, gameId: gid, rosterId: rid }).returning();
-      logActivity(req.session.userId!, "add_roster_role", `Added roster role "${rr.name}"`);
+      logActivity(req.session.userId!, "add_roster_role", `Added roster role "${rr.name}"`, "team", undefined, getGameId(req));
       res.json(rr);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1164,7 +1202,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(and(eq(rosterRoles.id, id), eq(rosterRoles.teamId, teamId)))
         .returning();
       if (!updated) return res.status(404).json({ message: "Roster role not found" });
-      logActivity(req.session.userId!, "edit_roster_role", `Updated roster role "${updated.name}"`);
+      logActivity(req.session.userId!, "edit_roster_role", `Updated roster role "${updated.name}"`, "team", undefined, getGameId(req));
       res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1177,7 +1215,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teamId = getTeamId();
       await db.delete(rosterRoles)
         .where(and(eq(rosterRoles.id, id), eq(rosterRoles.teamId, teamId)));
-      logActivity(req.session.userId!, "delete_roster_role", `Deleted roster role`);
+      logActivity(req.session.userId!, "delete_roster_role", `Deleted roster role`, "team", undefined, getGameId(req));
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1206,7 +1244,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!currentUser) return res.status(401).json({ message: "Unauthorized" });
 
       const [userRole] = currentUser.roleId ? await db.select().from(roles).where(and(eq(roles.id, currentUser.roleId), eq(roles.teamId, teamId))).limit(1) : [];
-      const perms = userRole?.name === "Owner" ? [...allPermissions] : ((userRole?.permissions as string[]) || []);
+      const perms = (userRole?.name === "Management" || userRole?.name === "Owner") ? [...allPermissions] : ((userRole?.permissions as string[]) || []);
 
       const hasEditAll = perms.includes("edit_all_availability");
       const hasEditOwn = perms.includes("edit_own_availability");
@@ -1236,7 +1274,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!currentUser) return res.status(401).json({ message: "Unauthorized" });
 
       const [userRole] = currentUser.roleId ? await db.select().from(roles).where(and(eq(roles.id, currentUser.roleId), eq(roles.teamId, teamId))).limit(1) : [];
-      const perms = userRole?.name === "Owner" ? [...allPermissions] : ((userRole?.permissions as string[]) || []);
+      const perms = (userRole?.name === "Management" || userRole?.name === "Owner") ? [...allPermissions] : ((userRole?.permissions as string[]) || []);
       const hasEditAll = perms.includes("edit_all_availability");
       const hasEditOwn = perms.includes("edit_own_availability");
 
@@ -1363,7 +1401,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertPlayerSchema.parse(req.body);
       const player = await storage.addPlayer(validatedData, getGameId(req), getRosterId(req));
-      logActivity(req.session.userId!, "add_player", `Added player "${player.name}"`);
+      logActivity(req.session.userId!, "add_player", `Added player "${player.name}"`, "team", undefined, getGameId(req));
       res.json(player);
     } catch (error: any) {
       console.error('Error in POST /api/players:', error);
@@ -1379,7 +1417,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const success = await storage.removePlayer(id);
       if (success) {
-        logActivity(req.session.userId!, "remove_player", `Removed player`);
+        logActivity(req.session.userId!, "remove_player", `Removed player`, "team", undefined, getGameId(req));
         res.json({ success: true });
       } else {
         res.status(404).json({ error: "Player not found" });
@@ -1404,7 +1442,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertEventSchema.parse(req.body);
       const event = await storage.addEvent(validatedData, getGameId(req), getRosterId(req));
-      logActivity(req.session.userId!, "create_event", `Created event "${event.title}"`);
+      logActivity(req.session.userId!, "create_event", `Created event "${event.title}"`, "team", undefined, getGameId(req));
       res.json(event);
     } catch (error: any) {
       console.error('Error in POST /api/events:', error);
@@ -1420,7 +1458,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const validatedData = insertEventSchema.partial().parse(req.body);
       const event = await storage.updateEvent(id, validatedData);
-      logActivity(req.session.userId!, "edit_event", `Updated event "${event.title}"`);
+      logActivity(req.session.userId!, "edit_event", `Updated event "${event.title}"`, "team", undefined, getGameId(req));
       res.json(event);
     } catch (error: any) {
       console.error('Error in PUT /api/events:', error);
@@ -1436,7 +1474,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const success = await storage.removeEvent(id);
       if (success) {
-        logActivity(req.session.userId!, "delete_event", `Deleted event`);
+        logActivity(req.session.userId!, "delete_event", `Deleted event`, "team", undefined, getGameId(req));
         res.json({ success: true });
       } else {
         res.status(404).json({ error: "Event not found" });
@@ -1452,7 +1490,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const validatedData = insertPlayerSchema.partial().parse(req.body);
       const player = await storage.updatePlayer(id, validatedData);
-      logActivity(req.session.userId!, "edit_player", `Updated player "${player.name}"`);
+      logActivity(req.session.userId!, "edit_player", `Updated player "${player.name}"`, "team", undefined, getGameId(req));
       res.json(player);
     } catch (error: any) {
       console.error('Error in PUT /api/players:', error);
@@ -1584,7 +1622,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertGameSchema.parse(req.body);
       const game = await storage.addGame(validatedData, getGameId(req));
-      logActivity(req.session.userId!, "add_game", `Added game to event`);
+      logActivity(req.session.userId!, "add_game", `Added game to event`, "team", undefined, getGameId(req));
       res.json(game);
     } catch (error: any) {
       console.error('Error in POST /api/games:', error);
@@ -1600,7 +1638,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const validatedData = insertGameSchema.partial().parse(req.body);
       const game = await storage.updateGame(id, validatedData);
-      logActivity(req.session.userId!, "edit_game", `Updated game`);
+      logActivity(req.session.userId!, "edit_game", `Updated game`, "team", undefined, getGameId(req));
       res.json(game);
     } catch (error: any) {
       console.error('Error in PUT /api/games:', error);
@@ -1616,7 +1654,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const success = await storage.removeGame(id);
       if (success) {
-        logActivity(req.session.userId!, "delete_game", `Deleted game`);
+        logActivity(req.session.userId!, "delete_game", `Deleted game`, "team", undefined, getGameId(req));
         res.json({ success: true });
       } else {
         res.status(404).json({ error: "Game not found" });
@@ -1641,7 +1679,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertGameModeSchema.parse(req.body);
       const gameMode = await storage.addGameMode(validatedData, getGameId(req));
-      logActivity(req.session.userId!, "add_game_mode", `Added game mode "${gameMode.name}"`);
+      logActivity(req.session.userId!, "add_game_mode", `Added game mode "${gameMode.name}"`, "team", undefined, getGameId(req));
       res.json(gameMode);
     } catch (error: any) {
       console.error('Error in POST /api/game-modes:', error);
@@ -1657,7 +1695,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const validatedData = insertGameModeSchema.partial().parse(req.body);
       const gameMode = await storage.updateGameMode(id, validatedData);
-      logActivity(req.session.userId!, "edit_game_mode", `Updated game mode "${gameMode.name}"`);
+      logActivity(req.session.userId!, "edit_game_mode", `Updated game mode "${gameMode.name}"`, "team", undefined, getGameId(req));
       res.json(gameMode);
     } catch (error: any) {
       console.error('Error in PUT /api/game-modes:', error);
@@ -1673,7 +1711,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const success = await storage.removeGameMode(id);
       if (success) {
-        logActivity(req.session.userId!, "delete_game_mode", `Deleted game mode`);
+        logActivity(req.session.userId!, "delete_game_mode", `Deleted game mode`, "team", undefined, getGameId(req));
         res.json({ success: true });
       } else {
         res.status(404).json({ error: "Game mode not found" });
@@ -1709,7 +1747,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertMapSchema.parse(req.body);
       const map = await storage.addMap(validatedData, getGameId(req));
-      logActivity(req.session.userId!, "add_map", `Added map "${map.name}"`);
+      logActivity(req.session.userId!, "add_map", `Added map "${map.name}"`, "team", undefined, getGameId(req));
       res.json(map);
     } catch (error: any) {
       console.error('Error in POST /api/maps:', error);
@@ -1725,7 +1763,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const validatedData = insertMapSchema.partial().parse(req.body);
       const map = await storage.updateMap(id, validatedData);
-      logActivity(req.session.userId!, "edit_map", `Updated map "${map.name}"`);
+      logActivity(req.session.userId!, "edit_map", `Updated map "${map.name}"`, "team", undefined, getGameId(req));
       res.json(map);
     } catch (error: any) {
       console.error('Error in PUT /api/maps:', error);
@@ -1741,7 +1779,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const success = await storage.removeMap(id);
       if (success) {
-        logActivity(req.session.userId!, "delete_map", `Deleted map`);
+        logActivity(req.session.userId!, "delete_map", `Deleted map`, "team", undefined, getGameId(req));
         res.json({ success: true });
       } else {
         res.status(404).json({ error: "Map not found" });
@@ -1795,7 +1833,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertSeasonSchema.parse(req.body);
       const season = await storage.addSeason(validatedData, getGameId(req));
-      logActivity(req.session.userId!, "add_season", `Added season "${season.name}"`);
+      logActivity(req.session.userId!, "add_season", `Added season "${season.name}"`, "team", undefined, getGameId(req));
       res.json(season);
     } catch (error: any) {
       console.error('Error in POST /api/seasons:', error);
@@ -1811,7 +1849,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const validatedData = insertSeasonSchema.partial().parse(req.body);
       const season = await storage.updateSeason(id, validatedData);
-      logActivity(req.session.userId!, "edit_season", `Updated season "${season.name}"`);
+      logActivity(req.session.userId!, "edit_season", `Updated season "${season.name}"`, "team", undefined, getGameId(req));
       res.json(season);
     } catch (error: any) {
       console.error('Error in PUT /api/seasons:', error);
@@ -1827,7 +1865,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const success = await storage.removeSeason(id);
       if (success) {
-        logActivity(req.session.userId!, "delete_season", `Deleted season`);
+        logActivity(req.session.userId!, "delete_season", `Deleted season`, "team", undefined, getGameId(req));
         res.json({ success: true });
       } else {
         res.status(404).json({ error: "Season not found" });
@@ -1852,7 +1890,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertOffDaySchema.parse(req.body);
       const offDay = await storage.addOffDay(validatedData, getGameId(req));
-      logActivity(req.session.userId!, "add_off_day", `Added off day on ${offDay.date}`);
+      logActivity(req.session.userId!, "add_off_day", `Added off day on ${offDay.date}`, "team", undefined, getGameId(req));
       res.json(offDay);
     } catch (error: any) {
       console.error('Error in POST /api/off-days:', error);
@@ -1868,7 +1906,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const success = await storage.removeOffDayById(id);
       if (success) {
-        logActivity(req.session.userId!, "remove_off_day", `Removed off day`);
+        logActivity(req.session.userId!, "remove_off_day", `Removed off day`, "team", undefined, getGameId(req));
         res.json({ success: true });
       } else {
         res.status(404).json({ error: "Off day not found" });
@@ -1884,7 +1922,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { date } = req.params;
       const success = await storage.removeOffDay(date);
       if (success) {
-        logActivity(req.session.userId!, "remove_off_day", `Removed off day on ${date}`);
+        logActivity(req.session.userId!, "remove_off_day", `Removed off day on ${date}`, "team", undefined, getGameId(req));
         res.json({ success: true });
       } else {
         res.status(404).json({ error: "Off day not found" });
@@ -1920,7 +1958,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertStatFieldSchema.parse(req.body);
       const statField = await storage.addStatField(validatedData, getGameId(req));
-      logActivity(req.session.userId!, "add_stat_field", `Added stat field "${statField.name}"`);
+      logActivity(req.session.userId!, "add_stat_field", `Added stat field "${statField.name}"`, "team", undefined, getGameId(req));
       res.json(statField);
     } catch (error: any) {
       console.error('Error in POST /api/stat-fields:', error);
@@ -1936,7 +1974,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const validatedData = insertStatFieldSchema.partial().parse(req.body);
       const statField = await storage.updateStatField(id, validatedData);
-      logActivity(req.session.userId!, "edit_stat_field", `Updated stat field`);
+      logActivity(req.session.userId!, "edit_stat_field", `Updated stat field`, "team", undefined, getGameId(req));
       res.json(statField);
     } catch (error: any) {
       console.error('Error in PUT /api/stat-fields/:id:', error);
@@ -1952,7 +1990,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const success = await storage.removeStatField(id);
       if (success) {
-        logActivity(req.session.userId!, "delete_stat_field", `Deleted stat field`);
+        logActivity(req.session.userId!, "delete_stat_field", `Deleted stat field`, "team", undefined, getGameId(req));
         res.json({ success: true });
       } else {
         res.status(404).json({ error: "Stat field not found" });
@@ -2119,8 +2157,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ==================== SUPPORTED GAMES ====================
   app.get("/api/supported-games", async (_req, res) => {
     try {
+      const teamId = getTeamId();
       const allGamesData = await storage.getSupportedGames();
-      res.json(allGamesData);
+      const teamRosters = await db.select().from(rosters).where(eq(rosters.teamId, teamId));
+      const activeGameIds = new Set(teamRosters.map(r => r.gameId));
+      const activeGames = allGamesData.filter(g => activeGameIds.has(g.id));
+      res.json(activeGames);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -2375,6 +2417,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/all-events", requireAuth, async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const allGamesList = await db.select().from(supportedGames);
+      const allEvents = await db.select().from(events).where(eq(events.teamId, teamId));
+      const allRostersRows = await db.select().from(rosters).where(eq(rosters.teamId, teamId));
+      const enriched = allEvents.map(e => {
+        const game = allGamesList.find(g => g.id === e.gameId);
+        const roster = allRostersRows.find(r => r.id === e.rosterId);
+        return {
+          ...e,
+          gameName: game?.name || "Unknown",
+          gameSlug: game?.slug || "",
+          rosterName: roster?.name || "",
+        };
+      });
+      res.json(enriched);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // ==================== ROSTERS ====================
   app.get("/api/rosters", requireAuth, async (req, res) => {
     try {
@@ -2396,9 +2460,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         allRosters = await db.select().from(rosters)
           .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, gameId)));
-        for (const r of allRosters) {
-          await seedRosterDefaults(teamId, gameId, r.id);
-        }
+      }
+
+      for (const r of allRosters) {
+        await seedRosterDefaults(teamId, gameId, r.id);
       }
 
       res.json(allRosters);
@@ -2661,7 +2726,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const teamId = getTeamId();
       const logs = await db.select().from(activityLogs)
-        .where(eq(activityLogs.teamId, teamId))
+        .where(and(eq(activityLogs.teamId, teamId), isNull(activityLogs.gameId)))
         .orderBy(activityLogs.createdAt)
         .limit(100);
       res.json(logs.reverse());

@@ -77,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!user) return false;
     if (user.orgRole === "super_admin" || user.orgRole === "org_admin") return true;
     if (!user.role) return false;
-    if (user.role.name === "Owner") return true;
+    if (user.role.name === "Management" || user.role.name === "Owner") return true;
     const perms = user.role.permissions as string[];
     return perms.includes(perm);
   }, [user]);

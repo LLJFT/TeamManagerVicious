@@ -1,0 +1,82 @@
+صح! أرسل له هذا أول:
+
+
+You did not complete most of the requirements from my last message. Please go through every single item below and implement what is still missing. Do not skip anything. Take your time and test each item before moving on.
+The items marked CRITICAL must be fixed first — these are broken features that make the platform unusable. The items marked IMPORTANT are required features that are missing and need to be added.
+
+CRITICAL — Fix these broken features first:
+1. Organization Logo not saving
+The upload button exists but nothing happens after selecting an image. Fix the complete flow: select image → upload to storage → save to database → replace the shield icon in the sidebar immediately → persist across all sessions and refreshes.
+2. Organization Name not replacing sidebar text
+Saving the org name in Settings must replace the hardcoded "Vicious" text in the top-left sidebar next to the logo. Do NOT break the existing behavior where org name appears next to "Availability Times" in game pages — that already works, keep it.
+3. Availability Slots and Roster Roles show 0 configured
+When opening Dashboard → Team in any game, Availability Slots and Roster Roles show empty. Fix: automatically insert these defaults as real editable database records when a roster is created: Slots = Unknown, 18:00-20:00, 20:00-22:00, All Blocks, Can't — Roles = Tank, DPS, Support, Flex. These must be editable and deletable like normal records.
+4. Activity logs mixing between games and platform
+Each game's activity log shows events from other games and the platform. Fix: each game's log shows only that game's actions. Platform events (logins, registrations) show only in Settings → Activity Log. Logs never cross between games. Also: if Management or Super Admin takes action inside a game or writes in chat, their name must show in that game's logs and chat — they just must not appear in the Users tab.
+5. Game dashboard Users tab shows Management and Super Admin
+Management and Super Admin must not appear in any game's Users tab. But they must still appear in chat and activity logs when they take actions there.
+6. New users get no in-game role after approval
+When a user is approved for a game: Players automatically get "Member" role, Staff automatically get "Staff" role, Management automatically get full permissions inside the game. Rename the "Owner" role inside games to "Management". Super Admin can still change roles manually.
+7. Ban/Delete/Force Logout must work in both directions
+Action taken anywhere must immediately affect everywhere:
+
+Ban from Home or Settings → removed from all rosters, cannot log in
+Ban inside a game → banned from that game AND the entire platform
+Delete from anywhere → fully deleted from platform and all games
+Force Logout from anywhere → kicks all active sessions immediately
+Unban from anywhere → fully restores all access
+
+8. Results page is broken
+Cannot add or view match results. Fix completely: create results per game/roster, display correctly, fully isolated per game/roster.
+9. Chat crashes the entire app
+Opening any chat page freezes the app and requires a manual refresh. Fix completely:
+
+Must open without freezing
+Must support: text, images, videos, audio files, voice messages
+All uploaded files must persist permanently and never break after time
+Emoji picker must work
+Voice recording button: hold to record, release to send
+All audio formats supported: MP3, M4A, OGG, WAV, WEBM, AAC
+After fixing, test it yourself — send messages, upload a file, send a voice message, verify everything works
+
+10. Login is case-sensitive for username and password
+Currently "amin" and "aMin" are treated as different. Fix: login must work regardless of capitalization for both username and password.
+
+IMPORTANT — Add these missing features:
+11. Forgot Password
+Add a "Forgot Password" link on the login page. Flow:
+
+User submits their username
+A reset request appears in a "Password Resets" section in the Home dashboard
+Admin generates a reset link and shares it with the user
+User opens the link and sets a new password
+No email required — handled manually by admins.
+
+12. Registration shows only org's active games
+When a Player or Staff registers, the game and roster type selection (First Team, Academy, Women) must only show what this organization has enabled. Do not show all games on the platform.
+13. Home Calendar
+Add a Calendar tab on the home page showing all events across all games in one place:
+
+Shows every event on its date
+Click a date to see all events that day
+Filters: by specific game+roster (e.g. "Dota 2 First Team" not just "Dota 2"), by event type, by name
+
+14. Home reorganization — clean separate tabs
+Reorganize the home navigation into clean separate tabs or sidebar items. Do not cram everything into Settings. Suggested structure:
+
+Games — browse and enter rosters
+Dashboard — pending registrations, roster overview, event overview, password reset requests
+Calendar — unified calendar
+Users — view all users, ban/delete/rename/force logout/change role, create account
+Roles — manage platform-level roles (Player, Staff, Game Manager, Management) and their permissions
+Game Access — (1) per user access, (2) Management access per game/roster type
+Settings — org name, logo, theme, activity log, add/edit/delete games, edit game icons, Management permissions
+
+15. Management role permissions
+Management must NOT have Super Admin level access. Add a section where I can fully customize what Management can and cannot do. I control their permissions manually.
+16. Platform Roles management
+Add a Roles section for the 4 platform roles: Player, Staff, Game Manager, Management. For each: add, edit, delete, set permissions. Completely separate from in-game roles like Tank/DPS.
+17. Full User Management section
+Show ALL platform users. For each: view details, ban/unban, delete, force logout, rename, change role. Plus a "Create Account" button to manually create accounts with username, password, and role.
+
+At the end, go through every single feature on the platform and verify it works. Fix anything that is broken. The platform must be fully functional before you finish.

@@ -7,10 +7,12 @@ import { Button } from "@/components/ui/button";
 import { format, parseISO, isAfter, startOfDay } from "date-fns";
 import { Calendar, Trophy, Eye } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { useGame } from "@/hooks/use-game";
 import { AccessDenied } from "@/components/AccessDenied";
 
 export default function EventsResults() {
   const { hasPermission } = useAuth();
+  const { fullSlug } = useGame();
   const { data: events = [], isLoading } = useQuery<Event[]>({
     queryKey: ["/api/events"],
   });
@@ -158,7 +160,7 @@ export default function EventsResults() {
                             </p>
                           )}
                         </div>
-                        <Link href={`/events/${event.id}`}>
+                        <Link href={`/${fullSlug}/events/${event.id}`}>
                           <Button
                             size="sm"
                             variant="outline"
@@ -236,7 +238,7 @@ export default function EventsResults() {
                             </p>
                           )}
                         </div>
-                        <Link href={`/events/${event.id}`}>
+                        <Link href={`/${fullSlug}/events/${event.id}`}>
                           <Button
                             size="sm"
                             variant="outline"

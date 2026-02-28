@@ -217,7 +217,7 @@ function ActivityLogPanel({ logType, title }: { logType: string; title: string }
     }
   };
 
-  const isOwner = user?.role?.name === "Owner";
+  const isOwner = user?.role?.name === "Management" || user?.role?.name === "Owner";
 
   return (
     <Card>
@@ -364,6 +364,9 @@ export default function Dashboard() {
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [renameUserId, setRenameUserId] = useState("");
   const [renameNewUsername, setRenameNewUsername] = useState("");
+  const [showResetPasswordDialog, setShowResetPasswordDialog] = useState(false);
+  const [resetPasswordTempPassword, setResetPasswordTempPassword] = useState("");
+  const [resetPasswordUsername, setResetPasswordUsername] = useState("");
 
   const [editingGameMode, setEditingGameMode] = useState<GameMode | undefined>();
   const [editingMap, setEditingMap] = useState<MapType | undefined>();
@@ -801,6 +804,19 @@ export default function Dashboard() {
       showSuccess("All sessions terminated");
     },
     onError: (e: any) => showError(e.message || "Failed to terminate sessions"),
+  });
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: async (data: { id: string; username: string }) => {
+      const r = await apiRequest("PUT", `/api/users/${data.id}/reset-password`);
+      return r.json();
+    },
+    onSuccess: (data: { tempPassword: string }, variables) => {
+      setResetPasswordTempPassword(data.tempPassword);
+      setResetPasswordUsername(variables.username);
+      setShowResetPasswordDialog(true);
+    },
+    onError: (e: any) => showError(e.message || "Failed to reset password"),
   });
 
   const createRoleMutation = useMutation({
@@ -1399,6 +1415,16 @@ export default function Dashboard() {
                           <Button
                             size="sm"
                             variant="outline"
+                            onClick={() => { if (confirm(`Reset password for ${user.username}?`)) resetPasswordMutation.mutate({ id: user.id, username: user.username }); }}
+                            disabled={resetPasswordMutation.isPending}
+                            data-testid={`button-reset-password-${user.id}`}
+                          >
+                            <Shield className="h-4 w-4 mr-1" />
+                            Reset Password
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
                             onClick={() => { if (confirm("Terminate all sessions for this user?")) terminateUserSessionsMutation.mutate(user.id); }}
                             data-testid={`button-terminate-sessions-${user.id}`}
                           >
@@ -1450,7 +1476,7 @@ export default function Dashboard() {
                 ) : (
                   <div className="space-y-4">
                     {allRoles.map((role) => {
-                      const isOwner = role.name === "Owner";
+                      const isOwner = role.name === "Management" || role.name === "Owner";
                       const isSystem = role.isSystem;
                       const perms = (role.permissions as string[]) || [];
                       return (
@@ -2007,6 +2033,48 @@ export default function Dashboard() {
                   data-testid="button-submit-rename"
                 >
                   Rename
+                </Button>
+              </DialogFooter>
+            </div>
+          </DialogContent>
+        </Dialog>
+        <Dialog open={showResetPasswordDialog} onOpenChange={setShowResetPasswordDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Password Reset</DialogTitle>
+              <DialogDescription>
+                The password for <span className="font-medium">{resetPasswordUsername}</span> has been reset.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Temporary Password</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={resetPasswordTempPassword}
+                    readOnly
+                    className="font-mono"
+                    data-testid="input-temp-password"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      navigator.clipboard.writeText(resetPasswordTempPassword);
+                      showSuccess("Password copied to clipboard");
+                    }}
+                    data-testid="button-copy-temp-password"
+                  >
+                    Copy
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Share this password with the user. They should change it after logging in.
+                </p>
+              </div>
+              <DialogFooter>
+                <Button onClick={() => setShowResetPasswordDialog(false)} data-testid="button-close-reset-password">
+                  Done
                 </Button>
               </DialogFooter>
             </div>

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, lazy, Suspense } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, getCurrentGameId } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { Card } from "@/components/ui/card";
@@ -93,6 +93,13 @@ export default function Chat() {
 
   const { data: messages = [] } = useQuery<ChatMessageWithUser[]>({
     queryKey: ["/api/chat/channels", selectedChannelId, "messages"],
+    queryFn: async () => {
+      const gid = getCurrentGameId();
+      const qp = gid ? `?gameId=${gid}` : "";
+      const res = await fetch(`/api/chat/channels/${selectedChannelId}/messages${qp}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch messages");
+      return res.json();
+    },
     enabled: !!selectedChannelId,
     refetchInterval: 5000,
   });
@@ -155,6 +162,13 @@ export default function Chat() {
 
   const { data: channelPermissions = [] } = useQuery<{ id: string; channelId: string; roleId: string; canSend: boolean }[]>({
     queryKey: ["/api/chat/channels", settingsChannelId, "permissions"],
+    queryFn: async () => {
+      const gid = getCurrentGameId();
+      const qp = gid ? `?gameId=${gid}` : "";
+      const res = await fetch(`/api/chat/channels/${settingsChannelId}/permissions${qp}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch permissions");
+      return res.json();
+    },
     enabled: !!settingsChannelId && canManageChannels,
   });
 

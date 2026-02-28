@@ -175,6 +175,11 @@ export default function EventDetails() {
 
   const { data: games = [], isLoading: gamesLoading } = useQuery<Game[]>({
     queryKey: ["/api/events", eventId, "games"],
+    queryFn: async () => {
+      const res = await fetch(`/api/events/${eventId}/games`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch games");
+      return res.json();
+    },
     enabled: !!eventId,
   });
 

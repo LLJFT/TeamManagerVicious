@@ -98,7 +98,7 @@ export async function bootstrapDefaultAdmin() {
     .insert(roles)
     .values({
       teamId,
-      name: "Owner",
+      name: "Management",
       isSystem: true,
       permissions: ownerPermissions,
     })
@@ -234,7 +234,7 @@ export function requirePermission(permission: string) {
       return res.status(403).json({ message: "Forbidden" });
     }
 
-    if (role.name === "Owner") {
+    if (role.name === "Management" || role.name === "Owner") {
       return next();
     }
 
