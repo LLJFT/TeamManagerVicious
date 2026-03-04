@@ -30,12 +30,22 @@ The frontend uses a modern sidebar layout with dark mode support and Shadcn UI c
 ### Database Structure
 The database design incorporates core tables for users, games, and rosters, with extensive game-scoped tables (e.g., `players`, `events`, `schedules`) and roster-scoped tables (e.g., `attendance`, `staff_availability`), ensuring data integrity and isolation.
 
+### Deployment
+- **Target**: Autoscale deployment via Replit
+- **Build**: `npm run build` (Vite frontend build + esbuild server bundle)
+- **Run**: `npm run start` (Node.js production server at `dist/index.js`)
+- **Static assets**: Served from `dist/public/`
+- **Modules**: nodejs-20, web, postgresql-16 (no Python, no Playwright)
+- **Note**: Removed `playwright`, `passport`, `next-themes` and 33 Chromium/X11 system packages that were causing deployment timeouts
+
 ## External Dependencies
 
-- **PostgreSQL**: Primary database for all application data.
-- **bcrypt**: For secure password hashing.
+- **PostgreSQL**: Primary database for all application data (Neon serverless driver).
+- **bcrypt**: For secure password hashing (bcryptjs, pure JS).
 - **express-session**: Session management for Express.js.
 - **connect-pg-simple**: PostgreSQL-backed session store.
 - **react-icons/si**: Used as a fallback for game icons where specific image assets are not available.
 - **Shadcn UI**: Frontend component library for building the user interface.
-- **Object Storage (e.g., S3-compatible service)**: For file uploads in the chat system, utilizing presigned URLs.
+- **Object Storage (@google-cloud/storage)**: For file uploads in the chat system, utilizing presigned URLs via Replit sidecar.
+- **emoji-picker-react**: Emoji picker for chat functionality.
+- **multer**: Multipart form data handling for file uploads.
