@@ -1438,6 +1438,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/events/:id", requireAuth, async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const [event] = await db.select().from(events)
+        .where(and(eq(events.id, req.params.id), eq(events.teamId, teamId)))
+        .limit(1);
+      if (!event) return res.status(404).json({ message: "Event not found" });
+      res.json(event);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
   app.post("/api/events", requireAuth, requirePermission("create_events"), async (req, res) => {
     try {
       const validatedData = insertEventSchema.parse(req.body);
@@ -2730,6 +2743,230 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .orderBy(activityLogs.createdAt)
         .limit(100);
       res.json(logs.reverse());
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ==================== FORGOT PASSWORD REQUESTS ====================
+  app.post("/api/forgot-password", async (req, res) => {
+    try {
+      const { username } = req.body;
+      if (!username) return res.status(400).json({ message: "Username is required" });
+      const teamId = getTeamId();
+      const [user] = await db.select().from(users)
+        .where(and(ilike(users.username, username), eq(users.teamId, teamId)))
+        .limit(1);
+      if (!user) return res.status(404).json({ message: "Username not found" });
+      await db.execute(sql`INSERT INTO password_reset_requests (team_id, username) VALUES (${teamId}, ${user.username})`);
+      res.json({ message: "Password reset request submitted. An admin will review it." });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/password-reset-requests", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const requests = await db.execute(sql`SELECT * FROM password_reset_requests WHERE team_id = ${teamId} ORDER BY created_at DESC LIMIT 50`);
+      res.json(requests.rows || []);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/password-reset-requests/:id/resolve", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = getTeamId();
+      await db.execute(sql`UPDATE password_reset_requests SET status = 'resolved', resolved_at = NOW(), resolved_by = ${req.session.userId} WHERE id = ${id} AND team_id = ${teamId}`);
+      res.json({ message: "Request marked as resolved" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ==================== GAME MANAGEMENT ====================
+  app.post("/api/supported-games", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+    try {
+      const { name, slug, abbreviation } = req.body;
+      if (!name || !slug) return res.status(400).json({ message: "Name and slug are required" });
+      const [game] = await db.insert(supportedGames)
+        .values({ name, slug: slug.toLowerCase().replace(/[^a-z0-9-]/g, '-'), sortOrder: 999 })
+        .returning();
+      const teamId = getTeamId();
+      const defaultRosters = [
+        { name: "First Team", slug: "first-team", sortOrder: 0 },
+        { name: "Academy", slug: "academy", sortOrder: 1 },
+        { name: "Women", slug: "women", sortOrder: 2 },
+      ];
+      for (const r of defaultRosters) {
+        await db.insert(rosters).values({ teamId, gameId: game.id, name: r.name, slug: r.slug, sortOrder: r.sortOrder });
+      }
+      logActivity(req.session.userId!, "add_game", `Added game "${name}"`, "system");
+      res.json(game);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.put("/api/supported-games/:id", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+    try {
+      const { name, slug, abbreviation, iconUrl } = req.body;
+      const updates: any = {};
+      if (name) updates.name = name;
+      if (slug) updates.slug = slug.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+      const [updated] = await db.update(supportedGames)
+        .set(updates)
+        .where(eq(supportedGames.id, req.params.id))
+        .returning();
+      if (!updated) return res.status(404).json({ message: "Game not found" });
+      logActivity(req.session.userId!, "edit_game", `Edited game "${updated.name}"`, "system");
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/supported-games/:id", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+    try {
+      const [deleted] = await db.delete(supportedGames)
+        .where(eq(supportedGames.id, req.params.id))
+        .returning();
+      if (!deleted) return res.status(404).json({ message: "Game not found" });
+      logActivity(req.session.userId!, "delete_game", `Deleted game "${deleted.name}"`, "system");
+      res.json({ message: "Game deleted" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Roster management
+  app.post("/api/supported-games/:gameId/rosters", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+    try {
+      const { name, slug } = req.body;
+      if (!name) return res.status(400).json({ message: "Name is required" });
+      const teamId = getTeamId();
+      const rosterSlug = (slug || name).toLowerCase().replace(/[^a-z0-9-]/g, '-');
+      const [roster] = await db.insert(rosters)
+        .values({ teamId, gameId: req.params.gameId, name, slug: rosterSlug, sortOrder: 99 })
+        .returning();
+      res.json(roster);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.put("/api/rosters/:id/rename", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+    try {
+      const { name } = req.body;
+      if (!name) return res.status(400).json({ message: "Name is required" });
+      const teamId = getTeamId();
+      const [updated] = await db.update(rosters)
+        .set({ name })
+        .where(and(eq(rosters.id, req.params.id), eq(rosters.teamId, teamId)))
+        .returning();
+      if (!updated) return res.status(404).json({ message: "Roster not found" });
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/rosters/:id", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const [deleted] = await db.delete(rosters)
+        .where(and(eq(rosters.id, req.params.id), eq(rosters.teamId, teamId)))
+        .returning();
+      if (!deleted) return res.status(404).json({ message: "Roster not found" });
+      res.json({ message: "Roster deleted" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ==================== PLATFORM ROLE MANAGEMENT ====================
+  app.get("/api/platform-roles", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const allRoles = await db.select().from(roles).where(eq(roles.teamId, teamId));
+      res.json(allRoles);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/platform-roles", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+    try {
+      const { name, permissions: perms } = req.body;
+      if (!name) return res.status(400).json({ message: "Name is required" });
+      const teamId = getTeamId();
+      const [role] = await db.insert(roles)
+        .values({ teamId, name, isSystem: false, permissions: perms || [] })
+        .returning();
+      logActivity(req.session.userId!, "create_role", `Created role "${name}"`, "system");
+      res.json(role);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.put("/api/platform-roles/:id", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+    try {
+      const { name, permissions: perms } = req.body;
+      const teamId = getTeamId();
+      const updates: any = {};
+      if (name !== undefined) updates.name = name;
+      if (perms !== undefined) updates.permissions = perms;
+      const [updated] = await db.update(roles)
+        .set(updates)
+        .where(and(eq(roles.id, req.params.id), eq(roles.teamId, teamId)))
+        .returning();
+      if (!updated) return res.status(404).json({ message: "Role not found" });
+      logActivity(req.session.userId!, "edit_role", `Updated role "${updated.name}"`, "system");
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/platform-roles/:id", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const [role] = await db.select().from(roles)
+        .where(and(eq(roles.id, req.params.id), eq(roles.teamId, teamId)))
+        .limit(1);
+      if (!role) return res.status(404).json({ message: "Role not found" });
+      if (role.isSystem) return res.status(400).json({ message: "Cannot delete system roles" });
+      await db.delete(roles).where(eq(roles.id, req.params.id));
+      logActivity(req.session.userId!, "delete_role", `Deleted role "${role.name}"`, "system");
+      res.json({ message: "Role deleted" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ==================== ALL USERS (admin) ====================
+  app.get("/api/all-users", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const allUsers = await db.select().from(users).where(eq(users.teamId, teamId));
+      const allRolesArr = await db.select().from(roles).where(eq(roles.teamId, teamId));
+      const allAssignments = await db.select().from(userGameAssignments).where(eq(userGameAssignments.teamId, teamId));
+      const allGames = await db.select().from(supportedGames);
+      const allRosters = await db.select().from(rosters).where(eq(rosters.teamId, teamId));
+      const result = allUsers.map(u => ({
+        ...u,
+        passwordHash: undefined,
+        role: allRolesArr.find(r => r.id === u.roleId) || null,
+        gameAssignments: allAssignments.filter(a => a.userId === u.id).map(a => ({
+          ...a,
+          gameName: allGames.find(g => g.id === a.gameId)?.name || "Unknown",
+          rosterName: allRosters.find(r => r.id === a.rosterId)?.name || null,
+        })),
+      }));
+      res.json(result);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }

@@ -159,11 +159,9 @@ export default function EventDetails() {
     queryKey: ["/api/events", eventId],
     enabled: !!eventId,
     queryFn: async () => {
-      const response = await fetch(`/api/events`);
-      if (!response.ok) throw new Error("Failed to fetch events");
-      const events: Event[] = await response.json();
-      const foundEvent = events.find((e) => e.id === eventId);
-      if (!foundEvent) throw new Error("Event not found");
+      const response = await fetch(`/api/events/${eventId}`, { credentials: "include" });
+      if (!response.ok) throw new Error("Event not found");
+      const foundEvent: Event = await response.json();
       
       setEventResult((foundEvent.result as EventResult) || "");
       setOpponentName(foundEvent.opponentName || "");

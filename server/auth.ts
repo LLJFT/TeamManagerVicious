@@ -66,6 +66,17 @@ async function runMigrations() {
     await db.execute(sql`ALTER TABLE user_game_assignments ADD COLUMN IF NOT EXISTS approval_org_status TEXT NOT NULL DEFAULT 'pending'`);
     await db.execute(sql`UPDATE user_game_assignments SET approval_game_status = 'approved', approval_org_status = 'approved' WHERE status = 'approved' AND approval_game_status = 'pending'`);
     await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT`);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS password_reset_requests (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        team_id VARCHAR,
+        username TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT NOW(),
+        resolved_at TIMESTAMP,
+        resolved_by VARCHAR
+      )
+    `);
     console.log("[migrations] Schema migrations applied successfully");
   } catch (e: any) {
     console.error("[migrations] Migration error:", e.message);
@@ -232,10 +243,6 @@ export function requirePermission(permission: string) {
 
     if (!role) {
       return res.status(403).json({ message: "Forbidden" });
-    }
-
-    if (role.name === "Management" || role.name === "Owner") {
-      return next();
     }
 
     const permissions = role.permissions as string[];

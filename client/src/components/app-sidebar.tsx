@@ -19,7 +19,8 @@ import { Button } from "@/components/ui/button";
 import {
   Home, Calendar, Users, BarChart3, Settings, MessageSquare,
   LogOut, Trophy, Clock, GitCompare, Target, Shield,
-  UserCog, ClipboardList, ArrowLeft,
+  UserCog, ClipboardList, ArrowLeft, LayoutDashboard,
+  ShieldCheck, Gamepad2, KeyRound,
 } from "lucide-react";
 import type { Permission, OrgRole } from "@shared/schema";
 import { orgRoleLabels } from "@shared/schema";
@@ -51,7 +52,7 @@ function makeGameItems(prefix: string) {
 
 export function AppSidebar() {
   const [location] = useLocation();
-  const { user, logout, hasPermission } = useAuth();
+  const { user, logout, hasPermission, hasOrgRole } = useAuth();
   const { currentGame, gameSlug, fullSlug, currentRoster } = useGame();
 
   const { data: orgLogoUrl } = useQuery<string | null>({
@@ -169,29 +170,118 @@ export function AppSidebar() {
             </SidebarGroup>
           </>
         ) : (
-          <SidebarGroup>
-            <SidebarGroupLabel>Navigation</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={location === "/"}>
-                    <Link href="/">
-                      <Home className="h-4 w-4" />
-                      <span>Home</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={location === "/account"}>
-                    <Link href="/account">
-                      <UserCog className="h-4 w-4" />
-                      <span>Account</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+          <>
+            <SidebarGroup>
+              <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={location === "/" || location === ""}>
+                      <Link href="/">
+                        <Gamepad2 className="h-4 w-4" />
+                        <span>Games</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  {(hasOrgRole("org_admin") || hasPermission("view_dashboard" as Permission)) && (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild isActive={location === "/dashboard"}>
+                        <Link href="/dashboard">
+                          <LayoutDashboard className="h-4 w-4" />
+                          <span>Dashboard</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )}
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={location === "/calendar"}>
+                      <Link href="/calendar">
+                        <Calendar className="h-4 w-4" />
+                        <span>Calendar</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            {hasOrgRole("org_admin") && (
+              <SidebarGroup>
+                <SidebarGroupLabel>Administration</SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild isActive={location === "/users"}>
+                        <Link href="/users">
+                          <Users className="h-4 w-4" />
+                          <span>Users</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild isActive={location === "/roles"}>
+                        <Link href="/roles">
+                          <ShieldCheck className="h-4 w-4" />
+                          <span>Roles</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild isActive={location === "/game-access"}>
+                        <Link href="/game-access">
+                          <KeyRound className="h-4 w-4" />
+                          <span>Game Access</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            )}
+
+            {(hasOrgRole("org_admin") || hasOrgRole("game_manager")) && (
+              <SidebarGroup>
+                <SidebarGroupLabel>Communication</SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild isActive={location === "/org-chat"}>
+                        <Link href="/org-chat">
+                          <MessageSquare className="h-4 w-4" />
+                          <span>Chat</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            )}
+
+            <SidebarGroup>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {hasOrgRole("org_admin") && (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild isActive={location === "/settings"}>
+                        <Link href="/settings">
+                          <Settings className="h-4 w-4" />
+                          <span>Settings</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )}
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={location === "/account"}>
+                      <Link href="/account">
+                        <UserCog className="h-4 w-4" />
+                        <span>Account</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </>
         )}
       </SidebarContent>
 

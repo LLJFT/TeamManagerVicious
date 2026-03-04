@@ -17,7 +17,8 @@ type RosterType = "first_team" | "academy" | "women";
 export default function Login() {
   const { login, register } = useAuth();
   const { toast } = useToast();
-  const [mode, setMode] = useState<"login" | "register" | "pending">("login");
+  const [mode, setMode] = useState<"login" | "register" | "pending" | "forgot" | "forgot-sent">("login");
+  const [forgotUsername, setForgotUsername] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [selectedGames, setSelectedGames] = useState<string[]>([]);
@@ -78,6 +79,91 @@ export default function Login() {
       setLoading(false);
     }
   };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotUsername.trim()) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: forgotUsername.trim() }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || "Failed to submit request");
+      }
+      setMode("forgot-sent");
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (mode === "forgot") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-sm">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+              <Lock className="h-6 w-6 text-primary" />
+            </div>
+            <CardTitle data-testid="text-forgot-title">Forgot Password</CardTitle>
+            <CardDescription>
+              Enter your username and an admin will reset your password.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleForgotPassword} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="forgot-username">Username</Label>
+                <Input
+                  id="forgot-username"
+                  data-testid="input-forgot-username"
+                  placeholder="Enter your username"
+                  value={forgotUsername}
+                  onChange={(e) => setForgotUsername(e.target.value)}
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={loading || !forgotUsername.trim()} data-testid="button-forgot-submit">
+                {loading ? "Submitting..." : "Request Password Reset"}
+              </Button>
+            </form>
+            <div className="mt-4 text-center">
+              <button type="button" className="text-sm text-primary underline" onClick={() => setMode("login")} data-testid="button-back-to-login-forgot">
+                Back to Sign In
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (mode === "forgot-sent") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-sm">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+              <Check className="h-6 w-6 text-primary" />
+            </div>
+            <CardTitle data-testid="text-forgot-sent-title">Request Submitted</CardTitle>
+            <CardDescription>
+              Your password reset request has been submitted. An admin will generate a new temporary password for you.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-center">
+            <Button variant="outline" onClick={() => { setMode("login"); setForgotUsername(""); }} data-testid="button-back-to-login-after-forgot">
+              Back to Sign In
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (mode === "pending") {
     return (
@@ -257,18 +343,30 @@ export default function Login() {
               )}
             </Button>
           </form>
-          <div className="mt-4 text-center text-sm text-muted-foreground">
+          <div className="mt-4 text-center text-sm text-muted-foreground space-y-1">
             {mode === "login" ? (
               <>
-                Need an account?{" "}
-                <button
-                  type="button"
-                  className="text-primary underline"
-                  onClick={() => setMode("register")}
-                  data-testid="button-switch-register"
-                >
-                  Register
-                </button>
+                <div>
+                  Need an account?{" "}
+                  <button
+                    type="button"
+                    className="text-primary underline"
+                    onClick={() => setMode("register")}
+                    data-testid="button-switch-register"
+                  >
+                    Register
+                  </button>
+                </div>
+                <div>
+                  <button
+                    type="button"
+                    className="text-primary underline"
+                    onClick={() => setMode("forgot")}
+                    data-testid="button-forgot-password"
+                  >
+                    Forgot Password?
+                  </button>
+                </div>
               </>
             ) : (
               <>

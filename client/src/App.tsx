@@ -28,6 +28,13 @@ import StaffPage from "@/pages/Staff";
 import Chat from "@/pages/Chat";
 import AccountSettings from "@/pages/AccountSettings";
 import PlayerStats from "@/pages/PlayerStats";
+import OrgDashboard from "@/pages/OrgDashboard";
+import CalendarPage from "@/pages/CalendarPage";
+import UsersPage from "@/pages/UsersPage";
+import RolesPage from "@/pages/RolesPage";
+import GameAccessPage from "@/pages/GameAccessPage";
+import OrgChat from "@/pages/OrgChat";
+import SettingsPage from "@/pages/SettingsPage";
 import NotFound from "@/pages/not-found";
 
 function GameRoutes({ slug }: { slug: string }) {
@@ -74,6 +81,13 @@ function MainContent() {
   return (
     <Switch>
       <Route path="/" component={GamesHome} />
+      <Route path="/dashboard" component={OrgDashboard} />
+      <Route path="/calendar" component={CalendarPage} />
+      <Route path="/users" component={UsersPage} />
+      <Route path="/roles" component={RolesPage} />
+      <Route path="/game-access" component={GameAccessPage} />
+      <Route path="/org-chat" component={OrgChat} />
+      <Route path="/settings" component={SettingsPage} />
       <Route path="/account" component={AccountSettings} />
       <Route>
         {() => {

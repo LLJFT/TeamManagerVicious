@@ -1,0 +1,155 @@
+Take your time. Quality over speed. Test every single item before marking it done. 
+
+In this message: 
+
+  
+
+CRITICAL = broken feature that makes the platform unusable, fix these first 
+
+IMPORTANT = missing or incomplete feature that needs to be added 
+
+  
+
+  
+
+CRITICAL — Logo upload completely broken 
+
+When I drag and drop a logo or select it and press Upload, it shows "Failed to upload" and nothing happens. Fix the entire upload pipeline: select file → upload to server → save to database → replace shield icon everywhere → persist across all refreshes and sessions. Also remove the hint text below the org name field that says "Shown as [Org Name] Availability Times..." — remove that line completely. 
+
+  
+
+CRITICAL — Events are broken, cannot view details or add results 
+
+Clicking any event to view its detail shows "Event not found". Fix event routing so event detail pages load correctly. Also make absolutely sure each game and roster has completely separate and isolated data — adding an event or result in Dota 2 First Team must never appear in Dota 2 Academy, Dota 2 Women, or any other game. 
+ 
+CRITICAL — Approved users get no in-game role When a user is approved for a game, they currently appear with no role or the wrong role. Fix: approval must automatically assign the correct in-game role with no manual steps needed: 
+
+Player approved → automatically gets "Member" role inside that game 
+
+Staff approved → automatically gets "Staff" role inside that game 
+
+Management approved → automatically gets full permissions inside that game 
+
+CRITICAL — Pending registrations not appearing in the right places Currently pending registrations only appear in the Home Dashboard. Fix this: a pending registration must appear in TWO places simultaneously: 
+
+The Home Dashboard (for org-level admins) 
+
+The specific game and roster dashboard the user applied for (example: applied for Rainbow Six First Team → appears in Rainbow Six First Team's dashboard Users tab) 
+
+The registration must be approvable or rejectable from either place. After approval, the user appears only in their specific game and roster, not in any other game. 
+
+CRITICAL — Activity logs not isolated per game Each game's activity log currently shows events from other games and the main platform. Fix: each game's log must only show actions that happened within that specific game and roster. Platform-level events like logins and registrations must only appear in Settings → Activity Log and never inside any game's dashboard. 
+
+CRITICAL — Management users have Super Admin level access Management users can currently see and do everything on the platform even if I only gave them access to one game. Fix: Management must only have access to what I manually assign. Their permissions must be fully customizable and must never inherit Super Admin access. 
+
+CRITICAL — Game access must be assigned by specific game AND roster separately Currently giving someone access to "Dota 2" gives them access to all three rosters (First Team, Academy, Women). Fix: access must be per specific roster. Example: assigning "Dota 2 — First Team" must NOT grant access to "Dota 2 — Academy" or "Dota 2 — Women". The game access selector must show each roster as a separate option. 
+
+CRITICAL — Management Chat is broken and in the wrong place The Management Chat is currently embedded at the bottom of the Settings/Games page which is completely wrong. Fix it fully: 
+
+Move it to its own dedicated tab in the LEFT SIDEBAR of the home page, labeled "Chat" 
+
+It must work exactly like the in-game chat — with channels support 
+
+Must fully support: text messages, images, videos, audio files, voice recording (hold to record, release to send) 
+
+All uploaded files must persist permanently and never break after time 
+
+Emoji picker must work 
+
+Only Management and Super Admin users can see and access this chat 
+
+ 
+
+IMPORTANT — Home reorganization into clean left sidebar tabs Reorganize the home navigation into clean separate tabs in the LEFT SIDEBAR. Each tab must be its own full dedicated page. Do not cram multiple sections into one tab. Structure: 
+
+Games — the games grid, browse and enter rosters 
+
+Dashboard — pending registrations, roster overview, event overview, password reset requests 
+
+Calendar — full dedicated calendar page (see details below) 
+
+Users — full user management page (see details below) 
+
+Roles — platform-level roles management (see details below) 
+
+Game Access — (1) manage access per user per specific roster, (2) manage Management user access per specific roster 
+
+Chat — Management-only chat moved here 
+
+Settings — org name, logo, dynamic theme, activity log, add/edit/delete games, edit game icons, Management permissions 
+
+IMPORTANT — Calendar must be a full dedicated page Move the calendar out of the Games view completely and give it its own full page in the left sidebar. Requirements: 
+
+Shows all events across all games and rosters on their correct dates 
+
+Clicking a date expands to show all events that day in a clean organized list 
+
+Must be able to handle up to 40 or more events on the same day cleanly without breaking the layout 
+
+Filters: by specific game and roster (example: "Dota 2 — First Team" as a separate option from "Dota 2 — Academy"), by event type, by event name 
+
+Upcoming Events section shown separately below the calendar 
+
+IMPORTANT — Full User Management tab (dedicated page) The Users tab must be a full dedicated page showing ALL platform users. For each user I must be able to: 
+
+View: username, platform role, status, last seen 
+
+Ban / Unban 
+
+Delete account (removes from platform and all games) 
+
+Force Logout (kicks all active sessions) 
+
+Rename username 
+
+Change platform role 
+
+Reset password 
+
+Also include a "Create Account" button to manually create a new account by setting: username, password, and platform role. 
+
+IMPORTANT — Platform Roles tab (dedicated page) Add a Roles tab as a full dedicated page for managing the 4 platform-level roles: Player, Staff, Game Manager, Management. For each role I must be able to: 
+
+Add a new custom role 
+
+Edit role name 
+
+Delete the role 
+
+Set detailed permissions — every single permission must be listed individually and I choose exactly what each role can and cannot do. Make this as detailed and granular as possible. 
+
+These platform roles are completely separate from in-game roles like Management, Admin, Staff,Member. 
+ 
+IMPORTANT — Management permissions must be fully customizable In Settings, add a "Management Permissions" section. Management users must start with zero permissions and I assign exactly what they can do. Every permission must be listed individually. They must never inherit Super Admin access under any circumstance. 
+
+IMPORTANT — Add Game and manage rosters from Settings In Settings, add a section to fully manage games: 
+
+Add a completely new game (name, abbreviation, icon, slug/URL) 
+
+Edit an existing game (name, abbreviation, icon) 
+
+Delete a game 
+
+For each game, manage its rosters: add new roster types, edit roster names (rename "First Team", "Academy", "Women" to custom names if needed), delete roster types 
+
+Edit game icons for all games from one place 
+
+IMPORTANT — Forgot Password flow The link exists on the login page but the flow is incomplete. Complete it: 
+
+User submits their username on the forgot password page 
+
+A reset request appears in Home Dashboard under a "Password Resets" section 
+
+Admin generates a reset link and shares it manually with the user 
+
+User opens the link and sets a new password No email needed — the entire process is handled manually by admins. 
+
+IMPORTANT — Registration shows only org's active games and rosters When a Player or Staff registers, the game selection must only show the games and roster types that this organization has enabled and made active. Do not show all games on the platform. 
+
+ 
+
+After finishing everything, go through every single feature on the entire platform and verify it works correctly end to end. Fix anything that is broken. The platform must be completely functional before you finish. 
+
+ 
+
+ 
