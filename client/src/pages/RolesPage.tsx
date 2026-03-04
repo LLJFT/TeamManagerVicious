@@ -11,14 +11,14 @@ import { allPermissions, type Permission } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 
 const PERMISSION_GROUPS: Record<string, Permission[]> = {
-  "Schedule": ["view_schedule", "create_schedule", "edit_schedule", "delete_schedule"],
+  "Schedule": ["view_schedule", "edit_own_availability", "edit_all_availability", "manage_schedule_players"],
   "Events": ["view_events", "create_events", "edit_events", "delete_events"],
-  "Results": ["view_results", "manage_results"],
-  "Players": ["view_players", "create_players", "edit_players", "delete_players"],
+  "Results": ["view_results", "add_results", "edit_results", "delete_results"],
+  "Players": ["view_players", "manage_players_tab"],
   "Statistics": ["view_statistics", "view_player_stats", "view_history", "view_compare", "view_opponents"],
-  "Chat": ["view_chat", "send_messages", "manage_channels"],
+  "Chat": ["view_chat", "send_messages", "delete_own_messages", "delete_any_message", "manage_channels"],
   "Staff": ["view_staff", "manage_staff"],
-  "Dashboard": ["view_dashboard", "manage_users", "manage_roles", "manage_game_config"],
+  "Dashboard": ["view_dashboard", "manage_users", "manage_roles", "manage_game_config", "manage_stat_fields", "view_activity_log"],
 };
 
 interface Role {

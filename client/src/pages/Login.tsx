@@ -8,11 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Shield, UserPlus, LogIn, Clock, Check, Lock } from "lucide-react";
-import type { SupportedGame } from "@shared/schema";
+import type { SupportedGame, Roster } from "@shared/schema";
 import { GAME_ABBREVIATIONS } from "@shared/schema";
 
 type RegisterRole = "player" | "staff" | "management";
-type RosterType = "first_team" | "academy" | "women";
 
 export default function Login() {
   const { login, register } = useAuth();
@@ -23,7 +22,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [selectedGames, setSelectedGames] = useState<string[]>([]);
   const [selectedRole, setSelectedRole] = useState<RegisterRole>("player");
-  const [selectedRosterType, setSelectedRosterType] = useState<RosterType>("first_team");
+  const [selectedRosterId, setSelectedRosterId] = useState<string>("");
   const [loading, setLoading] = useState(false);
 
   const needsGameSelection = selectedRole === "player" || selectedRole === "staff";
@@ -33,6 +32,13 @@ export default function Login() {
     enabled: mode === "register",
   });
 
+  const { data: allRostersMap = {} } = useQuery<Record<string, Roster[]>>({
+    queryKey: ["/api/all-rosters"],
+    enabled: mode === "register",
+  });
+
+  const selectedGameRosters = selectedGames.length > 0 ? (allRostersMap[selectedGames[0]] || []) : [];
+
   const toggleGame = (gameId: string) => {
     if (selectedRole === "player") {
       setSelectedGames(prev => prev.includes(gameId) ? [] : [gameId]);
@@ -41,19 +47,23 @@ export default function Login() {
         prev.includes(gameId) ? prev.filter(id => id !== gameId) : [...prev, gameId]
       );
     }
+    setSelectedRosterId("");
   };
 
   const handleRoleChange = (r: RegisterRole) => {
     setSelectedRole(r);
     setSelectedGames([]);
-    setSelectedRosterType("first_team");
+    setSelectedRosterId("");
   };
 
   const selectedGameSlug = needsGameSelection && selectedGames.length > 0
     ? allGames.find(g => g.id === selectedGames[0])?.slug || ""
     : "";
   const gameAbbrev = selectedGameSlug ? (GAME_ABBREVIATIONS[selectedGameSlug] || selectedGameSlug.toUpperCase()) : "";
-  const rosterSuffix = selectedRosterType === "academy" ? `${gameAbbrev}_AC` : selectedRosterType === "women" ? `${gameAbbrev}_W` : gameAbbrev;
+  const selectedRosterObj = selectedRosterId ? selectedGameRosters.find(r => r.id === selectedRosterId) : null;
+  const rosterSuffix = selectedRosterObj
+    ? (selectedRosterObj.slug === "academy" ? `${gameAbbrev}_AC` : selectedRosterObj.slug === "women" ? `${gameAbbrev}_W` : gameAbbrev)
+    : gameAbbrev;
   const previewUsername = username.trim() && gameAbbrev ? `${username.trim()}_${rosterSuffix}` : "";
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -69,7 +79,7 @@ export default function Login() {
           setLoading(false);
           return;
         }
-        await register(username, password, needsGameSelection ? selectedGames : [], selectedRole, needsGameSelection ? selectedRosterType : undefined);
+        await register(username, password, needsGameSelection ? selectedGames : [], selectedRole, needsGameSelection && selectedRosterId ? selectedRosterId : undefined);
         setMode("pending");
       }
     } catch (err: any) {
@@ -295,17 +305,17 @@ export default function Login() {
                   </div>
                 )}
 
-                {needsGameSelection && selectedGames.length > 0 && (
+                {needsGameSelection && selectedGames.length > 0 && selectedGameRosters.length > 0 && (
                   <div className="space-y-2">
                     <Label>Roster</Label>
-                    <Select value={selectedRosterType} onValueChange={(v) => setSelectedRosterType(v as RosterType)}>
+                    <Select value={selectedRosterId} onValueChange={setSelectedRosterId}>
                       <SelectTrigger data-testid="select-roster-type">
-                        <SelectValue />
+                        <SelectValue placeholder="Select a roster" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="first_team">First Team</SelectItem>
-                        <SelectItem value="academy">Academy</SelectItem>
-                        <SelectItem value="women">Women</SelectItem>
+                        {selectedGameRosters.map(roster => (
+                          <SelectItem key={roster.id} value={roster.id}>{roster.name}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>

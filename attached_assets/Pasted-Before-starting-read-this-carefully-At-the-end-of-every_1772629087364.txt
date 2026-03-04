@@ -1,0 +1,36 @@
+Before starting, read this carefully:
+At the end of every session, you MUST provide a clear summary with three sections:
+
+✅ Completed — everything you fully implemented and tested
+⚠️ Partially done — things you started but didn't finish or didn't fully test
+❌ Not done — things from the requirements that you didn't implement at all
+
+I always want everything in the ✅ Completed section. I do not care how long it takes. Take all the time you need. Do not move on from any item until it is 100% done and tested. Do not mark anything as complete unless you have tested it yourself and confirmed it works. If something takes a full day, that is fine. Quality is the only priority.
+Never skip any requirement from my list. Always follow my instructions exactly as written.
+
+Now fix everything that was not completed from the previous session. Do not stop until every single item below is fully done and tested:
+CRITICAL — Logo upload still broken
+The upload shows "Failed to upload" and nothing saves. Fix the complete pipeline end to end: file selection → upload to storage → save URL to database → replace shield icon everywhere on the platform → persist across all sessions and refreshes. Test it yourself after fixing.
+CRITICAL — Events still broken
+Clicking an event still shows "Event not found". Fix event routing and detail pages completely. Also verify that every single section is fully isolated per game and roster — Schedule, Events, Results, Players, Statistics, Player Stats, History, Compare, Opponents, Dashboard, Staff, Chat. Adding data in one game/roster must never appear in another.
+CRITICAL — Activity logs not isolated
+Each game's activity log still shows events from other games and the platform. Fix: each game's log shows only that game's actions. Platform events like logins and registrations must only appear in Settings → Activity Log.
+CRITICAL — Pending registrations not showing in game dashboard
+A user who registers for Rainbow Six First Team must appear as pending in TWO places: the Home Dashboard AND the Rainbow Six First Team dashboard. Currently it only shows in Home Dashboard. Fix this so it appears in both places and can be approved or rejected from either.
+CRITICAL — Approved users get wrong in-game role
+After approval, users still don't get the correct in-game role automatically. Fix: Player approved → gets "Member" role, Staff approved → gets "Staff" role, Management approved → gets full permissions. No manual steps required.
+CRITICAL — Management still has Super Admin access
+Management users can still see and do everything like Super Admin. Fix: Management must only have access to what I manually assign them. They must never inherit Super Admin permissions.
+CRITICAL — Game access not per specific roster
+Giving a user access to "Dota 2" still gives them access to all three rosters. Fix: access must be assigned per specific roster separately — "Dota 2 — First Team", "Dota 2 — Academy", "Dota 2 — Women" as completely separate options.
+CRITICAL — Chat still doesn't support files, voice, or emoji
+The Management Chat and all in-game chats must fully support: images, videos, audio files, voice recording (hold to record, release to send), emoji picker. All uploaded files must persist permanently. All audio formats supported: MP3, M4A, OGG, WAV, WEBM, AAC.
+IMPORTANT — Registration shows only org's active games
+When a Player or Staff registers, the game and roster selection must only show games and roster types that this organization has enabled. Do not show all platform games.
+IMPORTANT — Add/Edit/Delete games from Settings
+In Settings, the game management section must allow: adding a completely new game (name, abbreviation, icon, URL slug), editing existing games, deleting games, and managing each game's rosters (add, rename, delete roster types like First Team/Academy/Women).
+
+After finishing, provide the three-section summary:
+✅ Completed — fully implemented and tested
+⚠️ Partially done — started but not finished
+❌ Not done — not implemented at all

@@ -21,7 +21,7 @@ import type {
   AvailabilitySlot, RosterRole, Permission
 } from "@shared/schema";
 import { allPermissions, permissionCategories } from "@shared/schema";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { queryClient, apiRequest, getCurrentGameId } from "@/lib/queryClient";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -108,7 +108,10 @@ function ActivityLogPanel({ logType, title }: { logType: string; title: string }
   const { data: logs = [], isLoading } = useQuery<ActivityLogEntry[]>({
     queryKey: ["/api/activity-logs", logType],
     queryFn: async () => {
-      const res = await fetch(`/api/activity-logs?logType=${logType}`);
+      const gameId = getCurrentGameId();
+      let url = `/api/activity-logs?logType=${logType}`;
+      if (gameId) url += `&gameId=${gameId}`;
+      const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch logs");
       return res.json();
     },
@@ -378,6 +381,42 @@ export default function Dashboard() {
 
   const [selectedModeForMaps, setSelectedModeForMaps] = useState<string | null>(null);
   const [selectedModeForStatFields, setSelectedModeForStatFields] = useState<string | null>(null);
+
+  const { data: gamePendingAssignments = [] } = useQuery<any[]>({
+    queryKey: ["/api/game-assignments/pending"],
+    queryFn: async () => {
+      const gameId = getCurrentGameId();
+      if (!gameId) return [];
+      const res = await fetch(`/api/game-assignments/pending?gameId=${gameId}`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: hasPermission("manage_users"),
+  });
+
+  const approveGameAssignmentMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("POST", `/api/game-assignments/${id}/approve`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/game-assignments/pending"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      toast({ title: "User approved" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const rejectGameAssignmentMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("POST", `/api/game-assignments/${id}/reject`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/game-assignments/pending"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      toast({ title: "User rejected" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
 
   const { data: gameModes = [], isLoading: modesLoading } = useQuery<GameMode[]>({
     queryKey: ["/api/game-modes"],
@@ -980,6 +1019,40 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+
+        {gamePendingAssignments.length > 0 && (
+          <Card className="mb-6">
+            <CardHeader className="pb-3 gap-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Pending Registrations
+                <Badge variant="destructive">{gamePendingAssignments.length}</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {gamePendingAssignments.map((p: any) => (
+                <div key={p.id} className="flex items-center justify-between gap-3 p-3 rounded-md border" data-testid={`row-game-pending-${p.id}`}>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium">{p.user?.username || "Unknown"}</p>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      {p.rosterName && <Badge variant="outline" className="text-xs">{p.rosterName}</Badge>}
+                      <Badge variant="outline" className="text-xs">{p.assignedRole}</Badge>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button size="sm" onClick={() => approveGameAssignmentMutation.mutate(p.id)} disabled={approveGameAssignmentMutation.isPending} data-testid={`button-game-approve-${p.id}`}>
+                      <Check className="h-4 w-4 mr-1" />
+                      Approve
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => rejectGameAssignmentMutation.mutate(p.id)} disabled={rejectGameAssignmentMutation.isPending} data-testid={`button-game-reject-${p.id}`}>
+                      Reject
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
 
         <Tabs defaultValue={defaultTab}>
           <TabsList className="flex-wrap" data-testid="dashboard-tabs">

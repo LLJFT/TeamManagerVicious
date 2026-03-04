@@ -75,7 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const hasPermission = useCallback((perm: Permission): boolean => {
     if (!user) return false;
-    if (user.orgRole === "super_admin" || user.orgRole === "org_admin") return true;
+    if (user.orgRole === "super_admin") return true;
     if (!user.role) return false;
     const perms = user.role.permissions as string[];
     return perms.includes(perm);
@@ -89,16 +89,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const hasGameAccess = useCallback((gameId: string): boolean => {
     if (!user) return false;
-    if (user.orgRole === "super_admin" || user.orgRole === "org_admin") return true;
+    if (user.orgRole === "super_admin") return true;
     if (!user.gameAssignments) return false;
     return user.gameAssignments.some(a => a.gameId === gameId && a.status === "approved");
   }, [user]);
 
   const hasRosterAccess = useCallback((gameId: string, rosterId: string): boolean => {
     if (!user) return false;
-    if (user.orgRole === "super_admin" || user.orgRole === "org_admin") return true;
+    if (user.orgRole === "super_admin") return true;
     if (!user.gameAssignments) return false;
-    if (user.orgRole === "game_manager") {
+    if (user.orgRole === "game_manager" || user.orgRole === "org_admin") {
       return user.gameAssignments.some(a => a.gameId === gameId && a.status === "approved");
     }
     return user.gameAssignments.some(a => a.gameId === gameId && a.rosterId === rosterId && a.status === "approved");

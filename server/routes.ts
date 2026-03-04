@@ -211,7 +211,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/auth/register", async (req, res) => {
     try {
-      const { username, password, selectedGames, selectedRole, selectedRosterType } = req.body;
+      const { username, password, selectedGames, selectedRole, selectedRosterType: rosterTypeOrId } = req.body;
       if (!username || !password) {
         return res.status(400).json({ message: "Username and password required" });
       }
@@ -236,19 +236,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const [game] = await db.select().from(supportedGames).where(eq(supportedGames.id, selectedGameId!)).limit(1);
         if (game) {
           const abbrev = GAME_ABBREVIATIONS[game.slug] || game.slug.toUpperCase();
-          const rosterType = selectedRosterType || "first_team";
-          let suffix = abbrev;
-          if (rosterType === "academy") suffix = `${abbrev}_AC`;
-          else if (rosterType === "women") suffix = `${abbrev}_W`;
-          displayName = `${baseUsername}_${suffix}`;
 
-          const rosterNameMap: Record<string, string> = { first_team: "First Team", academy: "Academy", women: "Women" };
-          const rosterName = rosterNameMap[rosterType] || "First Team";
-          const [roster] = await db.select().from(rosters)
-            .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, game.id), eq(rosters.name, rosterName)))
-            .limit(1);
-          if (roster) {
-            selectedRosterId = roster.id;
+          if (rosterTypeOrId && !["first_team", "academy", "women"].includes(rosterTypeOrId)) {
+            const [roster] = await db.select().from(rosters)
+              .where(and(eq(rosters.id, rosterTypeOrId), eq(rosters.teamId, teamId)))
+              .limit(1);
+            if (roster) {
+              selectedRosterId = roster.id;
+              let suffix = abbrev;
+              if (roster.slug === "academy") suffix = `${abbrev}_AC`;
+              else if (roster.slug === "women") suffix = `${abbrev}_W`;
+              displayName = `${baseUsername}_${suffix}`;
+            } else {
+              displayName = `${baseUsername}_${abbrev}`;
+            }
+          } else {
+            const rosterType = rosterTypeOrId || "first_team";
+            let suffix = abbrev;
+            if (rosterType === "academy") suffix = `${abbrev}_AC`;
+            else if (rosterType === "women") suffix = `${abbrev}_W`;
+            displayName = `${baseUsername}_${suffix}`;
+
+            const rosterNameMap: Record<string, string> = { first_team: "First Team", academy: "Academy", women: "Women" };
+            const rosterName = rosterNameMap[rosterType] || "First Team";
+            const [roster] = await db.select().from(rosters)
+              .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, game.id), eq(rosters.name, rosterName)))
+              .limit(1);
+            if (roster) {
+              selectedRosterId = roster.id;
+            }
           }
         }
       }
@@ -2628,20 +2644,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/org-chat/messages", requireAuth, requireOrgRole("org_admin", "game_manager"), async (req, res) => {
+  app.post("/api/org-chat/messages", requireAuth, requireOrgRole("org_admin", "game_manager"), upload.single("file"), async (req, res) => {
     try {
       const teamId = getTeamId();
-      const { content } = req.body;
-      if (!content || !content.trim()) return res.status(400).json({ message: "Message content required" });
+      const content = req.body.content || req.body.message || "";
       let [channel] = await db.select().from(chatChannels)
         .where(and(eq(chatChannels.teamId, teamId), isNull(chatChannels.gameId), eq(chatChannels.name, "Management")))
         .limit(1);
       if (!channel) {
         [channel] = await db.insert(chatChannels).values({ teamId, gameId: null, name: "Management" }).returning();
       }
+
+      let attachmentUrl: string | null = null;
+      let attachmentType: string | null = null;
+      let attachmentName: string | null = null;
+      let attachmentSize: number | null = null;
+
+      if (req.file) {
+        const objectStorageService = new ObjectStorageService();
+        const uploadURL = await objectStorageService.getObjectEntityUploadURL();
+        const normalizedPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+        const uploadResponse = await fetch(uploadURL, {
+          method: "PUT",
+          body: req.file.buffer,
+          headers: { "Content-Type": req.file.mimetype },
+        });
+        if (!uploadResponse.ok) throw new Error("File upload failed");
+        attachmentUrl = normalizedPath;
+        attachmentType = req.file.mimetype;
+        attachmentName = req.file.originalname;
+        attachmentSize = req.file.size;
+      }
+
+      if (!content.trim() && !attachmentUrl) {
+        return res.status(400).json({ message: "Message content or file required" });
+      }
+
       const [msg] = await db.insert(chatMessages).values({
         teamId, gameId: null, channelId: channel.id,
-        userId: req.session.userId!, content: content.trim(),
+        userId: req.session.userId!,
+        message: content.trim() || null,
+        attachmentUrl, attachmentType, attachmentName, attachmentSize,
       }).returning();
       const [sender] = await db.select().from(users).where(eq(users.id, req.session.userId!));
       res.json({ ...msg, senderName: sender?.username || "Unknown" });
