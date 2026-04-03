@@ -137,6 +137,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         "/api/players", "/api/schedule", "/api/player-availability",
         "/api/staff-availability", "/api/staff", "/api/attendance",
         "/api/events", "/api/roster-roles", "/api/availability-slots",
+        "/api/users", "/api/game-assignments/pending",
       ];
       queryClient.removeQueries({
         predicate: (query) => {

@@ -392,11 +392,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const teamId = getTeamId();
       const gameId = getGameId(req);
+      const rosterId = getRosterId(req);
       let allUsers = await db.select().from(users).where(eq(users.teamId, teamId));
 
       if (gameId) {
+        const conditions = [
+          eq(userGameAssignments.teamId, teamId),
+          eq(userGameAssignments.gameId, gameId),
+          eq(userGameAssignments.status, "approved"),
+        ];
+        if (rosterId) conditions.push(eq(userGameAssignments.rosterId, rosterId));
         const gameAssigns = await db.select().from(userGameAssignments)
-          .where(and(eq(userGameAssignments.teamId, teamId), eq(userGameAssignments.gameId, gameId), eq(userGameAssignments.status, "approved")));
+          .where(and(...conditions));
         const gameUserIds = new Set(gameAssigns.map(a => a.userId));
         allUsers = allUsers.filter(u => gameUserIds.has(u.id) && u.orgRole !== "org_admin" && u.orgRole !== "super_admin");
       }
@@ -2257,7 +2264,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/game-assignments/pending", requireAuth, requireOrgRole("org_admin", "game_manager"), async (req, res) => {
     try {
       const gameId = req.query.gameId as string | undefined;
-      const results = await storage.getAllPendingAssignments(gameId || null);
+      const rosterId = req.query.rosterId as string | undefined;
+      const results = await storage.getAllPendingAssignments(gameId || null, rosterId || null);
       res.json(results);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -2346,7 +2354,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (assignedRole === "coach_analyst" || assignedRole === "staff") targetRoleName = "Staff";
       else if (assignedRole === "org_admin" || assignedRole === "management") targetRoleName = "Management";
       const targetRole = allRolesArr.find(r => r.name === targetRoleName) || allRolesArr.find(r => r.name === "Member");
-      if (targetRole && user && !user.roleId) {
+      if (targetRole && user) {
         await db.update(users).set({ roleId: targetRole.id }).where(eq(users.id, user.id));
       }
 

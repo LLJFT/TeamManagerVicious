@@ -93,7 +93,7 @@ export interface IStorage {
   getSupportedGames(): Promise<SupportedGame[]>;
   getSupportedGameBySlug(slug: string): Promise<SupportedGame | undefined>;
   getUserGameAssignments(userId: string): Promise<UserGameAssignment[]>;
-  getAllPendingAssignments(gameId?: string | null): Promise<(UserGameAssignment & { username: string; gameName: string; gameSlug: string; rosterName: string | null })[]>;
+  getAllPendingAssignments(gameId?: string | null, rosterId?: string | null): Promise<(UserGameAssignment & { username: string; gameName: string; gameSlug: string; rosterName: string | null })[]>;
   createUserGameAssignment(teamId: string, userId: string, gameId: string, assignedRole: string, rosterId?: string): Promise<UserGameAssignment>;
   approveUserGameAssignment(id: string): Promise<UserGameAssignment>;
   rejectUserGameAssignment(id: string): Promise<UserGameAssignment>;
@@ -571,13 +571,14 @@ export class DbStorage implements IStorage {
       .where(and(eq(userGameAssignments.userId, userId), eq(userGameAssignments.teamId, teamId)));
   }
 
-  async getAllPendingAssignments(gameId?: string | null): Promise<(UserGameAssignment & { username: string; gameName: string; gameSlug: string; rosterName: string | null })[]> {
+  async getAllPendingAssignments(gameId?: string | null, rosterId?: string | null): Promise<(UserGameAssignment & { username: string; gameName: string; gameSlug: string; rosterName: string | null })[]> {
     const teamId = getTeamId();
     const conditions = [
       eq(userGameAssignments.teamId, teamId),
       eq(userGameAssignments.status, "pending"),
     ];
     if (gameId) conditions.push(eq(userGameAssignments.gameId, gameId));
+    if (rosterId) conditions.push(eq(userGameAssignments.rosterId, rosterId));
 
     const results = await db
       .select({

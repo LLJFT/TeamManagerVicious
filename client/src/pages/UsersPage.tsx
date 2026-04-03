@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Users, Plus, Ban, Trash2, LogOut, Pencil, KeyRound, UserPlus, Search, Shield } from "lucide-react";
+import { Users, Plus, Ban, Trash2, LogOut, Pencil, KeyRound, UserPlus, Search, Shield, CheckCircle2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { orgRoleLabels, type OrgRole } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
@@ -128,6 +128,22 @@ export default function UsersPage() {
       setTempPasswordUser(id);
       setTempPassword(data.tempPassword);
       toast({ title: "Password reset" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const approveAllAssignmentsMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const user = allUsers.find(u => u.id === userId);
+      if (!user) return;
+      const pendingAssignments = user.gameAssignments.filter(a => a.status === "pending");
+      for (const assignment of pendingAssignments) {
+        await apiRequest("POST", `/api/game-assignments/${assignment.id}/approve`);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/all-users"] });
+      toast({ title: "User approved" });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -271,6 +287,17 @@ export default function UsersPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1 flex-wrap">
+                  {user.status === "pending" && user.gameAssignments.some(a => a.status === "pending") && (
+                    <Button
+                      size="sm"
+                      onClick={() => approveAllAssignmentsMutation.mutate(user.id)}
+                      disabled={approveAllAssignmentsMutation.isPending}
+                      data-testid={`button-approve-${user.id}`}
+                    >
+                      <CheckCircle2 className="h-4 w-4 mr-1" />
+                      Approve
+                    </Button>
+                  )}
                   <Select value={user.orgRole} onValueChange={(value) => changeRoleMutation.mutate({ id: user.id, orgRole: value })}>
                     <SelectTrigger className="w-[140px]" data-testid={`select-role-${user.id}`}>
                       <SelectValue />

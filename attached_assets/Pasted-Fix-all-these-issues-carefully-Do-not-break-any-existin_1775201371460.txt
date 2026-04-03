@@ -1,0 +1,32 @@
+Fix all these issues carefully. Do not break any existing functionality. Take your time and test each fix before moving on.
+In this message:
+
+CRITICAL = broken feature, fix first
+IMPORTANT = missing or needs improvement
+
+
+CRITICAL — Pending registration appears in wrong game dashboards
+When a user applies for VALORANT First Team, their pending request shows up in MLBB First Team dashboard, VALORANT Academy, VALORANT Women, and other game dashboards. Fix this: a pending registration must only appear in the exact game AND roster the user applied for. If someone applied for VALORANT First Team, only VALORANT First Team dashboard should show their request — no other game or roster should see it.
+CRITICAL — Approved player gets no in-game role
+When a player registers and gets approved for a game, they appear in the Users tab with no role assigned. Fix: when a user is approved, they must automatically receive the correct in-game role with no manual steps needed — Player gets "Member", Staff gets "Staff".
+CRITICAL — Game dashboard Users tab shows users from other rosters
+VALORANT Academy dashboard is showing user P who applied for VALORANT First Team only. Fix: each roster's Users tab must only show users who belong to that specific roster. A user in VALORANT First Team must never appear in VALORANT Academy or Women dashboards.
+CRITICAL — No Approve button for pending users in Users management page
+In the home Users page, pending users have no way to be approved. There are edit, key, arrow, ban, and delete buttons but no Approve button. Fix: add a clear Approve button for every pending user so they can be approved directly from the Users management page.
+IMPORTANT — Roles page: permissions must be separated into Home permissions and Game permissions
+Currently the Roles page shows game-level permissions (view schedule, manage schedule players, etc.) for home-level roles. Fix this completely:
+
+Home roles must only have HOME permissions such as: view dashboard, view calendar, view upcoming events, manage roles, manage game access for users (not org management), change logo, add games, add rosters, view chat, send messages, delete own messages, delete any messages, manage channels, view log
+Game roles must only have GAME permissions (schedule, events, results, players, statistics, chat, dashboard, staff, etc.)
+They must be completely separate with no overlap or conflict
+Add a label next to each role name showing whether it is a "Home" role or a "Game" role
+
+IMPORTANT — Roles page: auto-save, remove Save button
+When I check or uncheck any permission, it must save instantly without pressing a Save button. Remove the Save button entirely — all changes must be instant.
+IMPORTANT — Calendar page must be a full large page like the in-game Team Events calendar
+The current home Calendar tab is tiny and cramped. Replace it with a full-page calendar exactly like the Team Events page inside each game — big, clean, and organized. It must show all events across all games. The Upcoming Events section must be its own separate tab in the left sidebar, not crammed into the calendar view. Also remove the small calendar widget and upcoming events section from the Games home page entirely — they look bad and disorganized there.
+
+After finishing, provide this summary:
+✅ Completed — fully implemented and tested
+⚠️ Partially done — started but not finished
+❌ Not done — not implemented

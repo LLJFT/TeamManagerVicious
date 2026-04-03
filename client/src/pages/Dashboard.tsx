@@ -21,7 +21,7 @@ import type {
   AvailabilitySlot, RosterRole, Permission
 } from "@shared/schema";
 import { allPermissions, permissionCategories } from "@shared/schema";
-import { queryClient, apiRequest, getCurrentGameId } from "@/lib/queryClient";
+import { queryClient, apiRequest, getCurrentGameId, getCurrentRosterId } from "@/lib/queryClient";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -386,8 +386,11 @@ export default function Dashboard() {
     queryKey: ["/api/game-assignments/pending"],
     queryFn: async () => {
       const gameId = getCurrentGameId();
+      const rosterId = getCurrentRosterId();
       if (!gameId) return [];
-      const res = await fetch(`/api/game-assignments/pending?gameId=${gameId}`, { credentials: "include" });
+      let url = `/api/game-assignments/pending?gameId=${gameId}`;
+      if (rosterId) url += `&rosterId=${rosterId}`;
+      const res = await fetch(url, { credentials: "include" });
       if (!res.ok) return [];
       return res.json();
     },
@@ -1033,7 +1036,7 @@ export default function Dashboard() {
               {gamePendingAssignments.map((p: any) => (
                 <div key={p.id} className="flex items-center justify-between gap-3 p-3 rounded-md border" data-testid={`row-game-pending-${p.id}`}>
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium">{p.user?.username || "Unknown"}</p>
+                    <p className="font-medium">{p.username || p.user?.username || "Unknown"}</p>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       {p.rosterName && <Badge variant="outline" className="text-xs">{p.rosterName}</Badge>}
                       <Badge variant="outline" className="text-xs">{p.assignedRole}</Badge>
