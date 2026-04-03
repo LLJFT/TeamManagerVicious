@@ -78,6 +78,14 @@ async function runMigrations() {
         resolved_by VARCHAR
       )
     `);
+    const rosterIdTables = [
+      "roles", "chat_channels", "settings", "stat_fields", "game_modes",
+      "maps", "games", "off_days", "seasons", "team_notes",
+    ];
+    for (const t of rosterIdTables) {
+      await db.execute(sql.raw(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS roster_id VARCHAR REFERENCES rosters(id) ON DELETE SET NULL`));
+    }
+
     console.log("[migrations] Schema migrations applied successfully");
   } catch (e: any) {
     console.error("[migrations] Migration error:", e.message);
@@ -228,7 +236,7 @@ export function requirePermission(permission: string) {
       return res.status(403).json({ message: "Forbidden" });
     }
 
-    if (user.orgRole === "super_admin") {
+    if (user.orgRole === "super_admin" || user.orgRole === "org_admin") {
       return next();
     }
 

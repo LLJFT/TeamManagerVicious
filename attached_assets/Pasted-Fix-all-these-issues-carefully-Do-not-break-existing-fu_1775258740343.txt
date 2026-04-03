@@ -1,0 +1,28 @@
+Fix all these issues carefully. Do not break existing functionality. Take your time and test each fix before marking it done.
+
+CRITICAL #1 — Management users have no permissions inside game rosters A user with "Management" home permission role enters a game roster (e.g. VALORANT First Team) and sees a blank page stuck on "Loading...". The sidebar shows Main/Analytics/Management sections but nothing loads. Fix: when a user has the Management home permission role, they must automatically have FULL permissions inside every game roster they have access to. They should be able to do everything inside the roster — schedule, events, results, players, stats, chat, dashboard, staff — same as an Owner inside that roster.
+
+CRITICAL #2 — Roster data is not fully isolated — roles and other data bleed between rosters When I add a role inside one roster (e.g. Dota 2 First Team), it appears in the other rosters of the same game (Academy and Women). Fix: EVERY piece of data inside a roster must be 100% isolated by rosterId. This includes: roles, players, schedule, events, results, stats, attendance, staff, chat channels, dashboard settings, stat fields, availability slots. Run a full audit of every database query in the project and make sure every single one filters by BOTH gameId AND rosterId. No data should ever cross from one roster to another under any circumstance.
+
+CRITICAL #3 — User Permissions roles are not enforced A user given the "Member" home permission role can still access everything on the platform exactly like a Super Admin. The permission checkboxes in User Permissions exist but have no effect. Fix: the home platform must actually enforce these permissions. If a user's permission role doesn't have "View Users Tab" checked, they must not see the Users tab. If they don't have "View Settings" checked, Settings must be hidden. Every home permission checkbox must be enforced in the UI and on the server.
+
+IMPORTANT #4 — Users page: "Manage User Permissions" tab must control home permission roles In the Users page → "Manage User Permissions" tab, I need to be able to assign each user their home permission role (Member, Management, etc. — the roles from the User Permissions tab in Roles). Right now I cannot control which permission role each user has. Add a dropdown or selector per user so I can assign/change their home permission role directly from this tab.
+
+IMPORTANT #5 — Home Calendar: redesign to full-page layout The home Calendar page shows a tiny mini calendar that takes up very little space. Redesign it to match the large full-page calendar inside game rosters (Team Events calendar). It must:
+
+Fill the full page width and height — no blank space
+Show all events across all games on their correct dates
+Keep the Day/Upcoming tabs on the right side
+Keep the game filter and roster filter dropdowns at the top
+Look identical in style and size to the in-game Team Events calendar
+IMPORTANT #6 — Home Dashboard: add full roster stats overview The home Dashboard tab currently doesn't show meaningful data. Add a complete overview that shows for each active game and its rosters:
+
+Number of players registered
+Last 3 events with results (W/L)
+Attendance rate this week
+Upcoming events count Group by game → then by roster (First Team / Academy / Women). Make it clean, organized, and easy to read.
+At the end provide:
+✅ Completed — fully done and tested
+⚠️ Partially done — started but not finished
+❌ Not done — not implemented
+

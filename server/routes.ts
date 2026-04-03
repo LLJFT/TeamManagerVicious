@@ -768,11 +768,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const teamId = getTeamId();
       const gameId = getGameId(req);
+      const rosterId = getRosterId(req);
       const conditions: any[] = [eq(roles.teamId, teamId)];
-      if (gameId) conditions.push(eq(roles.gameId, gameId));
+      if (gameId) {
+        conditions.push(eq(roles.gameId, gameId));
+        if (rosterId) conditions.push(eq(roles.rosterId, rosterId));
+      } else {
+        conditions.push(isNull(roles.gameId));
+      }
       let allRoles = await db.select().from(roles).where(and(...conditions));
 
-      if (gameId && allRoles.length === 0) {
+      if (gameId && rosterId && allRoles.length === 0) {
         const ownerPerms = [...allPermissions] as string[];
         const staffPerms = allPermissions.filter(p => p !== "manage_roles") as string[];
         const memberPerms = [
@@ -789,7 +795,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ];
 
         for (const d of defaults) {
+          await db.insert(roles).values({ teamId, gameId, rosterId, name: d.name, permissions: d.permissions, isSystem: d.isSystem });
+        }
+        allRoles = await db.select().from(roles).where(and(...conditions));
+      } else if (gameId && !rosterId && allRoles.length === 0) {
+        const ownerPerms = [...allPermissions] as string[];
+        const staffPerms = allPermissions.filter(p => p !== "manage_roles") as string[];
+        const memberPerms = [
+          "view_schedule", "edit_own_availability", "view_events", "view_results",
+          "view_players", "view_statistics", "view_player_stats", "view_history",
+          "view_compare", "view_opponents", "view_chat", "send_messages", "delete_own_messages",
+        ] as string[];
+        const defaults = [
+          { name: "Management", permissions: ownerPerms, isSystem: true },
+          { name: "Admin", permissions: staffPerms, isSystem: true },
+          { name: "Staff", permissions: staffPerms, isSystem: true },
+          { name: "Member", permissions: memberPerms, isSystem: true },
+        ];
+        for (const d of defaults) {
           await db.insert(roles).values({ teamId, gameId, name: d.name, permissions: d.permissions, isSystem: d.isSystem });
+        }
+        allRoles = await db.select().from(roles).where(and(...conditions));
+      } else if (!gameId && !rosterId && allRoles.length === 0) {
+        const homeAllPerms = [
+          "view_dashboard", "view_calendar", "view_upcoming_events",
+          "view_users_tab", "manage_users", "view_roles_tab", "manage_roles",
+          "view_game_access", "manage_game_config",
+          "view_chat", "send_messages", "delete_own_messages", "delete_any_message", "manage_channels",
+          "view_settings", "manage_settings", "view_activity_log",
+        ] as string[];
+        const homeStaffPerms = [
+          "view_dashboard", "view_calendar", "view_upcoming_events",
+          "view_users_tab", "view_roles_tab", "view_game_access",
+          "view_chat", "send_messages", "delete_own_messages",
+          "view_settings", "view_activity_log",
+        ] as string[];
+        const homeMemberPerms = [
+          "view_calendar", "view_upcoming_events",
+          "view_chat", "send_messages", "delete_own_messages",
+        ] as string[];
+        const homeDefaults = [
+          { name: "Management", permissions: homeAllPerms, isSystem: true },
+          { name: "Admin", permissions: homeStaffPerms, isSystem: true },
+          { name: "Staff", permissions: homeStaffPerms, isSystem: true },
+          { name: "Member", permissions: homeMemberPerms, isSystem: true },
+        ];
+        for (const d of homeDefaults) {
+          await db.insert(roles).values({ teamId, name: d.name, permissions: d.permissions, isSystem: d.isSystem });
         }
         allRoles = await db.select().from(roles).where(and(...conditions));
       }
@@ -804,9 +856,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const teamId = getTeamId();
       const gameId = getGameId(req);
+      const rosterId = getRosterId(req);
       const { name, permissions } = req.body;
       const [role] = await db.insert(roles).values({
-        teamId, gameId, name, permissions: permissions || [], isSystem: false,
+        teamId, gameId, rosterId, name, permissions: permissions || [], isSystem: false,
       }).returning();
       logActivity(req.session.userId!, "create_role", `Created role "${name}"`, "team", undefined, getGameId(req));
       res.json(role);
@@ -921,8 +974,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const teamId = getTeamId();
       const gid = getGameId(req);
+      const rid = getRosterId(req);
       const chatConditions: any[] = [eq(chatChannels.teamId, teamId)];
       if (gid) chatConditions.push(eq(chatChannels.gameId, gid));
+      if (rid) chatConditions.push(eq(chatChannels.rosterId, rid));
       const channels = await db.select().from(chatChannels).where(and(...chatConditions));
       const userId = req.session.userId!;
       const [currentUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
@@ -952,7 +1007,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teamId = getTeamId();
       const { name } = req.body;
       const gid = getGameId(req);
-      const [channel] = await db.insert(chatChannels).values({ teamId, name, gameId: gid }).returning();
+      const rid = getRosterId(req);
+      const [channel] = await db.insert(chatChannels).values({ teamId, name, gameId: gid, rosterId: rid }).returning();
       logActivity(req.session.userId!, "create_channel", `Created chat channel "${channel.name}"`, "team", undefined, getGameId(req));
       res.json(channel);
     } catch (error: any) {
@@ -1662,7 +1718,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/team-notes", requireAuth, async (req, res) => {
     try {
-      const notes = await storage.getTeamNotes(getGameId(req));
+      const notes = await storage.getTeamNotes(getGameId(req), getRosterId(req));
       res.json(notes);
     } catch (error: any) {
       console.error('Error in GET /api/team-notes:', error);
@@ -1673,7 +1729,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/team-notes", requireAuth, requirePermission("view_chat"), async (req, res) => {
     try {
       const validatedData = insertTeamNotesSchema.parse(req.body);
-      const note = await storage.addTeamNote(validatedData, getGameId(req));
+      const note = await storage.addTeamNote(validatedData, getGameId(req), getRosterId(req));
       res.json(note);
     } catch (error: any) {
       console.error('Error in POST /api/team-notes:', error);
@@ -1715,7 +1771,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/games", requireAuth, async (req, res) => {
     try {
       const scope = req.query.scope as string | undefined;
-      const gamesWithEventType = await storage.getAllGamesWithEventType(scope, getGameId(req));
+      const gamesWithEventType = await storage.getAllGamesWithEventType(scope, getGameId(req), getRosterId(req));
       res.json(gamesWithEventType);
     } catch (error: any) {
       console.error('Error in GET /api/games:', error);
@@ -1726,7 +1782,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/games", requireAuth, requirePermission("edit_events"), async (req, res) => {
     try {
       const validatedData = insertGameSchema.parse(req.body);
-      const game = await storage.addGame(validatedData, getGameId(req));
+      const game = await storage.addGame(validatedData, getGameId(req), getRosterId(req));
       logActivity(req.session.userId!, "add_game", `Added game to event`, "team", undefined, getGameId(req));
       res.json(game);
     } catch (error: any) {
@@ -1772,7 +1828,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/game-modes", requireAuth, async (req, res) => {
     try {
-      const gameModes = await storage.getAllGameModes(getGameId(req));
+      const gameModes = await storage.getAllGameModes(getGameId(req), getRosterId(req));
       res.json(gameModes);
     } catch (error: any) {
       console.error('Error in GET /api/game-modes:', error);
@@ -1783,7 +1839,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/game-modes", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const validatedData = insertGameModeSchema.parse(req.body);
-      const gameMode = await storage.addGameMode(validatedData, getGameId(req));
+      const gameMode = await storage.addGameMode(validatedData, getGameId(req), getRosterId(req));
       logActivity(req.session.userId!, "add_game_mode", `Added game mode "${gameMode.name}"`, "team", undefined, getGameId(req));
       res.json(gameMode);
     } catch (error: any) {
@@ -1829,7 +1885,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/maps", requireAuth, async (req, res) => {
     try {
-      const maps = await storage.getAllMaps(getGameId(req));
+      const maps = await storage.getAllMaps(getGameId(req), getRosterId(req));
       res.json(maps);
     } catch (error: any) {
       console.error('Error in GET /api/maps:', error);
@@ -1851,7 +1907,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/maps", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const validatedData = insertMapSchema.parse(req.body);
-      const map = await storage.addMap(validatedData, getGameId(req));
+      const map = await storage.addMap(validatedData, getGameId(req), getRosterId(req));
       logActivity(req.session.userId!, "add_map", `Added map "${map.name}"`, "team", undefined, getGameId(req));
       res.json(map);
     } catch (error: any) {
@@ -1911,7 +1967,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Seasons API endpoints
   app.get("/api/seasons", requireAuth, async (req, res) => {
     try {
-      const seasons = await storage.getAllSeasons(getGameId(req));
+      const seasons = await storage.getAllSeasons(getGameId(req), getRosterId(req));
       res.json(seasons);
     } catch (error: any) {
       console.error('Error in GET /api/seasons:', error);
@@ -1922,7 +1978,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/seasons", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const validatedData = insertSeasonSchema.parse(req.body);
-      const season = await storage.addSeason(validatedData, getGameId(req));
+      const season = await storage.addSeason(validatedData, getGameId(req), getRosterId(req));
       logActivity(req.session.userId!, "add_season", `Added season "${season.name}"`, "team", undefined, getGameId(req));
       res.json(season);
     } catch (error: any) {
@@ -1968,7 +2024,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/off-days", requireAuth, async (req, res) => {
     try {
-      const offDays = await storage.getAllOffDays(getGameId(req));
+      const offDays = await storage.getAllOffDays(getGameId(req), getRosterId(req));
       res.json(offDays);
     } catch (error: any) {
       console.error('Error in GET /api/off-days:', error);
@@ -1979,7 +2035,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/off-days", requireAuth, requirePermission("create_events"), async (req, res) => {
     try {
       const validatedData = insertOffDaySchema.parse(req.body);
-      const offDay = await storage.addOffDay(validatedData, getGameId(req));
+      const offDay = await storage.addOffDay(validatedData, getGameId(req), getRosterId(req));
       logActivity(req.session.userId!, "add_off_day", `Added off day on ${offDay.date}`, "team", undefined, getGameId(req));
       res.json(offDay);
     } catch (error: any) {
@@ -2026,7 +2082,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/events/:id/duplicate", requireAuth, requirePermission("create_events"), async (req, res) => {
     try {
       const { id } = req.params;
-      const duplicatedEvent = await storage.duplicateEvent(id);
+      const duplicatedEvent = await storage.duplicateEvent(id, getGameId(req), getRosterId(req));
       res.json(duplicatedEvent);
     } catch (error: any) {
       console.error('Error in POST /api/events/:id/duplicate:', error);
@@ -2036,7 +2092,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/stat-fields", requireAuth, async (req, res) => {
     try {
-      const statFields = await storage.getAllStatFields(getGameId(req));
+      const statFields = await storage.getAllStatFields(getGameId(req), getRosterId(req));
       res.json(statFields);
     } catch (error: any) {
       console.error('Error in GET /api/stat-fields:', error);
@@ -2047,7 +2103,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/stat-fields", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const validatedData = insertStatFieldSchema.parse(req.body);
-      const statField = await storage.addStatField(validatedData, getGameId(req));
+      const statField = await storage.addStatField(validatedData, getGameId(req), getRosterId(req));
       logActivity(req.session.userId!, "add_stat_field", `Added stat field "${statField.name}"`, "team", undefined, getGameId(req));
       res.json(statField);
     } catch (error: any) {
@@ -2109,7 +2165,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!Array.isArray(stats)) {
         return res.status(400).json({ error: "stats must be an array" });
       }
-      const saved = await storage.savePlayerGameStats(id, stats, getGameId(req));
+      const saved = await storage.savePlayerGameStats(id, stats, getGameId(req), getRosterId(req));
       res.json(saved);
     } catch (error: any) {
       console.error('Error in POST /api/games/:id/player-stats:', error);
@@ -2362,7 +2418,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/game-assignments/pending", requireAuth, requireOrgRole("org_admin", "game_manager"), async (req, res) => {
+  app.get("/api/game-assignments/pending", requireAuth, requirePermission("view_dashboard"), async (req, res) => {
     try {
       const gameId = req.query.gameId as string | undefined;
       const rosterId = req.query.rosterId as string | undefined;
@@ -2673,7 +2729,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==================== ORG DASHBOARD ====================
-  app.get("/api/org-dashboard", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+  app.get("/api/org-dashboard", requireAuth, requirePermission("view_dashboard"), async (req, res) => {
     try {
       const teamId = getTeamId();
       const allSupportedGames = await storage.getSupportedGames();
@@ -2747,7 +2803,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==================== ORG-LEVEL MANAGEMENT CHAT (no gameId) ====================
-  app.get("/api/org-chat/messages", requireAuth, requireOrgRole("org_admin", "game_manager"), async (req, res) => {
+  app.get("/api/org-chat/messages", requireAuth, requirePermission("view_chat"), async (req, res) => {
     try {
       const teamId = getTeamId();
       let [channel] = await db.select().from(chatChannels)
@@ -2771,7 +2827,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/org-chat/messages", requireAuth, requireOrgRole("org_admin", "game_manager"), uploadChat.single("file"), async (req, res) => {
+  app.post("/api/org-chat/messages", requireAuth, requirePermission("send_messages"), uploadChat.single("file"), async (req, res) => {
     try {
       const teamId = getTeamId();
       const content = req.body.content || req.body.message || "";
@@ -2822,7 +2878,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/org-setting/:key", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+  app.put("/api/org-setting/:key", requireAuth, requirePermission("manage_settings"), async (req, res) => {
     try {
       const { key } = req.params;
       const { value } = req.body;
@@ -2882,7 +2938,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/org-users", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+  app.get("/api/org-users", requireAuth, requirePermission("view_users_tab"), async (req, res) => {
     try {
       const teamId = getTeamId();
       const allUsers = await db.select().from(users).where(eq(users.teamId, teamId));
@@ -2912,7 +2968,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/org-activity-logs", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+  app.get("/api/org-activity-logs", requireAuth, requirePermission("view_activity_log"), async (req, res) => {
     try {
       const teamId = getTeamId();
       const logs = await db.select().from(activityLogs)
@@ -2942,7 +2998,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/password-reset-requests", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+  app.get("/api/password-reset-requests", requireAuth, requirePermission("view_dashboard"), async (req, res) => {
     try {
       const teamId = getTeamId();
       const requests = await db.execute(sql`SELECT * FROM password_reset_requests WHERE team_id = ${teamId} ORDER BY created_at DESC LIMIT 50`);
@@ -2952,7 +3008,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/password-reset-requests/:id/resolve", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+  app.post("/api/password-reset-requests/:id/resolve", requireAuth, requirePermission("manage_users"), async (req, res) => {
     try {
       const { id } = req.params;
       const teamId = getTeamId();
@@ -3080,7 +3136,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==================== PLATFORM ROLE MANAGEMENT ====================
-  app.get("/api/platform-roles", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+  app.get("/api/platform-roles", requireAuth, requirePermission("view_roles_tab"), async (req, res) => {
     try {
       const teamId = getTeamId();
       const allRoles = await db.select().from(roles).where(and(eq(roles.teamId, teamId), isNull(roles.gameId)));
@@ -3090,7 +3146,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/platform-roles", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+  app.post("/api/platform-roles", requireAuth, requirePermission("manage_roles"), async (req, res) => {
     try {
       const { name, permissions: perms } = req.body;
       if (!name) return res.status(400).json({ message: "Name is required" });
@@ -3105,7 +3161,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/platform-roles/:id", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+  app.put("/api/platform-roles/:id", requireAuth, requirePermission("manage_roles"), async (req, res) => {
     try {
       const { name, permissions: perms } = req.body;
       const teamId = getTeamId();
@@ -3124,7 +3180,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/platform-roles/:id", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+  app.delete("/api/platform-roles/:id", requireAuth, requirePermission("manage_roles"), async (req, res) => {
     try {
       const teamId = getTeamId();
       const [role] = await db.select().from(roles)
@@ -3141,7 +3197,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==================== ALL USERS (admin) ====================
-  app.get("/api/all-users", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+  app.get("/api/all-users", requireAuth, requirePermission("view_users_tab"), async (req, res) => {
     try {
       const teamId = getTeamId();
       const allUsers = await db.select().from(users).where(eq(users.teamId, teamId));

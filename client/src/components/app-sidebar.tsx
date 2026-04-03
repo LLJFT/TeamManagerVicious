@@ -183,7 +183,7 @@ export function AppSidebar() {
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                  {(hasOrgRole("org_admin") || hasPermission("view_dashboard" as Permission)) && (
+                  {hasPermission("view_dashboard" as Permission) && (
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild isActive={location === "/dashboard"}>
                         <Link href="/dashboard">
@@ -193,53 +193,61 @@ export function AppSidebar() {
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   )}
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={location === "/calendar"}>
-                      <Link href="/calendar">
-                        <Calendar className="h-4 w-4" />
-                        <span>Calendar</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+                  {hasPermission("view_calendar" as Permission) && (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild isActive={location === "/calendar"}>
+                        <Link href="/calendar">
+                          <Calendar className="h-4 w-4" />
+                          <span>Calendar</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )}
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
 
-            {hasOrgRole("org_admin") && (
+            {(hasPermission("view_users_tab" as Permission) || hasPermission("view_roles_tab" as Permission) || hasPermission("view_game_access" as Permission)) && (
               <SidebarGroup>
                 <SidebarGroupLabel>Administration</SidebarGroupLabel>
                 <SidebarGroupContent>
                   <SidebarMenu>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild isActive={location === "/users"}>
-                        <Link href="/users">
-                          <Users className="h-4 w-4" />
-                          <span>Users</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild isActive={location === "/roles"}>
-                        <Link href="/roles">
-                          <ShieldCheck className="h-4 w-4" />
-                          <span>Roles</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild isActive={location === "/game-access"}>
-                        <Link href="/game-access">
-                          <KeyRound className="h-4 w-4" />
-                          <span>Game Access</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
+                    {hasPermission("view_users_tab" as Permission) && (
+                      <SidebarMenuItem>
+                        <SidebarMenuButton asChild isActive={location === "/users"}>
+                          <Link href="/users">
+                            <Users className="h-4 w-4" />
+                            <span>Users</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    )}
+                    {hasPermission("view_roles_tab" as Permission) && (
+                      <SidebarMenuItem>
+                        <SidebarMenuButton asChild isActive={location === "/roles"}>
+                          <Link href="/roles">
+                            <ShieldCheck className="h-4 w-4" />
+                            <span>Roles</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    )}
+                    {hasPermission("view_game_access" as Permission) && (
+                      <SidebarMenuItem>
+                        <SidebarMenuButton asChild isActive={location === "/game-access"}>
+                          <Link href="/game-access">
+                            <KeyRound className="h-4 w-4" />
+                            <span>Game Access</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    )}
                   </SidebarMenu>
                 </SidebarGroupContent>
               </SidebarGroup>
             )}
 
-            {(hasOrgRole("org_admin") || hasOrgRole("game_manager")) && (
+            {hasPermission("view_chat" as Permission) && (
               <SidebarGroup>
                 <SidebarGroupLabel>Communication</SidebarGroupLabel>
                 <SidebarGroupContent>
@@ -260,7 +268,7 @@ export function AppSidebar() {
             <SidebarGroup>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {hasOrgRole("org_admin") && (
+                  {hasPermission("view_settings" as Permission) && (
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild isActive={location === "/settings"}>
                         <Link href="/settings">

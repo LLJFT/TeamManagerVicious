@@ -57,6 +57,13 @@ export const allPermissions = [
   "manage_game_config",
   "manage_stat_fields",
   "view_activity_log",
+  "view_calendar",
+  "view_upcoming_events",
+  "view_users_tab",
+  "view_roles_tab",
+  "view_game_access",
+  "view_settings",
+  "manage_settings",
 ] as const;
 
 export type Permission = typeof allPermissions[number];
@@ -101,6 +108,11 @@ export const permissionCategories: { category: string; label: string; permission
     category: "dashboard",
     label: "Dashboard",
     permissions: ["view_dashboard", "manage_users", "manage_roles", "manage_game_config", "manage_stat_fields", "view_activity_log"],
+  },
+  {
+    category: "home",
+    label: "Home",
+    permissions: ["view_calendar", "view_upcoming_events", "view_users_tab", "view_roles_tab", "view_game_access", "view_settings", "manage_settings"],
   },
 ];
 
@@ -248,6 +260,7 @@ export const teamNotes = pgTable("team_notes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
   gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
   senderName: text("sender_name").notNull(),
   message: text("message").notNull(),
   timestamp: text("timestamp").notNull(),
@@ -274,6 +287,7 @@ export const settings = pgTable("settings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
   gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
   key: text("key").notNull(),
   value: text("value").notNull(),
 }, (table) => [
@@ -304,6 +318,7 @@ export const seasons = pgTable("seasons", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
   gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   description: text("description"),
 }, (table) => [
@@ -315,6 +330,7 @@ export const gameModes = pgTable("game_modes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
   gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   sortOrder: text("sort_order").default("0"),
 }, (table) => [
@@ -326,6 +342,7 @@ export const maps = pgTable("maps", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
   gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   gameModeId: varchar("game_mode_id").notNull().references(() => gameModes.id, { onDelete: "restrict" }),
   sortOrder: text("sort_order").default("0"),
@@ -338,6 +355,7 @@ export const games = pgTable("games", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
   gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
   eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "restrict" }),
   gameCode: text("game_code").notNull(),
   score: text("score").notNull(),
@@ -355,6 +373,7 @@ export const offDays = pgTable("off_days", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
   gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
   date: text("date").notNull(),
 }, (table) => [
   index("off_days_team_id_idx").on(table.teamId),
@@ -365,6 +384,7 @@ export const statFields = pgTable("stat_fields", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
   gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   gameModeId: varchar("game_mode_id").notNull().references(() => gameModes.id, { onDelete: "restrict" }),
   createdAt: text("created_at").default(sql`now()`),
@@ -391,6 +411,7 @@ export const roles = pgTable("roles", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
   gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   isSystem: boolean("is_system").default(false),
   permissions: jsonb("permissions").notNull().default(sql`'[]'::jsonb`),
@@ -496,6 +517,7 @@ export const chatChannels = pgTable("chat_channels", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
   gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   createdAt: text("created_at").default(sql`now()`),
 }, (table) => [

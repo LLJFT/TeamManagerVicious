@@ -75,7 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const hasPermission = useCallback((perm: Permission): boolean => {
     if (!user) return false;
-    if (user.orgRole === "super_admin") return true;
+    if (user.orgRole === "super_admin" || user.orgRole === "org_admin") return true;
     if (!user.role) return false;
     const perms = user.role.permissions as string[];
     return perms.includes(perm);
