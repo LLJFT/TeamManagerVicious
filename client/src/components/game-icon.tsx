@@ -89,8 +89,8 @@ export const GAME_COLORS: Record<string, string> = {
   "efootball": "#1D5BA4",
 };
 
-export function GameIcon({ slug, name, size = "md" }: { slug: string; name: string; size?: "sm" | "md" }) {
-  const imageUrl = GAME_IMAGE_MAP[slug];
+export function GameIcon({ slug, name, size = "md", iconUrl }: { slug: string; name: string; size?: "sm" | "md"; iconUrl?: string | null }) {
+  const imageUrl = iconUrl || GAME_IMAGE_MAP[slug];
   const SIIcon = SI_ICONS[slug];
   const color = GAME_COLORS[slug] || "#6B7280";
   const dim = size === "sm" ? "h-7 w-7" : "h-10 w-10";

@@ -122,6 +122,46 @@ export class ObjectStorageService {
     });
   }
 
+  async uploadBuffer(buffer: Buffer, mimetype: string, extension?: string): Promise<string> {
+    const privateObjectDir = this.getPrivateObjectDir();
+    const objectId = randomUUID();
+    const ext = extension || this.mimeToExtension(mimetype);
+    const fullPath = `${privateObjectDir}/uploads/${objectId}${ext}`;
+    const { bucketName, objectName } = parseObjectPath(fullPath);
+
+    const bucket = objectStorageClient.bucket(bucketName);
+    const file = bucket.file(objectName);
+
+    await file.save(buffer, {
+      metadata: { contentType: mimetype },
+      resumable: false,
+    });
+
+    return `/objects/uploads/${objectId}${ext}`;
+  }
+
+  private mimeToExtension(mime: string): string {
+    const map: Record<string, string> = {
+      "image/png": ".png",
+      "image/jpeg": ".jpg",
+      "image/gif": ".gif",
+      "image/webp": ".webp",
+      "image/svg+xml": ".svg",
+      "video/mp4": ".mp4",
+      "video/webm": ".webm",
+      "video/quicktime": ".mov",
+      "audio/mpeg": ".mp3",
+      "audio/mp4": ".m4a",
+      "audio/ogg": ".ogg",
+      "audio/wav": ".wav",
+      "audio/aac": ".aac",
+      "audio/webm": ".webm",
+      "application/pdf": ".pdf",
+      "application/zip": ".zip",
+    };
+    return map[mime] || "";
+  }
+
   async getObjectEntityFile(objectPath: string): Promise<File> {
     if (!objectPath.startsWith("/objects/")) {
       throw new ObjectNotFoundError();

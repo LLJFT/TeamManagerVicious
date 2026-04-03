@@ -134,12 +134,7 @@ export default function UsersPage() {
 
   const approveAllAssignmentsMutation = useMutation({
     mutationFn: async (userId: string) => {
-      const user = allUsers.find(u => u.id === userId);
-      if (!user) return;
-      const pendingAssignments = user.gameAssignments.filter(a => a.status === "pending");
-      for (const assignment of pendingAssignments) {
-        await apiRequest("POST", `/api/game-assignments/${assignment.id}/approve`);
-      }
+      await apiRequest("POST", `/api/users/${userId}/approve`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/all-users"] });
@@ -200,7 +195,6 @@ export default function UsersPage() {
                 <SelectContent>
                   <SelectItem value="player">Player</SelectItem>
                   <SelectItem value="coach_analyst">Staff</SelectItem>
-                  <SelectItem value="game_manager">Game Manager</SelectItem>
                   <SelectItem value="org_admin">Management</SelectItem>
                 </SelectContent>
               </Select>
@@ -287,7 +281,7 @@ export default function UsersPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1 flex-wrap">
-                  {user.status === "pending" && user.gameAssignments.some(a => a.status === "pending") && (
+                  {user.status === "pending" && (
                     <Button
                       size="sm"
                       onClick={() => approveAllAssignmentsMutation.mutate(user.id)}
@@ -305,7 +299,6 @@ export default function UsersPage() {
                     <SelectContent>
                       <SelectItem value="player">Player</SelectItem>
                       <SelectItem value="coach_analyst">Staff</SelectItem>
-                      <SelectItem value="game_manager">Game Manager</SelectItem>
                       <SelectItem value="org_admin">Management</SelectItem>
                     </SelectContent>
                   </Select>

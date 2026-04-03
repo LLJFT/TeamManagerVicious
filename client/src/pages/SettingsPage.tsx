@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +12,7 @@ import type { SupportedGame, Roster, Permission } from "@shared/schema";
 import { allPermissions } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { ObjectUploader } from "@/components/ObjectUploader";
+import { GameIcon } from "@/components/game-icon";
 
 function rgbToHsl(r: number, g: number, b: number) {
   r /= 255; g /= 255; b /= 255;
@@ -44,7 +45,7 @@ const PERMISSION_GROUPS: Record<string, string[]> = {
 export default function SettingsPage() {
   const { toast } = useToast();
   const [orgName, setOrgName] = useState("");
-  const lastUploadPathRef = useRef<string>("");
+  const [gameIconUploading, setGameIconUploading] = useState<string | null>(null);
   const [addGameName, setAddGameName] = useState("");
   const [addGameSlug, setAddGameSlug] = useState("");
   const [editingGame, setEditingGame] = useState<string | null>(null);
@@ -270,17 +271,11 @@ export default function SettingsPage() {
             )}
             <div className="space-y-2">
               <ObjectUploader
-                onGetUploadParameters={async () => {
-                  const res = await apiRequest("POST", "/api/objects/upload");
-                  const data = await res.json();
-                  lastUploadPathRef.current = data.normalizedPath;
-                  return { method: "PUT" as const, url: data.uploadURL };
+                accept="image/*"
+                onUploaded={(result) => {
+                  saveLogoMutation.mutate(result.url || result.path);
                 }}
-                onComplete={(result) => {
-                  if (result.successful?.length && lastUploadPathRef.current) {
-                    saveLogoMutation.mutate(lastUploadPathRef.current);
-                  }
-                }}
+                onError={(msg) => toast({ title: "Upload failed", description: msg, variant: "destructive" })}
                 buttonVariant="outline"
                 buttonSize="sm"
               >
@@ -391,20 +386,36 @@ export default function SettingsPage() {
               return (
                 <div key={game.id} className="border rounded-md p-3 space-y-2" data-testid={`card-game-${game.id}`}>
                   <div className="flex items-center justify-between gap-2 flex-wrap">
-                    {editingGame === game.id ? (
-                      <div className="flex items-center gap-2">
-                        <Input value={editGameName} onChange={(e) => setEditGameName(e.target.value)} className="w-[200px]" data-testid={`input-edit-game-${game.id}`} />
-                        <Button size="sm" onClick={() => editGameMutation.mutate({ id: game.id, name: editGameName })} disabled={editGameMutation.isPending}>
-                          <Save className="h-4 w-4" />
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => setEditingGame(null)}>
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <span className="font-medium">{game.name}</span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <GameIcon slug={game.slug} name={game.name} size="sm" iconUrl={game.iconUrl} />
+                      {editingGame === game.id ? (
+                        <div className="flex items-center gap-2">
+                          <Input value={editGameName} onChange={(e) => setEditGameName(e.target.value)} className="w-[200px]" data-testid={`input-edit-game-${game.id}`} />
+                          <Button size="sm" onClick={() => editGameMutation.mutate({ id: game.id, name: editGameName })} disabled={editGameMutation.isPending}>
+                            <Save className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => setEditingGame(null)}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="font-medium">{game.name}</span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-1">
+                      <ObjectUploader
+                        uploadUrl={`/api/supported-games/${game.id}/icon`}
+                        accept="image/*"
+                        onUploaded={() => {
+                          queryClient.invalidateQueries({ queryKey: ["/api/supported-games"] });
+                          toast({ title: "Game icon updated" });
+                        }}
+                        onError={(msg) => toast({ title: "Upload failed", description: msg, variant: "destructive" })}
+                        buttonVariant="ghost"
+                        buttonSize="icon"
+                      >
+                        <Image className="h-4 w-4" />
+                      </ObjectUploader>
                       {editingGame !== game.id && (
                         <Button size="icon" variant="ghost" onClick={() => { setEditingGame(game.id); setEditGameName(game.name); }} data-testid={`button-edit-game-${game.id}`}>
                           <Pencil className="h-4 w-4" />

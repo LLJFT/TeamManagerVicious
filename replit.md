@@ -46,6 +46,6 @@ The database design incorporates core tables for users, games, and rosters, with
 - **connect-pg-simple**: PostgreSQL-backed session store.
 - **react-icons/si**: Used as a fallback for game icons where specific image assets are not available.
 - **Shadcn UI**: Frontend component library for building the user interface.
-- **Object Storage (@google-cloud/storage)**: For file uploads in the chat system, utilizing presigned URLs via Replit sidecar.
+- **Object Storage (@google-cloud/storage)**: For file uploads (chat, logo, game icons, scoreboard images) using direct GCS upload via `objectStorageClient` (not signed URLs — the sidecar returns 401 in dev).
 - **emoji-picker-react**: Emoji picker for chat functionality.
 - **multer**: Multipart form data handling for file uploads.

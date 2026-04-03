@@ -66,6 +66,7 @@ async function runMigrations() {
     await db.execute(sql`ALTER TABLE user_game_assignments ADD COLUMN IF NOT EXISTS approval_org_status TEXT NOT NULL DEFAULT 'pending'`);
     await db.execute(sql`UPDATE user_game_assignments SET approval_game_status = 'approved', approval_org_status = 'approved' WHERE status = 'approved' AND approval_game_status = 'pending'`);
     await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT`);
+    await db.execute(sql`ALTER TABLE supported_games ADD COLUMN IF NOT EXISTS icon_url TEXT`);
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS password_reset_requests (
         id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -285,6 +286,7 @@ export function requireOrgRole(...allowedRoles: string[]) {
 
 export async function requireGameAccess(req: Request, res: Response, next: NextFunction) {
   const gameId = (req.query.gameId as string) || null;
+  const rosterId = (req.query.rosterId as string) || null;
   if (!gameId || !req.session.userId) {
     return next();
   }
@@ -304,17 +306,23 @@ export async function requireGameAccess(req: Request, res: Response, next: NextF
     return next();
   }
 
+  const conditions = [
+    eq(userGameAssignments.userId, user.id),
+    eq(userGameAssignments.gameId, gameId),
+    eq(userGameAssignments.status, "approved"),
+    eq(userGameAssignments.teamId, teamId),
+  ];
+
+  if (rosterId) {
+    conditions.push(eq(userGameAssignments.rosterId, rosterId));
+  }
+
   const [assignment] = await db.select().from(userGameAssignments)
-    .where(and(
-      eq(userGameAssignments.userId, user.id),
-      eq(userGameAssignments.gameId, gameId),
-      eq(userGameAssignments.status, "approved"),
-      eq(userGameAssignments.teamId, teamId)
-    ))
+    .where(and(...conditions))
     .limit(1);
 
   if (!assignment) {
-    return res.status(403).json({ message: "You do not have access to this game" });
+    return res.status(403).json({ message: rosterId ? "You do not have access to this roster" : "You do not have access to this game" });
   }
 
   next();

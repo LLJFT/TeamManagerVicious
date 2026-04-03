@@ -133,6 +133,7 @@ export const supportedGames = pgTable("supported_games", {
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
   sortOrder: integer("sort_order").default(0),
+  iconUrl: text("icon_url"),
 });
 
 export const rosters = pgTable("rosters", {

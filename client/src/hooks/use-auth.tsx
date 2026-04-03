@@ -98,9 +98,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!user) return false;
     if (user.orgRole === "super_admin") return true;
     if (!user.gameAssignments) return false;
-    if (user.orgRole === "game_manager" || user.orgRole === "org_admin") {
-      return user.gameAssignments.some(a => a.gameId === gameId && a.status === "approved");
-    }
     return user.gameAssignments.some(a => a.gameId === gameId && a.rosterId === rosterId && a.status === "approved");
   }, [user]);
 

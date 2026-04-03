@@ -1,0 +1,73 @@
+Fix all these issues carefully. Do not break existing functionality. Take your time and test each fix before marking it done.
+CRITICAL = broken, fix first | IMPORTANT = missing feature
+
+CRITICAL — Logo upload completely broken
+Uploading any image (PNG, JPG, WEBM, etc.) shows "Failed to upload". The error in chat shows: "Failed to sign object URL, errorcode: 401, make sure you're running on Replit" — this means the Object Storage calls are failing. Fix the entire upload pipeline for ALL uploads on the platform (logo, game icons, chat media) so they work correctly on Replit's Object Storage. After upload: save URL to database → replace shield icon everywhere → persist across all sessions.
+
+CRITICAL — Chat cannot send any media
+Same Object Storage 401 error is breaking ALL media uploads in every chat (Management Chat and in-game chats). Fix this so all chats fully support:
+
+Images (JPG, PNG, WEBP, GIF)
+Videos (MP4, MOV, WEBM)
+Audio files (MP3, M4A, OGG, WAV, AAC)
+Voice message recording (hold to record, release to send)
+Files (PDF, ZIP, etc.)
+Emoji picker
+
+All uploaded files must persist permanently and never expire.
+
+CRITICAL — Game icon upload not working
+From Settings → Games, I must be able to upload/change the icon for any game. Currently there's no working icon upload. Add this to both: the Settings games list AND the Games tab directly.
+
+CRITICAL — Approved users get no in-game role automatically
+When a user is approved for a game/roster, they appear with no role. Fix: approval must automatically assign the correct in-game role with zero manual steps:
+
+Player approved → gets Member role inside that roster
+Staff approved → gets Staff role inside that roster
+Management approved → gets full permissions inside that roster
+
+
+CRITICAL — Roster access is not isolated — user accessing wrong rosters
+When I give a user access to "Dota 2 Academy", they can also open Dota 2 First Team and Dota 2 Women. This is completely wrong. Each roster must be treated as a fully independent entity:
+
+Access to "Dota 2 Academy" gives ONLY access to Dota 2 Academy
+It must NOT give access to First Team or Women
+If a user has Member role in VALORANT First Team, that role must NOT carry over to VALORANT Academy or any other roster
+Roles and access must never conflict between rosters
+
+
+CRITICAL — Registration only shows games, not specific rosters
+When registering, a user can only select a game (e.g. Dota 2) but not which roster they're applying for. Fix this: after selecting a game, the user must also choose which roster they want to join: First Team, Academy, or Women. Their request must go to that specific roster only.
+
+CRITICAL — No Approve button for pending users
+In the Home → Users page, pending users (whether Player, Staff, or Management) have no Approve button. Fix:
+
+Add a clear Approve button for every pending user
+When I create an account manually using "Create Account", it must be instantly active with no approval needed
+Only self-registered users require approval
+
+
+IMPORTANT — Roles system: separate into 3 distinct types, do NOT mix them
+There are 3 completely separate role types. Keep them separated and never mix them:
+Type 1 — User Roles (granted at registration, shown as a tag on the user):
+Player, Staff, Management. These describe what kind of user they are. Remove "Game Manager" from this list.
+Type 2 — Home Permission Roles (controls what the user can access on the home platform):
+
+All Players and Staff automatically receive the Member home permission role upon approval
+Management users automatically receive the Management home permission role
+This tab should be renamed "User Permissions" in the Roles page
+From this tab: define what each permission role can see/do on the home platform (dashboard, calendar, users tab, settings, etc.)
+
+Type 3 — In-game Roster Roles (controls what the user can do inside a specific roster):
+Member, Staff, Admin, Management — these exist per-roster and are completely separate from home roles.
+In the Roles page, add two clearly separated tabs:
+
+"User Roles" tab — manage the registration role types (Player, Staff, Management): add, edit, delete, set what each one means
+"User Permissions" tab — manage the home permission roles and their granular permissions
+
+In the Home → Users page, the role dropdown shown when changing a user's role must match only the User Permission Roles — not mix in game roles or other types.
+
+At the end, provide this summary:
+✅ Completed — fully implemented and tested
+⚠️ Partially done — started but not finished
+❌ Not done — not implemented

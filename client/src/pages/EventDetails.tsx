@@ -14,11 +14,10 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Plus, Trash2, Save, Upload, Eye, ExternalLink, Gamepad2, Map as MapIcon, BarChart3 } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { ObjectUploader } from "@/components/ObjectUploader";
-import type { UploadResult } from "@uppy/core";
 
 function GameStatsEditor({ game, players, statFields, onSave, isSaving }: {
   game: Game;
@@ -337,59 +336,26 @@ export default function EventDetails() {
     },
   });
 
-  const pendingNormalizedPathRef = useRef<string>("");
-  
-  const handleGetUploadURL = async () => {
-    const response = await fetch("/api/objects/upload", { method: "POST" });
-    if (!response.ok) throw new Error("Failed to get upload URL");
-    const { uploadURL, normalizedPath } = await response.json();
-    console.log('[EventDetails] Got upload URL and normalized path:', { uploadURL, normalizedPath });
-    pendingNormalizedPathRef.current = normalizedPath;
-    return { method: "PUT" as const, url: uploadURL };
+  const handleNewGameImageUploaded = (result: { url: string; path: string }) => {
+    const imagePath = result.url || result.path;
+    setNewGameImageUrl(imagePath);
+    setUploadingImageForNewGame(false);
+    setToastMessage("Image uploaded successfully");
+    setToastType("success");
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 3000);
   };
 
-  const handleImageUploadComplete = (result: UploadResult<Record<string, unknown>, Record<string, unknown>>) => {
-    console.log('[EventDetails] handleImageUploadComplete called');
-    console.log('[EventDetails] uploadingImageForNewGame:', uploadingImageForNewGame);
-    console.log('[EventDetails] uploadingImageForGame:', uploadingImageForGame);
-    console.log('[EventDetails] pendingNormalizedPathRef.current:', pendingNormalizedPathRef.current);
-    console.log('[EventDetails] result:', result);
-    
-    if (result.successful && result.successful.length > 0) {
-      const imagePath = pendingNormalizedPathRef.current;
-      console.log('[EventDetails] Using normalized path:', imagePath);
-      
-      if (!imagePath) {
-        console.log('[EventDetails] No normalized path found!');
-        return;
-      }
-      
-      if (uploadingImageForNewGame) {
-        console.log('[EventDetails] Setting newGameImageUrl to:', imagePath);
-        setNewGameImageUrl(imagePath);
-        setUploadingImageForNewGame(false);
-        setToastMessage("Image uploaded successfully");
-        setToastType("success");
-        setShowToast(true);
-        setTimeout(() => setShowToast(false), 3000);
-      } else if (uploadingImageForGame) {
-        console.log('[EventDetails] Setting editingGame imageUrl to:', imagePath);
-        if (editingGame && editingGame.id === uploadingImageForGame) {
-          setEditingGame({ ...editingGame, imageUrl: imagePath });
-        }
-        setUploadingImageForGame(null);
-        setToastMessage("Image uploaded successfully");
-        setToastType("success");
-        setShowToast(true);
-        setTimeout(() => setShowToast(false), 3000);
-      } else {
-        console.log('[EventDetails] Neither uploadingImageForNewGame nor uploadingImageForGame is set!');
-      }
-      
-      pendingNormalizedPathRef.current = "";
-    } else {
-      console.log('[EventDetails] No successful uploads in result');
+  const handleEditGameImageUploaded = (result: { url: string; path: string }) => {
+    const imagePath = result.url || result.path;
+    if (editingGame) {
+      setEditingGame({ ...editingGame, imageUrl: imagePath });
     }
+    setUploadingImageForGame(null);
+    setToastMessage("Image uploaded successfully");
+    setToastType("success");
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 3000);
   };
 
   const handleSaveEventDetails = () => {
@@ -773,11 +739,8 @@ export default function EventDetails() {
               )}
               <div className="flex gap-2 flex-wrap">
                 <ObjectUploader
-                  maxNumberOfFiles={1}
-                  maxFileSize={10485760}
-                  onGetUploadParameters={handleGetUploadURL}
-                  onComplete={handleImageUploadComplete}
-                  onOpen={() => setUploadingImageForNewGame(true)}
+                  accept="image/*"
+                  onUploaded={handleNewGameImageUploaded}
                   buttonVariant="outline"
                   buttonSize="sm"
                 >
@@ -931,11 +894,8 @@ export default function EventDetails() {
                                 />
                                 <div className="flex gap-2 flex-wrap">
                                   <ObjectUploader
-                                    maxNumberOfFiles={1}
-                                    maxFileSize={10485760}
-                                    onGetUploadParameters={handleGetUploadURL}
-                                    onComplete={handleImageUploadComplete}
-                                    onOpen={() => setUploadingImageForGame(game.id)}
+                                    accept="image/*"
+                                    onUploaded={handleEditGameImageUploaded}
                                     buttonVariant="outline"
                                     buttonSize="sm"
                                   >

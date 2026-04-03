@@ -140,20 +140,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "No file uploaded" });
       }
       const objectStorageService = new ObjectStorageService();
-      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
-      const normalizedPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
-
-      const uploadResponse = await fetch(uploadURL, {
-        method: "PUT",
-        body: req.file.buffer,
-        headers: { "Content-Type": req.file.mimetype },
-      });
-      if (!uploadResponse.ok) {
-        throw new Error(`Object storage upload failed: ${uploadResponse.status}`);
-      }
+      const path = await objectStorageService.uploadBuffer(req.file.buffer, req.file.mimetype);
 
       res.json({
-        url: normalizedPath,
+        url: path,
         originalName: req.file.originalname,
         mimeType: req.file.mimetype,
         size: req.file.size,
@@ -218,10 +208,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teamId = getTeamId();
 
       let orgRole: string;
-      if (selectedRole === "management") {
+      if (selectedRole === "management" || selectedRole === "org_admin") {
         orgRole = "org_admin";
-      } else if (selectedRole === "staff") {
+      } else if (selectedRole === "staff" || selectedRole === "coach_analyst") {
         orgRole = "coach_analyst";
+      } else if (selectedRole === "game_manager") {
+        orgRole = "game_manager";
       } else {
         orgRole = "player";
       }
@@ -280,6 +272,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(and(eq(roles.name, "Member"), eq(roles.teamId, teamId)))
         .limit(1);
 
+      let isAdminCreating = false;
+      if (req.session && req.session.userId) {
+        const [caller] = await db.select().from(users).where(eq(users.id, req.session.userId)).limit(1);
+        if (caller && (caller.orgRole === "org_admin" || caller.orgRole === "super_admin")) {
+          isAdminCreating = true;
+        }
+      }
+
       const passwordHash = bcrypt.hashSync(password.toLowerCase(), 10);
       const [newUser] = await db.insert(users).values({
         teamId,
@@ -288,16 +288,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         passwordHash,
         roleId: memberRole?.id || null,
         orgRole,
-        status: "pending",
+        status: isAdminCreating ? "active" : "pending",
       }).returning();
 
       if (selectedGameId) {
-        await storage.createUserGameAssignment(teamId, newUser.id, selectedGameId, orgRole, selectedRosterId || undefined);
+        const assignment = await storage.createUserGameAssignment(teamId, newUser.id, selectedGameId, orgRole, selectedRosterId || undefined);
+        if (isAdminCreating) {
+          await db.update(userGameAssignments)
+            .set({ status: "approved", approvalGameStatus: "approved", approvalOrgStatus: "approved" })
+            .where(eq(userGameAssignments.id, assignment.id));
+        }
       }
 
       const { passwordHash: _, ...safeUser } = newUser;
-      logActivity(null, "register", `User ${displayName} registered as ${selectedRole || "player"} (pending approval)`, "system");
-      res.json({ ...safeUser, message: "Registration successful. Awaiting approval." });
+      if (isAdminCreating) {
+        logActivity(req.session.userId!, "create_user", `Admin created user ${displayName} as ${selectedRole || "player"}`, "system");
+      } else {
+        logActivity(null, "register", `User ${displayName} registered as ${selectedRole || "player"} (pending approval)`, "system");
+      }
+      res.json({ ...safeUser, message: isAdminCreating ? "User created successfully." : "Registration successful. Awaiting approval." });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -1826,14 +1835,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/objects/upload", requireAuth, async (req, res) => {
+  app.post("/api/objects/upload", requireAuth, upload.single("file"), async (req, res) => {
     try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
       const objectStorageService = new ObjectStorageService();
-      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
-      const normalizedPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
-      console.log('[API] /api/objects/upload - uploadURL:', uploadURL);
-      console.log('[API] /api/objects/upload - normalizedPath:', normalizedPath);
-      res.json({ uploadURL, normalizedPath });
+      const path = await objectStorageService.uploadBuffer(req.file.buffer, req.file.mimetype);
+      res.json({ url: path, path });
     } catch (error: any) {
       console.error('Error in POST /api/objects/upload:', error);
       res.status(500).json({ error: error.message || "Internal server error" });
@@ -2670,15 +2679,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (req.file) {
         const objectStorageService = new ObjectStorageService();
-        const uploadURL = await objectStorageService.getObjectEntityUploadURL();
-        const normalizedPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
-        const uploadResponse = await fetch(uploadURL, {
-          method: "PUT",
-          body: req.file.buffer,
-          headers: { "Content-Type": req.file.mimetype },
-        });
-        if (!uploadResponse.ok) throw new Error("File upload failed");
-        attachmentUrl = normalizedPath;
+        const path = await objectStorageService.uploadBuffer(req.file.buffer, req.file.mimetype);
+        attachmentUrl = path;
         attachmentType = req.file.mimetype;
         attachmentName = req.file.originalname;
         attachmentSize = req.file.size;
@@ -2748,8 +2750,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teamId = getTeamId();
       await db.update(users).set({ status: "active" }).where(and(eq(users.id, id), eq(users.teamId, teamId)));
       await db.update(userGameAssignments)
-        .set({ status: "approved" })
+        .set({ status: "approved", approvalGameStatus: "approved", approvalOrgStatus: "approved" })
         .where(and(eq(userGameAssignments.userId, id), eq(userGameAssignments.teamId, teamId), eq(userGameAssignments.status, "pending")));
+
+      const [user] = await db.select().from(users).where(and(eq(users.id, id), eq(users.teamId, teamId))).limit(1);
+      if (user) {
+        const allRolesArr = await db.select().from(roles).where(eq(roles.teamId, teamId));
+        const assignments = await db.select().from(userGameAssignments).where(and(eq(userGameAssignments.userId, id), eq(userGameAssignments.teamId, teamId)));
+        const assignedRole = assignments[0]?.assignedRole || "player";
+        let targetRoleName = "Member";
+        if (assignedRole === "coach_analyst" || assignedRole === "staff") targetRoleName = "Staff";
+        else if (assignedRole === "org_admin" || assignedRole === "management") targetRoleName = "Management";
+        const targetRole = allRolesArr.find(r => r.name === targetRoleName) || allRolesArr.find(r => r.name === "Member");
+        if (targetRole) {
+          await db.update(users).set({ roleId: targetRole.id }).where(eq(users.id, id));
+        }
+      }
+
+      logActivity(req.session.userId!, "approve_user", `Approved user ${user?.username}`, "team");
       res.json({ message: "User approved" });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -2867,12 +2885,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updates: any = {};
       if (name) updates.name = name;
       if (slug) updates.slug = slug.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+      if (iconUrl !== undefined) updates.iconUrl = iconUrl;
       const [updated] = await db.update(supportedGames)
         .set(updates)
         .where(eq(supportedGames.id, req.params.id))
         .returning();
       if (!updated) return res.status(404).json({ message: "Game not found" });
       logActivity(req.session.userId!, "edit_game", `Edited game "${updated.name}"`, "system");
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/supported-games/:id/icon", requireAuth, requireOrgRole("org_admin"), upload.single("file"), async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+      const objectStorageService = new ObjectStorageService();
+      const path = await objectStorageService.uploadBuffer(req.file.buffer, req.file.mimetype);
+      const [updated] = await db.update(supportedGames)
+        .set({ iconUrl: path })
+        .where(eq(supportedGames.id, req.params.id))
+        .returning();
+      if (!updated) return res.status(404).json({ message: "Game not found" });
       res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
