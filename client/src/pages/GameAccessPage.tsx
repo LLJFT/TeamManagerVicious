@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { KeyRound, Plus, Trash2, Search, ChevronDown, ChevronRight } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { KeyRound, Plus, Search, ChevronDown, ChevronRight, Users } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { orgRoleLabels, type OrgRole } from "@shared/schema";
 import type { SupportedGame, Roster } from "@shared/schema";
@@ -19,12 +20,97 @@ interface UserData {
   gameAssignments: { id: string; gameId: string; gameName: string; rosterId?: string; rosterName?: string; status: string }[];
 }
 
+function UserGameRosterCheckboxes({
+  user,
+  allGames,
+  allRostersMap,
+  onToggle,
+  isPending,
+}: {
+  user: UserData;
+  allGames: SupportedGame[];
+  allRostersMap: Record<string, Roster[]>;
+  onToggle: (userId: string, gameId: string, rosterId: string, grant: boolean, assignmentId?: string) => void;
+  isPending: boolean;
+}) {
+  const [expandedGames, setExpandedGames] = useState<Set<string>>(new Set());
+
+  const toggleGame = (gameId: string) => {
+    setExpandedGames(prev => {
+      const next = new Set(prev);
+      if (next.has(gameId)) next.delete(gameId);
+      else next.add(gameId);
+      return next;
+    });
+  };
+
+  const gamesWithRosters = allGames.filter(g => (allRostersMap[g.id] || []).length > 0);
+
+  return (
+    <div className="px-3 pb-3 space-y-1">
+      {gamesWithRosters.map(game => {
+        const gameRosters = allRostersMap[game.id] || [];
+        const isGameExpanded = expandedGames.has(game.id);
+        const assignedCount = user.gameAssignments.filter(a => a.gameId === game.id).length;
+
+        return (
+          <div key={game.id} className="border rounded-md">
+            <button
+              type="button"
+              className="flex items-center gap-2 w-full p-2 text-left hover-elevate rounded-md"
+              onClick={() => toggleGame(game.id)}
+              data-testid={`button-expand-game-${user.id}-${game.id}`}
+            >
+              {isGameExpanded ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />}
+              <span className="text-sm font-medium">{game.name}</span>
+              {assignedCount > 0 && (
+                <Badge variant="secondary" className="text-xs">{assignedCount}/{gameRosters.length}</Badge>
+              )}
+            </button>
+            {isGameExpanded && (
+              <div className="px-4 pb-2 space-y-2">
+                {gameRosters.map(roster => {
+                  const assignment = user.gameAssignments.find(
+                    a => a.gameId === game.id && a.rosterId === roster.id
+                  );
+                  const isChecked = !!assignment;
+
+                  return (
+                    <label
+                      key={roster.id}
+                      className="flex items-center gap-2 cursor-pointer"
+                      data-testid={`checkbox-roster-${user.id}-${game.id}-${roster.id}`}
+                    >
+                      <Checkbox
+                        checked={isChecked}
+                        disabled={isPending}
+                        onCheckedChange={(checked) => {
+                          onToggle(user.id, game.id, roster.id, !!checked, assignment?.id);
+                        }}
+                      />
+                      <span className="text-sm">{roster.name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function GameAccessPage() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [selectedRosterOption, setSelectedRosterOption] = useState<string>("");
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
+
+  const [bulkRole, setBulkRole] = useState<string>("");
+  const [bulkExpandedGames, setBulkExpandedGames] = useState<Set<string>>(new Set());
+  const [bulkSelectedRosters, setBulkSelectedRosters] = useState<Set<string>>(new Set());
 
   const { data: allUsers = [], isLoading: usersLoading } = useQuery<UserData[]>({
     queryKey: ["/api/all-users"],
@@ -69,8 +155,6 @@ export default function GameAccessPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/all-users"] });
-      setSelectedUserId("");
-      setSelectedRosterOption("");
       toast({ title: "Access granted" });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
@@ -87,10 +171,33 @@ export default function GameAccessPage() {
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
+  const bulkAccessMutation = useMutation({
+    mutationFn: async ({ orgRole, assignments }: { orgRole: string; assignments: { gameId: string; rosterId: string }[] }) => {
+      const res = await apiRequest("POST", "/api/game-assignments/bulk", { orgRole, assignments });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/all-users"] });
+      setBulkSelectedRosters(new Set());
+      toast({ title: `Access granted to ${data.users} user(s), ${data.created} new assignment(s)` });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
   const handleAddAccess = () => {
     if (!selectedUserId || !selectedRosterOption) return;
     const [gameId, rosterId] = selectedRosterOption.split(":");
     addAccessMutation.mutate({ userId: selectedUserId, gameId, rosterId });
+    setSelectedUserId("");
+    setSelectedRosterOption("");
+  };
+
+  const handleToggleRoster = (userId: string, gameId: string, rosterId: string, grant: boolean, assignmentId?: string) => {
+    if (grant) {
+      addAccessMutation.mutate({ userId, gameId, rosterId });
+    } else if (assignmentId) {
+      removeAccessMutation.mutate(assignmentId);
+    }
   };
 
   const toggleExpand = (userId: string) => {
@@ -101,6 +208,35 @@ export default function GameAccessPage() {
       return next;
     });
   };
+
+  const toggleBulkGame = (gameId: string) => {
+    setBulkExpandedGames(prev => {
+      const next = new Set(prev);
+      if (next.has(gameId)) next.delete(gameId);
+      else next.add(gameId);
+      return next;
+    });
+  };
+
+  const toggleBulkRoster = (key: string) => {
+    setBulkSelectedRosters(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const handleBulkGrant = () => {
+    if (!bulkRole || bulkSelectedRosters.size === 0) return;
+    const assignments = Array.from(bulkSelectedRosters).map(key => {
+      const [gameId, rosterId] = key.split(":");
+      return { gameId, rosterId };
+    });
+    bulkAccessMutation.mutate({ orgRole: bulkRole, assignments });
+  };
+
+  const gamesWithRosters = allGames.filter(g => (allRostersMap[g.id] || []).length > 0);
 
   if (usersLoading) {
     return <div className="p-6"><p className="text-muted-foreground">Loading...</p></div>;
@@ -157,6 +293,83 @@ export default function GameAccessPage() {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader className="pb-3 gap-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Grant Access by Role
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1 max-w-xs">
+            <label className="text-xs text-muted-foreground">Role</label>
+            <Select value={bulkRole} onValueChange={setBulkRole}>
+              <SelectTrigger data-testid="select-bulk-role">
+                <SelectValue placeholder="Select role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="org_admin">Management</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {bulkRole && (
+            <>
+              <p className="text-xs text-muted-foreground">Select rosters to grant access to all {orgRoleLabels[bulkRole as OrgRole] || bulkRole} users:</p>
+              <div className="space-y-1">
+                {gamesWithRosters.map(game => {
+                  const gameRosters = allRostersMap[game.id] || [];
+                  const isBulkExpanded = bulkExpandedGames.has(game.id);
+                  const selectedCount = gameRosters.filter(r => bulkSelectedRosters.has(`${game.id}:${r.id}`)).length;
+
+                  return (
+                    <div key={game.id} className="border rounded-md">
+                      <button
+                        type="button"
+                        className="flex items-center gap-2 w-full p-2 text-left hover-elevate rounded-md"
+                        onClick={() => toggleBulkGame(game.id)}
+                        data-testid={`button-bulk-expand-game-${game.id}`}
+                      >
+                        {isBulkExpanded ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />}
+                        <span className="text-sm font-medium">{game.name}</span>
+                        {selectedCount > 0 && (
+                          <Badge variant="secondary" className="text-xs">{selectedCount} selected</Badge>
+                        )}
+                      </button>
+                      {isBulkExpanded && (
+                        <div className="px-4 pb-2 space-y-2">
+                          {gameRosters.map(roster => {
+                            const key = `${game.id}:${roster.id}`;
+                            return (
+                              <label key={roster.id} className="flex items-center gap-2 cursor-pointer" data-testid={`checkbox-bulk-roster-${game.id}-${roster.id}`}>
+                                <Checkbox
+                                  checked={bulkSelectedRosters.has(key)}
+                                  onCheckedChange={() => toggleBulkRoster(key)}
+                                />
+                                <span className="text-sm">{roster.name}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <Button
+                onClick={handleBulkGrant}
+                disabled={bulkSelectedRosters.size === 0 || bulkAccessMutation.isPending}
+                data-testid="button-bulk-grant-access"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Grant Access
+              </Button>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
       <div className="flex items-center gap-2">
         <Search className="h-4 w-4 text-muted-foreground" />
         <Input
@@ -169,8 +382,9 @@ export default function GameAccessPage() {
       </div>
 
       <div className="space-y-1">
-        {filteredUsers.filter(u => u.gameAssignments.length > 0).map(user => {
+        {filteredUsers.map(user => {
           const isExpanded = expandedUsers.has(user.id);
+          const assignmentCount = user.gameAssignments.length;
           return (
             <Card key={user.id}>
               <CardContent className="p-0">
@@ -184,29 +398,19 @@ export default function GameAccessPage() {
                     {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                     <span className="font-medium" data-testid={`text-access-user-${user.id}`}>{user.username}</span>
                     <Badge variant="outline" className="text-xs">{orgRoleLabels[user.orgRole as OrgRole] || user.orgRole}</Badge>
-                    <span className="text-xs text-muted-foreground">{user.gameAssignments.length} assignment(s)</span>
+                    {assignmentCount > 0 && (
+                      <span className="text-xs text-muted-foreground">{assignmentCount} assignment(s)</span>
+                    )}
                   </div>
                 </button>
                 {isExpanded && (
-                  <div className="px-3 pb-3 space-y-1">
-                    {user.gameAssignments.map(a => (
-                      <div key={a.id} className="flex items-center justify-between gap-2 p-2 rounded border" data-testid={`row-access-${a.id}`}>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm">{a.gameName}</span>
-                          {a.rosterName && <Badge variant="secondary" className="text-xs">{a.rosterName}</Badge>}
-                          <Badge variant={a.status === "approved" ? "default" : "secondary"} className="text-xs">{a.status}</Badge>
-                        </div>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={(e) => { e.stopPropagation(); if (confirm("Remove this access?")) removeAccessMutation.mutate(a.id); }}
-                          data-testid={`button-remove-access-${a.id}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
+                  <UserGameRosterCheckboxes
+                    user={user}
+                    allGames={allGames}
+                    allRostersMap={allRostersMap}
+                    onToggle={handleToggleRoster}
+                    isPending={addAccessMutation.isPending || removeAccessMutation.isPending}
+                  />
                 )}
               </CardContent>
             </Card>

@@ -12,6 +12,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { EventDialog } from "@/components/EventDialog";
 import { SimpleToast } from "@/components/SimpleToast";
 import { useAuth } from "@/hooks/use-auth";
+import { useGame } from "@/hooks/use-game";
 import { AccessDenied } from "@/components/AccessDenied";
 
 interface CustomCalendarProps {
@@ -151,6 +152,7 @@ function CustomCalendar({ selectedDate, onSelectDate, eventsByDate, offDaysByDat
 
 export default function Events() {
   const { hasPermission } = useAuth();
+  const { fullSlug } = useGame();
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [showEventDialog, setShowEventDialog] = useState(false);
   const [eventToEdit, setEventToEdit] = useState<Event | undefined>(undefined);
@@ -425,7 +427,7 @@ export default function Events() {
                       </div>
                       <div className="flex gap-1">
                         {hasPermission("view_results") && (
-                        <Link href={`/events/${event.id}`}>
+                        <Link href={`/${fullSlug}/events/${event.id}`}>
                           <Button
                             variant="ghost"
                             size="icon"

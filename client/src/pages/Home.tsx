@@ -24,7 +24,7 @@ interface StaffMember {
 export default function Home() {
   const { toast } = useToast();
   const { user, hasPermission } = useAuth();
-  const { currentGame } = useGame();
+  const { currentGame, gameId, rosterId } = useGame();
   const currentDate = format(new Date(), "MMM dd");
   const gameName = currentGame?.name || "Team";
   const { data: orgNameSetting } = useQuery<string | null>({
@@ -37,11 +37,11 @@ export default function Home() {
   const linkedPlayerId = user?.playerId || null;
 
   const { data: players = [], isLoading: playersLoading } = useQuery<Player[]>({
-    queryKey: ["/api/players"],
+    queryKey: ["/api/players", { gameId, rosterId }],
   });
 
   const { data: staffMembers = [] } = useQuery<StaffMember[]>({
-    queryKey: ["/api/staff"],
+    queryKey: ["/api/staff", { gameId, rosterId }],
   });
 
   const linkedStaffId = useMemo(() => {
@@ -51,19 +51,19 @@ export default function Home() {
   }, [user, staffMembers, canEditOwn]);
 
   const { data: playerAvailabilities = [] } = useQuery<PlayerAvailabilityRecord[]>({
-    queryKey: ["/api/player-availability"],
+    queryKey: ["/api/player-availability", { gameId, rosterId }],
   });
 
   const { data: staffAvailabilities = [] } = useQuery<StaffAvailabilityRecord[]>({
-    queryKey: ["/api/staff-availability"],
+    queryKey: ["/api/staff-availability", { gameId, rosterId }],
   });
 
   const { data: availabilitySlots = [] } = useQuery<AvailabilitySlot[]>({
-    queryKey: ["/api/availability-slots"],
+    queryKey: ["/api/availability-slots", { gameId, rosterId }],
   });
 
   const { data: rosterRoles = [] } = useQuery<RosterRole[]>({
-    queryKey: ["/api/roster-roles"],
+    queryKey: ["/api/roster-roles", { gameId, rosterId }],
   });
 
   const scheduleData: PlayerAvailability[] = players.map(player => {

@@ -10,6 +10,13 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { orgRoleLabels, type OrgRole } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 
+interface PlatformRole {
+  id: string;
+  name: string;
+  permissions: string[];
+  isSystem?: boolean;
+}
+
 interface UserData {
   id: string;
   username: string;
@@ -24,7 +31,9 @@ interface UserData {
 
 export default function UsersPage() {
   const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState<"users" | "permissions">("users");
   const [searchQuery, setSearchQuery] = useState("");
+  const [permSearchQuery, setPermSearchQuery] = useState("");
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newUsername, setNewUsername] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -41,6 +50,21 @@ export default function UsersPage() {
       if (!res.ok) throw new Error("Failed to fetch users");
       return res.json();
     },
+  });
+
+  const { data: platformRoles = [] } = useQuery<PlatformRole[]>({
+    queryKey: ["/api/platform-roles"],
+  });
+
+  const assignRoleMutation = useMutation({
+    mutationFn: async ({ userId, roleId }: { userId: string; roleId: string }) => {
+      await apiRequest("PUT", `/api/users/${userId}/role`, { roleId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/all-users"] });
+      toast({ title: "Permission role updated" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
   const filteredUsers = allUsers.filter(u =>
@@ -154,6 +178,11 @@ export default function UsersPage() {
     return <div className="p-6"><p className="text-muted-foreground">Loading users...</p></div>;
   }
 
+  const permFilteredUsers = allUsers.filter(u =>
+    u.username.toLowerCase().includes(permSearchQuery.toLowerCase()) ||
+    (u.displayName || "").toLowerCase().includes(permSearchQuery.toLowerCase())
+  );
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -162,13 +191,93 @@ export default function UsersPage() {
           <h1 className="text-2xl font-bold" data-testid="text-users-title">User Management</h1>
           <Badge variant="secondary">{allUsers.length}</Badge>
         </div>
-        <Button onClick={() => setShowCreateForm(!showCreateForm)} data-testid="button-create-user">
-          <UserPlus className="h-4 w-4 mr-2" />
-          Create Account
-        </Button>
+        {activeTab === "users" && (
+          <Button onClick={() => setShowCreateForm(!showCreateForm)} data-testid="button-create-user">
+            <UserPlus className="h-4 w-4 mr-2" />
+            Create Account
+          </Button>
+        )}
       </div>
 
-      {showCreateForm && (
+      <div className="flex gap-1 border-b">
+        <button
+          type="button"
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === "users" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover-elevate"}`}
+          onClick={() => setActiveTab("users")}
+          data-testid="tab-users"
+        >
+          Users
+        </button>
+        <button
+          type="button"
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === "permissions" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover-elevate"}`}
+          onClick={() => setActiveTab("permissions")}
+          data-testid="tab-manage-permissions"
+        >
+          Manage User Permissions
+        </button>
+      </div>
+
+      {activeTab === "permissions" && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Search className="h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search users..."
+              value={permSearchQuery}
+              onChange={(e) => setPermSearchQuery(e.target.value)}
+              className="max-w-sm"
+              data-testid="input-search-permissions"
+            />
+          </div>
+
+          <div className="space-y-2">
+            {permFilteredUsers.map(user => (
+              <Card key={user.id}>
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between gap-4 flex-wrap">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium" data-testid={`text-perm-username-${user.id}`}>{user.username}</span>
+                        <Badge variant="outline" className="text-xs">
+                          {orgRoleLabels[user.orgRole as OrgRole] || user.orgRole}
+                        </Badge>
+                        {user.role && (
+                          <Badge variant="secondary" className="text-xs" data-testid={`badge-perm-role-${user.id}`}>
+                            {user.role.name}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-muted-foreground whitespace-nowrap">Permission Role:</label>
+                      <Select
+                        value={user.role?.id || "none"}
+                        onValueChange={(value) => {
+                          if (value === "none") return;
+                          assignRoleMutation.mutate({ userId: user.id, roleId: value });
+                        }}
+                      >
+                        <SelectTrigger className="w-[180px]" data-testid={`select-perm-role-${user.id}`}>
+                          <SelectValue placeholder="No role assigned" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none" disabled>No role assigned</SelectItem>
+                          {platformRoles.map(r => (
+                            <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {activeTab === "users" && showCreateForm && (
         <Card>
           <CardHeader className="pb-3 gap-2">
             <CardTitle className="text-base">Create New Account</CardTitle>
@@ -213,7 +322,7 @@ export default function UsersPage() {
         </Card>
       )}
 
-      {tempPasswordUser && (
+      {activeTab === "users" && tempPasswordUser && (
         <Card className="border-primary">
           <CardContent className="pt-4">
             <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -230,6 +339,7 @@ export default function UsersPage() {
         </Card>
       )}
 
+      {activeTab === "users" && (
       <div className="flex items-center gap-2">
         <Search className="h-4 w-4 text-muted-foreground" />
         <Input
@@ -240,7 +350,9 @@ export default function UsersPage() {
           data-testid="input-search-users"
         />
       </div>
+      )}
 
+      {activeTab === "users" && (
       <div className="space-y-2">
         {filteredUsers.map(user => (
           <Card key={user.id}>
@@ -353,6 +465,7 @@ export default function UsersPage() {
           </Card>
         ))}
       </div>
+      )}
     </div>
   );
 }

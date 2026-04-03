@@ -22,7 +22,7 @@ The frontend uses a modern sidebar layout with dark mode support and Shadcn UI c
 ### Core Features
 - **Display Name System**: Automatically generates a unique display name for users based on their selected game and roster, while preserving their original username for login.
 - **Role Management**: Allows for creation, editing, and deletion of roles with fine-grained control over permissions.
-- **User and Game Access Management**: Comprehensive tools for managing users, their roles, and access to specific game rosters.
+- **User and Game Access Management**: Comprehensive tools for managing users, their roles, and access to specific game rosters. Game Access page features per-user game-collapsible roster checkboxes and a "Grant Access by Role" bulk assignment section for Management users. Users page includes a "Manage User Permissions" tab for assigning platform permission roles.
 - **Chat System**: Channel-based messaging with file uploads, @mentions, URL detection, and support for video, audio, and attachments.
 - **Activity Logging**: Detailed activity logs are maintained, with isolation for game-scoped and organization-level actions.
 - **Forgot Password Flow**: Secure process for users to request password resets, managed by administrators.

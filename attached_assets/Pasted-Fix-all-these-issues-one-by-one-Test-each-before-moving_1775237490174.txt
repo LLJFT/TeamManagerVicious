@@ -1,0 +1,28 @@
+Fix all these issues one by one. Test each before moving to the next. Do NOT break existing functionality.
+CRITICAL #1 — Player added to schedule appears in ALL 3 rosters
+When I add a player to the schedule in Dota 2 First Team, the same player appears in Dota 2 Academy and Dota 2 Women schedules too. The Players list is isolated correctly — this bug is only in the schedule. Fix: every schedule entry must be strictly isolated by rosterId. A player added to First Team schedule must NEVER appear in Academy or Women schedules. Check all schedule queries and make sure every single one filters by both gameId AND rosterId.
+
+CRITICAL #2 — Event detail page returns 404
+Clicking “View” on any event shows “404 Page Not Found / Event not found”. The URL format is /dota2/events/{event-id}. Fix the router so event detail pages load correctly. After fixing, verify I can open an event, view it, add games/results, and everything saves correctly isolated per roster.
+
+IMPORTANT #3 — Game Access page: redesign user expand to show games with roster checkboxes
+When I click the expand arrow on a user, instead of showing a flat list of assigned rosters, show it in this structure:
+	∙	Each GAME is shown as a collapsible row
+	∙	Clicking a game expands it to show checkboxes for its roster types: ☐ First Team  ☐ Academy  ☐ Women
+	∙	Checking a box grants that specific roster access, unchecking removes it
+	∙	This way I can manage all rosters per game with checkboxes in one clean view
+
+IMPORTANT #4 — Game Access: add “Grant Access by Role” section
+Add a new section in the Game Access page called “Grant Access by Role”. It works like this:
+	∙	I select a role: Management (only — Player and Staff are granted individually per user)
+	∙	I select specific rosters to grant (checkboxes per game → per roster, same format as above)
+	∙	Click “Grant Access” → all users with that role receive access to the selected rosters
+This is mainly for Management users so I can give all Management users access to specific rosters at once without doing it one by one.
+
+IMPORTANT #5 — Users page: add “Manage User Permissions” section
+In the Home → Users page, add a new sub-section or tab called “Manage User Permissions”. It shows all users in the same list format as the main Users tab. For each user, I can assign or change their User Permission Role (the home-level permission role from the User Permissions tab in Roles). This is separate from their User Role (Player/Staff/Management) — both should be visible per user.
+
+At the end provide:
+✅ Completed — fully done and tested
+⚠️ Partially done — started but not finished
+❌ Not done — not implemented

@@ -2315,6 +2315,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/game-assignments/bulk", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const { orgRole, assignments } = req.body;
+      if (!orgRole || !Array.isArray(assignments) || assignments.length === 0) {
+        return res.status(400).json({ message: "orgRole and assignments array required" });
+      }
+      for (const a of assignments) {
+        if (!a.gameId || !a.rosterId) {
+          return res.status(400).json({ message: "Each assignment must have gameId and rosterId" });
+        }
+      }
+      const targetUsers = await db.select().from(users)
+        .where(and(eq(users.teamId, teamId), eq(users.orgRole, orgRole)));
+      let created = 0;
+      for (const user of targetUsers) {
+        for (const { gameId, rosterId } of assignments) {
+          const existing = await db.select().from(userGameAssignments)
+            .where(and(
+              eq(userGameAssignments.userId, user.id),
+              eq(userGameAssignments.gameId, gameId),
+              eq(userGameAssignments.teamId, teamId),
+              rosterId ? eq(userGameAssignments.rosterId, rosterId) : sql`TRUE`
+            ))
+            .limit(1);
+          if (existing.length === 0) {
+            await db.insert(userGameAssignments).values({
+              teamId,
+              userId: user.id,
+              gameId,
+              rosterId: rosterId || null,
+              assignedRole: "player",
+              status: "approved",
+              approvalGameStatus: "approved",
+              approvalOrgStatus: "approved",
+            });
+            created++;
+          }
+        }
+      }
+      logActivity(req.session.userId!, "bulk_assign_game", `Bulk assigned ${created} access entries for role ${orgRole}`, "team");
+      res.json({ created, users: targetUsers.length });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   app.get("/api/game-assignments/pending", requireAuth, requireOrgRole("org_admin", "game_manager"), async (req, res) => {
     try {
       const gameId = req.query.gameId as string | undefined;

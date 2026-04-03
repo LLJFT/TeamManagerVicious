@@ -1,6 +1,7 @@
 import { useRoute, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useGame } from "@/hooks/use-game";
 import type { Event, EventResult, Game, InsertGame, GameMode, Map as MapType, Player, StatField, PlayerGameStat } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -131,8 +132,9 @@ function GameStatsEditor({ game, players, statFields, onSave, isSaving }: {
 }
 
 export default function EventDetails() {
-  const [, params] = useRoute("/events/:id");
+  const [, params] = useRoute("/:slug/events/:id");
   const eventId = params?.id || "";
+  const { fullSlug } = useGame();
 
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
@@ -532,7 +534,7 @@ export default function EventDetails() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4">
         <div className="text-lg">Event not found</div>
-        <Link href="/events">
+        <Link href={`/${fullSlug}/events`}>
           <Button data-testid="button-back-to-events">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Events
@@ -572,7 +574,7 @@ export default function EventDetails() {
         )}
 
         <div className="flex items-center justify-between">
-          <Link href="/events">
+          <Link href={`/${fullSlug}/events`}>
             <Button variant="outline" data-testid="button-back">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Events
