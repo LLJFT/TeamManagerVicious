@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Plus, Trash2, Save, Upload, Eye, ExternalLink, Gamepad2, Map as MapIcon, BarChart3 } from "lucide-react";
+import { ShareButton } from "@/components/ShareButton";
 import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
@@ -600,6 +601,12 @@ export default function EventDetails() {
                 <Badge variant={getResultBadgeVariant(event.result)} data-testid="badge-event-result">
                   {getResultText(event.result)}
                 </Badge>
+              )}
+              {event.result && event.result !== "pending" && (
+                <ShareButton
+                  title={`${event.title} - Result`}
+                  text={`${event.title}${event.opponentName ? ` vs ${event.opponentName}` : ""} - ${getResultText(event.result).toUpperCase()}${event.score ? ` (${event.score})` : ""} | ${format(new Date(event.date), "MMM dd, yyyy")}`}
+                />
               )}
             </div>
             {event.description && (

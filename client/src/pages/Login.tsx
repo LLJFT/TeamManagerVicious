@@ -33,7 +33,7 @@ export default function Login() {
   });
 
   const { data: allRostersMap = {} } = useQuery<Record<string, Roster[]>>({
-    queryKey: ["/api/all-rosters"],
+    queryKey: ["/api/public-rosters"],
     enabled: mode === "register",
   });
 
@@ -340,7 +340,8 @@ export default function Login() {
                 loading ||
                 !username.trim() ||
                 !password.trim() ||
-                (mode === "register" && needsGameSelection && selectedGames.length === 0)
+                (mode === "register" && needsGameSelection && selectedGames.length === 0) ||
+                (mode === "register" && needsGameSelection && selectedGames.length > 0 && selectedGameRosters.length > 0 && !selectedRosterId)
               }
               data-testid="button-auth-submit"
             >

@@ -59,13 +59,22 @@ function GameRoutes({ slug }: { slug: string }) {
 }
 
 function GameAccessGate({ slug }: { slug: string }) {
-  const { hasGameAccess } = useAuth();
-  const { currentGame } = useGame();
+  const { hasGameAccess, hasRosterAccess, user } = useAuth();
+  const { currentGame, currentRoster, rosterId } = useGame();
   const [, navigate] = useLocation();
 
-  if (currentGame && !hasGameAccess(currentGame.id)) {
-    navigate("/", { replace: true });
-    return null;
+  if (currentGame) {
+    if (user?.orgRole === "super_admin") {
+      return <GameRoutes slug={slug} />;
+    }
+    if (!hasGameAccess(currentGame.id)) {
+      navigate("/", { replace: true });
+      return null;
+    }
+    if (rosterId && !hasRosterAccess(currentGame.id, rosterId)) {
+      navigate("/", { replace: true });
+      return null;
+    }
   }
 
   return <GameRoutes slug={slug} />;

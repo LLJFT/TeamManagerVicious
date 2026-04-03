@@ -9,6 +9,7 @@ import { Calendar, Trophy, Eye } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useGame } from "@/hooks/use-game";
 import { AccessDenied } from "@/components/AccessDenied";
+import { ShareButton } from "@/components/ShareButton";
 
 export default function EventsResults() {
   const { hasPermission } = useAuth();
@@ -238,16 +239,24 @@ export default function EventsResults() {
                             </p>
                           )}
                         </div>
-                        <Link href={`/${fullSlug}/events/${event.id}`}>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            data-testid={`button-view-${event.id}`}
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            View
-                          </Button>
-                        </Link>
+                        <div className="flex flex-col gap-1">
+                          <Link href={`/${fullSlug}/events/${event.id}`}>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              data-testid={`button-view-${event.id}`}
+                            >
+                              <Eye className="h-4 w-4 mr-2" />
+                              View
+                            </Button>
+                          </Link>
+                          {event.result && event.result !== "pending" && (
+                            <ShareButton
+                              title={`${event.title} - Result`}
+                              text={`${event.title}${event.opponentName ? ` vs ${event.opponentName}` : ""} - ${getResultText(event.result).toUpperCase()}${event.score ? ` (${event.score})` : ""} | ${format(parseISO(event.date), "MMM dd, yyyy")}`}
+                            />
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}

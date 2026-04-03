@@ -22,13 +22,53 @@ import {
   type UserWithRole,
   GAME_ABBREVIATIONS,
 } from "@shared/schema";
-import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import multer from "multer";
+import path from "path";
+import fs from "fs";
+import { randomUUID } from "crypto";
 
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
-});
+const UPLOAD_DIR = path.join(process.cwd(), "uploads");
+for (const sub of ["logos", "game-icons", "chat", "general"]) {
+  fs.mkdirSync(path.join(UPLOAD_DIR, sub), { recursive: true });
+}
+
+const ALLOWED_EXTENSIONS = new Set([
+  ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".ico", ".svg",
+  ".mp4", ".mov", ".webm", ".avi",
+  ".mp3", ".m4a", ".ogg", ".wav", ".aac", ".opus",
+  ".pdf", ".zip", ".rar", ".7z", ".doc", ".docx", ".xls", ".xlsx", ".txt", ".csv",
+]);
+
+const BLOCKED_EXTENSIONS = new Set([".html", ".htm", ".js", ".mjs", ".ts", ".php", ".asp", ".aspx", ".jsp", ".exe", ".bat", ".cmd", ".sh"]);
+
+function createDiskUpload(subfolder: string) {
+  return multer({
+    storage: multer.diskStorage({
+      destination: (_req, _file, cb) => {
+        const dir = path.join(UPLOAD_DIR, subfolder);
+        fs.mkdirSync(dir, { recursive: true });
+        cb(null, dir);
+      },
+      filename: (_req, file, cb) => {
+        const ext = path.extname(file.originalname).toLowerCase() || "";
+        cb(null, `${randomUUID()}${ext}`);
+      },
+    }),
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      if (BLOCKED_EXTENSIONS.has(ext)) {
+        return cb(new Error(`File type ${ext} is not allowed`));
+      }
+      cb(null, true);
+    },
+  });
+}
+
+const uploadGeneral = createDiskUpload("general");
+const uploadLogo = createDiskUpload("logos");
+const uploadGameIcon = createDiskUpload("game-icons");
+const uploadChat = createDiskUpload("chat");
 
 function getGameId(req: any): string | null {
   return (req.query.gameId as string) || null;
@@ -133,23 +173,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     app.use(path, requireGameAccess);
   }
 
-  // ==================== FILE UPLOAD (Object Storage) ====================
-  app.post("/api/upload", requireAuth, requirePermission("send_messages"), upload.single("file"), async (req, res) => {
+  // ==================== FILE UPLOAD (Local Filesystem) ====================
+  app.post("/api/upload", requireAuth, requirePermission("send_messages"), uploadChat.single("file"), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
       }
-      const objectStorageService = new ObjectStorageService();
-      const path = await objectStorageService.uploadBuffer(req.file.buffer, req.file.mimetype);
-
+      const filePath = `/uploads/chat/${req.file.filename}`;
       res.json({
-        url: path,
+        url: filePath,
         originalName: req.file.originalname,
         mimeType: req.file.mimetype,
         size: req.file.size,
       });
     } catch (error: any) {
       console.error("Upload error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/upload/logo", requireAuth, requireOrgRole("org_admin"), uploadLogo.single("file"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+      const filePath = `/uploads/logos/${req.file.filename}`;
+      res.json({ url: filePath, path: filePath });
+    } catch (error: any) {
+      console.error("Logo upload error:", error);
       res.status(500).json({ message: error.message });
     }
   });
@@ -223,7 +274,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let selectedGameId: string | null = null;
       let selectedRosterId: string | null = null;
 
-      if (selectedRole !== "management" && selectedGames && Array.isArray(selectedGames) && selectedGames.length > 0) {
+      const needsGame = selectedRole !== "management" && selectedRole !== "org_admin";
+      if (needsGame && (!selectedGames || !Array.isArray(selectedGames) || selectedGames.length === 0)) {
+        return res.status(400).json({ message: "Game selection required for players and staff" });
+      }
+
+      if (needsGame && selectedGames && Array.isArray(selectedGames) && selectedGames.length > 0) {
         selectedGameId = selectedGames[0];
         const [game] = await db.select().from(supportedGames).where(eq(supportedGames.id, selectedGameId!)).limit(1);
         if (game) {
@@ -259,6 +315,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
         }
+      }
+
+      if (needsGame && selectedGameId && !selectedRosterId) {
+        return res.status(400).json({ message: "Roster selection required" });
       }
 
       const [existing] = await db.select().from(users)
@@ -1835,31 +1895,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/objects/upload", requireAuth, upload.single("file"), async (req, res) => {
+  app.post("/api/objects/upload", requireAuth, uploadGeneral.single("file"), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
       }
-      const objectStorageService = new ObjectStorageService();
-      const path = await objectStorageService.uploadBuffer(req.file.buffer, req.file.mimetype);
-      res.json({ url: path, path });
+      const filePath = `/uploads/general/${req.file.filename}`;
+      res.json({ url: filePath, path: filePath });
     } catch (error: any) {
       console.error('Error in POST /api/objects/upload:', error);
       res.status(500).json({ error: error.message || "Internal server error" });
-    }
-  });
-
-  app.get("/objects/:objectPath(*)", async (req, res) => {
-    const objectStorageService = new ObjectStorageService();
-    try {
-      const objectFile = await objectStorageService.getObjectEntityFile(req.path);
-      objectStorageService.downloadObject(objectFile, res);
-    } catch (error) {
-      console.error("Error accessing object:", error);
-      if (error instanceof ObjectNotFoundError) {
-        return res.sendStatus(404);
-      }
-      return res.sendStatus(500);
     }
   });
 
@@ -2427,6 +2472,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/public-rosters", async (_req, res) => {
+    try {
+      const teamId = getTeamId();
+      const allGamesList = await db.select().from(supportedGames);
+      const result: Record<string, any[]> = {};
+      for (const game of allGamesList) {
+        const gameRosters = await db.select().from(rosters)
+          .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, game.id)));
+        if (gameRosters.length > 0) {
+          result[game.id] = gameRosters.map(r => ({ id: r.id, name: r.name, slug: r.slug }));
+        }
+      }
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // ==================== ALL ROSTERS (for home page) ====================
   app.get("/api/all-rosters", requireAuth, async (req, res) => {
     try {
@@ -2661,7 +2724,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/org-chat/messages", requireAuth, requireOrgRole("org_admin", "game_manager"), upload.single("file"), async (req, res) => {
+  app.post("/api/org-chat/messages", requireAuth, requireOrgRole("org_admin", "game_manager"), uploadChat.single("file"), async (req, res) => {
     try {
       const teamId = getTeamId();
       const content = req.body.content || req.body.message || "";
@@ -2678,9 +2741,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let attachmentSize: number | null = null;
 
       if (req.file) {
-        const objectStorageService = new ObjectStorageService();
-        const path = await objectStorageService.uploadBuffer(req.file.buffer, req.file.mimetype);
-        attachmentUrl = path;
+        attachmentUrl = `/uploads/chat/${req.file.filename}`;
         attachmentType = req.file.mimetype;
         attachmentName = req.file.originalname;
         attachmentSize = req.file.size;
@@ -2898,13 +2959,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/supported-games/:id/icon", requireAuth, requireOrgRole("org_admin"), upload.single("file"), async (req, res) => {
+  app.post("/api/supported-games/:id/icon", requireAuth, requireOrgRole("org_admin"), uploadGameIcon.single("file"), async (req, res) => {
     try {
       if (!req.file) return res.status(400).json({ message: "No file uploaded" });
-      const objectStorageService = new ObjectStorageService();
-      const path = await objectStorageService.uploadBuffer(req.file.buffer, req.file.mimetype);
+      const filePath = `/uploads/game-icons/${req.file.filename}`;
       const [updated] = await db.update(supportedGames)
-        .set({ iconUrl: path })
+        .set({ iconUrl: filePath })
         .where(eq(supportedGames.id, req.params.id))
         .returning();
       if (!updated) return res.status(404).json({ message: "Game not found" });
@@ -2976,7 +3036,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/platform-roles", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
     try {
       const teamId = getTeamId();
-      const allRoles = await db.select().from(roles).where(eq(roles.teamId, teamId));
+      const allRoles = await db.select().from(roles).where(and(eq(roles.teamId, teamId), isNull(roles.gameId)));
       res.json(allRoles);
     } catch (error: any) {
       res.status(500).json({ message: error.message });

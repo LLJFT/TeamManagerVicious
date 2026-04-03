@@ -5,8 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { KeyRound, Plus, Trash2, Search } from "lucide-react";
+import { KeyRound, Plus, Trash2, Search, ChevronDown, ChevronRight } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { orgRoleLabels, type OrgRole } from "@shared/schema";
 import type { SupportedGame, Roster } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 
@@ -23,6 +24,7 @@ export default function GameAccessPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [selectedRosterOption, setSelectedRosterOption] = useState<string>("");
+  const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
 
   const { data: allUsers = [], isLoading: usersLoading } = useQuery<UserData[]>({
     queryKey: ["/api/all-users"],
@@ -91,6 +93,15 @@ export default function GameAccessPage() {
     addAccessMutation.mutate({ userId: selectedUserId, gameId, rosterId });
   };
 
+  const toggleExpand = (userId: string) => {
+    setExpandedUsers(prev => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  };
+
   if (usersLoading) {
     return <div className="p-6"><p className="text-muted-foreground">Loading...</p></div>;
   }
@@ -157,36 +168,50 @@ export default function GameAccessPage() {
         />
       </div>
 
-      <div className="space-y-2">
-        {filteredUsers.filter(u => u.gameAssignments.length > 0).map(user => (
-          <Card key={user.id}>
-            <CardContent className="pt-4">
-              <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
-                <span className="font-medium" data-testid={`text-access-user-${user.id}`}>{user.username}</span>
-                <Badge variant="outline" className="text-xs">{user.orgRole}</Badge>
-              </div>
-              <div className="space-y-1">
-                {user.gameAssignments.map(a => (
-                  <div key={a.id} className="flex items-center justify-between gap-2 p-2 rounded border" data-testid={`row-access-${a.id}`}>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm">{a.gameName}</span>
-                      {a.rosterName && <Badge variant="secondary" className="text-xs">{a.rosterName}</Badge>}
-                      <Badge variant={a.status === "approved" ? "default" : "secondary"} className="text-xs">{a.status}</Badge>
-                    </div>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => { if (confirm("Remove this access?")) removeAccessMutation.mutate(a.id); }}
-                      data-testid={`button-remove-access-${a.id}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+      <div className="space-y-1">
+        {filteredUsers.filter(u => u.gameAssignments.length > 0).map(user => {
+          const isExpanded = expandedUsers.has(user.id);
+          return (
+            <Card key={user.id}>
+              <CardContent className="p-0">
+                <button
+                  type="button"
+                  className="flex items-center justify-between gap-3 w-full p-3 text-left hover-elevate rounded-md"
+                  onClick={() => toggleExpand(user.id)}
+                  data-testid={`button-expand-user-${user.id}`}
+                >
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                    <span className="font-medium" data-testid={`text-access-user-${user.id}`}>{user.username}</span>
+                    <Badge variant="outline" className="text-xs">{orgRoleLabels[user.orgRole as OrgRole] || user.orgRole}</Badge>
+                    <span className="text-xs text-muted-foreground">{user.gameAssignments.length} assignment(s)</span>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+                </button>
+                {isExpanded && (
+                  <div className="px-3 pb-3 space-y-1">
+                    {user.gameAssignments.map(a => (
+                      <div key={a.id} className="flex items-center justify-between gap-2 p-2 rounded border" data-testid={`row-access-${a.id}`}>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm">{a.gameName}</span>
+                          {a.rosterName && <Badge variant="secondary" className="text-xs">{a.rosterName}</Badge>}
+                          <Badge variant={a.status === "approved" ? "default" : "secondary"} className="text-xs">{a.status}</Badge>
+                        </div>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={(e) => { e.stopPropagation(); if (confirm("Remove this access?")) removeAccessMutation.mutate(a.id); }}
+                          data-testid={`button-remove-access-${a.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
     </div>
   );

@@ -1,0 +1,116 @@
+Fix all these issues one by one. Do NOT move to the next item until the current one is fully working and tested. Do NOT break any existing functionality.
+At the end of the session provide:
+✅ Completed — fully implemented and tested
+⚠️ Partially done — started but not finished
+❌ Not done — not implemented at all
+
+CRITICAL #1 — All file uploads are broken ("Error code undefined")
+Every single upload on the platform fails with "Error code undefined":
+
+Organization logo upload in Settings
+Game icon upload in Settings
+Chat file attachments in Management Chat
+Chat file attachments in all in-game chats
+
+Root cause: Replit Object Storage is not working. The signed URL / Object Storage approach is completely broken.
+Fix: Stop using Replit Object Storage entirely. Instead:
+
+Create a /uploads folder on the server filesystem
+Use multer with diskStorage to save files directly to /uploads/[subfolder]/[filename]
+Serve the /uploads folder as static files (e.g. app.use('/uploads', express.static('uploads')))
+Save the file path (e.g. /uploads/logos/filename.png) to the database
+Use that path everywhere the file needs to be displayed
+
+Apply this to ALL upload points:
+
+Org logo → save to /uploads/logos/
+Game icons → save to /uploads/game-icons/
+Chat files (images, video, audio, voice messages) → save to /uploads/chat/
+
+After fixing, test each one: upload a PNG logo → verify it replaces the shield and persists after refresh. Upload a game icon → verify it shows on the games grid. Send an image in chat → verify it displays and loads correctly.
+
+CRITICAL #2 — Roster URL access bypass
+A user who only has access to "Dota 2 First Team" can access "Dota 2 Academy" by manually typing /dota2_academy in the browser URL bar. The server lets them in even though they have no assignment for that roster.
+Fix:
+
+In the server-side route middleware (requireGameAccess or equivalent), check BOTH gameId AND rosterId against the user's approved assignments
+If the user has no approved assignment for the exact roster they're trying to access → return 403 and redirect to home
+This must work for ALL roster URLs: /dota2, /dota2_academy, /dota2_women, and every other game/roster
+
+Also fix role bleed: A user's in-game role (e.g. Member in Dota 2 First Team) must NOT carry over to Dota 2 Academy or any other roster. Roles are per-assignment, not per-game.
+After fixing, test: log in as a user who only has Dota 2 First Team access → manually type /dota2_academy → must be redirected to home with access denied.
+
+CRITICAL #3 — Registration doesn't ask which roster to join
+When a new user registers and selects a game (e.g. Dota 2), they are NOT asked which roster they want to join. After approving them, the system doesn't know which roster they applied for.
+Fix:
+
+After the user selects a game in the registration form, immediately show the available roster types for that game as a second selection (e.g. First Team / Academy / Women)
+The user must select one roster
+The registration request must be stored with both gameId AND rosterId
+The pending request must appear ONLY in the dashboard of that specific roster (not all rosters of the game)
+After approval, the user gets access to that specific roster only
+
+
+IMPORTANT #4 — Game Access page: make users collapsible
+Currently in the Game Access page, every user shows all their game assignments expanded at all times. With many users this is a very long messy list.
+Fix:
+
+Each user row should be collapsed by default showing only their name and role
+Clicking the row (or an expand arrow) opens it to show their current game assignments with remove buttons
+The "Grant Access" section at the top stays as-is
+This makes the page much easier to manage
+
+
+IMPORTANT #5 — Game Access page: replace "coach_analyst" with "Staff"
+Everywhere the text "coach_analyst" appears in the Game Access page (and anywhere else in the UI), replace it with "Staff". Do a global search for "coach_analyst" in all frontend display strings and replace.
+
+IMPORTANT #6 — Roles page: split into 2 clearly separated tabs
+The current Roles page mixes everything together. This is confusing. Split it into exactly 2 tabs:
+
+Tab 1: "User Roles"
+This controls what TYPE of user someone is. These are the roles users can register with.
+
+The roles are: Player, Staff, Management
+Remove "Game Manager" entirely from this list and from everywhere in the UI
+From this tab I can: add a new role type, edit its name, delete it
+These are just labels/types — they do NOT control permissions directly
+
+
+Tab 2: "User Permissions"
+This controls what a user can ACCESS on the home platform (not inside games).
+
+These are permission levels like: Member, Management, Super Admin
+On approval, automatically assign:
+
+Player → receives Member home permission
+Staff → receives Member home permission
+Management → receives Management home permission
+
+
+From this tab I can: define exactly what each permission level can do on the home platform. List every home permission individually as a checkbox, for example:
+
+view dashboard
+view calendar
+view upcoming events
+view users tab
+manage users
+view roles tab
+manage roles
+view game access tab
+manage game access
+view chat
+send messages in chat
+view settings
+manage settings (logo, org name, games, etc.)
+view activity log
+
+
+
+
+In-game roster roles (Member, Staff, Admin, Management inside each game roster) — these already exist per-roster but test them and see if they are good. 
+The role dropdown shown when changing a user's role must ONLY show User Permission roles (from Tab 2 above). It must never show Player/Staff/Management or game-specific roles.
+
+At the end provide:
+✅ Completed — fully done and tested
+⚠️ Partially done — started but not finished
+❌ Not done — not implemented

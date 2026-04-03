@@ -271,6 +271,7 @@ export default function SettingsPage() {
             )}
             <div className="space-y-2">
               <ObjectUploader
+                uploadUrl="/api/upload/logo"
                 accept="image/*"
                 onUploaded={(result) => {
                   saveLogoMutation.mutate(result.url || result.path);
