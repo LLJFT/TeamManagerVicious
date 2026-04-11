@@ -1,0 +1,62 @@
+Before starting, note that the Statistics By Game Mode / By Map and Opponents Best Modes / Best Maps sections only show data when games have game mode and map selected. So make sure every game result you add has a game mode and map assigned — this is critical for the test data to be useful.
+Now add comprehensive test data across ALL existing rosters in the platform. The goal is to make sure every feature works correctly across all rosters with no data conflicts, and to give new users real examples to learn from when they first open the platform.
+Do this for EVERY roster that exists in the platform (First Team, Academy, Women for each game).
+Step 1 — Dashboard setup for each roster:
+In each roster's Dashboard → Game Config, add:
+
+Game Modes: Game Mode 1, Game Mode 2, Game Mode 3
+Maps per mode: Game Mode 1 → Map 1, Map 2, Map 3 — Game Mode 2 → Map 4, Map 5, Map 6 — Game Mode 3 → Map 7, Map 8, Map 9
+Seasons: Season 1, Season 2
+Roster Roles (player only, no staff): AR, SUB, FLEX
+Stat Fields: Game Mode 1 → Kill, Death, Time — Game Mode 2 → Kill, Death, Plant, Defuse — Game Mode 3 → Kill, Death, Goal
+
+Step 2 — Add players to each roster's Schedule:
+Name players based on their roster using this format:
+
+First Team: [GAME]_A, [GAME]_B, [GAME]_C, [GAME]_D (example for Dota 2: D2_A, D2_B, D2_C, D2_D)
+Academy: [GAME]_AC_A, [GAME]_AC_B, [GAME]_AC_C, [GAME]_AC_D
+Women: [GAME]_W_A, [GAME]_W_B, [GAME]_W_C, [GAME]_W_D
+
+Step 3 — Add opponents:
+Add these opponents: Falcons, Liquid, Vitality, FaZe, Twisted Minds, Virtus Pro, GenG, Karmine Corp, T1, 100 Thieves, G2
+Step 4 — Add events (between March 1, 2026 and April 10, 2026):
+Add 30+ events per roster with realistic scheduling (multiple events per day is fine):
+
+8 Scrim events: some named after the opponent alone, some named "Warmup [Opponent]" when they happen 30-90 minutes before a Tournament event
+8 Tournament events: use progression naming like "RLCS TOP 16 VS [Opponent]", "RLCS Quarter Finals VS [Opponent]", "RLCS Semi Finals VS [Opponent]", "RLCS Grand Finals VS [Opponent]" — then use a different tournament name for the other 4 like "SEL TOP 16 VS [Opponent]", etc.
+4 Meeting events: mix of Vod Review, Roster Meeting, Organization Meeting
+Include some Off Days
+Event times between 15:00 and 02:00
+
+Use the opponents list for opponent names in each event.
+Step 5 — Add game results inside each event (except Meetings):
+Each event must have 5 games recorded. For each game:
+
+Assign a Game Mode AND a Map (this is required — do not skip)
+Mix wins and losses realistically (not all wins, not all losses)
+Upload any placeholder image as scoreboard
+Add any URL as VOD link
+Fill in player statistics for all players (Kill, Death, and the other stat fields)
+
+Step 6 — Add attendance:
+For each event, mark attendance for all players. Mix Present, Late, and Absent realistically — not everyone present every time.
+Step 7 — Verify everything:
+After adding all data, check every single page in every roster and confirm:
+
+Schedule shows all players with availability
+Events list shows all events correctly
+Results show correct scores and outcomes
+Statistics show By Game Mode and By Map data correctly (this requires game mode and map to be set on every game)
+Player Stats show all players with full stats
+History shows all past events
+Compare works with real data including Game Win Rate and Best Modes/Maps
+Opponents show correct data including Best Modes and Best Maps
+Attendance shows correctly per event
+Dashboard attendance and results summaries are accurate
+Home Dashboard shows correct summary across all rosters
+
+If anything is broken during testing, fix it before finishing.
+At the end provide:
+✅ Completed — fully done and verified
+⚠️ Partially done — incomplete
+❌ Not done — skipped
