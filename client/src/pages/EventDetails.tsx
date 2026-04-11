@@ -2,7 +2,7 @@ import { useRoute, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useGame } from "@/hooks/use-game";
-import type { Event, EventResult, Game, InsertGame, GameMode, Map as MapType, Player, StatField, PlayerGameStat } from "@shared/schema";
+import type { Event, EventResult, Game, InsertGame, GameMode, Map as MapType, Player, StatField, PlayerGameStat, Attendance, Staff } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Plus, Trash2, Save, Upload, Eye, ExternalLink, Gamepad2, Map as MapIcon, BarChart3 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Save, Upload, Eye, ExternalLink, Gamepad2, Map as MapIcon, BarChart3, UserCheck, Clock as ClockIcon, UserX } from "lucide-react";
 import { ShareButton } from "@/components/ShareButton";
 import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -134,7 +134,7 @@ function GameStatsEditor({ game, players, statFields, onSave, isSaving }: {
 export default function EventDetails() {
   const [, params] = useRoute("/:slug/events/:id");
   const eventId = params?.id || "";
-  const { fullSlug } = useGame();
+  const { fullSlug, currentGame, currentRoster } = useGame();
 
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
@@ -198,6 +198,46 @@ export default function EventDetails() {
   const { data: allStatFields = [] } = useQuery<StatField[]>({
     queryKey: ["/api/stat-fields"],
   });
+
+  const { data: allStaff = [] } = useQuery<Staff[]>({
+    queryKey: ["/api/staff"],
+  });
+
+  const { data: attendanceRecords = [], isLoading: attendanceLoading } = useQuery<Attendance[]>({
+    queryKey: ["/api/events", eventId, "attendance"],
+    queryFn: async () => {
+      const res = await fetch(`/api/events/${eventId}/attendance`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch attendance");
+      return res.json();
+    },
+    enabled: !!eventId,
+  });
+
+  const updateAttendanceMutation = useMutation({
+    mutationFn: async (data: { playerId?: string; staffId?: string; status: string }) => {
+      const response = await apiRequest("POST", `/api/events/${eventId}/attendance`, data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "attendance"] });
+    },
+    onError: (error: any) => {
+      setToastMessage(error.message || "Failed to update attendance");
+      setToastType("error");
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+    },
+  });
+
+  const getPlayerAttendanceStatus = (playerId: string) => {
+    const record = attendanceRecords.find(a => a.playerId === playerId);
+    return record?.status || null;
+  };
+
+  const getStaffAttendanceStatus = (staffId: string) => {
+    const record = attendanceRecords.find(a => a.staffId === staffId);
+    return record?.status || null;
+  };
 
   const [newGamePlayerStats, setNewGamePlayerStats] = useState<Record<string, Record<string, string>>>({});
   const [editGamePlayerStats, setEditGamePlayerStats] = useState<Record<string, Record<string, string>>>({});
@@ -604,12 +644,17 @@ export default function EventDetails() {
                   {getResultText(event.result)}
                 </Badge>
               )}
-              {event.result && event.result !== "pending" && (
-                <ShareButton
-                  title={`${event.title} - Result`}
-                  text={`${event.title}${event.opponentName ? ` vs ${event.opponentName}` : ""} - ${getResultText(event.result).toUpperCase()}${event.score ? ` (${event.score})` : ""} | ${format(new Date(event.date), "MMM dd, yyyy")}`}
-                />
-              )}
+              {event.result && event.result !== "pending" && (() => {
+                const rosterName = `${currentGame?.name || ""} ${currentRoster?.name || ""}`.trim();
+                const gameWins = games.filter(g => g.result === "win").length;
+                const gameLosses = games.filter(g => g.result === "loss").length;
+                const gameScore = games.length > 0 ? `${gameWins}-${gameLosses}` : (event.score || "");
+                const resultText = getResultText(event.result).toUpperCase();
+                const dateStr = format(new Date(event.date), "MMMM d, yyyy");
+                const eventUrl = `${window.location.origin}/${fullSlug}/events/${event.id}`;
+                const shareText = `${rosterName}${event.opponentName ? ` vs ${event.opponentName}` : ""} - ${gameScore} - ${resultText} | ${dateStr}\n${eventUrl}`;
+                return <ShareButton text={shareText} />;
+              })()}
             </div>
             {event.description && (
               <p className="text-sm text-muted-foreground mt-2" data-testid="text-event-description">
@@ -1012,6 +1057,117 @@ export default function EventDetails() {
                     />
                   );
                 })()}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <UserCheck className="h-5 w-5" />
+              Attendance
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {(allPlayers.length === 0 && allStaff.length === 0) ? (
+              <p className="text-muted-foreground text-sm text-center py-4">No players or staff to track attendance for.</p>
+            ) : (
+              <div className="space-y-4">
+                {allPlayers.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-medium text-muted-foreground mb-2">Players</h4>
+                    <div className="divide-y divide-border rounded-md border">
+                      {allPlayers.map((player) => {
+                        const status = getPlayerAttendanceStatus(player.id);
+                        return (
+                          <div key={player.id} className="flex items-center justify-between p-3" data-testid={`attendance-player-${player.id}`}>
+                            <span className="font-medium text-sm">{player.name}</span>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="sm"
+                                variant={status === "attended" ? "default" : "outline"}
+                                onClick={() => updateAttendanceMutation.mutate({ playerId: player.id, status: "attended" })}
+                                disabled={updateAttendanceMutation.isPending}
+                                data-testid={`button-attendance-present-${player.id}`}
+                              >
+                                <UserCheck className="h-3 w-3 mr-1" />
+                                Present
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant={status === "late" ? "default" : "outline"}
+                                onClick={() => updateAttendanceMutation.mutate({ playerId: player.id, status: "late" })}
+                                disabled={updateAttendanceMutation.isPending}
+                                data-testid={`button-attendance-late-${player.id}`}
+                              >
+                                <ClockIcon className="h-3 w-3 mr-1" />
+                                Late
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant={status === "absent" ? "destructive" : "outline"}
+                                onClick={() => updateAttendanceMutation.mutate({ playerId: player.id, status: "absent" })}
+                                disabled={updateAttendanceMutation.isPending}
+                                data-testid={`button-attendance-absent-${player.id}`}
+                              >
+                                <UserX className="h-3 w-3 mr-1" />
+                                Absent
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                {allStaff.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-medium text-muted-foreground mb-2">Staff</h4>
+                    <div className="divide-y divide-border rounded-md border">
+                      {allStaff.map((member) => {
+                        const status = getStaffAttendanceStatus(member.id);
+                        return (
+                          <div key={member.id} className="flex items-center justify-between p-3" data-testid={`attendance-staff-${member.id}`}>
+                            <span className="font-medium text-sm">{member.name}</span>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="sm"
+                                variant={status === "attended" ? "default" : "outline"}
+                                onClick={() => updateAttendanceMutation.mutate({ staffId: member.id, status: "attended" })}
+                                disabled={updateAttendanceMutation.isPending}
+                                data-testid={`button-attendance-present-staff-${member.id}`}
+                              >
+                                <UserCheck className="h-3 w-3 mr-1" />
+                                Present
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant={status === "late" ? "default" : "outline"}
+                                onClick={() => updateAttendanceMutation.mutate({ staffId: member.id, status: "late" })}
+                                disabled={updateAttendanceMutation.isPending}
+                                data-testid={`button-attendance-late-staff-${member.id}`}
+                              >
+                                <ClockIcon className="h-3 w-3 mr-1" />
+                                Late
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant={status === "absent" ? "destructive" : "outline"}
+                                onClick={() => updateAttendanceMutation.mutate({ staffId: member.id, status: "absent" })}
+                                disabled={updateAttendanceMutation.isPending}
+                                data-testid={`button-attendance-absent-staff-${member.id}`}
+                              >
+                                <UserX className="h-3 w-3 mr-1" />
+                                Absent
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>

@@ -86,6 +86,30 @@ async function runMigrations() {
       await db.execute(sql.raw(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS roster_id VARCHAR REFERENCES rosters(id) ON DELETE SET NULL`));
     }
 
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS event_categories (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        team_id VARCHAR,
+        game_id VARCHAR,
+        roster_id VARCHAR REFERENCES rosters(id) ON DELETE SET NULL,
+        name TEXT NOT NULL,
+        sort_order INTEGER DEFAULT 0
+      )
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS event_sub_types (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        team_id VARCHAR,
+        game_id VARCHAR,
+        roster_id VARCHAR REFERENCES rosters(id) ON DELETE SET NULL,
+        category_id VARCHAR NOT NULL REFERENCES event_categories(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        sort_order INTEGER DEFAULT 0
+      )
+    `);
+    await db.execute(sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS event_sub_type TEXT`);
+    await db.execute(sql`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS staff_id VARCHAR REFERENCES staff(id) ON DELETE SET NULL`);
+
     console.log("[migrations] Schema migrations applied successfully");
   } catch (e: any) {
     console.error("[migrations] Migration error:", e.message);

@@ -26,6 +26,11 @@ The frontend uses a modern sidebar layout with dark mode support and Shadcn UI c
 - **Chat System**: Channel-based messaging with file uploads, @mentions, URL detection, and support for video, audio, and attachments.
 - **Activity Logging**: Detailed activity logs are maintained, with isolation for game-scoped and organization-level actions.
 - **Forgot Password Flow**: Secure process for users to request password resets, managed by administrators.
+- **Manageable Event Type System**: Dynamic event categories and sub-types managed via Dashboard "Event Types" tab. Tables: `event_categories` (parent categories replacing static Tournament/Scrim/VOD Review) and `event_sub_types` (child sub-types per category). EventDialog dynamically uses categories from DB if any exist, falling back to static defaults. API endpoints: `/api/event-categories`, `/api/event-sub-types`.
+- **Attendance Tracking**: Per-event attendance for players and staff with Present/Late/Absent statuses. Tracked in EventDetails page with dedicated attendance card. Backend: `attendance.staffId` field + `GET/POST /api/events/:eventId/attendance`. OrgDashboard shows attendance rates per roster.
+- **Share Button**: Clipboard-only share for event results. Format: `[Roster] vs [Opponent] - [Score] - [RESULT] | [Date]\n[EventURL]`.
+- **In-App Tutorial**: Onboarding guide shown on first visit (localStorage-based). Help button in header re-triggers the guide. Covers Events, Players/Staff, Statistics, Dashboard/Config, Chat, and Sharing.
+- **Data Safety**: No auto-delete or auto-expire logic for user data. Session expiration is standard auth behavior. Object storage cache TTL is caching only.
 
 ### Database Structure
 The database design incorporates core tables for users, games, and rosters, with extensive game-scoped tables (e.g., `players`, `events`, `schedules`) and roster-scoped tables (e.g., `attendance`, `staff_availability`), ensuring data integrity and isolation.

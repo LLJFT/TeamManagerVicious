@@ -34,16 +34,8 @@ export default function Stats() {
     queryKey: ["/api/events"],
   });
 
-  const { data: allGames = [] } = useQuery<Game[]>({
-    queryKey: ["/api/all-games-stats"],
-    queryFn: async () => {
-      const eventsList = await fetch("/api/events").then(r => r.json());
-      const gamesPromises = eventsList.map((e: Event) => 
-        fetch(`/api/events/${e.id}/games`).then(r => r.json())
-      );
-      const allGamesArrays = await Promise.all(gamesPromises);
-      return allGamesArrays.flat();
-    },
+  const { data: allGames = [] } = useQuery<(Game & { eventType?: string })[]>({
+    queryKey: ["/api/games"],
   });
 
   const { data: gameModes = [] } = useQuery<GameMode[]>({

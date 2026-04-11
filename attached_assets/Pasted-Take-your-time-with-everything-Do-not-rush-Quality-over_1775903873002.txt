@@ -1,0 +1,66 @@
+Take your time with everything. Do not rush. Quality over speed. Test every single item yourself before marking it done.
+In this message:
+
+CRITICAL = broken, fix first
+IMPORTANT = missing feature or improvement needed
+
+
+CRITICAL — Statistics page: By Game Mode and By Map show no data
+I added game results with map and game mode information but "By Game Mode" and "By Map" sections show "No data available". Fix this so they correctly read and display data from the game results I've added. Look at how the old single-roster site handles this (it works there) and apply the same logic here.
+CRITICAL — Player Stats page shows no players
+The Player Stats page shows "No players found. Add players first" even though players exist in the roster. Fix this so it correctly loads and displays all players with their statistics, leaderboard, and opponent breakdowns — exactly like the working single-roster site.
+CRITICAL — Compare page: Game Win Rate missing
+The Compare page shows Event Win Rate correctly but Game Win Rate shows 0.0% even when game results exist. Also Best Modes and Best Maps are empty. Fix this to match the working single-roster site behavior.
+CRITICAL — Opponents page: Best Modes and Best Maps show no data
+The Opponents page shows Event Results and Game Results correctly but Best Modes vs opponent and Best Maps vs opponent show "No mode data" and "No map data". Fix this.
+IMPORTANT — Share button: copy to clipboard instead of opening share menu
+Currently pressing Share opens a system share menu. Change this behavior: pressing Share must instantly copy the result text to the clipboard. No share menu, no popup — just copy.
+The copied text format must be exactly:
+[Roster Name] vs [Opponent Name] - [Score] - [WIN/LOSS/DRAW] | [Date]
+[Event URL]
+Where:
+
+Roster Name = the game + roster type, example: "Dota 2 First Team"
+Score = calculated from game results, example: if we won 2 games and they won 1, it's "2-1"
+Event URL = the full direct link to that specific event detail page, example: https://team-manager-vicious.replit.app/dota2/events/[event-id]
+
+Example result:
+Dota 2 First Team vs Falcons - 2-1 - WIN | April 10, 2026
+https://team-manager-vicious.replit.app/dota2/events/137581fe-263d-4190-b6e2-5ecfe08615ec
+IMPORTANT — Event Type system: replace hardcoded types with fully manageable types
+Currently event types (Tournament, Scrim, Vod Review) are hardcoded. Replace this with a fully manageable system:
+Rename the field label from "Event Type" to "Event" when adding an event. Add a second field called "Event Type" that shows sub-types based on the selected Event category.
+Default Event categories and their sub-types:
+
+Scrim → sub-types: Warmup, Practice
+Tournament → sub-types: user-defined (examples: RLCS, SEL, MAJOR — admin adds these)
+Meeting → sub-types: Vod Review, Roster Meeting, Organization Meeting
+
+In the game Dashboard, add a section to fully manage Event categories and their sub-types: add, edit, delete categories and sub-types. These must be per-game so each game can have different tournament names.
+All Analytics filters must update to include the new Event categories and sub-types. The filter dropdowns must show all available categories.
+IMPORTANT — Attendance tracking in events
+Add attendance tracking per event. For each event, I must be able to mark each player and staff member as one of: Present, Late, Absent. This data must:
+
+Show in the event detail page
+Be reflected in player/staff statistics and history
+Be visible in the home Dashboard attendance overview per roster
+
+IMPORTANT — Data safety confirmation
+Verify and confirm that no data can ever be deleted automatically by the system under any circumstances. Data can only be deleted manually by a user with the correct permissions. Nothing should ever auto-delete, auto-expire, or be lost due to inactivity.
+IMPORTANT — In-app tutorial / onboarding instructions
+Add a helpful onboarding guide inside the platform for new users. When someone enters a roster for the first time (no data yet), show a clear step-by-step guide explaining how to use the platform: how to add players, how to create events, how to record results, how to use statistics, etc. Make it look clean and professional — not intrusive. The guide can be dismissed and re-accessed from a Help button.
+IMPORTANT — Home Dashboard improvements
+The home Dashboard must show comprehensive statistics pulled from all rosters. Update it to include:
+
+Attendance summary per roster (Present/Late/Absent rates)
+Win/Loss rate per roster
+Recent results per roster (last 3 events with scores)
+Upcoming events across all rosters
+Any new Event categories added must appear in the Dashboard filters
+
+
+After finishing, provide this summary:
+✅ Completed — fully implemented and tested
+⚠️ Partially done — started but not finished
+❌ Not done — not implemented
+

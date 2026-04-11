@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import type { Event } from "@shared/schema";
+import type { Event, Game } from "@shared/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,9 +13,12 @@ import { ShareButton } from "@/components/ShareButton";
 
 export default function EventsResults() {
   const { hasPermission } = useAuth();
-  const { fullSlug } = useGame();
+  const { fullSlug, currentGame, currentRoster } = useGame();
   const { data: events = [], isLoading } = useQuery<Event[]>({
     queryKey: ["/api/events"],
+  });
+  const { data: allGames = [] } = useQuery<Game[]>({
+    queryKey: ["/api/games"],
   });
 
   const now = new Date();
@@ -250,12 +253,18 @@ export default function EventsResults() {
                               View
                             </Button>
                           </Link>
-                          {event.result && event.result !== "pending" && (
-                            <ShareButton
-                              title={`${event.title} - Result`}
-                              text={`${event.title}${event.opponentName ? ` vs ${event.opponentName}` : ""} - ${getResultText(event.result).toUpperCase()}${event.score ? ` (${event.score})` : ""} | ${format(parseISO(event.date), "MMM dd, yyyy")}`}
-                            />
-                          )}
+                          {event.result && event.result !== "pending" && (() => {
+                            const rosterName = `${currentGame?.name || ""} ${currentRoster?.name || ""}`.trim();
+                            const eventGames = allGames.filter(g => g.eventId === event.id);
+                            const gWins = eventGames.filter(g => g.result === "win").length;
+                            const gLosses = eventGames.filter(g => g.result === "loss").length;
+                            const gameScore = eventGames.length > 0 ? `${gWins}-${gLosses}` : (event.score || "");
+                            const resultText = getResultText(event.result).toUpperCase();
+                            const dateStr = format(parseISO(event.date), "MMMM d, yyyy");
+                            const eventUrl = `${window.location.origin}/${fullSlug}/events/${event.id}`;
+                            const shareText = `${rosterName}${event.opponentName ? ` vs ${event.opponentName}` : ""} - ${gameScore} - ${resultText} | ${dateStr}\n${eventUrl}`;
+                            return <ShareButton text={shareText} />;
+                          })()}
                         </div>
                       </div>
                     </div>

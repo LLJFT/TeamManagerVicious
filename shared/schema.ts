@@ -246,6 +246,7 @@ export const attendance = pgTable("attendance", {
   gameId: varchar("game_id"),
   rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
   playerId: varchar("player_id").references(() => players.id, { onDelete: "set null" }),
+  staffId: varchar("staff_id").references(() => staff.id, { onDelete: "set null" }),
   date: text("date").notNull(),
   eventId: varchar("event_id").references(() => events.id, { onDelete: "set null" }),
   status: text("status").notNull(),
@@ -295,6 +296,31 @@ export const settings = pgTable("settings", {
   index("settings_game_id_idx").on(table.gameId),
 ]);
 
+export const eventCategories = pgTable("event_categories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
+  name: text("name").notNull(),
+  sortOrder: integer("sort_order").default(0),
+}, (table) => [
+  index("event_categories_team_id_idx").on(table.teamId),
+  index("event_categories_game_id_idx").on(table.gameId),
+]);
+
+export const eventSubTypes = pgTable("event_sub_types", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
+  categoryId: varchar("category_id").notNull().references(() => eventCategories.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  sortOrder: integer("sort_order").default(0),
+}, (table) => [
+  index("event_sub_types_team_id_idx").on(table.teamId),
+  index("event_sub_types_game_id_idx").on(table.gameId),
+]);
+
 export const events = pgTable("events", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
@@ -302,6 +328,7 @@ export const events = pgTable("events", {
   rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
   title: text("title").notNull(),
   eventType: text("event_type").notNull(),
+  eventSubType: text("event_sub_type"),
   date: text("date").notNull(),
   time: text("time"),
   description: text("description"),
@@ -720,6 +747,18 @@ export const insertStaffSchema = createInsertSchema(staff).omit({
   gameId: true,
 });
 
+export const insertEventCategorySchema = createInsertSchema(eventCategories).omit({
+  id: true,
+  teamId: true,
+  gameId: true,
+});
+
+export const insertEventSubTypeSchema = createInsertSchema(eventSubTypes).omit({
+  id: true,
+  teamId: true,
+  gameId: true,
+});
+
 export const insertChatChannelSchema = createInsertSchema(chatChannels).omit({
   id: true,
   teamId: true,
@@ -818,6 +857,12 @@ export type PlayerAvailabilityRecord = typeof playerAvailability.$inferSelect;
 export type InsertPlayerAvailability = z.infer<typeof insertPlayerAvailabilitySchema>;
 export type StaffAvailabilityRecord = typeof staffAvailability.$inferSelect;
 export type InsertStaffAvailability = z.infer<typeof insertStaffAvailabilitySchema>;
+
+export type EventCategory = typeof eventCategories.$inferSelect;
+export type InsertEventCategory = z.infer<typeof insertEventCategorySchema>;
+
+export type EventSubType = typeof eventSubTypes.$inferSelect;
+export type InsertEventSubType = z.infer<typeof insertEventSubTypeSchema>;
 
 export type Roster = typeof rosters.$inferSelect;
 export type InsertRoster = z.infer<typeof insertRosterSchema>;

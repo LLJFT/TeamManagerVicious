@@ -29,12 +29,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { eventTypes, insertEventSchema, type Event, type Season } from "@shared/schema";
+import { eventTypes, insertEventSchema, type Event, type Season, type EventCategory, type EventSubType } from "@shared/schema";
 
 const formSchema = insertEventSchema.extend({
   time: z.string().optional(),
   description: z.string().optional(),
   seasonId: z.string().optional(),
+  eventSubType: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -60,11 +61,24 @@ export function EventDialog({
     queryKey: ["/api/seasons"],
   });
 
+  const { data: eventCategories = [] } = useQuery<EventCategory[]>({
+    queryKey: ["/api/event-categories"],
+  });
+
+  const { data: eventSubTypesAll = [] } = useQuery<EventSubType[]>({
+    queryKey: ["/api/event-sub-types"],
+  });
+
+  const allEventTypeOptions = eventCategories.length > 0
+    ? eventCategories.map(c => c.name)
+    : [...eventTypes];
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       title: eventToEdit?.title || "",
-      eventType: eventToEdit?.eventType || "Tournament",
+      eventType: eventToEdit?.eventType || (allEventTypeOptions[0] || "Tournament"),
+      eventSubType: eventToEdit?.eventSubType || "",
       date: eventToEdit?.date || (selectedDate ? format(selectedDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd")),
       time: eventToEdit?.time || "",
       description: eventToEdit?.description || "",
@@ -72,11 +86,18 @@ export function EventDialog({
     },
   });
 
+  const selectedEventType = form.watch("eventType");
+  const selectedCategory = eventCategories.find(c => c.name === selectedEventType);
+  const filteredSubTypes = selectedCategory
+    ? eventSubTypesAll.filter(s => s.categoryId === selectedCategory.id)
+    : [];
+
   useEffect(() => {
     if (eventToEdit) {
       form.reset({
         title: eventToEdit.title,
         eventType: eventToEdit.eventType,
+        eventSubType: eventToEdit.eventSubType || "",
         date: eventToEdit.date,
         time: eventToEdit.time || "",
         description: eventToEdit.description || "",
@@ -92,6 +113,7 @@ export function EventDialog({
       const payload = {
         ...data,
         seasonId: data.seasonId === "" || data.seasonId === "none" ? null : data.seasonId,
+        eventSubType: data.eventSubType === "" || data.eventSubType === "none" ? null : data.eventSubType,
       };
       if (isEditMode && eventToEdit) {
         const response = await apiRequest("PUT", `/api/events/${eventToEdit.id}`, payload);
@@ -133,14 +155,14 @@ export function EventDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Event Type</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <Select onValueChange={(val) => { field.onChange(val); form.setValue("eventSubType", ""); }} value={field.value}>
                     <FormControl>
                       <SelectTrigger data-testid="select-event-type">
                         <SelectValue placeholder="Select event type" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {eventTypes.map((type) => (
+                      {allEventTypeOptions.map((type) => (
                         <SelectItem key={type} value={type}>
                           {type}
                         </SelectItem>
@@ -151,6 +173,34 @@ export function EventDialog({
                 </FormItem>
               )}
             />
+
+            {filteredSubTypes.length > 0 && (
+              <FormField
+                control={form.control}
+                name="eventSubType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Sub Type (optional)</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || "none"}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-event-sub-type">
+                          <SelectValue placeholder="Select sub type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        {filteredSubTypes.map((sub) => (
+                          <SelectItem key={sub.id} value={sub.name}>
+                            {sub.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}

@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import type {
   GameMode, Map as MapType, Season, StatField, Role, Player,
-  AvailabilitySlot, RosterRole, Permission
+  AvailabilitySlot, RosterRole, Permission, EventCategory, EventSubType
 } from "@shared/schema";
 import { allPermissions, permissionCategories } from "@shared/schema";
 import { queryClient, apiRequest, getCurrentGameId, getCurrentRosterId } from "@/lib/queryClient";
@@ -382,6 +382,14 @@ export default function Dashboard() {
   const [selectedModeForMaps, setSelectedModeForMaps] = useState<string | null>(null);
   const [selectedModeForStatFields, setSelectedModeForStatFields] = useState<string | null>(null);
 
+  const [showEventCategoryDialog, setShowEventCategoryDialog] = useState(false);
+  const [editingEventCategory, setEditingEventCategory] = useState<EventCategory | undefined>();
+  const [eventCategoryName, setEventCategoryName] = useState("");
+  const [showEventSubTypeDialog, setShowEventSubTypeDialog] = useState(false);
+  const [editingEventSubType, setEditingEventSubType] = useState<EventSubType | undefined>();
+  const [eventSubTypeName, setEventSubTypeName] = useState("");
+  const [selectedCategoryForSubs, setSelectedCategoryForSubs] = useState<string | null>(null);
+
   const { data: gamePendingAssignments = [] } = useQuery<any[]>({
     queryKey: ["/api/game-assignments/pending"],
     queryFn: async () => {
@@ -457,6 +465,18 @@ export default function Dashboard() {
   const { data: allPlayers = [] } = useQuery<Player[]>({
     queryKey: ["/api/players"],
   });
+
+  const { data: eventCategoriesData = [] } = useQuery<EventCategory[]>({
+    queryKey: ["/api/event-categories"],
+  });
+
+  const { data: eventSubTypesData = [] } = useQuery<EventSubType[]>({
+    queryKey: ["/api/event-sub-types"],
+  });
+
+  const getSubTypesByCategory = (catId: string) => eventSubTypesData.filter(s => s.categoryId === catId);
+  const selectedCat = eventCategoriesData.find(c => c.id === selectedCategoryForSubs);
+  const selectedCatSubs = selectedCategoryForSubs ? getSubTypesByCategory(selectedCategoryForSubs) : [];
 
   const gameModeForm = useForm<GameModeFormData>({
     resolver: zodResolver(gameModeFormSchema),
@@ -903,6 +923,92 @@ export default function Dashboard() {
     onError: (e: any) => showError(e.message || "Failed to delete role"),
   });
 
+  const createEventCategoryMutation = useMutation({
+    mutationFn: async (data: { name: string }) => {
+      const r = await apiRequest("POST", "/api/event-categories", data);
+      return r.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/event-categories"] });
+      setShowEventCategoryDialog(false);
+      setEditingEventCategory(undefined);
+      setEventCategoryName("");
+      showSuccess("Event category created");
+    },
+    onError: (e: any) => showError(e.message || "Failed to create event category"),
+  });
+
+  const updateEventCategoryMutation = useMutation({
+    mutationFn: async (data: { id: string; name: string }) => {
+      const r = await apiRequest("PUT", `/api/event-categories/${data.id}`, { name: data.name });
+      return r.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/event-categories"] });
+      setShowEventCategoryDialog(false);
+      setEditingEventCategory(undefined);
+      setEventCategoryName("");
+      showSuccess("Event category updated");
+    },
+    onError: (e: any) => showError(e.message || "Failed to update event category"),
+  });
+
+  const deleteEventCategoryMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const r = await apiRequest("DELETE", `/api/event-categories/${id}`);
+      return r.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/event-categories"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/event-sub-types"] });
+      if (selectedCategoryForSubs) setSelectedCategoryForSubs(null);
+      showSuccess("Event category deleted");
+    },
+    onError: (e: any) => showError(e.message || "Failed to delete event category"),
+  });
+
+  const createEventSubTypeMutation = useMutation({
+    mutationFn: async (data: { name: string; categoryId: string }) => {
+      const r = await apiRequest("POST", "/api/event-sub-types", data);
+      return r.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/event-sub-types"] });
+      setShowEventSubTypeDialog(false);
+      setEditingEventSubType(undefined);
+      setEventSubTypeName("");
+      showSuccess("Sub type created");
+    },
+    onError: (e: any) => showError(e.message || "Failed to create sub type"),
+  });
+
+  const updateEventSubTypeMutation = useMutation({
+    mutationFn: async (data: { id: string; name: string }) => {
+      const r = await apiRequest("PUT", `/api/event-sub-types/${data.id}`, { name: data.name });
+      return r.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/event-sub-types"] });
+      setShowEventSubTypeDialog(false);
+      setEditingEventSubType(undefined);
+      setEventSubTypeName("");
+      showSuccess("Sub type updated");
+    },
+    onError: (e: any) => showError(e.message || "Failed to update sub type"),
+  });
+
+  const deleteEventSubTypeMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const r = await apiRequest("DELETE", `/api/event-sub-types/${id}`);
+      return r.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/event-sub-types"] });
+      showSuccess("Sub type deleted");
+    },
+    onError: (e: any) => showError(e.message || "Failed to delete sub type"),
+  });
+
   const handleGameModeSubmit = (data: GameModeFormData) => {
     if (editingGameMode) {
       updateGameModeMutation.mutate({ id: editingGameMode.id, gameMode: data });
@@ -979,6 +1085,7 @@ export default function Dashboard() {
     { value: "team", label: "Team", icon: UserCog, show: canViewDashboard },
     { value: "users", label: "Users", icon: Users, show: canManageUsers },
     { value: "roles", label: "Roles", icon: Shield, show: canManageRoles },
+    { value: "event-types", label: "Event Types", icon: Calendar, show: canManageGameConfig },
     { value: "stat-fields", label: "Stat Fields", icon: BarChart3, show: canManageStatFields },
     { value: "activity", label: "Activity", icon: Clock, show: canViewActivityLog },
   ];
@@ -1630,6 +1737,121 @@ export default function Dashboard() {
             </Card>
           </TabsContent>
 
+          {/* Tab: Event Types */}
+          <TabsContent value="event-types">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card className="h-fit">
+                <CardHeader className="pb-4 border-b border-border">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-primary/10">
+                        <Calendar className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-xl">Event Categories</CardTitle>
+                        <CardDescription>{eventCategoriesData.length} configured</CardDescription>
+                      </div>
+                    </div>
+                    <Button onClick={() => { setEditingEventCategory(undefined); setEventCategoryName(""); setShowEventCategoryDialog(true); }} size="sm" className="gap-2" data-testid="button-add-event-category">
+                      <Plus className="h-4 w-4" />
+                      Add
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {eventCategoriesData.length === 0 ? (
+                    <div className="p-8 text-center">
+                      <Calendar className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
+                      <p className="text-muted-foreground text-sm">No event categories configured</p>
+                      <p className="text-muted-foreground text-xs mt-1">Default types (Tournament, Scrim, VOD Review) will be used</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-border">
+                      {eventCategoriesData.map((cat) => {
+                        const catSubs = getSubTypesByCategory(cat.id);
+                        const isSelected = selectedCategoryForSubs === cat.id;
+                        return (
+                          <div
+                            key={cat.id}
+                            className={`flex items-center justify-between p-4 cursor-pointer transition-colors ${isSelected ? "bg-primary/5 border-l-2 border-l-primary" : "hover:bg-muted/50"}`}
+                            onClick={() => setSelectedCategoryForSubs(cat.id)}
+                            data-testid={`row-event-category-${cat.id}`}
+                          >
+                            <div className="flex flex-col">
+                              <span className="font-medium text-foreground" data-testid={`text-category-name-${cat.id}`}>{cat.name}</span>
+                              <span className="text-xs text-muted-foreground">{catSubs.length} {catSubs.length === 1 ? "sub type" : "sub types"}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setEditingEventCategory(cat); setEventCategoryName(cat.name); setShowEventCategoryDialog(true); }} data-testid={`button-edit-category-${cat.id}`}>
+                                <Pencil className="h-4 w-4 text-muted-foreground" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); if (confirm("Delete this category and its sub types?")) deleteEventCategoryMutation.mutate(cat.id); }} data-testid={`button-delete-category-${cat.id}`}>
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                              <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${isSelected ? "rotate-90" : ""}`} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="h-fit">
+                <CardHeader className="pb-4 border-b border-border">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-secondary/10">
+                        <Calendar className="h-5 w-5 text-secondary" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-xl">{selectedCat ? `${selectedCat.name} Sub Types` : "Sub Types"}</CardTitle>
+                        <CardDescription>{selectedCat ? `${selectedCatSubs.length} sub types` : "Select a category"}</CardDescription>
+                      </div>
+                    </div>
+                    <Button onClick={() => { setEditingEventSubType(undefined); setEventSubTypeName(""); setShowEventSubTypeDialog(true); }} size="sm" className="gap-2" disabled={!selectedCategoryForSubs} data-testid="button-add-event-sub-type">
+                      <Plus className="h-4 w-4" />
+                      Add
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {!selectedCategoryForSubs ? (
+                    <div className="p-8 text-center">
+                      <Calendar className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
+                      <p className="text-muted-foreground text-sm">Select a category to manage sub types</p>
+                    </div>
+                  ) : selectedCatSubs.length === 0 ? (
+                    <div className="p-8 text-center">
+                      <Calendar className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
+                      <p className="text-muted-foreground text-sm">No sub types in this category</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-border">
+                      {selectedCatSubs.map((sub) => (
+                        <div key={sub.id} className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors" data-testid={`row-event-sub-type-${sub.id}`}>
+                          <div className="flex items-center gap-3">
+                            <Calendar className="h-4 w-4 text-muted-foreground" />
+                            <span className="font-medium text-foreground" data-testid={`text-sub-type-name-${sub.id}`}>{sub.name}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button variant="ghost" size="icon" onClick={() => { setEditingEventSubType(sub); setEventSubTypeName(sub.name); setShowEventSubTypeDialog(true); }} data-testid={`button-edit-sub-type-${sub.id}`}>
+                              <Pencil className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => { if (confirm("Delete this sub type?")) deleteEventSubTypeMutation.mutate(sub.id); }} data-testid={`button-delete-sub-type-${sub.id}`}>
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
           {/* Tab 5: Stat Fields */}
           <TabsContent value="stat-fields">
             <Card>
@@ -2151,6 +2373,78 @@ export default function Dashboard() {
               <DialogFooter>
                 <Button onClick={() => setShowResetPasswordDialog(false)} data-testid="button-close-reset-password">
                   Done
+                </Button>
+              </DialogFooter>
+            </div>
+          </DialogContent>
+        </Dialog>
+        <Dialog open={showEventCategoryDialog} onOpenChange={setShowEventCategoryDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editingEventCategory ? "Edit Event Category" : "Add Event Category"}</DialogTitle>
+              <DialogDescription>Event categories replace the default event types (Tournament, Scrim, VOD Review).</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Category Name</Label>
+                <Input
+                  value={eventCategoryName}
+                  onChange={(e) => setEventCategoryName(e.target.value)}
+                  placeholder="e.g. Tournament, Scrim, Practice"
+                  data-testid="input-event-category-name"
+                />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setShowEventCategoryDialog(false)}>Cancel</Button>
+                <Button
+                  onClick={() => {
+                    if (!eventCategoryName.trim()) return;
+                    if (editingEventCategory) {
+                      updateEventCategoryMutation.mutate({ id: editingEventCategory.id, name: eventCategoryName.trim() });
+                    } else {
+                      createEventCategoryMutation.mutate({ name: eventCategoryName.trim() });
+                    }
+                  }}
+                  disabled={!eventCategoryName.trim() || createEventCategoryMutation.isPending || updateEventCategoryMutation.isPending}
+                  data-testid="button-save-event-category"
+                >
+                  {editingEventCategory ? "Update" : "Create"}
+                </Button>
+              </DialogFooter>
+            </div>
+          </DialogContent>
+        </Dialog>
+        <Dialog open={showEventSubTypeDialog} onOpenChange={setShowEventSubTypeDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editingEventSubType ? "Edit Sub Type" : "Add Sub Type"}</DialogTitle>
+              <DialogDescription>Sub types provide more specific classification within {selectedCat?.name || "a category"}.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Sub Type Name</Label>
+                <Input
+                  value={eventSubTypeName}
+                  onChange={(e) => setEventSubTypeName(e.target.value)}
+                  placeholder="e.g. Online, LAN, Ranked"
+                  data-testid="input-event-sub-type-name"
+                />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setShowEventSubTypeDialog(false)}>Cancel</Button>
+                <Button
+                  onClick={() => {
+                    if (!eventSubTypeName.trim() || !selectedCategoryForSubs) return;
+                    if (editingEventSubType) {
+                      updateEventSubTypeMutation.mutate({ id: editingEventSubType.id, name: eventSubTypeName.trim() });
+                    } else {
+                      createEventSubTypeMutation.mutate({ name: eventSubTypeName.trim(), categoryId: selectedCategoryForSubs });
+                    }
+                  }}
+                  disabled={!eventSubTypeName.trim() || createEventSubTypeMutation.isPending || updateEventSubTypeMutation.isPending}
+                  data-testid="button-save-event-sub-type"
+                >
+                  {editingEventSubType ? "Update" : "Create"}
                 </Button>
               </DialogFooter>
             </div>

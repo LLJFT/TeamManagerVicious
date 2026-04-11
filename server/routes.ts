@@ -12,7 +12,7 @@ import {
   insertSeasonSchema, insertOffDaySchema, insertStatFieldSchema, insertPlayerGameStatSchema,
   insertStaffSchema, insertChatChannelSchema, insertChatMessageSchema,
   insertAvailabilitySlotSchema, insertRosterRoleSchema,
-  insertChatChannelPermissionSchema,
+  insertChatChannelPermissionSchema, insertEventCategorySchema, insertEventSubTypeSchema,
   users, roles, chatChannels, chatMessages, availabilitySlots, rosterRoles,
   chatChannelPermissions, activityLogs, playerGameStats, allPermissions,
   players, events, attendance, games, gameModes, maps, seasons, offDays,
@@ -1826,6 +1826,155 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/event-categories", requireAuth, async (req, res) => {
+    try {
+      const cats = await storage.getAllEventCategories(getGameId(req), getRosterId(req));
+      res.json(cats);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.post("/api/event-categories", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+    try {
+      const data = insertEventCategorySchema.parse(req.body);
+      const cat = await storage.addEventCategory(data, getGameId(req), getRosterId(req));
+      res.json(cat);
+    } catch (error: any) {
+      if (error.name === 'ZodError') return res.status(400).json({ error: "Invalid data", details: error.errors });
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.put("/api/event-categories/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+    try {
+      const { name, sortOrder } = req.body;
+      if (!name || typeof name !== "string") return res.status(400).json({ error: "Name is required" });
+      const cat = await storage.updateEventCategory(req.params.id, { name, sortOrder: sortOrder ?? undefined });
+      res.json(cat);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.delete("/api/event-categories/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+    try {
+      await storage.removeEventCategory(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.get("/api/event-sub-types", requireAuth, async (req, res) => {
+    try {
+      const subs = await storage.getAllEventSubTypes(getGameId(req), getRosterId(req));
+      res.json(subs);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.get("/api/event-categories/:categoryId/sub-types", requireAuth, async (req, res) => {
+    try {
+      const subs = await storage.getEventSubTypesByCategory(req.params.categoryId);
+      res.json(subs);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.post("/api/event-sub-types", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+    try {
+      const data = insertEventSubTypeSchema.parse(req.body);
+      const sub = await storage.addEventSubType(data, getGameId(req), getRosterId(req));
+      res.json(sub);
+    } catch (error: any) {
+      if (error.name === 'ZodError') return res.status(400).json({ error: "Invalid data", details: error.errors });
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.put("/api/event-sub-types/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+    try {
+      const { name, sortOrder } = req.body;
+      if (!name || typeof name !== "string") return res.status(400).json({ error: "Name is required" });
+      const sub = await storage.updateEventSubType(req.params.id, { name, sortOrder: sortOrder ?? undefined });
+      res.json(sub);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.delete("/api/event-sub-types/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+    try {
+      await storage.removeEventSubType(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.get("/api/events/:eventId/attendance", requireAuth, requirePermission("view_events"), async (req, res) => {
+    try {
+      const records = await storage.getAttendanceByEventId(req.params.eventId);
+      res.json(records);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.post("/api/events/:eventId/attendance", requireAuth, requirePermission("edit_events"), async (req, res) => {
+    try {
+      const { playerId, staffId, status } = req.body;
+      const validStatuses = ["present", "late", "absent"];
+      if (!status || !validStatuses.includes(status)) {
+        return res.status(400).json({ error: "Invalid status. Must be one of: present, late, absent" });
+      }
+      if (!playerId && !staffId) {
+        return res.status(400).json({ error: "Either playerId or staffId is required" });
+      }
+      if (playerId && staffId) {
+        return res.status(400).json({ error: "Provide only one of playerId or staffId" });
+      }
+      const gid = getGameId(req);
+      const rid = getRosterId(req);
+      const event = await db.select().from(events).where(
+        and(
+          eq(events.id, req.params.eventId),
+          eq(events.teamId, getTeamId()),
+          eq(events.gameId, gid),
+          eq(events.rosterId, rid)
+        )
+      ).limit(1);
+      if (event.length === 0) return res.status(404).json({ error: "Event not found" });
+      const e = event[0];
+      const existing = await db.select().from(attendance).where(
+        and(
+          eq(attendance.eventId, req.params.eventId),
+          eq(attendance.teamId, getTeamId()),
+          playerId ? eq(attendance.playerId, playerId) : eq(attendance.staffId, staffId)
+        )
+      );
+      if (existing.length > 0) {
+        const updated = await db.update(attendance).set({ status }).where(eq(attendance.id, existing[0].id)).returning();
+        return res.json(updated[0]);
+      }
+      const record = await storage.addAttendance({
+        playerId: playerId || null,
+        staffId: staffId || null,
+        date: e.date,
+        eventId: req.params.eventId,
+        status,
+        notes: null,
+        ringer: null,
+      }, getGameId(req), getRosterId(req));
+      res.json(record);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
   app.get("/api/game-modes", requireAuth, async (req, res) => {
     try {
       const gameModes = await storage.getAllGameModes(getGameId(req), getRosterId(req));
@@ -2177,16 +2326,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const teamId = getTeamId();
       const gid = getGameId(req);
-      const allPlayers = await storage.getAllPlayers(gid);
+      const rid = getRosterId(req);
+      const allPlayers = await storage.getAllPlayers(gid, rid);
       const sfConditions: any[] = [eq(statFieldsTable.teamId, teamId)];
       if (gid) sfConditions.push(eq(statFieldsTable.gameId, gid));
       const allStatFields = await db.select().from(statFieldsTable).where(and(...sfConditions));
       const pgsConditions: any[] = [eq(playerGameStats.teamId, teamId)];
       if (gid) pgsConditions.push(eq(playerGameStats.gameId, gid));
       const allPlayerGameStats = await db.select().from(playerGameStats).where(and(...pgsConditions));
-      const allGames = await storage.getAllGamesWithEventType(undefined, gid);
-      const allEvents = await storage.getAllEvents(gid);
-      const allGameModes = await storage.getAllGameModes(gid);
+      const allGames = await storage.getAllGamesWithEventType(undefined, gid, rid);
+      const allEvents = await storage.getAllEvents(gid, rid);
+      const allGameModes = await storage.getAllGameModes(gid, rid);
 
       const summary = allPlayers.map(player => {
         const playerStats = allPlayerGameStats.filter(s => s.playerId === player.id);

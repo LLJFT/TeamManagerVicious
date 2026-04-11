@@ -10,6 +10,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { NotificationBell } from "@/components/NotificationBell";
+import { HelpButton, OnboardingGuide } from "@/components/OnboardingGuide";
 import { useState, useEffect, useCallback, useRef, type CSSProperties } from "react";
 import { Moon, Loader2 } from "lucide-react";
 import Login from "@/pages/Login";
@@ -205,11 +206,13 @@ function AuthenticatedApp() {
               <header className="flex items-center justify-between gap-1 p-2 border-b sticky top-0 z-50 bg-background">
                 <SidebarTrigger data-testid="button-sidebar-toggle" />
                 <div className="flex items-center gap-1">
+                  <HelpButton />
                   <NotificationBell />
                   <ThemeToggle />
                 </div>
               </header>
               <main className="flex-1 overflow-auto">
+                <OnboardingGuide />
                 <MainContent />
               </main>
             </div>

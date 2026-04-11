@@ -1,5 +1,5 @@
-import type { Player, InsertPlayer, Schedule, InsertSchedule, Setting, InsertSetting, Event, InsertEvent, Attendance, InsertAttendance, TeamNotes, InsertTeamNotes, Game, InsertGame, GameMode, InsertGameMode, Map, InsertMap, Season, InsertSeason, OffDay, InsertOffDay, StatField, InsertStatField, PlayerGameStat, InsertPlayerGameStat, PlayerAvailabilityRecord, InsertPlayerAvailability, StaffAvailabilityRecord, InsertStaffAvailability, Staff, InsertStaff, AvailabilitySlot, RosterRole, SupportedGame, UserGameAssignment, Notification } from "@shared/schema";
-import { players, schedules, settings, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays, statFields, playerGameStats, playerAvailability, staffAvailability, staff as staffTable, availabilitySlots, rosterRoles, supportedGames, userGameAssignments, notifications, users, rosters } from "@shared/schema";
+import type { Player, InsertPlayer, Schedule, InsertSchedule, Setting, InsertSetting, Event, InsertEvent, Attendance, InsertAttendance, TeamNotes, InsertTeamNotes, Game, InsertGame, GameMode, InsertGameMode, Map, InsertMap, Season, InsertSeason, OffDay, InsertOffDay, StatField, InsertStatField, PlayerGameStat, InsertPlayerGameStat, PlayerAvailabilityRecord, InsertPlayerAvailability, StaffAvailabilityRecord, InsertStaffAvailability, Staff, InsertStaff, AvailabilitySlot, RosterRole, SupportedGame, UserGameAssignment, Notification, EventCategory, InsertEventCategory, EventSubType, InsertEventSubType } from "@shared/schema";
+import { players, schedules, settings, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays, statFields, playerGameStats, playerAvailability, staffAvailability, staff as staffTable, availabilitySlots, rosterRoles, supportedGames, userGameAssignments, notifications, users, rosters, eventCategories, eventSubTypes } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, isNull, desc } from "drizzle-orm";
 
@@ -65,6 +65,16 @@ export interface IStorage {
   addMap(map: InsertMap, gameId?: string | null, rosterId?: string | null): Promise<Map>;
   updateMap(id: string, map: Partial<InsertMap>): Promise<Map>;
   removeMap(id: string): Promise<boolean>;
+  getAllEventCategories(gameId?: string | null, rosterId?: string | null): Promise<EventCategory[]>;
+  addEventCategory(cat: InsertEventCategory, gameId?: string | null, rosterId?: string | null): Promise<EventCategory>;
+  updateEventCategory(id: string, cat: Partial<InsertEventCategory>): Promise<EventCategory>;
+  removeEventCategory(id: string): Promise<boolean>;
+  getAllEventSubTypes(gameId?: string | null, rosterId?: string | null): Promise<EventSubType[]>;
+  getEventSubTypesByCategory(categoryId: string): Promise<EventSubType[]>;
+  addEventSubType(sub: InsertEventSubType, gameId?: string | null, rosterId?: string | null): Promise<EventSubType>;
+  updateEventSubType(id: string, sub: Partial<InsertEventSubType>): Promise<EventSubType>;
+  removeEventSubType(id: string): Promise<boolean>;
+  getAttendanceByEventId(eventId: string): Promise<Attendance[]>;
   getAllSeasons(gameId?: string | null, rosterId?: string | null): Promise<Season[]>;
   addSeason(season: InsertSeason, gameId?: string | null, rosterId?: string | null): Promise<Season>;
   updateSeason(id: string, season: Partial<InsertSeason>): Promise<Season>;
@@ -282,7 +292,6 @@ export class DbStorage implements IStorage {
         mapId: games.mapId,
         result: games.result,
         link: games.link,
-        matchId: games.matchId,
         eventType: events.eventType,
       })
       .from(games)
@@ -361,6 +370,62 @@ export class DbStorage implements IStorage {
     const teamId = getTeamId();
     const deleted = await db.delete(maps).where(and(eq(maps.id, id), eq(maps.teamId, teamId))).returning();
     return deleted.length > 0;
+  }
+
+  async getAllEventCategories(gameId?: string | null, rosterId?: string | null): Promise<EventCategory[]> {
+    const teamId = getTeamId();
+    return await db.select().from(eventCategories).where(buildWhere(teamId, eventCategories, gameId, rosterId));
+  }
+
+  async addEventCategory(cat: InsertEventCategory, gameId?: string | null, rosterId?: string | null): Promise<EventCategory> {
+    const teamId = getTeamId();
+    const inserted = await db.insert(eventCategories).values({ ...cat, teamId, gameId, rosterId }).returning();
+    return inserted[0];
+  }
+
+  async updateEventCategory(id: string, cat: Partial<InsertEventCategory>): Promise<EventCategory> {
+    const teamId = getTeamId();
+    const updated = await db.update(eventCategories).set(cat).where(and(eq(eventCategories.id, id), eq(eventCategories.teamId, teamId))).returning();
+    return updated[0];
+  }
+
+  async removeEventCategory(id: string): Promise<boolean> {
+    const teamId = getTeamId();
+    const deleted = await db.delete(eventCategories).where(and(eq(eventCategories.id, id), eq(eventCategories.teamId, teamId))).returning();
+    return deleted.length > 0;
+  }
+
+  async getAllEventSubTypes(gameId?: string | null, rosterId?: string | null): Promise<EventSubType[]> {
+    const teamId = getTeamId();
+    return await db.select().from(eventSubTypes).where(buildWhere(teamId, eventSubTypes, gameId, rosterId));
+  }
+
+  async getEventSubTypesByCategory(categoryId: string): Promise<EventSubType[]> {
+    const teamId = getTeamId();
+    return await db.select().from(eventSubTypes).where(and(eq(eventSubTypes.categoryId, categoryId), eq(eventSubTypes.teamId, teamId)));
+  }
+
+  async addEventSubType(sub: InsertEventSubType, gameId?: string | null, rosterId?: string | null): Promise<EventSubType> {
+    const teamId = getTeamId();
+    const inserted = await db.insert(eventSubTypes).values({ ...sub, teamId, gameId, rosterId }).returning();
+    return inserted[0];
+  }
+
+  async updateEventSubType(id: string, sub: Partial<InsertEventSubType>): Promise<EventSubType> {
+    const teamId = getTeamId();
+    const updated = await db.update(eventSubTypes).set(sub).where(and(eq(eventSubTypes.id, id), eq(eventSubTypes.teamId, teamId))).returning();
+    return updated[0];
+  }
+
+  async removeEventSubType(id: string): Promise<boolean> {
+    const teamId = getTeamId();
+    const deleted = await db.delete(eventSubTypes).where(and(eq(eventSubTypes.id, id), eq(eventSubTypes.teamId, teamId))).returning();
+    return deleted.length > 0;
+  }
+
+  async getAttendanceByEventId(eventId: string): Promise<Attendance[]> {
+    const teamId = getTeamId();
+    return await db.select().from(attendance).where(and(eq(attendance.eventId, eventId), eq(attendance.teamId, teamId)));
   }
 
   async getAllSeasons(gameId?: string | null, rosterId?: string | null): Promise<Season[]> {
