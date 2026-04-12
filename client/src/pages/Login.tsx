@@ -62,7 +62,7 @@ export default function Login() {
   const gameAbbrev = selectedGameSlug ? (GAME_ABBREVIATIONS[selectedGameSlug] || selectedGameSlug.toUpperCase()) : "";
   const selectedRosterObj = selectedRosterId ? selectedGameRosters.find(r => r.id === selectedRosterId) : null;
   const rosterSuffix = selectedRosterObj
-    ? (selectedRosterObj.slug === "academy" ? `${gameAbbrev}_AC` : selectedRosterObj.slug === "women" ? `${gameAbbrev}_W` : gameAbbrev)
+    ? (selectedRosterObj.name !== "Team 1" ? `${gameAbbrev}_T${selectedRosterObj.sortOrder !== undefined ? selectedRosterObj.sortOrder + 1 : ''}` : gameAbbrev)
     : gameAbbrev;
   const previewUsername = username.trim() && gameAbbrev ? `${username.trim()}_${rosterSuffix}` : "";
 

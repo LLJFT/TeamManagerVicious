@@ -21,7 +21,7 @@ import {
   isToday,
   isSameMonth,
 } from "date-fns";
-import type { SupportedGame, Roster, EventCategory } from "@shared/schema";
+import type { SupportedGame, Roster, EventCategory, EventSubType } from "@shared/schema";
 
 export default function CalendarPage() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -45,6 +45,10 @@ export default function CalendarPage() {
 
   const { data: allCategories = [] } = useQuery<EventCategory[]>({
     queryKey: ["/api/all-event-categories"],
+  });
+
+  const { data: allSubTypes = [] } = useQuery<EventSubType[]>({
+    queryKey: ["/api/all-event-sub-types"],
   });
 
   const allRosters = useMemo(() => Object.values(allRostersMap).flat(), [allRostersMap]);
@@ -114,6 +118,14 @@ export default function CalendarPage() {
 
   const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+  const subTypeColorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    allSubTypes.forEach(sub => {
+      if (sub.name && sub.color) map.set(sub.name.toLowerCase(), sub.color);
+    });
+    return map;
+  }, [allSubTypes]);
+
   const categoryColorMap = useMemo(() => {
     const map = new Map<string, string>();
     allCategories.forEach(cat => {
@@ -122,17 +134,14 @@ export default function CalendarPage() {
     return map;
   }, [allCategories]);
 
-  const getEventColor = (eventType: string) => {
+  const getEventColor = (eventType: string, eventSubType?: string) => {
+    if (eventSubType) {
+      const subColor = subTypeColorMap.get(eventSubType.toLowerCase());
+      if (subColor) return { bg: `${subColor}25`, border: `${subColor}50`, text: subColor };
+    }
     const catColor = categoryColorMap.get(eventType?.toLowerCase());
-    if (catColor) {
-      return { bg: `${catColor}25`, border: `${catColor}50`, text: catColor };
-    }
-    switch (eventType?.toLowerCase()) {
-      case "tournament": return { bg: "rgba(59,130,246,0.15)", border: "rgba(59,130,246,0.3)", text: "#3b82f6" };
-      case "scrim": return { bg: "rgba(59,130,246,0.15)", border: "rgba(59,130,246,0.3)", text: "#3b82f6" };
-      case "vod review": return { bg: "rgba(249,115,22,0.15)", border: "rgba(249,115,22,0.3)", text: "#f97316" };
-      default: return { bg: "rgba(128,128,128,0.1)", border: "rgba(128,128,128,0.2)", text: "#888" };
-    }
+    if (catColor) return { bg: `${catColor}25`, border: `${catColor}50`, text: catColor };
+    return { bg: "rgba(128,128,128,0.1)", border: "rgba(128,128,128,0.2)", text: "#888" };
   };
 
   return (
@@ -264,9 +273,9 @@ export default function CalendarPage() {
                         key={event.id || idx}
                         className="text-[10px] leading-tight px-1 py-0.5 rounded border truncate"
                         style={{
-                          backgroundColor: getEventColor(event.eventType).bg,
-                          borderColor: getEventColor(event.eventType).border,
-                          color: getEventColor(event.eventType).text,
+                          backgroundColor: getEventColor(event.eventType, event.eventSubType).bg,
+                          borderColor: getEventColor(event.eventType, event.eventSubType).border,
+                          color: getEventColor(event.eventType, event.eventSubType).text,
                         }}
                         data-testid={`event-dot-${event.id || idx}`}
                       >
@@ -310,9 +319,9 @@ export default function CalendarPage() {
                       {event.rosterId && <Badge variant="outline" className="text-xs">{getRosterName(event.rosterId)}</Badge>}
                       {event.eventType && (
                         <Badge variant="outline" className="text-xs" style={{
-                          backgroundColor: getEventColor(event.eventType).bg,
-                          borderColor: getEventColor(event.eventType).border,
-                          color: getEventColor(event.eventType).text,
+                          backgroundColor: getEventColor(event.eventType, event.eventSubType).bg,
+                          borderColor: getEventColor(event.eventType, event.eventSubType).border,
+                          color: getEventColor(event.eventType, event.eventSubType).text,
                         }}>{event.eventType}</Badge>
                       )}
                     </div>

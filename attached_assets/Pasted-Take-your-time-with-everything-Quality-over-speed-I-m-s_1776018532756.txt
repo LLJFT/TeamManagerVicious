@@ -1,0 +1,149 @@
+Take your time with everything. Quality over speed. I'm selling this platform to clients — every single thing must work perfectly with zero bugs. Do not rush any step. Test every feature yourself on the live site after implementing.
+
+**CRITICAL = broken, fix first | IMPORTANT = improvement or missing feature**
+
+---
+
+**🔴 CRITICAL — Change default roster names and URL system**
+
+Replace the current roster defaults (First Team, Academy, Women) with:
+- Team 1
+- Team 2
+- Team 3
+- Team 4
+
+Apply this to ALL games. Every game must have exactly these 4 rosters by default.
+
+For the URL system, stop using readable slugs like `/dota2_academy`. Switch to random unique numeric codes like `/dota2/18372918374628`. Generate a random numeric ID for each roster on creation. This makes roster URLs unguessable and clean. Update all routing, links, and navigation to use this new format. Make sure the URL is always correct and never shows a 404 or "Did you forget to add the page" error.
+
+---
+
+**🔴 CRITICAL — Player can access rosters they have no permission for via direct URL**
+
+A player who was NOT given access to a specific roster can still enter it by typing the URL directly. Fix this completely: if a user doesn't have explicit approved access to a specific rosterId, redirect them to home immediately with an "Access Denied" message. The URL must never bypass permissions under any circumstance.
+
+---
+
+**🔴 CRITICAL — Event Type dropdown shows duplicate categories (appears 3 times)**
+
+When adding a new event, the Event Type dropdown shows Scrim/Tournament/Meetings repeated multiple times. Fix this so each category appears exactly once.
+
+---
+
+**🔴 CRITICAL — Schedule page shows players from ALL rosters instead of current roster only**
+
+Players from other rosters appear in a roster's Schedule page. Fix: each roster's Schedule must only show players and staff that belong to THAT specific roster.
+
+---
+
+**🔴 CRITICAL — Slow page loading**
+
+Every page takes too long to load. Investigate and fix:
+- Optimize database queries
+- Add proper indexes on commonly filtered columns (teamId, gameId, rosterId, status)
+- Reduce unnecessary API calls on page load
+- Add loading skeletons so the UI feels responsive while data loads
+- Cache static data where possible
+
+This is critical — slow loading makes the product feel broken to clients.
+
+---
+
+**🔴 CRITICAL — Full bug audit**
+
+Go through the ENTIRE platform and actively look for any other bugs beyond what I listed. Check every page, every button, every form, every filter. Fix anything that behaves unexpectedly, crashes, shows wrong data, or doesn't work as intended. I am selling this to clients — there must be zero logical errors.
+
+---
+
+**🟡 IMPORTANT — Event calendar: color must show sub-type color, not category color**
+
+Events on the calendar currently show the category color (all Scrims = blue, all Tournaments = orange). Fix: the color shown must be the sub-type color (Practice = its color, Warm-up = its color, Saudi League = its color, etc.). Sub-type colors are already configurable in Dashboard → Event Types.
+
+---
+
+**🟡 IMPORTANT — Attendance Statistics: add Staff members**
+
+In the Players page, the Attendance Statistics table only shows Players. Fix: Staff members must also appear in the Attendance Statistics table with their own rows (Attended / Late / Absent / Total), with Add Attendance button and attendance records, exactly like players.
+
+---
+
+**🟡 IMPORTANT — Statistics page: Event Type Filter with sub-types as multiple choice**
+
+Currently the Event Type Filter only shows main categories (All Events / Scrims / Tournaments). Replace this with a multiple-choice filter system:
+- Show main categories as group headers
+- Under each group, show its sub-types as individual checkboxes
+- User can select multiple sub-types at once (e.g. check "Practice" AND "Saudi League" together)
+- Stats update based on the selected combination
+- Keep it clean and not overwhelming — collapse groups by default, expand to see sub-types
+
+---
+
+**🟡 IMPORTANT — Player Stats: add "By Map" tab + vs Opponents breakdown**
+
+In the Player Stats detail section, currently there are "Overall" and "By Mode" tabs. Add a third tab "By Map" showing stats broken down per map.
+
+In the "vs Opponents" section, add Overall / By Mode / By Map tabs for each opponent instead of just a flat stats list.
+
+---
+
+**🟡 IMPORTANT — Opponents page: expand arrow with events list and result links**
+
+On the Opponents page, each opponent card shows summary stats. Add an expand arrow (▶) that when clicked shows a detailed list of every event played against that opponent including:
+- Event name and date
+- Result (Win / Loss / Draw) and score (e.g. 3-1)
+- A clickable link that goes directly to that event's result detail page
+
+---
+
+**🟡 IMPORTANT — Add comprehensive test data to the LIVE SITE**
+
+**Important: do NOT add this to the Replit preview. Add it directly on the live production site:**
+`https://team-manager-vicious.replit.app/`
+
+The goal is that when a new client buys the platform, they open it and see realistic populated data across all rosters — as if a real team used it for 2 months. They can then delete the test data and start fresh.
+
+For EVERY roster across ALL games, add:
+
+**Dashboard → Game Config:**
+- 3 game modes with 3 maps each (9 maps total)
+- 2 seasons: Season 1, Season 2
+- Roster roles: AR, SUB, FLEX
+- Stat fields: Game Mode 1 → Kill, Death, Time | Game Mode 2 → Kill, Death, Plant, Defuse | Game Mode 3 → Kill, Death, Goal
+- Event categories with sub-types and colors if not already present
+
+**Players and Schedule:**
+- 4 players per roster, named by game abbreviation + team number:
+  - Team 1: `[GAME]_A, [GAME]_B, [GAME]_C, [GAME]_D`
+  - Team 2: `[GAME]_T2_A, [GAME]_T2_B, [GAME]_T2_C, [GAME]_T2_D`
+  - Team 3: `[GAME]_T3_A, [GAME]_T3_B, [GAME]_T3_C, [GAME]_T3_D`
+  - Team 4: `[GAME]_T4_A, [GAME]_T4_B, [GAME]_T4_C, [GAME]_T4_D`
+- Availability set for all 7 days — mix of available/unavailable/time slots
+- Some off days scattered throughout
+
+**Staff:** 2 staff per roster — one Coach, one Analyst — with availability set
+
+**Opponents:** Falcons, Liquid, Vitality, FaZe, Twisted Minds, Virtus Pro, GenG, Karmine Corp, T1, 100 Thieves, G2
+
+**Events (March 1 – April 10, 2026):**
+- 8 Scrim events: mix of Practice and Warm-up sub-types. Warm-up scrims scheduled ~1 hour before a tournament on the same day
+- 8 Tournament events: use sub-types (Stage 1, Saudi League, Elite 3000$ Cup). Realistic progressive naming like "Saudi League TOP 16 VS [Opponent]", "Saudi League Quarter Finals VS [Opponent]", "Saudi League Semi Finals VS [Opponent]", "Saudi League Grand Finals VS [Opponent]" — use different tournament names for remaining events
+- 4 Meeting events: Vod Review, Roster Meeting, Organization Meeting
+- 3+ Off Days scattered throughout
+- Event times between 15:00 and 02:00
+
+**Inside each Scrim and Tournament event:**
+- 3–5 games, each with: game mode selected, map selected, player stats filled in for all players
+- Mix wins and losses realistically — not all wins
+- Mark attendance for all players and staff: mix of Present, Late, Absent
+
+**After adding all data, verify every page shows correct data in every roster:**
+Schedule, Events, Results, Statistics (By Game Mode + By Map must show data), Player Stats, History, Compare, Opponents, Dashboard, Staff
+
+Fix anything broken before finishing.
+
+---
+
+At the end provide:
+✅ Completed — fully done and tested
+⚠️ Partially done — incomplete
+❌ Not done — skipped

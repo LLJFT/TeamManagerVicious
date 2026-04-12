@@ -70,7 +70,7 @@ export function EventDialog({
   });
 
   const allEventTypeOptions = eventCategories.length > 0
-    ? eventCategories.map(c => c.name)
+    ? [...new Set(eventCategories.map(c => c.name))]
     : [...eventTypes];
 
   const form = useForm<FormValues>({
@@ -87,10 +87,13 @@ export function EventDialog({
   });
 
   const selectedEventType = form.watch("eventType");
-  const selectedCategory = eventCategories.find(c => c.name === selectedEventType);
-  const filteredSubTypes = selectedCategory
-    ? eventSubTypesAll.filter(s => s.categoryId === selectedCategory.id)
+  const matchingCategories = eventCategories.filter(c => c.name === selectedEventType);
+  const selectedCategory = matchingCategories[0] || null;
+  const matchingCategoryIds = new Set(matchingCategories.map(c => c.id));
+  const filteredSubTypes = matchingCategoryIds.size > 0
+    ? eventSubTypesAll.filter(s => matchingCategoryIds.has(s.categoryId))
     : [];
+  const dedupedSubTypes = filteredSubTypes.filter((s, i, arr) => arr.findIndex(x => x.name === s.name) === i);
 
   useEffect(() => {
     if (eventToEdit) {
@@ -180,7 +183,7 @@ export function EventDialog({
               )}
             />
 
-            {filteredSubTypes.length > 0 && (
+            {dedupedSubTypes.length > 0 && (
               <FormField
                 control={form.control}
                 name="eventSubType"
@@ -195,7 +198,7 @@ export function EventDialog({
                       </FormControl>
                       <SelectContent>
                         <SelectItem value="none">None</SelectItem>
-                        {filteredSubTypes.map((sub) => (
+                        {dedupedSubTypes.map((sub) => (
                           <SelectItem key={sub.id} value={sub.name}>
                             <div className="flex items-center gap-2">
                               {(sub.color || selectedCategory?.color) && <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: sub.color || selectedCategory?.color || "#3b82f6" }} />}

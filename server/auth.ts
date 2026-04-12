@@ -61,6 +61,7 @@ async function runMigrations() {
         sort_order INTEGER DEFAULT 0
       )
     `);
+    await db.execute(sql`ALTER TABLE rosters ADD COLUMN IF NOT EXISTS code VARCHAR`);
     await db.execute(sql`ALTER TABLE user_game_assignments ADD COLUMN IF NOT EXISTS roster_id VARCHAR REFERENCES rosters(id) ON DELETE SET NULL`);
     await db.execute(sql`ALTER TABLE user_game_assignments ADD COLUMN IF NOT EXISTS approval_game_status TEXT NOT NULL DEFAULT 'pending'`);
     await db.execute(sql`ALTER TABLE user_game_assignments ADD COLUMN IF NOT EXISTS approval_org_status TEXT NOT NULL DEFAULT 'pending'`);
@@ -111,6 +112,22 @@ async function runMigrations() {
     await db.execute(sql`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS staff_id VARCHAR REFERENCES staff(id) ON DELETE SET NULL`);
     await db.execute(sql`ALTER TABLE event_categories ADD COLUMN IF NOT EXISTS color TEXT DEFAULT '#3b82f6'`);
     await db.execute(sql`ALTER TABLE event_sub_types ADD COLUMN IF NOT EXISTS color TEXT`);
+
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_events_team_game_roster ON events(team_id, game_id, roster_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_players_team_game_roster ON players(team_id, game_id, roster_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_staff_team_game_roster ON staff(team_id, game_id, roster_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_attendance_team_game_roster ON attendance(team_id, game_id, roster_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_player_game_stats_team_game ON player_game_stats(team_id, game_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_player_avail_team_game_roster ON player_availability(team_id, game_id, roster_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_staff_avail_team_game_roster ON staff_availability(team_id, game_id, roster_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_chat_channels_team_game_roster ON chat_channels(team_id, game_id, roster_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_chat_messages_channel ON chat_messages(channel_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_off_days_team_game_roster ON off_days(team_id, game_id, roster_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_event_categories_team_game_roster ON event_categories(team_id, game_id, roster_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_event_sub_types_category ON event_sub_types(category_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_user_game_assignments_user ON user_game_assignments(user_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_user_game_assignments_game ON user_game_assignments(game_id, roster_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_games_team_game ON games(team_id, game_id)`);
 
     console.log("[migrations] Schema migrations applied successfully");
   } catch (e: any) {

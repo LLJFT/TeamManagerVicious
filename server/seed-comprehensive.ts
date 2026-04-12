@@ -65,8 +65,9 @@ export async function seedComprehensiveTestData() {
     if (!game) continue;
 
     const abbr = GAME_ABBREVIATIONS[game.slug as keyof typeof GAME_ABBREVIATIONS] || game.slug.toUpperCase().slice(0, 3);
-    const rosterType = roster.slug.includes("academy") ? "AC" : roster.slug.includes("women") ? "W" : "FT";
-    const playerSuffix = rosterType === "FT" ? "" : `_${rosterType}`;
+    const sortIdx = roster.sortOrder ?? 0;
+    const rosterType = sortIdx === 0 ? "T1" : `T${sortIdx + 1}`;
+    const playerSuffix = sortIdx === 0 ? "" : `_${rosterType}`;
 
     const rosterPlayers = await db.select().from(players)
       .where(and(eq(players.teamId, teamId), eq(players.gameId, game.id), eq(players.rosterId, roster.id)));

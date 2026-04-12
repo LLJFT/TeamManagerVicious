@@ -155,6 +155,7 @@ export const rosters = pgTable("rosters", {
   name: text("name").notNull(),
   slug: text("slug").notNull(),
   sortOrder: integer("sort_order").default(0),
+  code: varchar("code"),
 }, (table) => [
   index("rosters_team_id_idx").on(table.teamId),
   index("rosters_game_id_idx").on(table.gameId),

@@ -1,0 +1,142 @@
+Take your time with absolutely everything. Quality over speed. I am selling this platform to clients — zero bugs are acceptable. Do not rush any step. Test every single feature yourself on the live production site after implementing.
+CRITICAL = broken, fix first | IMPORTANT = improvement or missing feature
+
+🔴 CRITICAL — Change default roster names to Team 1 / Team 2 / Team 3 / Team 4
+Replace all current roster defaults (First Team, Academy, Women) across ALL games with exactly these 4 rosters:
+
+Team 1
+Team 2
+Team 3
+Team 4
+
+Apply to every game on the platform. Update all references in sidebar, home cards, schedule headers, dashboard, and everywhere else.
+
+🔴 CRITICAL — Roster URL system: switch to numeric codes
+Stop using readable slugs like /dota2_academy. Switch to numeric unique codes:
+Format: /<game-slug>/<numeric-id> — example: /dota2/18372918374628
+Generate a unique random numeric ID for each roster on creation. This makes URLs unguessable. Update all routing, links, and navigation. Make sure no roster URL ever returns a 404 or "Did you forget to add the page" error.
+
+🔴 CRITICAL — Player can bypass access control via direct URL
+A player without permission for a roster can still enter it by typing the URL. Fix: if a user doesn't have explicit approved access to that specific rosterId, redirect to home with "Access Denied". URL must never bypass permissions.
+
+🔴 CRITICAL — Event Type dropdown shows duplicate categories
+When adding an event, the Event Type dropdown shows Scrim/Tournament/Meetings repeated multiple times. Fix: each category appears exactly once.
+
+🔴 CRITICAL — Schedule page shows players from ALL rosters
+Players from other rosters appear in a roster's Schedule. Fix: Schedule must only show players and staff belonging to THAT specific roster.
+
+🔴 CRITICAL — Slow page loading
+Every page loads too slowly. Fix:
+
+Optimize all database queries
+Add proper indexes on teamId, gameId, rosterId, status columns
+Reduce unnecessary API calls on page load
+Add loading skeletons for instant visual feedback
+Cache static/repeated data where appropriate
+
+Slow loading destroys client trust immediately.
+
+🔴 CRITICAL — Full platform bug audit
+Actively hunt for every bug across the ENTIRE platform. Open every single page. Click every button. Submit every form. Try every filter. Test edge cases. Check for: crashes, wrong data displayed, broken layouts, missing data, infinite loading, duplicate entries, data leaking between rosters. Fix every single issue you find — no matter how small. I am selling this to paying clients.
+
+🟡 IMPORTANT — Event calendar: show sub-type color, not category color
+Calendar events must show sub-type color (Practice color, Warm-up color, Saudi League color, etc.) not the parent category color. Sub-type colors are already configurable in Dashboard → Event Types.
+
+🟡 IMPORTANT — Attendance Statistics: include Staff members
+Staff must appear in the Attendance Statistics table on the Players page, with Attended / Late / Absent / Total counts and Add Attendance button — exactly like players.
+
+🟡 IMPORTANT — Statistics: Event Type Filter with sub-types as multiple choice
+Replace the current single-select filter with a multiple-choice system:
+
+Main categories as group headers (collapsible)
+Sub-types as individual checkboxes within each group
+User can select multiple sub-types simultaneously (e.g. "Practice" + "Saudi League" at once)
+Stats update based on selected combination
+Clean and not overwhelming — collapsed by default
+
+
+🟡 IMPORTANT — Player Stats: add "By Map" tab + Opponents breakdown
+Add a third tab "By Map" in the player stats detail section. In "vs Opponents" section, add Overall / By Mode / By Map tabs per opponent instead of flat stats.
+
+🟡 IMPORTANT — Opponents page: expand arrow with full event list and links
+Add an expand arrow (▶) to each opponent card. When clicked, shows:
+
+List of every event played vs that opponent
+Event name, date, result (W/L/D), score (e.g. 3-1)
+A direct clickable link to that event's result detail page
+
+
+🟡 IMPORTANT — Add comprehensive test data on the LIVE PRODUCTION SITE
+⚠️ IMPORTANT: Add all this data on the LIVE SITE only:
+https://team-manager-vicious.replit.app/
+NOT the Replit preview — the actual deployed production URL.
+The goal: a new client opens the platform and sees it fully populated as if a real esports team used every feature for 2 months. They can delete the test data whenever they want and start fresh.
+For EVERY roster across ALL games, do ALL of the following:
+Dashboard → Game Config (do this first for each roster):
+
+3 game modes: Game Mode 1, Game Mode 2, Game Mode 3
+3 maps per mode (9 total): Mode 1 → Map 1/2/3 | Mode 2 → Map 4/5/6 | Mode 3 → Map 7/8/9
+2 seasons: Season 1, Season 2
+Roster roles: AR, SUB, FLEX
+Stat fields: Mode 1 → Kill, Death, Time | Mode 2 → Kill, Death, Plant, Defuse | Mode 3 → Kill, Death, Goal
+Event categories (if not present): Scrim (sub: Practice, Warm-up) | Tournament (sub: Stage 1, Saudi League, Elite 3000$ Cup) | Meetings (sub: Vod Review, Roster Meeting, Organization Meeting) — each with a distinct color
+
+Players and Schedule:
+
+4 players per roster with naming by game abbreviation + team:
+
+Team 1: [GAME]_A, [GAME]_B, [GAME]_C, [GAME]_D
+Team 2: [GAME]_T2_A, [GAME]_T2_B, [GAME]_T2_C, [GAME]_T2_D
+Team 3: [GAME]_T3_A, [GAME]_T3_B, [GAME]_T3_C, [GAME]_T3_D
+Team 4: [GAME]_T4_A, [GAME]_T4_B, [GAME]_T4_C, [GAME]_T4_D
+
+
+Set availability for all 7 days — mix of available/unavailable/specific time slots
+Add a few off days scattered through the month
+
+Staff: 2 per roster — Coach and Analyst — with availability set
+Opponents: Falcons, Liquid, Vitality, FaZe, Twisted Minds, Virtus Pro, GenG, Karmine Corp, T1, 100 Thieves, G2
+Events (March 1 – April 10, 2026), times between 15:00–02:00:
+
+8 Scrim events: mix Practice and Warm-up. Warm-up events scheduled ~1 hour before a tournament on the same day
+8 Tournament events: use realistic progression — "Saudi League TOP 16 VS [Opponent]", "Saudi League Quarter Finals VS [Opponent]", "Saudi League Semi Finals VS [Opponent]", "Saudi League Grand Finals VS [Opponent]" — then use Stage 1 and Elite 3000$ Cup for the other 4
+4 Meeting events: mix of Vod Review, Roster Meeting, Organization Meeting
+3+ Off Days
+
+Inside each Scrim and Tournament — for every game result:
+
+Select a game mode AND a map (required — do not skip)
+Mix wins and losses realistically
+Fill in all player stats for every player
+Upload the scoreboard image: use the file IMG_4357.png that is already in the project's attached_assets or uploads folder. If it's not there, use any placeholder image. This is important — clients need to see that scoreboard image upload works.
+Add a VOD link (any URL is fine as placeholder)
+Mark attendance for all players and staff: mix Present, Late, Absent — not everyone present every time
+
+
+🔴 CRITICAL — Act as a real user and test EVERYTHING on the live site
+After adding all the data above, you must personally act as a real user and test every single feature that exists in the platform. Behave exactly like someone who just bought this product and is exploring it for the first time. Use everything. Try everything. Break things on purpose. This means:
+
+Log in and out
+Navigate to every page in every roster
+Add, edit, and delete players
+Add, edit, and delete events
+Record game results with the scoreboard image upload
+View all statistics pages and verify data makes sense
+Check Compare page (Season vs Season, Month vs Month)
+Check Opponents page and expand each opponent
+Use the chat: send text, try to send an image, try voice message
+Go through Dashboard tabs
+Try to access a roster URL you shouldn't have access to
+Try every button, every dropdown, every filter
+Check the home Dashboard stats overview
+Check the Calendar page
+Open event detail pages and verify all data shows
+Check the Share button and verify the copied text is correct
+
+For every issue you find during this testing — fix it immediately before continuing. Document every bug you found and fixed. The platform must behave perfectly for a paying client with zero confusion or broken states.
+
+At the end provide:
+✅ Completed — fully done and tested
+⚠️ Partially done — incomplete
+❌ Not done — skipped
+🐛 Bugs found and fixed during testing — list every bug you found

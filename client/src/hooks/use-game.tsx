@@ -16,6 +16,7 @@ interface GameContextValue {
   rosterId: string | null;
   setRosterId: (id: string | null) => void;
   rostersLoading: boolean;
+  rosterCodeInvalid: boolean;
 }
 
 const GameContext = createContext<GameContextValue>({
@@ -30,34 +31,12 @@ const GameContext = createContext<GameContextValue>({
   rosterId: null,
   setRosterId: () => {},
   rostersLoading: false,
+  rosterCodeInvalid: false,
 });
 
-const ROSTER_SUFFIXES: Record<string, string> = {
-  "_academy": "academy",
-  "_women": "women",
-};
-
-export function rosterUrlSlug(gameSlug: string, rosterSlug: string): string {
-  if (rosterSlug === "first-team" || rosterSlug === "main") return gameSlug;
-  if (rosterSlug === "academy") return `${gameSlug}_academy`;
-  if (rosterSlug === "women") return `${gameSlug}_women`;
-  return `${gameSlug}_${rosterSlug}`;
-}
-
-function parseCompositeSlug(urlSlug: string, allGames: SupportedGame[]): { gameSlug: string; rosterHint: string | null } | null {
-  if (urlSlug === "account") return null;
-  if (allGames.some(g => g.slug === urlSlug)) {
-    return { gameSlug: urlSlug, rosterHint: null };
-  }
-  for (const [suffix, rosterType] of Object.entries(ROSTER_SUFFIXES)) {
-    if (urlSlug.endsWith(suffix)) {
-      const base = urlSlug.slice(0, -suffix.length);
-      if (allGames.some(g => g.slug === base)) {
-        return { gameSlug: base, rosterHint: rosterType };
-      }
-    }
-  }
-  return null;
+export function rosterUrlSlug(gameSlug: string, roster: Roster): string {
+  if (roster.code) return `${gameSlug}/${roster.code}`;
+  return `${gameSlug}/${roster.id}`;
 }
 
 export function GameProvider({ children }: { children: ReactNode }) {
@@ -67,18 +46,28 @@ export function GameProvider({ children }: { children: ReactNode }) {
   });
 
   const parsed = useMemo(() => {
-    const match = location.match(/^\/([^/]+)/);
-    if (!match) return null;
-    return parseCompositeSlug(match[1], allGames);
+    const segments = location.split("/").filter(Boolean);
+    if (segments.length === 0) return null;
+    const firstSeg = segments[0];
+    if (firstSeg === "account" || firstSeg === "dashboard" || firstSeg === "calendar" ||
+        firstSeg === "users" || firstSeg === "roles" || firstSeg === "game-access" ||
+        firstSeg === "org-chat" || firstSeg === "settings") return null;
+
+    const game = allGames.find(g => g.slug === firstSeg);
+    if (!game) return null;
+
+    const rosterCode = segments.length >= 2 ? segments[1] : null;
+    return { gameSlug: firstSeg, rosterCode };
   }, [location, allGames]);
 
   const gameSlug = parsed?.gameSlug || null;
-  const rosterHint = parsed?.rosterHint || null;
+  const rosterCode = parsed?.rosterCode || null;
 
   const fullSlug = useMemo(() => {
-    const match = location.match(/^\/([^/]+)/);
-    return match ? match[1] : null;
-  }, [location]);
+    if (!gameSlug) return null;
+    if (rosterCode) return `${gameSlug}/${rosterCode}`;
+    return gameSlug;
+  }, [gameSlug, rosterCode]);
 
   const currentGame = gameSlug ? allGames.find(g => g.slug === gameSlug) || null : null;
   const gameId = currentGame?.id || null;
@@ -95,15 +84,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (selectedRosterId && rosters.some(r => r.id === selectedRosterId)) {
       return selectedRosterId;
     }
-    if (rosterHint) {
-      const hintRoster = rosters.find(r => r.slug === rosterHint);
-      if (hintRoster) return hintRoster.id;
+    if (rosterCode) {
+      const codeRoster = rosters.find(r => r.code === rosterCode);
+      if (codeRoster) return codeRoster.id;
+      const idRoster = rosters.find(r => r.id === rosterCode);
+      if (idRoster) return idRoster.id;
     }
-    const firstTeam = rosters.find(r => r.slug === "first-team") || rosters.find(r => r.slug === "main");
-    return firstTeam?.id || rosters[0]?.id || null;
-  }, [gameId, selectedRosterId, rosters, rosterHint]);
+    return rosters[0]?.id || null;
+  }, [gameId, selectedRosterId, rosters, rosterCode]);
 
   const currentRoster = rosters.find(r => r.id === rosterId) || null;
+
+  const rosterCodeInvalid = useMemo(() => {
+    if (!rosterCode || !gameId || rostersLoading || rosters.length === 0) return false;
+    return !rosters.some(r => r.code === rosterCode || r.id === rosterCode);
+  }, [rosterCode, gameId, rostersLoading, rosters]);
 
   useEffect(() => {
     setCurrentGameId(gameId);
@@ -155,7 +150,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       currentGame, gameSlug, fullSlug, allGames, isLoading, gameId,
       rosters, currentRoster, rosterId,
       setRosterId: setSelectedRosterId,
-      rostersLoading,
+      rostersLoading, rosterCodeInvalid,
     }}>
       {children}
     </GameContext.Provider>

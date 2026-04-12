@@ -123,21 +123,79 @@ async function logActivity(userId: string | null, action: string, details?: stri
   }
 }
 
+function generateRosterCode(): string {
+  return String(Math.floor(1000000000 + Math.random() * 9000000000));
+}
+
 export async function ensureRostersExist() {
   const teamId = getTeamId();
   const allGamesList = await db.select().from(supportedGames);
   const existingRosters = await db.select().from(rosters).where(eq(rosters.teamId, teamId));
-  if (existingRosters.length > 0) return;
+
+  if (existingRosters.length > 0) {
+    let codesMigrated = 0;
+    let namesUpdated = 0;
+    for (const r of existingRosters) {
+      if (!r.code) {
+        await db.update(rosters).set({ code: generateRosterCode() }).where(eq(rosters.id, r.id));
+        codesMigrated++;
+      }
+    }
+
+    const nameMap: Record<string, string> = {
+      "First Team": "Team 1", "Academy": "Team 2", "Women": "Team 3",
+    };
+    const slugMap: Record<string, string> = {
+      "first-team": "team-1", "academy": "team-2", "women": "team-3",
+    };
+    for (const r of existingRosters) {
+      const newName = nameMap[r.name];
+      const newSlug = slugMap[r.slug];
+      if (newName && newSlug) {
+        await db.update(rosters).set({ name: newName, slug: newSlug }).where(eq(rosters.id, r.id));
+        namesUpdated++;
+      }
+    }
+
+    if (codesMigrated > 0) console.log(`[startup] Assigned codes to ${codesMigrated} rosters`);
+    if (namesUpdated > 0) console.log(`[startup] Renamed ${namesUpdated} rosters to Team 1/2/3`);
+
+    for (const game of allGamesList) {
+      const gameRosters = existingRosters.filter(r => r.gameId === game.id);
+      if (gameRosters.length < 4) {
+        const existingSorts = gameRosters.map(r => r.sortOrder ?? 0);
+        const maxSort = Math.max(...existingSorts, -1);
+        for (let i = gameRosters.length + 1; i <= 4; i++) {
+          await db.insert(rosters).values({
+            teamId, gameId: game.id,
+            name: `Team ${i}`, slug: `team-${i}`,
+            sortOrder: maxSort + (i - gameRosters.length),
+            code: generateRosterCode(),
+          });
+        }
+        const newRosters = await db.select().from(rosters)
+          .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, game.id)));
+        for (const r of newRosters) {
+          await seedRosterDefaults(teamId, game.id, r.id);
+        }
+      }
+    }
+    return;
+  }
 
   console.log("[startup] Creating default rosters for all games...");
   for (const game of allGamesList) {
     const defaults = [
-      { name: "First Team", slug: "first-team", sortOrder: 0 },
-      { name: "Academy", slug: "academy", sortOrder: 1 },
-      { name: "Women", slug: "women", sortOrder: 2 },
+      { name: "Team 1", slug: "team-1", sortOrder: 0 },
+      { name: "Team 2", slug: "team-2", sortOrder: 1 },
+      { name: "Team 3", slug: "team-3", sortOrder: 2 },
+      { name: "Team 4", slug: "team-4", sortOrder: 3 },
     ];
     for (const d of defaults) {
-      await db.insert(rosters).values({ teamId, gameId: game.id, name: d.name, slug: d.slug, sortOrder: d.sortOrder });
+      await db.insert(rosters).values({
+        teamId, gameId: game.id, name: d.name, slug: d.slug,
+        sortOrder: d.sortOrder, code: generateRosterCode(),
+      });
     }
     const gameRosters = await db.select().from(rosters)
       .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, game.id)));
@@ -2840,12 +2898,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         if (gameRosters.length === 0) {
           const defaults = [
-            { name: "First Team", slug: "first-team", sortOrder: 0 },
-            { name: "Academy", slug: "academy", sortOrder: 1 },
-            { name: "Women", slug: "women", sortOrder: 2 },
+            { name: "Team 1", slug: "team-1", sortOrder: 0 },
+            { name: "Team 2", slug: "team-2", sortOrder: 1 },
+            { name: "Team 3", slug: "team-3", sortOrder: 2 },
+            { name: "Team 4", slug: "team-4", sortOrder: 3 },
           ];
           for (const d of defaults) {
-            await db.insert(rosters).values({ teamId, gameId: game.id, name: d.name, slug: d.slug, sortOrder: d.sortOrder });
+            await db.insert(rosters).values({ teamId, gameId: game.id, name: d.name, slug: d.slug, sortOrder: d.sortOrder, code: generateRosterCode() });
           }
           gameRosters = await db.select().from(rosters)
             .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, game.id)));
@@ -2868,6 +2927,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teamId = getTeamId();
       const cats = await db.select().from(eventCategories).where(eq(eventCategories.teamId, teamId));
       res.json(cats);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/all-event-sub-types", requireAuth, async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const subs = await db.select().from(eventSubTypes).where(eq(eventSubTypes.teamId, teamId));
+      res.json(subs);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -2907,12 +2976,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (allRosters.length === 0) {
         const defaults = [
-          { name: "First Team", slug: "first-team", sortOrder: 0 },
-          { name: "Academy", slug: "academy", sortOrder: 1 },
-          { name: "Women", slug: "women", sortOrder: 2 },
+          { name: "Team 1", slug: "team-1", sortOrder: 0 },
+          { name: "Team 2", slug: "team-2", sortOrder: 1 },
+          { name: "Team 3", slug: "team-3", sortOrder: 2 },
+          { name: "Team 4", slug: "team-4", sortOrder: 3 },
         ];
         for (const d of defaults) {
-          await db.insert(rosters).values({ teamId, gameId, name: d.name, slug: d.slug, sortOrder: d.sortOrder });
+          await db.insert(rosters).values({ teamId, gameId, name: d.name, slug: d.slug, sortOrder: d.sortOrder, code: generateRosterCode() });
         }
         allRosters = await db.select().from(rosters)
           .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, gameId)));
@@ -2938,7 +3008,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!name || !slug) return res.status(400).json({ message: "name and slug are required" });
 
       const [roster] = await db.insert(rosters)
-        .values({ teamId, gameId, name, slug: slug.toLowerCase().replace(/\s+/g, '-') })
+        .values({ teamId, gameId, name, slug: slug.toLowerCase().replace(/\s+/g, '-'), code: generateRosterCode() })
         .returning();
       res.json(roster);
     } catch (error: any) {
@@ -3273,12 +3343,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .returning();
       const teamId = getTeamId();
       const defaultRosters = [
-        { name: "First Team", slug: "first-team", sortOrder: 0 },
-        { name: "Academy", slug: "academy", sortOrder: 1 },
-        { name: "Women", slug: "women", sortOrder: 2 },
+        { name: "Team 1", slug: "team-1", sortOrder: 0 },
+        { name: "Team 2", slug: "team-2", sortOrder: 1 },
+        { name: "Team 3", slug: "team-3", sortOrder: 2 },
+        { name: "Team 4", slug: "team-4", sortOrder: 3 },
       ];
       for (const r of defaultRosters) {
-        await db.insert(rosters).values({ teamId, gameId: game.id, name: r.name, slug: r.slug, sortOrder: r.sortOrder });
+        await db.insert(rosters).values({ teamId, gameId: game.id, name: r.name, slug: r.slug, sortOrder: r.sortOrder, code: generateRosterCode() });
       }
       logActivity(req.session.userId!, "add_game", `Added game "${name}"`, "system");
       res.json(game);
@@ -3342,7 +3413,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teamId = getTeamId();
       const rosterSlug = (slug || name).toLowerCase().replace(/[^a-z0-9-]/g, '-');
       const [roster] = await db.insert(rosters)
-        .values({ teamId, gameId: req.params.gameId, name, slug: rosterSlug, sortOrder: 99 })
+        .values({ teamId, gameId: req.params.gameId, name, slug: rosterSlug, sortOrder: 99, code: generateRosterCode() })
         .returning();
       res.json(roster);
     } catch (error: any) {

@@ -39,21 +39,22 @@ import SettingsPage from "@/pages/SettingsPage";
 import NotFound from "@/pages/not-found";
 
 function GameRoutes({ slug }: { slug: string }) {
+  const basePath = `/${slug}`;
   return (
     <Switch>
-      <Route path={`/${slug}`} component={Home} />
-      <Route path={`/${slug}/events`} component={Events} />
-      <Route path={`/${slug}/events/:id`} component={EventDetails} />
-      <Route path={`/${slug}/results`} component={EventsResults} />
-      <Route path={`/${slug}/history`} component={History} />
-      <Route path={`/${slug}/stats`} component={UnifiedStats} />
-      <Route path={`/${slug}/compare`} component={Compare} />
-      <Route path={`/${slug}/opponents`} component={OpponentStats} />
-      <Route path={`/${slug}/players`} component={Players} />
-      <Route path={`/${slug}/dashboard`} component={Dashboard} />
-      <Route path={`/${slug}/staff`} component={StaffPage} />
-      <Route path={`/${slug}/chat`} component={Chat} />
-      <Route path={`/${slug}/player-stats`} component={PlayerStats} />
+      <Route path={basePath} component={Home} />
+      <Route path={`${basePath}/events`} component={Events} />
+      <Route path={`${basePath}/events/:id`} component={EventDetails} />
+      <Route path={`${basePath}/results`} component={EventsResults} />
+      <Route path={`${basePath}/history`} component={History} />
+      <Route path={`${basePath}/stats`} component={UnifiedStats} />
+      <Route path={`${basePath}/compare`} component={Compare} />
+      <Route path={`${basePath}/opponents`} component={OpponentStats} />
+      <Route path={`${basePath}/players`} component={Players} />
+      <Route path={`${basePath}/dashboard`} component={Dashboard} />
+      <Route path={`${basePath}/staff`} component={StaffPage} />
+      <Route path={`${basePath}/chat`} component={Chat} />
+      <Route path={`${basePath}/player-stats`} component={PlayerStats} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -61,21 +62,53 @@ function GameRoutes({ slug }: { slug: string }) {
 
 function GameAccessGate({ slug }: { slug: string }) {
   const { hasGameAccess, hasRosterAccess, user } = useAuth();
-  const { currentGame, currentRoster, rosterId } = useGame();
+  const { currentGame, currentRoster, rosterId, rostersLoading, rosterCodeInvalid } = useGame();
   const [, navigate] = useLocation();
+  const [denied, setDenied] = useState(false);
 
-  if (currentGame) {
-    if (user?.orgRole === "super_admin") {
-      return <GameRoutes slug={slug} />;
+  useEffect(() => {
+    if (!currentGame || rostersLoading) return;
+
+    if (rosterCodeInvalid) {
+      setDenied(true);
+      const t = setTimeout(() => navigate("/", { replace: true }), 2000);
+      return () => clearTimeout(t);
     }
+
+    if (user?.orgRole === "super_admin" || user?.orgRole === "org_admin") return;
+
     if (!hasGameAccess(currentGame.id)) {
-      navigate("/", { replace: true });
-      return null;
+      setDenied(true);
+      const t = setTimeout(() => navigate("/", { replace: true }), 2000);
+      return () => clearTimeout(t);
     }
     if (rosterId && !hasRosterAccess(currentGame.id, rosterId)) {
-      navigate("/", { replace: true });
-      return null;
+      setDenied(true);
+      const t = setTimeout(() => navigate("/", { replace: true }), 2000);
+      return () => clearTimeout(t);
     }
+  }, [currentGame, rosterId, rostersLoading, user, rosterCodeInvalid]);
+
+  if (denied) {
+    return (
+      <div className="flex items-center justify-center h-full p-8" data-testid="access-denied">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-destructive mb-2">
+            {rosterCodeInvalid ? "Page Not Found" : "Access Denied"}
+          </h2>
+          <p className="text-muted-foreground">
+            {rosterCodeInvalid
+              ? "The roster you're looking for doesn't exist. Redirecting..."
+              : "You don't have permission to access this roster. Redirecting..."}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (currentGame && (user?.orgRole !== "super_admin" && user?.orgRole !== "org_admin")) {
+    if (!hasGameAccess(currentGame.id)) return null;
+    if (rosterId && !hasRosterAccess(currentGame.id, rosterId)) return null;
   }
 
   return <GameRoutes slug={slug} />;

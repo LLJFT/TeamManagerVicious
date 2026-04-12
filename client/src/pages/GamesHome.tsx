@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
@@ -8,23 +7,8 @@ import type { SupportedGame, Roster } from "@shared/schema";
 import { useGame, rosterUrlSlug } from "@/hooks/use-game";
 import { GameIcon } from "@/components/game-icon";
 
-const ROSTER_TYPE_LABELS: Record<string, string> = {
-  "first-team": "First Team",
-  "academy": "Academy",
-  "women": "Women",
-  "main": "First Team",
-};
-
-function RosterBadge({ slug }: { slug: string }) {
-  const colors: Record<string, string> = {
-    "first-team": "bg-blue-500/10 text-blue-600 dark:text-blue-400",
-    "academy": "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-    "women": "bg-pink-500/10 text-pink-600 dark:text-pink-400",
-    "main": "bg-blue-500/10 text-blue-600 dark:text-blue-400",
-  };
-  const label = ROSTER_TYPE_LABELS[slug] || slug;
-  const cls = colors[slug] || "bg-muted text-muted-foreground";
-  return <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${cls}`}>{label}</span>;
+function RosterBadge({ name }: { name: string }) {
+  return <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{name}</span>;
 }
 
 interface RosterCardData {
@@ -56,12 +40,8 @@ export default function GamesHome() {
   const rosterCards: RosterCardData[] = [];
   for (const game of allGames) {
     const gameRosters = (allRosters as any)?.[game.id] || [];
-    if (gameRosters.length === 0) {
-      rosterCards.push({ game, roster: { id: "", teamId: "", gameId: game.id, name: "First Team", slug: "first-team", sortOrder: 0 } as Roster });
-    } else {
-      for (const roster of gameRosters) {
-        rosterCards.push({ game, roster });
-      }
+    for (const roster of gameRosters) {
+      rosterCards.push({ game, roster });
     }
   }
 
@@ -69,7 +49,7 @@ export default function GamesHome() {
     const canAccess = roster.id ? hasRosterAccess(game.id, roster.id) : hasGameAccess(game.id);
     if (!canAccess) return;
     setRosterId(roster.id || null);
-    const url = `/${rosterUrlSlug(game.slug, roster.slug)}`;
+    const url = `/${rosterUrlSlug(game.slug, roster)}`;
     navigate(url);
   };
 
@@ -95,7 +75,7 @@ export default function GamesHome() {
                   const hasAccess = roster.id ? hasRosterAccess(game.id, roster.id) : hasGameAccess(game.id);
                   return (
                     <Card
-                      key={`${game.id}-${roster.slug}`}
+                      key={`${game.id}-${roster.id}`}
                       className={`relative cursor-pointer transition-opacity ${hasAccess ? "hover-elevate" : "opacity-40"}`}
                       data-testid={`card-roster-${game.slug}-${roster.slug}`}
                       onClick={() => handleRosterCardClick(game, roster)}
@@ -109,7 +89,7 @@ export default function GamesHome() {
                         <GameIcon slug={game.slug} name={game.name} />
                         <div className="flex flex-col gap-1 min-w-0">
                           <span className="text-sm font-medium leading-tight">{game.name}</span>
-                          <RosterBadge slug={roster.slug} />
+                          <RosterBadge name={roster.name} />
                         </div>
                       </CardContent>
                     </Card>
