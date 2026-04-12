@@ -30,7 +30,8 @@ const playerFormSchema = z.object({
 });
 
 const attendanceFormSchema = z.object({
-  playerId: z.string().min(1, "Player is required"),
+  playerId: z.string().optional(),
+  staffId: z.string().optional(),
   date: z.string().min(1, "Date is required"),
   status: z.enum(["attended", "late", "absent"]),
   notes: z.string().optional(),
@@ -345,6 +346,22 @@ export default function Players() {
     setEditingAttendance(undefined);
     attendanceForm.reset({
       playerId,
+      staffId: "",
+      date: format(new Date(), "yyyy-MM-dd"),
+      status: "attended",
+      notes: "",
+      ringer: "",
+      eventId: "",
+    });
+    setShowAttendanceDialog(true);
+  };
+
+  const handleAddStaffAttendance = (staffId: string) => {
+    setSelectedPlayer(staffId);
+    setEditingAttendance(undefined);
+    attendanceForm.reset({
+      playerId: "",
+      staffId,
       date: format(new Date(), "yyyy-MM-dd"),
       status: "attended",
       notes: "",
@@ -394,7 +411,7 @@ export default function Players() {
   };
 
   const getFilteredAndSortedAttendance = (personId: string) => {
-    let records = allAttendance.filter(a => a.playerId === personId);
+    let records = allAttendance.filter(a => a.playerId === personId || a.staffId === personId);
     const statusFilter = statusFilters[personId] || "all";
     if (statusFilter !== "all") {
       records = records.filter(a => a.status === statusFilter);
@@ -875,12 +892,20 @@ export default function Players() {
             return (
               <Card key={member.id} className="border-primary/20" data-testid={`card-staff-${member.id}`}>
                 <CardHeader>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-3 flex-wrap">
                       <h3 className="text-xl font-bold text-primary">{member.name}</h3>
                       {getRoleBadge(member.role)}
                       <Badge variant="secondary">Staff</Badge>
                     </div>
+                    <Button
+                      onClick={() => handleAddStaffAttendance(member.id)}
+                      className="gap-2"
+                      data-testid={`button-add-attendance-staff-${member.id}`}
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Attendance
+                    </Button>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2 text-sm text-muted-foreground">
                     <div>
@@ -894,6 +919,9 @@ export default function Players() {
                     </div>
                   </div>
                 </CardHeader>
+                <CardContent>
+                  {renderAttendanceSection(member.id)}
+                </CardContent>
               </Card>
             );
           })}

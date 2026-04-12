@@ -739,6 +739,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const { playerId } = req.body;
       const teamId = getTeamId();
+      if (playerId) {
+        const player = await db.select().from(players).where(and(eq(players.id, playerId), eq(players.teamId, teamId))).limit(1);
+        if (player.length === 0) {
+          return res.status(400).json({ message: "Player not found in this organization" });
+        }
+      }
       const [updated] = await db.update(users)
         .set({ playerId: playerId || null })
         .where(and(eq(users.id, id), eq(users.teamId, teamId)))
@@ -2069,9 +2075,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/events/:eventId/attendance", requireAuth, requirePermission("edit_events"), async (req, res) => {
     try {
       const { playerId, staffId, status } = req.body;
-      const validStatuses = ["present", "late", "absent"];
+      const validStatuses = ["attended", "late", "absent", "present"];
       if (!status || !validStatuses.includes(status)) {
-        return res.status(400).json({ error: "Invalid status. Must be one of: present, late, absent" });
+        return res.status(400).json({ error: "Invalid status. Must be one of: attended, late, absent" });
       }
       if (!playerId && !staffId) {
         return res.status(400).json({ error: "Either playerId or staffId is required" });
@@ -2504,7 +2510,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           agg.avg = agg.count > 0 ? Math.round((agg.total / agg.count) * 100) / 100 : 0;
         }
 
-        const opponentStats: Record<string, { opponent: string; wins: number; losses: number; draws: number; gamesPlayed: number; stats: Record<string, { fieldName: string; total: number; count: number; avg: number }> }> = {};
+        const opponentStats: Record<string, {
+          opponent: string; wins: number; losses: number; draws: number; gamesPlayed: number;
+          stats: Record<string, { fieldName: string; total: number; count: number; avg: number }>;
+          byMode: Record<string, { modeName: string; wins: number; losses: number; draws: number; gamesPlayed: number; stats: Record<string, { fieldName: string; total: number; count: number; avg: number }> }>;
+          byMap: Record<string, { mapName: string; wins: number; losses: number; draws: number; gamesPlayed: number; stats: Record<string, { fieldName: string; total: number; count: number; avg: number }> }>;
+          bySubType: Record<string, { subTypeName: string; wins: number; losses: number; draws: number; gamesPlayed: number; stats: Record<string, { fieldName: string; total: number; count: number; avg: number }> }>;
+        }> = {};
         for (const gameId of gameIds) {
           const game = allGames.find(g => g.id === gameId);
           if (!game) continue;
@@ -2512,29 +2524,93 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (!event || !event.opponentName) continue;
           const opp = event.opponentName;
           if (!opponentStats[opp]) {
-            opponentStats[opp] = { opponent: opp, wins: 0, losses: 0, draws: 0, gamesPlayed: 0, stats: {} };
+            opponentStats[opp] = { opponent: opp, wins: 0, losses: 0, draws: 0, gamesPlayed: 0, stats: {}, byMode: {}, byMap: {}, bySubType: {} };
           }
           opponentStats[opp].gamesPlayed++;
           if (game.result === "win") opponentStats[opp].wins++;
           else if (game.result === "loss") opponentStats[opp].losses++;
           else if (game.result === "draw") opponentStats[opp].draws++;
 
+          const modeId = game.gameModeId || "unknown";
+          const modeObj = allGameModes.find(m => m.id === modeId);
+          const modeName = modeObj?.name || "Unknown";
+          if (!opponentStats[opp].byMode[modeId]) {
+            opponentStats[opp].byMode[modeId] = { modeName, wins: 0, losses: 0, draws: 0, gamesPlayed: 0, stats: {} };
+          }
+          opponentStats[opp].byMode[modeId].gamesPlayed++;
+          if (game.result === "win") opponentStats[opp].byMode[modeId].wins++;
+          else if (game.result === "loss") opponentStats[opp].byMode[modeId].losses++;
+          else if (game.result === "draw") opponentStats[opp].byMode[modeId].draws++;
+
+          const mapId = game.mapId || "unknown";
+          const mapObj = allMaps.find(m => m.id === mapId);
+          const mapName = mapObj?.name || "Unknown";
+          if (!opponentStats[opp].byMap[mapId]) {
+            opponentStats[opp].byMap[mapId] = { mapName, wins: 0, losses: 0, draws: 0, gamesPlayed: 0, stats: {} };
+          }
+          opponentStats[opp].byMap[mapId].gamesPlayed++;
+          if (game.result === "win") opponentStats[opp].byMap[mapId].wins++;
+          else if (game.result === "loss") opponentStats[opp].byMap[mapId].losses++;
+          else if (game.result === "draw") opponentStats[opp].byMap[mapId].draws++;
+
+          const subType = event.eventSubType || "Unknown";
+          if (!opponentStats[opp].bySubType[subType]) {
+            opponentStats[opp].bySubType[subType] = { subTypeName: subType, wins: 0, losses: 0, draws: 0, gamesPlayed: 0, stats: {} };
+          }
+          opponentStats[opp].bySubType[subType].gamesPlayed++;
+          if (game.result === "win") opponentStats[opp].bySubType[subType].wins++;
+          else if (game.result === "loss") opponentStats[opp].bySubType[subType].losses++;
+          else if (game.result === "draw") opponentStats[opp].bySubType[subType].draws++;
+
           const gameStats = playerStats.filter(s => s.matchId === gameId);
           for (const gs of gameStats) {
             const field = allStatFields.find(f => f.id === gs.statFieldId);
             if (!field) continue;
             const fname = field.name;
+            const val = parseFloat(gs.value) || 0;
             if (!opponentStats[opp].stats[fname]) {
               opponentStats[opp].stats[fname] = { fieldName: fname, total: 0, count: 0, avg: 0 };
             }
-            const val = parseFloat(gs.value) || 0;
             opponentStats[opp].stats[fname].total += val;
             opponentStats[opp].stats[fname].count += 1;
+
+            if (!opponentStats[opp].byMode[modeId].stats[fname]) {
+              opponentStats[opp].byMode[modeId].stats[fname] = { fieldName: fname, total: 0, count: 0, avg: 0 };
+            }
+            opponentStats[opp].byMode[modeId].stats[fname].total += val;
+            opponentStats[opp].byMode[modeId].stats[fname].count += 1;
+
+            if (!opponentStats[opp].byMap[mapId].stats[fname]) {
+              opponentStats[opp].byMap[mapId].stats[fname] = { fieldName: fname, total: 0, count: 0, avg: 0 };
+            }
+            opponentStats[opp].byMap[mapId].stats[fname].total += val;
+            opponentStats[opp].byMap[mapId].stats[fname].count += 1;
+
+            if (!opponentStats[opp].bySubType[subType].stats[fname]) {
+              opponentStats[opp].bySubType[subType].stats[fname] = { fieldName: fname, total: 0, count: 0, avg: 0 };
+            }
+            opponentStats[opp].bySubType[subType].stats[fname].total += val;
+            opponentStats[opp].bySubType[subType].stats[fname].count += 1;
           }
         }
         for (const opp of Object.values(opponentStats)) {
           for (const st of Object.values(opp.stats)) {
             st.avg = st.count > 0 ? Math.round((st.total / st.count) * 100) / 100 : 0;
+          }
+          for (const mode of Object.values(opp.byMode)) {
+            for (const st of Object.values(mode.stats)) {
+              st.avg = st.count > 0 ? Math.round((st.total / st.count) * 100) / 100 : 0;
+            }
+          }
+          for (const map of Object.values(opp.byMap)) {
+            for (const st of Object.values(map.stats)) {
+              st.avg = st.count > 0 ? Math.round((st.total / st.count) * 100) / 100 : 0;
+            }
+          }
+          for (const sub of Object.values(opp.bySubType)) {
+            for (const st of Object.values(sub.stats)) {
+              st.avg = st.count > 0 ? Math.round((st.total / st.count) * 100) / 100 : 0;
+            }
           }
         }
 
@@ -2601,6 +2677,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const opponentsList = Object.values(opponentStats).map(o => ({
           ...o,
           stats: Object.values(o.stats),
+          byMode: Object.values(o.byMode).map(m => ({ ...m, stats: Object.values(m.stats) })),
+          byMap: Object.values(o.byMap).map(m => ({ ...m, stats: Object.values(m.stats) })),
+          bySubType: Object.values(o.bySubType).map(s => ({ ...s, stats: Object.values(s.stats) })),
         }));
 
         return {
@@ -2923,7 +3002,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       for (const game of allGamesList) {
         let gameRosters = await db.select().from(rosters)
-          .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, game.id)));
+          .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, game.id)))
+          .orderBy(rosters.sortOrder);
 
         if (gameRosters.length === 0) {
           const defaults = [
@@ -2936,7 +3016,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             await db.insert(rosters).values({ teamId, gameId: game.id, name: d.name, slug: d.slug, sortOrder: d.sortOrder, code: generateRosterCode() });
           }
           gameRosters = await db.select().from(rosters)
-            .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, game.id)));
+            .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, game.id)))
+            .orderBy(rosters.sortOrder);
           for (const r of gameRosters) {
             await seedRosterDefaults(teamId, game.id, r.id);
           }
@@ -3001,7 +3082,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!gameId) return res.status(400).json({ message: "gameId required" });
 
       let allRosters = await db.select().from(rosters)
-        .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, gameId)));
+        .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, gameId)))
+        .orderBy(rosters.sortOrder);
 
       if (allRosters.length === 0) {
         const defaults = [
@@ -3014,7 +3096,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await db.insert(rosters).values({ teamId, gameId, name: d.name, slug: d.slug, sortOrder: d.sortOrder, code: generateRosterCode() });
         }
         allRosters = await db.select().from(rosters)
-          .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, gameId)));
+          .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, gameId)))
+          .orderBy(rosters.sortOrder);
       }
 
       for (const r of allRosters) {

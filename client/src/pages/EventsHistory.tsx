@@ -35,10 +35,12 @@ import {
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import type { Event, Game, GameMode, Map as MapType } from "@shared/schema";
+import { useGame } from "@/hooks/use-game";
 
 const ITEMS_PER_PAGE = 10;
 
 export default function EventsHistory() {
+  const { fullSlug } = useGame();
   const [searchTerm, setSearchTerm] = useState("");
   const [eventTypeFilter, setEventTypeFilter] = useState<string>("all");
   const [resultFilter, setResultFilter] = useState<string>("all");
@@ -293,7 +295,7 @@ export default function EventsHistory() {
                           </div>
                         </div>
                       </div>
-                      <Link href={`/events/${event.id}`}>
+                      <Link href={`/${fullSlug}/events/${event.id}`}>
                         <Button variant="outline" size="sm" className="gap-2" data-testid={`button-view-${event.id}`}>
                           <Eye className="h-4 w-4" />
                           Details

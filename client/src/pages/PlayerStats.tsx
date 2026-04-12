@@ -28,6 +28,26 @@ interface MapStats {
   stats: StatAggregate[];
 }
 
+interface BreakdownEntry {
+  wins: number;
+  losses: number;
+  draws: number;
+  gamesPlayed: number;
+  stats: StatAggregate[];
+}
+
+interface ModeBreakdown extends BreakdownEntry {
+  modeName: string;
+}
+
+interface MapBreakdown extends BreakdownEntry {
+  mapName: string;
+}
+
+interface SubTypeBreakdown extends BreakdownEntry {
+  subTypeName: string;
+}
+
 interface OpponentStat {
   opponent: string;
   wins: number;
@@ -35,6 +55,9 @@ interface OpponentStat {
   draws: number;
   gamesPlayed: number;
   stats: StatAggregate[];
+  byMode: ModeBreakdown[];
+  byMap: MapBreakdown[];
+  bySubType: SubTypeBreakdown[];
 }
 
 interface PlayerSummary {
@@ -368,28 +391,125 @@ export default function PlayerStats() {
                                   {opp.draws > 0 && <span>{opp.draws}D</span>}
                                 </div>
                               </div>
-                              {isExpanded && opp.stats && opp.stats.length > 0 && (
-                                <div className="border-t border-border p-3 space-y-2 bg-muted/20">
-                                  {opp.stats.map((stat, si) => (
-                                    <div key={si} className="flex items-center justify-between px-3 py-2 rounded-md border border-border bg-card">
-                                      <span className="text-sm font-medium">{stat.fieldName}</span>
-                                      <div className="flex items-center gap-4">
-                                        <div className="text-right">
-                                          <span className="text-xs text-muted-foreground">Total</span>
-                                          <p className="text-sm font-semibold">{stat.total}</p>
+                              {isExpanded && (
+                                <div className="border-t border-border p-3 bg-muted/20">
+                                  <Tabs defaultValue="stats" className="w-full">
+                                    <TabsList className="w-full justify-start">
+                                      <TabsTrigger value="stats" data-testid={`opp-tab-stats-${i}`}>Stats</TabsTrigger>
+                                      <TabsTrigger value="byMode" data-testid={`opp-tab-mode-${i}`}>By Mode</TabsTrigger>
+                                      <TabsTrigger value="byMap" data-testid={`opp-tab-map-${i}`}>By Map</TabsTrigger>
+                                      <TabsTrigger value="bySubType" data-testid={`opp-tab-subtype-${i}`}>By Type</TabsTrigger>
+                                    </TabsList>
+                                    <TabsContent value="stats" className="space-y-2 mt-2">
+                                      {opp.stats && opp.stats.length > 0 ? opp.stats.map((stat, si) => (
+                                        <div key={si} className="flex items-center justify-between px-3 py-2 rounded-md border border-border bg-card">
+                                          <span className="text-sm font-medium">{stat.fieldName}</span>
+                                          <div className="flex items-center gap-4">
+                                            <div className="text-right">
+                                              <span className="text-xs text-muted-foreground">Total</span>
+                                              <p className="text-sm font-semibold">{stat.total}</p>
+                                            </div>
+                                            <div className="text-right">
+                                              <span className="text-xs text-muted-foreground">Avg</span>
+                                              <p className="text-sm font-semibold">{stat.avg}</p>
+                                            </div>
+                                          </div>
                                         </div>
-                                        <div className="text-right">
-                                          <span className="text-xs text-muted-foreground">Avg</span>
-                                          <p className="text-sm font-semibold">{stat.avg}</p>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                              {isExpanded && (!opp.stats || opp.stats.length === 0) && (
-                                <div className="border-t border-border p-3 text-center">
-                                  <p className="text-xs text-muted-foreground">No stat breakdown available for this opponent</p>
+                                      )) : (
+                                        <p className="text-xs text-muted-foreground text-center py-2">No stat breakdown available</p>
+                                      )}
+                                    </TabsContent>
+                                    <TabsContent value="byMode" className="space-y-3 mt-2">
+                                      {opp.byMode && opp.byMode.length > 0 ? opp.byMode.map((mode, mi) => {
+                                        const mwr = mode.gamesPlayed > 0 ? Math.round((mode.wins / mode.gamesPlayed) * 100) : 0;
+                                        return (
+                                          <div key={mi} className="rounded-md border border-border bg-card p-3">
+                                            <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+                                              <span className="text-sm font-medium">{mode.modeName}</span>
+                                              <div className="flex gap-2 text-xs text-muted-foreground">
+                                                <Badge variant={mwr >= 50 ? "default" : "secondary"} className="text-xs">{mwr}% WR</Badge>
+                                                <span>{mode.gamesPlayed}G</span>
+                                                <span className="text-green-600 dark:text-green-400">{mode.wins}W</span>
+                                                <span className="text-red-600 dark:text-red-400">{mode.losses}L</span>
+                                              </div>
+                                            </div>
+                                            {mode.stats.length > 0 && (
+                                              <div className="space-y-1">
+                                                {mode.stats.map((s, si) => (
+                                                  <div key={si} className="flex items-center justify-between text-xs px-2 py-1">
+                                                    <span className="text-muted-foreground">{s.fieldName}</span>
+                                                    <span className="font-medium">Avg: {s.avg} | Total: {s.total}</span>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      }) : (
+                                        <p className="text-xs text-muted-foreground text-center py-2">No mode breakdown available</p>
+                                      )}
+                                    </TabsContent>
+                                    <TabsContent value="byMap" className="space-y-3 mt-2">
+                                      {opp.byMap && opp.byMap.length > 0 ? opp.byMap.map((map, mi) => {
+                                        const mwr = map.gamesPlayed > 0 ? Math.round((map.wins / map.gamesPlayed) * 100) : 0;
+                                        return (
+                                          <div key={mi} className="rounded-md border border-border bg-card p-3">
+                                            <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+                                              <span className="text-sm font-medium">{map.mapName}</span>
+                                              <div className="flex gap-2 text-xs text-muted-foreground">
+                                                <Badge variant={mwr >= 50 ? "default" : "secondary"} className="text-xs">{mwr}% WR</Badge>
+                                                <span>{map.gamesPlayed}G</span>
+                                                <span className="text-green-600 dark:text-green-400">{map.wins}W</span>
+                                                <span className="text-red-600 dark:text-red-400">{map.losses}L</span>
+                                              </div>
+                                            </div>
+                                            {map.stats.length > 0 && (
+                                              <div className="space-y-1">
+                                                {map.stats.map((s, si) => (
+                                                  <div key={si} className="flex items-center justify-between text-xs px-2 py-1">
+                                                    <span className="text-muted-foreground">{s.fieldName}</span>
+                                                    <span className="font-medium">Avg: {s.avg} | Total: {s.total}</span>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      }) : (
+                                        <p className="text-xs text-muted-foreground text-center py-2">No map breakdown available</p>
+                                      )}
+                                    </TabsContent>
+                                    <TabsContent value="bySubType" className="space-y-3 mt-2">
+                                      {opp.bySubType && opp.bySubType.length > 0 ? opp.bySubType.map((sub, si) => {
+                                        const swr = sub.gamesPlayed > 0 ? Math.round((sub.wins / sub.gamesPlayed) * 100) : 0;
+                                        return (
+                                          <div key={si} className="rounded-md border border-border bg-card p-3">
+                                            <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+                                              <span className="text-sm font-medium">{sub.subTypeName}</span>
+                                              <div className="flex gap-2 text-xs text-muted-foreground">
+                                                <Badge variant={swr >= 50 ? "default" : "secondary"} className="text-xs">{swr}% WR</Badge>
+                                                <span>{sub.gamesPlayed}G</span>
+                                                <span className="text-green-600 dark:text-green-400">{sub.wins}W</span>
+                                                <span className="text-red-600 dark:text-red-400">{sub.losses}L</span>
+                                              </div>
+                                            </div>
+                                            {sub.stats.length > 0 && (
+                                              <div className="space-y-1">
+                                                {sub.stats.map((s, ssi) => (
+                                                  <div key={ssi} className="flex items-center justify-between text-xs px-2 py-1">
+                                                    <span className="text-muted-foreground">{s.fieldName}</span>
+                                                    <span className="font-medium">Avg: {s.avg} | Total: {s.total}</span>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      }) : (
+                                        <p className="text-xs text-muted-foreground text-center py-2">No event type breakdown available</p>
+                                      )}
+                                    </TabsContent>
+                                  </Tabs>
                                 </div>
                               )}
                             </div>

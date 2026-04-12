@@ -1,8 +1,10 @@
 import { db } from "./db";
 import { eq, and, sql, isNull } from "drizzle-orm";
+import bcrypt from "bcryptjs";
 import {
-  events, offDays, chatChannels, chatMessages, users,
-  supportedGames, rosters,
+  events, offDays, chatChannels, chatMessages, users, roles,
+  supportedGames, rosters, players, staff as staffTable,
+  GAME_ABBREVIATIONS,
 } from "@shared/schema";
 import { getTeamId } from "./storage";
 
@@ -13,10 +15,65 @@ export async function fixupTestData() {
   const teamId = getTeamId();
   console.log("[fixup] Starting test data fixup...");
 
+  const allGamesAll = await db.select().from(supportedGames);
+  const allRostersAll = await db.select().from(rosters).where(eq(rosters.teamId, teamId));
+  const PLAYER_NAMES = ["Phantom", "Blaze", "Viper", "Ghost", "Shadow", "Reaper", "Frost", "Storm"];
+  const STAFF_ROLES = ["Coach", "Analyst", "Manager"];
+
+  let playersSeeded = 0, staffSeeded = 0;
+  for (const roster of allRostersAll) {
+    const game = allGamesAll.find(g => g.id === roster.gameId);
+    if (!game) continue;
+    const abbr = GAME_ABBREVIATIONS[game.slug as keyof typeof GAME_ABBREVIATIONS] || game.slug.toUpperCase().slice(0, 3);
+    const sortIdx = roster.sortOrder ?? 0;
+    const rosterTag = `T${sortIdx + 1}`;
+
+    const existingPlayers = await db.select({ count: sql<number>`count(*)` }).from(players)
+      .where(and(eq(players.teamId, teamId), eq(players.rosterId, roster.id)));
+    if (Number(existingPlayers[0]?.count || 0) === 0) {
+      for (let pi = 0; pi < 5; pi++) {
+        await db.insert(players).values({
+          teamId, gameId: game.id, rosterId: roster.id,
+          name: `${abbr}_${PLAYER_NAMES[pi]}_${rosterTag}`,
+          role: "player",
+          fullName: `${PLAYER_NAMES[pi]} ${rosterTag}`,
+        });
+        playersSeeded++;
+      }
+    }
+
+    const existingStaff = await db.select({ count: sql<number>`count(*)` }).from(staffTable)
+      .where(and(eq(staffTable.teamId, teamId), eq(staffTable.rosterId, roster.id)));
+    if (Number(existingStaff[0]?.count || 0) === 0) {
+      for (const role of STAFF_ROLES) {
+        await db.insert(staffTable).values({
+          teamId, gameId: game.id, rosterId: roster.id,
+          name: `${role}_${abbr}_${rosterTag}`,
+          role: role.toLowerCase(),
+        });
+        staffSeeded++;
+      }
+    }
+  }
+  if (playersSeeded > 0 || staffSeeded > 0) {
+    console.log(`[fixup] Seeded ${playersSeeded} players and ${staffSeeded} staff for empty rosters`);
+  }
+
   await db.update(events)
     .set({ eventType: "Meetings" })
     .where(and(eq(events.teamId, teamId), eq(events.eventType, "Meeting")));
   console.log("[fixup] Renamed 'Meeting' -> 'Meetings' event type");
+
+  const { games: gamesTable, attendance: attendanceTable } = await import("@shared/schema");
+  await db.execute(sql`UPDATE events SET result = lower(result) WHERE team_id = ${teamId} AND result IS NOT NULL AND result != lower(result)`);
+  await db.execute(sql`UPDATE games SET result = lower(result) WHERE team_id = ${teamId} AND result IS NOT NULL AND result != lower(result)`);
+  await db.execute(sql`UPDATE attendance SET status = CASE
+    WHEN lower(status) = 'present' THEN 'attended'
+    WHEN lower(status) = 'late' THEN 'late'
+    WHEN lower(status) = 'absent' THEN 'absent'
+    ELSE lower(status)
+  END WHERE team_id = ${teamId} AND (status != lower(status) OR lower(status) = 'present')`);
+  console.log("[fixup] Normalized result/status values to lowercase");
 
   const scrimSubs = ["Practice", "Warm-up"];
   const tourneySubs = ["Stage 1", "Saudi League", "Elite 3000$ Cup"];
@@ -138,5 +195,50 @@ export async function fixupTestData() {
   console.log(`[fixup] Chat channels created: ${channelsCreated}`);
   console.log(`[fixup] Chat messages created: ${msgsCreated}`);
   console.log(`[fixup] Off days created: ${offDaysCreated}`);
+
+  let usersCreated = 0;
+  const existingUserCount = await db.select({ count: sql<number>`count(*)` }).from(users).where(eq(users.teamId, teamId));
+  if (Number(existingUserCount[0]?.count || 0) < 20) {
+    const passwordHash = bcrypt.hashSync("player123", 10);
+    const playerRole = await db.select().from(roles)
+      .where(and(eq(roles.teamId, teamId), eq(roles.name, "Player")))
+      .limit(1);
+    const playerRoleId = playerRole[0]?.id;
+
+    for (const roster of allRostersAll) {
+      const game = allGamesAll.find(g => g.id === roster.gameId);
+      if (!game) continue;
+      const rosterPlayers = await db.select().from(players)
+        .where(and(eq(players.teamId, teamId), eq(players.rosterId, roster.id)))
+        .limit(1);
+      if (rosterPlayers.length === 0) continue;
+      const player = rosterPlayers[0];
+
+      const existingUser = await db.select().from(users)
+        .where(and(eq(users.teamId, teamId), eq(users.playerId, player.id)))
+        .limit(1);
+      if (existingUser.length > 0) continue;
+
+      const username = player.name.replace(/[^a-zA-Z0-9_]/g, "_").toLowerCase();
+      const existingUsername = await db.select().from(users)
+        .where(and(eq(users.teamId, teamId), eq(users.username, username)))
+        .limit(1);
+      if (existingUsername.length > 0) continue;
+
+      await db.insert(users).values({
+        teamId,
+        username,
+        passwordHash,
+        playerId: player.id,
+        roleId: playerRoleId || null,
+        orgRole: "member",
+        displayName: player.fullName || player.name,
+        status: "active",
+      });
+      usersCreated++;
+    }
+  }
+  console.log(`[fixup] User accounts created: ${usersCreated}`);
+
   console.log("[fixup] Fixup complete!");
 }

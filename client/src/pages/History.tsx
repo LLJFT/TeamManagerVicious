@@ -4,6 +4,7 @@ import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useGame } from "@/hooks/use-game";
 import {
   Select,
   SelectContent,
@@ -31,6 +32,7 @@ const ITEMS_PER_PAGE = 10;
 
 export default function History() {
   const { hasPermission } = useAuth();
+  const { fullSlug } = useGame();
   const [selectedSeason, setSelectedSeason] = useState<string>("all");
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [selectedMode, setSelectedMode] = useState<string>("all");
@@ -404,7 +406,7 @@ export default function History() {
                             )}
                           </div>
                         </div>
-                        <Link href={`/events/${event.id}`}>
+                        <Link href={`/${fullSlug}/events/${event.id}`}>
                           <Button variant="outline" size="sm" className="gap-2" data-testid={`button-view-event-${event.id}`}>
                             <Eye className="h-4 w-4" />
                             View Details

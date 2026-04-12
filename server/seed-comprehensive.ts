@@ -52,7 +52,15 @@ export async function seedComprehensiveTestData() {
   const needsOffDays = offDayCount < allRosters.length * 2;
   const needsEvents = evCount < allRosters.length * 20;
 
-  if (!needsAvailability && !needsStaffAvailability && !needsChatMessages && !needsOffDays && !needsEvents) {
+  const rostersWithNoEvents = [];
+  for (const r of allRosters) {
+    const rEvCount = await db.select({ count: sql<number>`count(*)` }).from(events)
+      .where(and(eq(events.teamId, teamId), eq(events.rosterId, r.id)));
+    if (Number(rEvCount[0]?.count || 0) === 0) rostersWithNoEvents.push(r.id);
+  }
+  const hasEmptyRosters = rostersWithNoEvents.length > 0;
+
+  if (!needsAvailability && !needsStaffAvailability && !needsChatMessages && !needsOffDays && !needsEvents && !hasEmptyRosters) {
     console.log("[seed] Comprehensive test data already complete. Skipping.");
     return;
   }
@@ -179,10 +187,12 @@ export async function seedComprehensiveTestData() {
       }
     }
 
-    if (needsEvents) {
+    {
       const existEv = await db.select({ count: sql<number>`count(*)` }).from(events)
         .where(and(eq(events.teamId, teamId), eq(events.gameId, game.id), eq(events.rosterId, roster.id)));
-      if (Number(existEv[0]?.count || 0) >= 25) continue;
+      const rosterEventCount = Number(existEv[0]?.count || 0);
+      if (rosterEventCount >= 25) continue;
+      if (rosterEventCount > 0 && !needsEvents) continue;
 
       let rosterSeason = await db.select().from(seasons)
         .where(and(eq(seasons.teamId, teamId), eq(seasons.gameId, game.id), eq(seasons.rosterId, roster.id)))
@@ -277,7 +287,7 @@ export async function seedComprehensiveTestData() {
           date: ev.date, time: genTime(),
           description: `${ev.type} event for ${roster.name}`,
           opponentName: opp, seasonId,
-          result: ev.withGames ? randomFrom(["Win", "Loss", "Draw"]) : null,
+          result: ev.withGames ? randomFrom(["win", "loss", "draw"]) : null,
         }).returning();
         stats.events++;
 
@@ -290,7 +300,7 @@ export async function seedComprehensiveTestData() {
             teamId, gameId: game.id, rosterId: roster.id,
             playerId: person.playerId, staffId: person.staffId,
             eventId: inserted.id, date: ev.date,
-            status: randomFrom(["Present", "Present", "Present", "Present", "Late", "Absent"]),
+            status: randomFrom(["attended", "attended", "attended", "attended", "late", "absent"]),
           });
           stats.attendance++;
         }
@@ -303,7 +313,7 @@ export async function seedComprehensiveTestData() {
               eventId: inserted.id, gameCode: `Game ${g + 1}`,
               score, imageUrl: "/uploads/general/IMG_4357.png",
               gameModeId, mapId: rosterMaps[g % rosterMaps.length].id,
-              result: randomFrom(["Win", "Loss"]),
+              result: randomFrom(["win", "loss"]),
               link: `https://youtube.com/watch?v=vod_${abbr}_${rosterType}_${g}`,
             }).returning();
             stats.matches++;

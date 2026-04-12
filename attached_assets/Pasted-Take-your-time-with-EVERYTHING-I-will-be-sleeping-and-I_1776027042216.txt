@@ -1,0 +1,84 @@
+Take your time with EVERYTHING. I will be sleeping and I expect to wake up with everything done. Do not stop until every single item is complete. Quality over speed. I want to see all the tests/example. everything on the LIVE site i want when i publish the app see everything there not in the preview : https://team-manager-vicious.replit.app/
+
+🔴 CRITICAL — Schedule shows ALL players from ALL rosters (84+ players)
+When opening any roster’s Schedule page, it shows every player and staff from every roster in the entire game — all 84+ entries. Fix this completely: the Schedule must only show players and staff that belong to THAT specific roster. This is a data isolation bug — each roster must be 100% isolated.
+🔴 CRITICAL — Events: clicking event link shows 404 Page Not Found
+When I click on an event link from the Opponents page or Results page, the URL goes to /events/[event-id] and shows “404 Page Not Found — Did you forget to add the page to the router?”. Fix the routing so event detail pages load correctly from any link anywhere on the platform.
+🔴 CRITICAL — Calendar still shows category color, NOT sub-type color
+Events on the calendar are still showing their parent category color (all Scrims = same blue, all Tournaments = same orange). This was supposed to be fixed but is still wrong. Fix it properly: each event on the calendar must show its SUB-TYPE color, not its category color. For example: “Practice” scrims show one color, “Warm-up” scrims show a different color. The sub-type colors are already set in Dashboard → Event Types. Make absolutely sure this fix works by verifying it on the live site after implementing.
+🔴 CRITICAL — Staff members missing from Attendance (Add Attendance button and records)
+Staff members (Head Coach, Assistant Coach, Analyst, Manager) appear in the Players page but have NO “Add Attendance” button and NO attendance records section — unlike players who have both. Fix this: staff must have the exact same attendance functionality as players — Add Attendance button, attendance records with expand/collapse, and appear in the Attendance Statistics table at the top with their own rows showing Attended/Late/Absent/Total counts.
+🔴 CRITICAL — Roster Roles dialog: remove “Staff” type option
+In Dashboard → Team → Add Roster Role, the Type dropdown shows both “Player” and “Staff” options. Remove the “Staff” option completely. Roster Roles must be Player type only. Staff have their own separate management section and don’t need roster roles.
+🔴 CRITICAL — Event categories appear 9+ times in Dashboard (from all rosters combined)
+In Dashboard → Event Types, the same categories (Scrim, Tournament, Meetings) appear 9 or more times because they’re being loaded from all rosters combined instead of just the current roster. Fix: the Event Types tab must only show categories belonging to the current roster.
+🔴 CRITICAL — Statistics page: Event Type Filter still single-select without sub-types
+The Statistics page still shows the old single-select filter (All Events / Scrims / Tournaments) with no sub-types. The new multi-select filter with sub-types was supposed to be implemented but either wasn’t done or didn’t apply to all statistics views. Fix: implement the multi-select filter across ALL analytics sections — Statistics, Player Stats, Compare, History — everywhere there is any kind of event type filter. The filter must show: main categories as collapsible groups, sub-types as individual checkboxes inside each group, user can select multiple at once, all analytics update instantly based on selection.
+🔴 CRITICAL — Player Stats vs Opponents: add By Game Mode, By Map, By Sub-type breakdown
+In the Player Stats page, the “vs Opponents” section shows only flat overall stats per opponent. Add full analytics breakdown here: for each opponent, show tabs or sections for: Overall / By Game Mode / By Map / By Event Sub-type. This gives complete analytical depth.
+🔴 CRITICAL — Roster order must be Team 1, Team 2, Team 3, Team 4 consistently
+Rosters must always display in this exact order for every game: Team 1 → Team 2 → Team 3 → Team 4. Fix the sort order everywhere: home game cards, sidebar roster selector, dashboard views, everywhere rosters are listed.
+
+📋 ADD COMPREHENSIVE TEST DATA ON THE LIVE SITE
+Target i want when i publish the app i see all the examples/tests  you did so consumers/customers can see all the examples as someone were using the website for 2 months before he came: https://team-manager-vicious.replit.app/ — use the database/seed scripts, NOT the preview
+Do this for EVERY roster of EVERY game on the platform. Do not skip any game or roster.
+For each roster, add:
+Dashboard → Game Config (if not already set):
+	•	3 game modes: Game Mode 1, Game Mode 2, Game Mode 3
+	•	3 maps per mode (9 total): Mode 1 → Map 1/2/3 | Mode 2 → Map 4/5/6 | Mode 3 → Map 7/8/9
+	•	2 seasons: Season 1, Season 2
+	•	Roster roles (Player type only): AR, SUB, FLEX
+	•	Stat fields: Mode 1 → Kill/Death/Time | Mode 2 → Kill/Death/Plant/Defuse | Mode 3 → Kill/Death/Goal
+	•	Event categories with sub-types and colors (Scrim: Practice/Warm-up | Tournament: Stage 1/Saudi League/Elite 3000$ Cup | Meetings: Vod Review/Roster Meeting/Organization Meeting)
+Players (4 per roster):
+	•	Team 1: [GAME]_A, [GAME]_B, [GAME]_C, [GAME]_D
+	•	Team 2: [GAME]_T2_A, [GAME]_T2_B, [GAME]_T2_C, [GAME]_T2_D
+	•	Team 3: [GAME]_T3_A, [GAME]_T3_B, [GAME]_T3_C, [GAME]_T3_D
+	•	Team 4: [GAME]_T4_A, [GAME]_T4_B, [GAME]_T4_C, [GAME]_T4_D
+	•	Set availability for all 7 days — mix of available/unavailable/time slots. Add some off days.
+Staff (2 per roster): Coach + Analyst — set their availability too
+Opponents: Falcons, Liquid, Vitality, FaZe, Twisted Minds, Virtus Pro, GenG, Karmine Corp, T1, 100 Thieves, G2
+Events — add 50+ events per roster between March 1–April 10, 2026 (times 15:00–02:00):
+	•	20 Scrim events: mix of Practice and Warm-up sub-types. Warm-up scrims scheduled ~1 hour before a tournament on the same day. Use different opponents each time.
+	•	20 Tournament events: realistic progression names — “Saudi League TOP 16 VS [Opponent]”, “Saudi League Quarter Finals VS [Opponent]”, “Saudi League Semi Finals VS [Opponent]”, “Saudi League Grand Finals VS [Opponent]” — then use Stage 1 and Elite 3000$ Cup for the rest
+	•	6 Meeting events: mix of Vod Review, Roster Meeting, Organization Meeting
+	•	5+ Off Days scattered throughout
+Inside every Scrim and Tournament event:
+	•	3–5 games each with: game mode selected, map selected, player stats filled in for ALL players, mix of wins and losses (NOT all wins)
+	•	Upload a scoreboard image for each game result (use IMG_4357.png from attached_assets folder, or any image available in the project)
+	•	Add a VOD link (any placeholder URL)
+	•	Mark attendance for all players AND staff: mix Present/Late/Absent — NOT everyone present every time
+
+👥 CREATE USER ACCOUNTS AND LINK THEM TO PLAYERS
+For every roster, create user accounts and link each one to the corresponding player or staff member. Use this naming pattern:
+	•	Team 1 players: usernames d2_1_A, d2_1_B, d2_1_C, d2_1_D (use the actual game abbreviation, not always d2)
+	•	Team 2 players: d2_2_A, d2_2_B, d2_2_C, d2_2_D
+	•	Team 3: d2_3_A … Team 4: d2_4_A …
+	•	Staff accounts: d2_1_coach, d2_1_analyst (one per staff member per roster)
+Password for every account = same as the username (clients will change it themselves later)
+Platform role: assign “Player” role for player accounts, “Staff” role for staff accounts
+After creating accounts: link each user account to their corresponding player/staff record in the roster so they can log in and see their own data
+This means roughly 6 users per roster (4 players + 2 staff) × all rosters across all games.
+
+🔍 FINAL: Full platform bug audit and testing
+After completing everything above, go through the ENTIRE live site as a real user and actively find and fix every remaining bug:
+	•	Open every page in multiple different rosters
+	•	Verify Schedule shows ONLY the correct roster’s players (not all 84)
+	•	Verify calendar events show sub-type colors
+	•	Verify clicking any event link works (no 404)
+	•	Verify Statistics multi-select filter works across all analytics pages
+	•	Verify Player Stats vs Opponents shows By Mode/By Map/By Sub-type
+	•	Verify Staff appear in attendance with Add Attendance button
+	•	Verify event detail pages load correctly
+	•	Verify roster order is always Team 1/2/3/4
+	•	Try every button, filter, form, dropdown on every page
+	•	Test the Share button — verify copied text is correct format
+	•	Test chat functionality
+	•	Try accessing a roster without permission — verify Access Denied
+Fix every bug found immediately.
+
+At the end provide:
+✅ Completed — fully done and verified on live site
+⚠️ Partially done — incomplete
+❌ Not done — skipped
+🐛 Bugs found and fixed — list every single one

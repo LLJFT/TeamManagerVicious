@@ -70,7 +70,7 @@ const availabilitySlotFormSchema = z.object({
 
 const rosterRoleFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  type: z.enum(["player", "staff"]),
+  type: z.literal("player"),
   sortOrder: z.coerce.number().int().min(0),
 });
 
@@ -1430,7 +1430,7 @@ export default function Dashboard() {
                           </div>
                           <div className="flex items-center gap-1">
                             <Badge variant="secondary" className="mr-2">{rr.type}</Badge>
-                            <Button variant="ghost" size="icon" onClick={() => { setEditingRosterRole(rr); rosterRoleForm.reset({ name: rr.name, type: rr.type as "player" | "staff", sortOrder: rr.sortOrder ?? 0 }); setShowRosterRoleDialog(true); }} data-testid={`button-edit-roster-role-${rr.id}`}>
+                            <Button variant="ghost" size="icon" onClick={() => { setEditingRosterRole(rr); rosterRoleForm.reset({ name: rr.name, type: "player", sortOrder: rr.sortOrder ?? 0 }); setShowRosterRoleDialog(true); }} data-testid={`button-edit-roster-role-${rr.id}`}>
                               <Pencil className="h-4 w-4 text-muted-foreground" />
                             </Button>
                             <Button variant="ghost" size="icon" onClick={() => { if (confirm("Delete this roster role?")) deleteRosterRoleMutation.mutate(rr.id); }} data-testid={`button-delete-roster-role-${rr.id}`}>
@@ -2149,19 +2149,7 @@ export default function Dashboard() {
                     <FormMessage />
                   </FormItem>
                 )} />
-                <FormField control={rosterRoleForm.control} name="type" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Type</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl><SelectTrigger data-testid="select-roster-role-type"><SelectValue placeholder="Select type" /></SelectTrigger></FormControl>
-                      <SelectContent>
-                        <SelectItem value="player">Player</SelectItem>
-                        <SelectItem value="staff">Staff</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )} />
+                <input type="hidden" {...rosterRoleForm.register("type")} value="player" />
                 <FormField control={rosterRoleForm.control} name="sortOrder" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Sort Order</FormLabel>

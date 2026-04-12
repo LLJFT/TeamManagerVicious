@@ -22,13 +22,13 @@ export function setupAuth(app: Express) {
         pool: pool as any,
         createTableIfMissing: true,
       }),
-      secret: process.env.SESSION_SECRET || "default-secret-change-me",
+      secret: process.env.SESSION_SECRET || require("crypto").randomBytes(32).toString("hex"),
       resave: false,
       saveUninitialized: false,
       cookie: {
         httpOnly: true,
         sameSite: "lax",
-        secure: false,
+        secure: process.env.NODE_ENV === "production",
         maxAge: 7 * 24 * 60 * 60 * 1000,
       },
     })
