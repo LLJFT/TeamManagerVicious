@@ -19,10 +19,15 @@ import {
   Swords,
   Search,
   ArrowUpDown,
+  ChevronDown,
+  ChevronRight,
+  ExternalLink,
 } from "lucide-react";
+import { useGame } from "@/hooks/use-game";
 import type { Event, Game, GameMode, Map as MapType } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied } from "@/components/AccessDenied";
+import { OpponentsSkeleton } from "@/components/PageSkeleton";
 
 interface StatsSummary {
   total: number;
@@ -32,6 +37,14 @@ interface StatsSummary {
   winRate: number;
 }
 
+interface EventDetail {
+  eventId: string;
+  title: string;
+  date: string;
+  result: string;
+  score: string;
+}
+
 interface OpponentData {
   name: string;
   eventStats: StatsSummary;
@@ -39,14 +52,26 @@ interface OpponentData {
   bestModes: { mode: GameMode; winRate: number; total: number }[];
   worstMaps: { map: MapType; modeName: string; winRate: number; total: number }[];
   lastPlayed?: string;
+  eventDetails: EventDetail[];
 }
 
 type SortOption = "matches" | "winRate" | "name" | "lastPlayed";
 
 export default function OpponentStats() {
   const { hasPermission } = useAuth();
+  const { fullSlug } = useGame();
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("matches");
+  const [expandedOpponents, setExpandedOpponents] = useState<Set<string>>(new Set());
+
+  const toggleExpanded = (name: string) => {
+    setExpandedOpponents(prev => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
 
   const { data: events = [], isLoading } = useQuery<Event[]>({
     queryKey: ["/api/events"],
@@ -114,6 +139,19 @@ export default function OpponentStats() {
         return new Date(b.date).getTime() - new Date(a.date).getTime();
       });
 
+      const eventDetails: EventDetail[] = sortedByDate.map(e => {
+        const eGames = opponentGames.filter(g => g.eventId === e.id);
+        const gWins = eGames.filter(g => g.result === "win").length;
+        const gLosses = eGames.filter(g => g.result === "loss").length;
+        return {
+          eventId: e.id,
+          title: e.title || "Untitled Event",
+          date: e.date || "",
+          result: e.result || "pending",
+          score: eGames.length > 0 ? `${gWins}-${gLosses}` : "",
+        };
+      });
+
       result.push({
         name: displayName,
         eventStats,
@@ -121,6 +159,7 @@ export default function OpponentStats() {
         bestModes: modePerformance.sort((a, b) => b.winRate - a.winRate).slice(0, 3),
         worstMaps: mapPerformance.sort((a, b) => a.winRate - b.winRate).slice(0, 3),
         lastPlayed: sortedByDate[0]?.date,
+        eventDetails,
       });
     });
 
@@ -170,14 +209,7 @@ export default function OpponentStats() {
   }
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center space-y-3">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="text-muted-foreground">Loading opponent data...</p>
-        </div>
-      </div>
-    );
+    return <OpponentsSkeleton />;
   }
 
   return (
@@ -242,6 +274,17 @@ export default function OpponentStats() {
                 <CardHeader className="pb-4 border-b">
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div className="flex items-center gap-3">
+                      <div
+                        className="p-1 rounded cursor-pointer hover-elevate"
+                        onClick={() => toggleExpanded(opponent.name)}
+                        data-testid={`button-expand-${opponent.name}`}
+                      >
+                        {expandedOpponents.has(opponent.name) ? (
+                          <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                        )}
+                      </div>
                       <div className="p-3 rounded-lg bg-primary/10">
                         <Swords className="h-6 w-6 text-primary" />
                       </div>
@@ -351,6 +394,58 @@ export default function OpponentStats() {
                     </div>
                   </div>
                 </CardContent>
+                {expandedOpponents.has(opponent.name) && (
+                  <div className="border-t border-border">
+                    <div className="p-4">
+                      <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                        <Trophy className="h-4 w-4 text-primary" />
+                        Event History vs {opponent.name}
+                      </h4>
+                      {opponent.eventDetails.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No events recorded</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {opponent.eventDetails.map(ed => {
+                            const resultColors: Record<string, string> = {
+                              win: "text-emerald-500",
+                              loss: "text-red-500",
+                              draw: "text-amber-500",
+                            };
+                            const resultLabels: Record<string, string> = {
+                              win: "W",
+                              loss: "L",
+                              draw: "D",
+                            };
+                            return (
+                              <div key={ed.eventId} className="flex items-center justify-between gap-2 p-2 rounded-lg border border-border text-sm" data-testid={`event-detail-${ed.eventId}`}>
+                                <div className="flex items-center gap-3 flex-1 min-w-0">
+                                  <Badge
+                                    variant={ed.result === "win" ? "default" : "secondary"}
+                                    className={`shrink-0 ${ed.result === "win" ? "" : ed.result === "loss" ? "bg-red-500/10 text-red-500" : "bg-amber-500/10 text-amber-500"}`}
+                                  >
+                                    {resultLabels[ed.result] || "?"}
+                                  </Badge>
+                                  <span className="truncate font-medium">{ed.title}</span>
+                                  {ed.score && <span className="text-muted-foreground shrink-0">{ed.score}</span>}
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span className="text-xs text-muted-foreground">
+                                    {ed.date ? new Date(ed.date).toLocaleDateString() : ""}
+                                  </span>
+                                  <Link href={`/${fullSlug}/events/${ed.eventId}`}>
+                                    <Button variant="ghost" size="icon" data-testid={`link-event-${ed.eventId}`}>
+                                      <ExternalLink className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </Link>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </Card>
             ))}
           </div>

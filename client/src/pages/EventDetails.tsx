@@ -1,6 +1,7 @@
 import { useRoute, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { EventsSkeleton } from "@/components/PageSkeleton";
 import { useGame } from "@/hooks/use-game";
 import type { Event, EventResult, Game, InsertGame, GameMode, Map as MapType, Player, StatField, PlayerGameStat, Attendance, Staff } from "@shared/schema";
 import { Button } from "@/components/ui/button";
@@ -563,11 +564,7 @@ export default function EventDetails() {
   };
 
   if (eventLoading || gamesLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">Loading...</div>
-      </div>
-    );
+    return <EventsSkeleton />;
   }
 
   if (!event) {

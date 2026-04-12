@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { ScheduleSkeleton } from "@/components/PageSkeleton";
 import { ScheduleTable } from "@/components/ScheduleTable";
 import { PlayerManager } from "@/components/PlayerManager";
 import { AvailabilityAnalytics } from "@/components/AvailabilityAnalytics";
@@ -227,12 +228,7 @@ export default function Home() {
           )}
 
           {playersLoading ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="text-center space-y-3">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-                <p className="text-muted-foreground">Loading...</p>
-              </div>
-            </div>
+            <ScheduleSkeleton />
           ) : (
             <>
               <ScheduleTable

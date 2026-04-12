@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   ArrowLeft,
   Trophy,
@@ -16,8 +17,12 @@ import {
   TrendingDown,
   Minus,
   BarChart3,
+  ChevronDown,
+  ChevronRight,
+  Filter,
 } from "lucide-react";
-import type { Event, Game, GameMode, Map as MapType } from "@shared/schema";
+import type { Event, Game, GameMode, Map as MapType, EventCategory, EventSubType } from "@shared/schema";
+import { StatsSkeleton } from "@/components/PageSkeleton";
 
 interface StatsSummary {
   total: number;
@@ -29,6 +34,9 @@ interface StatsSummary {
 
 export default function Stats() {
   const [activeTab, setActiveTab] = useState("overall");
+  const [selectedSubTypes, setSelectedSubTypes] = useState<Set<string>>(new Set());
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [showFilter, setShowFilter] = useState(false);
 
   const { data: events = [], isLoading: eventsLoading } = useQuery<Event[]>({
     queryKey: ["/api/events"],
@@ -46,6 +54,72 @@ export default function Stats() {
     queryKey: ["/api/maps"],
   });
 
+  const { data: eventCategories = [] } = useQuery<EventCategory[]>({
+    queryKey: ["/api/event-categories"],
+  });
+
+  const { data: eventSubTypes = [] } = useQuery<EventSubType[]>({
+    queryKey: ["/api/event-sub-types"],
+  });
+
+  const categoryGroups = useMemo(() => {
+    const uniqueCats = Array.from(new Set(eventCategories.map(c => c.name)));
+    return uniqueCats.map(catName => {
+      const cat = eventCategories.find(c => c.name === catName)!;
+      const subs = eventSubTypes.filter(s => {
+        const matchingCat = eventCategories.find(c => c.id === s.categoryId);
+        return matchingCat?.name === catName;
+      });
+      const uniqueSubs = subs.filter((s, i, arr) => arr.findIndex(x => x.name === s.name) === i);
+      return { name: catName, color: cat.color, subTypes: uniqueSubs };
+    });
+  }, [eventCategories, eventSubTypes]);
+
+  const toggleCategory = (catName: string) => {
+    setExpandedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(catName)) next.delete(catName);
+      else next.add(catName);
+      return next;
+    });
+  };
+
+  const toggleSubType = (subName: string) => {
+    setSelectedSubTypes(prev => {
+      const next = new Set(prev);
+      if (next.has(subName)) next.delete(subName);
+      else next.add(subName);
+      return next;
+    });
+  };
+
+  const toggleAllInCategory = (catName: string) => {
+    const group = categoryGroups.find(g => g.name === catName);
+    if (!group) return;
+    const subNames = group.subTypes.map(s => s.name);
+    const allSelected = subNames.every(n => selectedSubTypes.has(n));
+    setSelectedSubTypes(prev => {
+      const next = new Set(prev);
+      if (allSelected) {
+        subNames.forEach(n => next.delete(n));
+      } else {
+        subNames.forEach(n => next.add(n));
+      }
+      return next;
+    });
+  };
+
+  const filteredEvents = useMemo(() => {
+    if (selectedSubTypes.size === 0) return events;
+    return events.filter(e => e.eventSubType && selectedSubTypes.has(e.eventSubType));
+  }, [events, selectedSubTypes]);
+
+  const filteredGames = useMemo(() => {
+    if (selectedSubTypes.size === 0) return allGames;
+    const filteredEventIds = new Set(filteredEvents.map(e => e.id));
+    return allGames.filter(g => g.eventId && filteredEventIds.has(g.eventId));
+  }, [allGames, filteredEvents, selectedSubTypes]);
+
   const calculateStats = (items: { result?: string | null }[]): StatsSummary => {
     const total = items.length;
     const wins = items.filter(i => i.result === "win").length;
@@ -56,25 +130,29 @@ export default function Stats() {
   };
 
   const calculateEventStats = (): StatsSummary => {
-    return calculateStats(events.filter(e => e.result));
+    return calculateStats(filteredEvents.filter(e => e.result));
   };
 
   const calculateGameStats = (): StatsSummary => {
-    return calculateStats(allGames.filter(g => g.result));
+    return calculateStats(filteredGames.filter(g => g.result));
   };
 
   const calculateStatsByEventType = () => {
-    const types = ["tournament", "scrim", "vod_review"];
+    const types = Array.from(new Set(filteredEvents.map(e => e.eventType).filter(Boolean)));
+    if (types.length === 0) {
+      const defaultTypes = ["tournament", "scrim", "vod_review"];
+      return defaultTypes.map(type => ({ type, ...calculateStats([]) }));
+    }
     return types.map(type => {
-      const typeEvents = events.filter(e => e.eventType === type && e.result);
+      const typeEvents = filteredEvents.filter(e => e.eventType === type && e.result);
       const stats = calculateStats(typeEvents);
-      return { type, ...stats };
+      return { type: type!, ...stats };
     });
   };
 
   const calculateStatsByGameMode = () => {
     return gameModes.map(mode => {
-      const modeGames = allGames.filter(g => g.gameModeId === mode.id && g.result);
+      const modeGames = filteredGames.filter(g => g.gameModeId === mode.id && g.result);
       const stats = calculateStats(modeGames);
       return { mode, ...stats };
     }).filter(s => s.total > 0);
@@ -82,7 +160,7 @@ export default function Stats() {
 
   const calculateStatsByMap = () => {
     return maps.map(map => {
-      const mapGames = allGames.filter(g => g.mapId === map.id && g.result);
+      const mapGames = filteredGames.filter(g => g.mapId === map.id && g.result);
       const stats = calculateStats(mapGames);
       const mode = gameModes.find(m => m.id === map.gameModeId);
       return { map, modeName: mode?.name || "Unknown", ...stats };
@@ -132,11 +210,7 @@ export default function Stats() {
   );
 
   if (eventsLoading) {
-    return (
-      <div className="min-h-screen bg-background p-6 flex items-center justify-center">
-        <div className="text-foreground">Loading stats...</div>
-      </div>
-    );
+    return <StatsSkeleton />;
   }
 
   const overallEventStats = calculateEventStats();
@@ -162,6 +236,70 @@ export default function Stats() {
             </div>
           </div>
         </div>
+
+        {categoryGroups.length > 0 && (
+          <Card className="mb-6">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2 cursor-pointer" onClick={() => setShowFilter(!showFilter)}>
+                  <Filter className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">Filter by Event Sub-Types</span>
+                  {selectedSubTypes.size > 0 && (
+                    <Badge variant="secondary" className="text-xs">{selectedSubTypes.size} selected</Badge>
+                  )}
+                  {showFilter ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                </div>
+                {selectedSubTypes.size > 0 && (
+                  <Button variant="ghost" size="sm" onClick={() => setSelectedSubTypes(new Set())} data-testid="button-clear-filter">
+                    Clear All
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            {showFilter && (
+              <CardContent className="pt-0">
+                <div className="space-y-2">
+                  {categoryGroups.map(group => {
+                    const isExpanded = expandedCategories.has(group.name);
+                    const subNames = group.subTypes.map(s => s.name);
+                    const selectedCount = subNames.filter(n => selectedSubTypes.has(n)).length;
+                    const allSelected = subNames.length > 0 && selectedCount === subNames.length;
+                    return (
+                      <div key={group.name} className="rounded-lg border border-border">
+                        <div className="flex items-center gap-2 p-2 cursor-pointer" onClick={() => toggleCategory(group.name)}>
+                          {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                          <div className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: group.color || "#888" }} />
+                          <span className="text-sm font-medium flex-1">{group.name}</span>
+                          {selectedCount > 0 && <Badge variant="secondary" className="text-xs">{selectedCount}/{subNames.length}</Badge>}
+                          <Checkbox
+                            checked={allSelected}
+                            onCheckedChange={() => toggleAllInCategory(group.name)}
+                            onClick={(e) => e.stopPropagation()}
+                            data-testid={`checkbox-category-${group.name}`}
+                          />
+                        </div>
+                        {isExpanded && group.subTypes.length > 0 && (
+                          <div className="border-t border-border px-4 py-2 space-y-1 bg-muted/20">
+                            {group.subTypes.map(sub => (
+                              <label key={sub.name} className="flex items-center gap-2 py-1 cursor-pointer text-sm" data-testid={`filter-subtype-${sub.name}`}>
+                                <Checkbox
+                                  checked={selectedSubTypes.has(sub.name)}
+                                  onCheckedChange={() => toggleSubType(sub.name)}
+                                />
+                                <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: sub.color || group.color || "#888" }} />
+                                <span>{sub.name}</span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            )}
+          </Card>
+        )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid grid-cols-4 w-full max-w-lg">
@@ -195,11 +333,11 @@ export default function Stats() {
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="text-center p-4 rounded-lg bg-muted">
-                    <div className="text-3xl font-bold text-foreground">{events.length}</div>
+                    <div className="text-3xl font-bold text-foreground">{filteredEvents.length}</div>
                     <div className="text-sm text-muted-foreground">Total Events</div>
                   </div>
                   <div className="text-center p-4 rounded-lg bg-muted">
-                    <div className="text-3xl font-bold text-foreground">{allGames.length}</div>
+                    <div className="text-3xl font-bold text-foreground">{filteredGames.length}</div>
                     <div className="text-sm text-muted-foreground">Total Games</div>
                   </div>
                   <div className="text-center p-4 rounded-lg bg-muted">

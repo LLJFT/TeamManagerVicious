@@ -2480,6 +2480,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const allEvents = await storage.getAllEvents(gid, rid);
       const allGameModes = await storage.getAllGameModes(gid, rid);
 
+      const allMaps = await storage.getAllMaps(gid, rid);
+
       const summary = allPlayers.map(player => {
         const playerStats = allPlayerGameStats.filter(s => s.playerId === player.id);
         const gameIds = Array.from(new Set(playerStats.map(s => s.matchId)));
@@ -2562,6 +2564,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
+        const statsByMap: Record<string, { mapName: string; stats: { fieldName: string; total: number; count: number; avg: number }[] }> = {};
+        for (const stat of playerStats) {
+          const field = allStatFields.find(f => f.id === stat.statFieldId);
+          if (!field) continue;
+          const game = allGames.find(g => g.id === stat.matchId);
+          const mapId = game?.mapId || "unknown";
+          const mapObj = allMaps.find(m => m.id === mapId);
+          const mapName = mapObj?.name || "Unknown";
+          if (!statsByMap[mapId]) {
+            statsByMap[mapId] = { mapName, stats: [] };
+          }
+          let mapStat = statsByMap[mapId].stats.find(s => s.fieldName === field.name);
+          if (!mapStat) {
+            mapStat = { fieldName: field.name, total: 0, count: 0, avg: 0 };
+            statsByMap[mapId].stats.push(mapStat);
+          }
+          const val = parseFloat(stat.value) || 0;
+          mapStat.total += val;
+          mapStat.count += 1;
+        }
+        for (const mapEntry of Object.values(statsByMap)) {
+          for (const st of mapEntry.stats) {
+            st.avg = st.count > 0 ? Math.round((st.total / st.count) * 100) / 100 : 0;
+          }
+        }
+
         const eventTypeGames: Record<string, number> = {};
         for (const gameId of gameIds) {
           const game = allGames.find(g => g.id === gameId);
@@ -2580,6 +2608,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           gamesPlayed,
           stats: Object.values(statAggregatesByName),
           statsByMode: Object.values(statsByMode),
+          statsByMap: Object.values(statsByMap),
           opponents: opponentsList,
           eventTypeGames,
         };

@@ -1,0 +1,59 @@
+Good progress on the previous items. Now complete everything that was NOT done yet. Take your time — quality over speed.
+🔴 CRITICAL — Staff members missing from Attendance Statistics
+In the Players page, the Attendance Statistics table only shows Players. Fix: Staff must also appear in the same Attendance Statistics table with their own rows showing Attended / Late / Absent / Total counts, plus Add Attendance button and attendance records — exactly like players.
+🔴 CRITICAL — Loading performance: add loading skeletons
+Database indexes were added but pages still feel slow because the UI shows nothing until data loads. Add proper loading skeleton screens to every page (Schedule, Events, Results, Players, Statistics, Player Stats, History, Compare, Opponents, Dashboard) so the UI feels instant even while data is fetching.
+🟡 IMPORTANT — Statistics: Event Type Filter with sub-types as multiple choice
+Replace the current single-select filter (All Events / Scrims / Tournaments) with a multiple-choice system:
+
+Main categories as collapsible group headers
+Sub-types as individual checkboxes inside each group
+User can check multiple sub-types at once (e.g. "Practice" + "Saudi League" simultaneously)
+Statistics update instantly based on selected combination
+Clean, not overwhelming — groups collapsed by default
+
+🟡 IMPORTANT — Player Stats: add "By Map" tab + Opponents breakdown
+In the player detail section, add a third tab "By Map" showing stats per map.
+In the "vs Opponents" section, add Overall / By Mode / By Map tabs per opponent instead of a flat stats list.
+🟡 IMPORTANT — Opponents page: expand arrow with full event list and result links
+Add an expand arrow (▶) to each opponent card. When clicked, shows every event played vs that opponent:
+
+Event name, date, result (W/L/D), score (e.g. 3-1)
+Direct clickable link to that event's full result detail page
+
+🔴 CRITICAL — Add comprehensive test data + full real-user testing on the LIVE PRODUCTION SITE
+⚠️ Target site: https://team-manager-vicious.replit.app/ — NOT the Replit preview
+Step 1 — Add test data:
+For EVERY roster across ALL games add:
+
+Dashboard Game Config: 3 game modes (Game Mode 1/2/3), 3 maps per mode, 2 seasons, roles AR/SUB/FLEX, stat fields (Mode 1: Kill/Death/Time | Mode 2: Kill/Death/Plant/Defuse | Mode 3: Kill/Death/Goal)
+4 players per roster (Team 1: [GAME]_A/B/C/D | Team 2: [GAME]_T2_A/B/C/D | Team 3: [GAME]_T3_A/B/C/D | Team 4: [GAME]_T4_A/B/C/D)
+2 staff per roster: Coach + Analyst, with availability set
+Availability set for all 7 days for all players
+Opponents: Falcons, Liquid, Vitality, FaZe, Twisted Minds, Virtus Pro, GenG, Karmine Corp, T1, 100 Thieves, G2
+20+ events per roster between March 1–April 10 2026 (8 Scrims, 8 Tournaments, 4 Meetings, 3+ Off Days), times 15:00–02:00
+Inside every Scrim and Tournament: 3–5 games each with game mode + map selected, upload IMG_4357.png as the scoreboard image for every game result (file is in attached_assets or uploads folder — this shows clients the scoreboard image feature), VOD link added, all player stats filled in
+Attendance marked per event: mix Present/Late/Absent
+
+Step 2 — Act as a real user and test EVERYTHING:
+After adding data, personally test every single feature on the live site as if you just bought this product. This means:
+
+Navigate to every page in every section
+Add, edit, delete: players, staff, events, game results, opponents
+Upload a scoreboard image and verify it displays
+View Statistics — verify By Game Mode and By Map show real data
+Open Player Stats — verify all tabs work including the new By Map tab
+Open Compare — verify Season vs Season and Game Win Rate work
+Open Opponents — expand each opponent and click event links
+Use Chat — send text message, try image upload, try voice message
+Try accessing a roster URL without permission — verify Access Denied works
+Click Share on a result — verify correct text is copied to clipboard
+Check Home Dashboard shows correct overview for all rosters
+Try every button, every dropdown, every filter across all pages
+
+For every bug found during testing — fix it immediately. Document every bug fixed.
+At the end provide:
+✅ Completed — fully done and tested
+⚠️ Partially done — incomplete
+❌ Not done — skipped
+🐛 Bugs found and fixed — list every one

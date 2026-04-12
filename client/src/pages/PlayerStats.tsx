@@ -6,9 +6,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart3, Users, Trophy, Target, Gamepad2, ChevronDown, ChevronRight } from "lucide-react";
+import { BarChart3, Users, Trophy, Target, Gamepad2, ChevronDown, ChevronRight, Map as MapIcon } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied } from "@/components/AccessDenied";
+import { StatsSkeleton } from "@/components/PageSkeleton";
 
 interface StatAggregate {
   fieldName: string;
@@ -19,6 +20,11 @@ interface StatAggregate {
 
 interface ModeStats {
   modeName: string;
+  stats: StatAggregate[];
+}
+
+interface MapStats {
+  mapName: string;
   stats: StatAggregate[];
 }
 
@@ -36,6 +42,7 @@ interface PlayerSummary {
   gamesPlayed: number;
   stats: StatAggregate[];
   statsByMode: ModeStats[];
+  statsByMap: MapStats[];
   opponents: OpponentStat[];
   eventTypeGames: Record<string, number>;
 }
@@ -43,7 +50,7 @@ interface PlayerSummary {
 export default function PlayerStats() {
   const { hasPermission } = useAuth();
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
-  const [statsView, setStatsView] = useState<"overall" | "byMode">("overall");
+  const [statsView, setStatsView] = useState<"overall" | "byMode" | "byMap">("overall");
   const [expandedOpponents, setExpandedOpponents] = useState<Set<string>>(new Set());
 
   if (!hasPermission("view_player_stats")) {
@@ -82,11 +89,7 @@ export default function PlayerStats() {
         </div>
 
         {isLoading ? (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <p className="text-muted-foreground">Loading player stats...</p>
-            </CardContent>
-          </Card>
+          <StatsSkeleton />
         ) : summaries.length === 0 ? (
           <Card>
             <CardContent className="p-8 text-center">
@@ -210,16 +213,17 @@ export default function PlayerStats() {
                           Across {selectedPlayer.gamesPlayed} games
                         </CardDescription>
                       </div>
-                      <Tabs value={statsView} onValueChange={(v) => setStatsView(v as "overall" | "byMode")}>
+                      <Tabs value={statsView} onValueChange={(v) => setStatsView(v as "overall" | "byMode" | "byMap")}>
                         <TabsList>
                           <TabsTrigger value="overall" data-testid="tab-overall-stats">Overall</TabsTrigger>
                           <TabsTrigger value="byMode" data-testid="tab-bymode-stats">By Mode</TabsTrigger>
+                          <TabsTrigger value="byMap" data-testid="tab-bymap-stats">By Map</TabsTrigger>
                         </TabsList>
                       </Tabs>
                     </div>
                   </CardHeader>
                   <CardContent className="pt-4">
-                    {statsView === "overall" ? (
+                    {statsView === "overall" && (
                       selectedPlayer.stats.length === 0 ? (
                         <div className="p-6 text-center">
                           <BarChart3 className="h-10 w-10 mx-auto mb-2 text-muted-foreground/30" />
@@ -244,7 +248,8 @@ export default function PlayerStats() {
                           ))}
                         </div>
                       )
-                    ) : (
+                    )}
+                    {statsView === "byMode" && (
                       selectedPlayer.statsByMode.length === 0 ? (
                         <div className="p-6 text-center">
                           <Gamepad2 className="h-10 w-10 mx-auto mb-2 text-muted-foreground/30" />
@@ -260,6 +265,42 @@ export default function PlayerStats() {
                               </div>
                               <div className="space-y-2 pl-6">
                                 {mode.stats.map((stat, si) => (
+                                  <div key={si} className="flex items-center justify-between p-3 rounded-lg border border-border">
+                                    <span className="text-sm font-medium">{stat.fieldName}</span>
+                                    <div className="flex items-center gap-4">
+                                      <div className="text-right">
+                                        <span className="text-xs text-muted-foreground">Total</span>
+                                        <p className="text-sm font-semibold">{stat.total}</p>
+                                      </div>
+                                      <div className="text-right">
+                                        <span className="text-xs text-muted-foreground">Avg</span>
+                                        <p className="text-sm font-semibold">{stat.avg}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    )}
+                    {statsView === "byMap" && (
+                      !selectedPlayer.statsByMap || selectedPlayer.statsByMap.length === 0 ? (
+                        <div className="p-6 text-center">
+                          <MapIcon className="h-10 w-10 mx-auto mb-2 text-muted-foreground/30" />
+                          <p className="text-sm text-muted-foreground">No stats by map available</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-6">
+                          {selectedPlayer.statsByMap.map((mapEntry, mi) => (
+                            <div key={mi} data-testid={`map-group-${mi}`}>
+                              <div className="flex items-center gap-2 mb-3">
+                                <MapIcon className="h-4 w-4 text-primary" />
+                                <h3 className="text-sm font-semibold">{mapEntry.mapName}</h3>
+                              </div>
+                              <div className="space-y-2 pl-6">
+                                {mapEntry.stats.map((stat, si) => (
                                   <div key={si} className="flex items-center justify-between p-3 rounded-lg border border-border">
                                     <span className="text-sm font-medium">{stat.fieldName}</span>
                                     <div className="flex items-center gap-4">

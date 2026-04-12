@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
+import { EventsSkeleton } from "@/components/PageSkeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -169,11 +170,7 @@ export default function EventsHistory() {
   };
 
   if (eventsLoading) {
-    return (
-      <div className="min-h-screen bg-background p-6 flex items-center justify-center">
-        <div className="text-foreground">Loading...</div>
-      </div>
-    );
+    return <EventsSkeleton />;
   }
 
   return (

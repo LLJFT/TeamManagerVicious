@@ -19,6 +19,7 @@ import { z } from "zod";
 import { SimpleToast } from "@/components/SimpleToast";
 import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied } from "@/components/AccessDenied";
+import { PlayersSkeleton } from "@/components/PageSkeleton";
 
 const playerFormSchema = z.object({
   name: z.string().min(1, "Nickname is required"),
@@ -469,6 +470,16 @@ export default function Players() {
     };
   };
 
+  const getStaffStats = (staffId: string) => {
+    const staffAttendance = allAttendance.filter(a => (a as any).staffId === staffId);
+    return {
+      attended: staffAttendance.filter(a => a.status === "attended").length,
+      late: staffAttendance.filter(a => a.status === "late").length,
+      absent: staffAttendance.filter(a => a.status === "absent").length,
+      total: staffAttendance.length,
+    };
+  };
+
   const renderAttendanceSection = (personId: string) => {
     const isExpanded = expandedCards[personId] || false;
     const { records, totalRecords, totalPages, currentPage } = getPaginatedAttendance(personId);
@@ -624,11 +635,7 @@ export default function Players() {
   }
 
   if (playersLoading || attendanceLoading) {
-    return (
-      <div className="min-h-screen bg-background p-6 flex items-center justify-center">
-        <div className="text-foreground">Loading...</div>
-      </div>
-    );
+    return <PlayersSkeleton />;
   }
 
   return (
@@ -764,7 +771,8 @@ export default function Players() {
               <table className="w-full" data-testid="table-attendance-stats">
                 <thead>
                   <tr className="border-b border-border">
-                    <th className="text-left p-3 font-semibold text-foreground">Player</th>
+                    <th className="text-left p-3 font-semibold text-foreground">Name</th>
+                    <th className="text-left p-3 font-semibold text-foreground">Type</th>
                     <th className="text-left p-3 font-semibold text-foreground">Role</th>
                     <th className="text-center p-3 font-semibold text-green-600">Attended</th>
                     <th className="text-center p-3 font-semibold text-yellow-600">Late</th>
@@ -778,7 +786,22 @@ export default function Players() {
                     return (
                       <tr key={player.id} className="border-b border-border hover-elevate" data-testid={`row-stats-player-${player.id}`}>
                         <td className="p-3 font-medium text-foreground">{player.name}</td>
+                        <td className="p-3"><Badge variant="secondary">Player</Badge></td>
                         <td className="p-3">{getRoleBadge(player.role)}</td>
+                        <td className="p-3 text-center text-green-600 font-semibold">{stats.attended}</td>
+                        <td className="p-3 text-center text-yellow-600 font-semibold">{stats.late}</td>
+                        <td className="p-3 text-center text-red-600 font-semibold">{stats.absent}</td>
+                        <td className="p-3 text-center font-semibold text-foreground">{stats.total}</td>
+                      </tr>
+                    );
+                  })}
+                  {staffMembers.map((member) => {
+                    const stats = getStaffStats(member.id);
+                    return (
+                      <tr key={`staff-${member.id}`} className="border-b border-border hover-elevate" data-testid={`row-stats-staff-${member.id}`}>
+                        <td className="p-3 font-medium text-foreground">{member.name}</td>
+                        <td className="p-3"><Badge variant="outline">Staff</Badge></td>
+                        <td className="p-3">{getRoleBadge(member.role)}</td>
                         <td className="p-3 text-center text-green-600 font-semibold">{stats.attended}</td>
                         <td className="p-3 text-center text-yellow-600 font-semibold">{stats.late}</td>
                         <td className="p-3 text-center text-red-600 font-semibold">{stats.absent}</td>
