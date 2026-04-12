@@ -385,9 +385,11 @@ export default function Dashboard() {
   const [showEventCategoryDialog, setShowEventCategoryDialog] = useState(false);
   const [editingEventCategory, setEditingEventCategory] = useState<EventCategory | undefined>();
   const [eventCategoryName, setEventCategoryName] = useState("");
+  const [eventCategoryColor, setEventCategoryColor] = useState("#3b82f6");
   const [showEventSubTypeDialog, setShowEventSubTypeDialog] = useState(false);
   const [editingEventSubType, setEditingEventSubType] = useState<EventSubType | undefined>();
   const [eventSubTypeName, setEventSubTypeName] = useState("");
+  const [eventSubTypeColor, setEventSubTypeColor] = useState("#60a5fa");
   const [selectedCategoryForSubs, setSelectedCategoryForSubs] = useState<string | null>(null);
 
   const { data: gamePendingAssignments = [] } = useQuery<any[]>({
@@ -924,7 +926,7 @@ export default function Dashboard() {
   });
 
   const createEventCategoryMutation = useMutation({
-    mutationFn: async (data: { name: string }) => {
+    mutationFn: async (data: { name: string; color: string }) => {
       const r = await apiRequest("POST", "/api/event-categories", data);
       return r.json();
     },
@@ -939,8 +941,8 @@ export default function Dashboard() {
   });
 
   const updateEventCategoryMutation = useMutation({
-    mutationFn: async (data: { id: string; name: string }) => {
-      const r = await apiRequest("PUT", `/api/event-categories/${data.id}`, { name: data.name });
+    mutationFn: async (data: { id: string; name: string; color: string }) => {
+      const r = await apiRequest("PUT", `/api/event-categories/${data.id}`, { name: data.name, color: data.color });
       return r.json();
     },
     onSuccess: () => {
@@ -968,7 +970,7 @@ export default function Dashboard() {
   });
 
   const createEventSubTypeMutation = useMutation({
-    mutationFn: async (data: { name: string; categoryId: string }) => {
+    mutationFn: async (data: { name: string; categoryId: string; color?: string }) => {
       const r = await apiRequest("POST", "/api/event-sub-types", data);
       return r.json();
     },
@@ -983,8 +985,8 @@ export default function Dashboard() {
   });
 
   const updateEventSubTypeMutation = useMutation({
-    mutationFn: async (data: { id: string; name: string }) => {
-      const r = await apiRequest("PUT", `/api/event-sub-types/${data.id}`, { name: data.name });
+    mutationFn: async (data: { id: string; name: string; color?: string }) => {
+      const r = await apiRequest("PUT", `/api/event-sub-types/${data.id}`, { name: data.name, color: data.color });
       return r.json();
     },
     onSuccess: () => {
@@ -1752,7 +1754,7 @@ export default function Dashboard() {
                         <CardDescription>{eventCategoriesData.length} configured</CardDescription>
                       </div>
                     </div>
-                    <Button onClick={() => { setEditingEventCategory(undefined); setEventCategoryName(""); setShowEventCategoryDialog(true); }} size="sm" className="gap-2" data-testid="button-add-event-category">
+                    <Button onClick={() => { setEditingEventCategory(undefined); setEventCategoryName(""); setEventCategoryColor("#3b82f6"); setShowEventCategoryDialog(true); }} size="sm" className="gap-2" data-testid="button-add-event-category">
                       <Plus className="h-4 w-4" />
                       Add
                     </Button>
@@ -1777,12 +1779,15 @@ export default function Dashboard() {
                             onClick={() => setSelectedCategoryForSubs(cat.id)}
                             data-testid={`row-event-category-${cat.id}`}
                           >
-                            <div className="flex flex-col">
-                              <span className="font-medium text-foreground" data-testid={`text-category-name-${cat.id}`}>{cat.name}</span>
-                              <span className="text-xs text-muted-foreground">{catSubs.length} {catSubs.length === 1 ? "sub type" : "sub types"}</span>
+                            <div className="flex items-center gap-3">
+                              <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color || "#3b82f6" }} />
+                              <div className="flex flex-col">
+                                <span className="font-medium text-foreground" data-testid={`text-category-name-${cat.id}`}>{cat.name}</span>
+                                <span className="text-xs text-muted-foreground">{catSubs.length} {catSubs.length === 1 ? "sub type" : "sub types"}</span>
+                              </div>
                             </div>
                             <div className="flex items-center gap-1">
-                              <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setEditingEventCategory(cat); setEventCategoryName(cat.name); setShowEventCategoryDialog(true); }} data-testid={`button-edit-category-${cat.id}`}>
+                              <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setEditingEventCategory(cat); setEventCategoryName(cat.name); setEventCategoryColor(cat.color || "#3b82f6"); setShowEventCategoryDialog(true); }} data-testid={`button-edit-category-${cat.id}`}>
                                 <Pencil className="h-4 w-4 text-muted-foreground" />
                               </Button>
                               <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); if (confirm("Delete this category and its sub types?")) deleteEventCategoryMutation.mutate(cat.id); }} data-testid={`button-delete-category-${cat.id}`}>
@@ -1810,7 +1815,7 @@ export default function Dashboard() {
                         <CardDescription>{selectedCat ? `${selectedCatSubs.length} sub types` : "Select a category"}</CardDescription>
                       </div>
                     </div>
-                    <Button onClick={() => { setEditingEventSubType(undefined); setEventSubTypeName(""); setShowEventSubTypeDialog(true); }} size="sm" className="gap-2" disabled={!selectedCategoryForSubs} data-testid="button-add-event-sub-type">
+                    <Button onClick={() => { setEditingEventSubType(undefined); setEventSubTypeName(""); setEventSubTypeColor(selectedCat?.color || "#60a5fa"); setShowEventSubTypeDialog(true); }} size="sm" className="gap-2" disabled={!selectedCategoryForSubs} data-testid="button-add-event-sub-type">
                       <Plus className="h-4 w-4" />
                       Add
                     </Button>
@@ -1832,11 +1837,11 @@ export default function Dashboard() {
                       {selectedCatSubs.map((sub) => (
                         <div key={sub.id} className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors" data-testid={`row-event-sub-type-${sub.id}`}>
                           <div className="flex items-center gap-3">
-                            <Calendar className="h-4 w-4 text-muted-foreground" />
+                            <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: sub.color || selectedCat?.color || "#3b82f6" }} />
                             <span className="font-medium text-foreground" data-testid={`text-sub-type-name-${sub.id}`}>{sub.name}</span>
                           </div>
                           <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="icon" onClick={() => { setEditingEventSubType(sub); setEventSubTypeName(sub.name); setShowEventSubTypeDialog(true); }} data-testid={`button-edit-sub-type-${sub.id}`}>
+                            <Button variant="ghost" size="icon" onClick={() => { setEditingEventSubType(sub); setEventSubTypeName(sub.name); setEventSubTypeColor(sub.color || selectedCat?.color || "#60a5fa"); setShowEventSubTypeDialog(true); }} data-testid={`button-edit-sub-type-${sub.id}`}>
                               <Pencil className="h-4 w-4 text-muted-foreground" />
                             </Button>
                             <Button variant="ghost" size="icon" onClick={() => { if (confirm("Delete this sub type?")) deleteEventSubTypeMutation.mutate(sub.id); }} data-testid={`button-delete-sub-type-${sub.id}`}>
@@ -2394,15 +2399,35 @@ export default function Dashboard() {
                   data-testid="input-event-category-name"
                 />
               </div>
+              <div className="space-y-2">
+                <Label>Color</Label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={eventCategoryColor}
+                    onChange={(e) => setEventCategoryColor(e.target.value)}
+                    className="w-10 h-10 rounded-md border border-border cursor-pointer"
+                    data-testid="input-event-category-color"
+                  />
+                  <Input
+                    value={eventCategoryColor}
+                    onChange={(e) => setEventCategoryColor(e.target.value)}
+                    placeholder="#3b82f6"
+                    className="flex-1 font-mono text-sm"
+                    data-testid="input-event-category-color-hex"
+                  />
+                  <div className="w-6 h-6 rounded-full flex-shrink-0 border border-border" style={{ backgroundColor: eventCategoryColor }} />
+                </div>
+              </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setShowEventCategoryDialog(false)}>Cancel</Button>
                 <Button
                   onClick={() => {
                     if (!eventCategoryName.trim()) return;
                     if (editingEventCategory) {
-                      updateEventCategoryMutation.mutate({ id: editingEventCategory.id, name: eventCategoryName.trim() });
+                      updateEventCategoryMutation.mutate({ id: editingEventCategory.id, name: eventCategoryName.trim(), color: eventCategoryColor });
                     } else {
-                      createEventCategoryMutation.mutate({ name: eventCategoryName.trim() });
+                      createEventCategoryMutation.mutate({ name: eventCategoryName.trim(), color: eventCategoryColor });
                     }
                   }}
                   disabled={!eventCategoryName.trim() || createEventCategoryMutation.isPending || updateEventCategoryMutation.isPending}
@@ -2430,15 +2455,35 @@ export default function Dashboard() {
                   data-testid="input-event-sub-type-name"
                 />
               </div>
+              <div className="space-y-2">
+                <Label>Color (optional, inherits from category)</Label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={eventSubTypeColor}
+                    onChange={(e) => setEventSubTypeColor(e.target.value)}
+                    className="w-10 h-10 rounded-md border border-border cursor-pointer"
+                    data-testid="input-event-sub-type-color"
+                  />
+                  <Input
+                    value={eventSubTypeColor}
+                    onChange={(e) => setEventSubTypeColor(e.target.value)}
+                    placeholder="#60a5fa"
+                    className="flex-1 font-mono text-sm"
+                    data-testid="input-event-sub-type-color-hex"
+                  />
+                  <div className="w-6 h-6 rounded-full flex-shrink-0 border border-border" style={{ backgroundColor: eventSubTypeColor }} />
+                </div>
+              </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setShowEventSubTypeDialog(false)}>Cancel</Button>
                 <Button
                   onClick={() => {
                     if (!eventSubTypeName.trim() || !selectedCategoryForSubs) return;
                     if (editingEventSubType) {
-                      updateEventSubTypeMutation.mutate({ id: editingEventSubType.id, name: eventSubTypeName.trim() });
+                      updateEventSubTypeMutation.mutate({ id: editingEventSubType.id, name: eventSubTypeName.trim(), color: eventSubTypeColor });
                     } else {
-                      createEventSubTypeMutation.mutate({ name: eventSubTypeName.trim(), categoryId: selectedCategoryForSubs });
+                      createEventSubTypeMutation.mutate({ name: eventSubTypeName.trim(), categoryId: selectedCategoryForSubs, color: eventSubTypeColor });
                     }
                   }}
                   disabled={!eventSubTypeName.trim() || createEventSubTypeMutation.isPending || updateEventSubTypeMutation.isPending}

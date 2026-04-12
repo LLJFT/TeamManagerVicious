@@ -162,11 +162,17 @@ export function EventDialog({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {allEventTypeOptions.map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {type}
-                        </SelectItem>
-                      ))}
+                      {allEventTypeOptions.map((type) => {
+                        const cat = eventCategories.find(c => c.name === type);
+                        return (
+                          <SelectItem key={type} value={type}>
+                            <div className="flex items-center gap-2">
+                              {cat?.color && <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />}
+                              <span>{type}</span>
+                            </div>
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -191,7 +197,10 @@ export function EventDialog({
                         <SelectItem value="none">None</SelectItem>
                         {filteredSubTypes.map((sub) => (
                           <SelectItem key={sub.id} value={sub.name}>
-                            {sub.name}
+                            <div className="flex items-center gap-2">
+                              {(sub.color || selectedCategory?.color) && <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: sub.color || selectedCategory?.color || "#3b82f6" }} />}
+                              <span>{sub.name}</span>
+                            </div>
                           </SelectItem>
                         ))}
                       </SelectContent>

@@ -109,6 +109,8 @@ async function runMigrations() {
     `);
     await db.execute(sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS event_sub_type TEXT`);
     await db.execute(sql`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS staff_id VARCHAR REFERENCES staff(id) ON DELETE SET NULL`);
+    await db.execute(sql`ALTER TABLE event_categories ADD COLUMN IF NOT EXISTS color TEXT DEFAULT '#3b82f6'`);
+    await db.execute(sql`ALTER TABLE event_sub_types ADD COLUMN IF NOT EXISTS color TEXT`);
 
     console.log("[migrations] Schema migrations applied successfully");
   } catch (e: any) {

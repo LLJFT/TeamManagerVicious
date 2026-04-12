@@ -21,7 +21,7 @@ import {
   isToday,
   isSameMonth,
 } from "date-fns";
-import type { SupportedGame, Roster } from "@shared/schema";
+import type { SupportedGame, Roster, EventCategory } from "@shared/schema";
 
 export default function CalendarPage() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -41,6 +41,10 @@ export default function CalendarPage() {
 
   const { data: allRostersMap = {} } = useQuery<Record<string, Roster[]>>({
     queryKey: ["/api/all-rosters"],
+  });
+
+  const { data: allCategories = [] } = useQuery<EventCategory[]>({
+    queryKey: ["/api/all-event-categories"],
   });
 
   const allRosters = useMemo(() => Object.values(allRostersMap).flat(), [allRostersMap]);
@@ -110,12 +114,24 @@ export default function CalendarPage() {
 
   const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+  const categoryColorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    allCategories.forEach(cat => {
+      if (cat.name && cat.color) map.set(cat.name.toLowerCase(), cat.color);
+    });
+    return map;
+  }, [allCategories]);
+
   const getEventColor = (eventType: string) => {
+    const catColor = categoryColorMap.get(eventType?.toLowerCase());
+    if (catColor) {
+      return { bg: `${catColor}25`, border: `${catColor}50`, text: catColor };
+    }
     switch (eventType?.toLowerCase()) {
-      case "tournament": return "bg-primary/15 border-primary/30 text-primary";
-      case "scrim": return "bg-blue-500/15 border-blue-500/30 text-blue-600 dark:text-blue-400";
-      case "vod review": return "bg-orange-500/15 border-orange-500/30 text-orange-600 dark:text-orange-400";
-      default: return "bg-muted border-border text-muted-foreground";
+      case "tournament": return { bg: "rgba(59,130,246,0.15)", border: "rgba(59,130,246,0.3)", text: "#3b82f6" };
+      case "scrim": return { bg: "rgba(59,130,246,0.15)", border: "rgba(59,130,246,0.3)", text: "#3b82f6" };
+      case "vod review": return { bg: "rgba(249,115,22,0.15)", border: "rgba(249,115,22,0.3)", text: "#f97316" };
+      default: return { bg: "rgba(128,128,128,0.1)", border: "rgba(128,128,128,0.2)", text: "#888" };
     }
   };
 
@@ -246,7 +262,12 @@ export default function CalendarPage() {
                     {dayEvents.slice(0, 3).map((event, idx) => (
                       <div
                         key={event.id || idx}
-                        className={`text-[10px] leading-tight px-1 py-0.5 rounded border truncate ${getEventColor(event.eventType)}`}
+                        className="text-[10px] leading-tight px-1 py-0.5 rounded border truncate"
+                        style={{
+                          backgroundColor: getEventColor(event.eventType).bg,
+                          borderColor: getEventColor(event.eventType).border,
+                          color: getEventColor(event.eventType).text,
+                        }}
                         data-testid={`event-dot-${event.id || idx}`}
                       >
                         {event.title}
@@ -288,7 +309,11 @@ export default function CalendarPage() {
                       <Badge variant="secondary" className="text-xs">{getGameName(event.gameId)}</Badge>
                       {event.rosterId && <Badge variant="outline" className="text-xs">{getRosterName(event.rosterId)}</Badge>}
                       {event.eventType && (
-                        <Badge variant="outline" className="text-xs">{event.eventType}</Badge>
+                        <Badge variant="outline" className="text-xs" style={{
+                          backgroundColor: getEventColor(event.eventType).bg,
+                          borderColor: getEventColor(event.eventType).border,
+                          color: getEventColor(event.eventType).text,
+                        }}>{event.eventType}</Badge>
                       )}
                     </div>
                     {event.time && (

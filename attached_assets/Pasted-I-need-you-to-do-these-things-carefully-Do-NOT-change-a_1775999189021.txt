@@ -1,0 +1,87 @@
+I need you to do these things carefully. Do NOT change any existing functionality. The site is working perfectly.
+
+1. Remix-proofing — prevent issues when someone remixes this project
+I had issues in another project where remixing caused these problems:
+	•	Image uploads failing
+	•	Chat freezing and unable to send files, images, videos, or voice messages
+	•	Object storage not working in the new instance
+Fix it proactively so when someone remixes this project everything works perfectly from the start:
+	•	Object storage must work automatically in any new Replit instance using its own credentials — never tied to the original
+	•	Chat must work fully in a fresh remix: text, images, videos, audio, voice recording, file uploads
+	•	All file uploads across the entire app must work in a fresh remix
+	•	Each remix must be 100% independent with its own isolated database and storage
+	•	A fresh remix must start completely clean: only the default admin account and default games list — zero data from the original
+2. Data persistence on Publish/Republish
+Confirm and ensure that republishing, redeploying, or restarting the app never deletes existing database data. All data must live in PostgreSQL only. Migrations must only ADD — never DROP or truncate. Explicitly confirm this or fix it.
+3. Vercel deployment preparation
+Prepare the project for Vercel deployment without breaking the Replit version:
+	•	Add vercel.json config
+	•	Add DEPLOYMENT.md with all required environment variables and full step-by-step setup for Vercel + Neon (free PostgreSQL)
+4. Automated test suite on fresh Remix
+Add an automated test that runs on first startup of a fresh remix:
+	•	Verify database connection
+	•	Verify all API routes respond correctly
+	•	Verify core features: login, player creation, event creation, result recording, statistics
+	•	Print a clear pass/fail report in the console
+5. Event Categories — fix defaults and add color support
+The default event categories must be exactly these (fully editable from Dashboard but these are the defaults):
+	•	Scrim — sub-types: Practice, Warm-up
+	•	Tournament — sub-types: Stage 1, Saudi League, Elite 3000$ Cup
+	•	Meetings — sub-types: Vod Review, Roster Meeting, Organization Meeting
+Each category AND each sub-type must have a color assigned to it. The color shows as a label/badge wherever that event type appears (events list, calendar, results, etc.). Each one has a default color but can be changed from the Dashboard. Make the color picker clean and easy to use.
+6. Comprehensive in-app test data — make it look like 2 months of real usage
+This is the most important task. Add data to every existing roster in the live site. The goal is that anyone who opens any roster sees a fully populated example of every single feature — as if a real team used it for 2 months.
+Use this image file for ALL image upload tests throughout: IMG_4357.png (the file I’m attaching to this message — use it as the scoreboard image, chat image, logo test, etc.)
+For every roster do ALL of the following:
+Dashboard → Game Config:
+	•	Add 3 game modes with 3 maps each (9 maps total)
+	•	Add 2 seasons: Season 1, Season 2
+	•	Add roster roles: AR, SUB, FLEX
+	•	Add stat fields: Game Mode 1 → Kill, Death, Time — Game Mode 2 → Kill, Death, Plant, Defuse — Game Mode 3 → Kill, Death, Goal
+	•	Verify event categories and sub-types are present with colors
+Players and Schedule:
+	•	Add 4 players per roster: First Team → [GAME]_A/B/C/D, Academy → [GAME]_AC_A/B/C/D, Women → [GAME]_W_A/B/C/D
+	•	Set availability for each player across all 7 days — mix of available, unavailable, specific time slots
+	•	Mark some days as off days
+Staff:
+	•	Add 2 staff members: one Coach, one Analyst
+	•	Set their availability in the schedule
+Opponents:
+	•	Add: Falcons, Liquid, Vitality, FaZe, Twisted Minds, Virtus Pro, GenG, Karmine Corp, T1, 100 Thieves, G2
+Events — 30+ events between March 1 and April 10, 2026:
+	•	12 Scrim events: mix of Practice and Warm-up sub-types. Warm-up scrims scheduled 1 hour before a tournament on the same day
+	•	10 Tournament events: use sub-types (Stage 1, Saudi League, Elite 3000$ Cup). Realistic naming like “Saudi League TOP 16 VS [Opponent]”, “Saudi League Quarter Finals VS [Opponent]”, “Saudi League Semi Finals VS [Opponent]”, “Saudi League Grand Finals VS [Opponent]” then use other sub-types for the rest
+	•	5 Meeting events: mix of Vod Review, Roster Meeting, Organization Meeting
+	•	3+ Off Days
+	•	Event times between 15:00 and 02:00
+Inside each Scrim and Tournament event:
+	•	Add 5 games each with: game mode selected, map selected, scoreboard image (use IMG_4357.png), VOD link added
+	•	Mix wins and losses realistically
+	•	Fill in all player statistics for every player in every game
+	•	Mark attendance for all players and staff: mix Present, Late, Absent
+Chat — test every message type:
+	•	Send 5 realistic text messages (like a real team would write)
+	•	Send 2 images using IMG_4357.png
+	•	Send 1 video (any test video)
+	•	Send 1 voice message (record a short one)
+	•	Send 1 file (any format)
+	•	Confirm every type displays and plays back correctly
+After adding all data, verify every page:
+	•	Schedule → players, availability, staff all visible
+	•	Events → all events with correct colors per type and sub-type
+	•	Results → correct scores and outcomes
+	•	Statistics → By Game Mode and By Map show real data
+	•	Player Stats → all players with full stats and leaderboard
+	•	History → all past events
+	•	Compare → Season vs Season and Month vs Month, Game Win Rate, Best Modes and Maps
+	•	Opponents → all opponents with Best Modes and Best Maps
+	•	Dashboard → attendance and results correct
+	•	Home Dashboard → all rosters show correct overview
+Fix anything broken immediately before moving to the next roster.
+
+Do not break anything currently working. Test everything after every change.
+At the end provide:
+✅ Completed — fully implemented and tested
+⚠️ Partially done — started but not finished
+❌ Not done — not implemented
+Clearly state if anything is NOT possible and why.

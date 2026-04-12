@@ -302,6 +302,7 @@ export const eventCategories = pgTable("event_categories", {
   gameId: varchar("game_id"),
   rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
   name: text("name").notNull(),
+  color: text("color").default("#3b82f6"),
   sortOrder: integer("sort_order").default(0),
 }, (table) => [
   index("event_categories_team_id_idx").on(table.teamId),
@@ -315,6 +316,7 @@ export const eventSubTypes = pgTable("event_sub_types", {
   rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
   categoryId: varchar("category_id").notNull().references(() => eventCategories.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
+  color: text("color"),
   sortOrder: integer("sort_order").default(0),
 }, (table) => [
   index("event_sub_types_team_id_idx").on(table.teamId),

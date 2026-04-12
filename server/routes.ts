@@ -19,6 +19,7 @@ import {
   statFields as statFieldsTable,
   staff as staffTable,
   supportedGames, userGameAssignments, notifications, rosters,
+  eventCategories, eventSubTypes,
   type UserWithRole,
   GAME_ABBREVIATIONS,
 } from "@shared/schema";
@@ -152,6 +153,63 @@ async function seedRosterDefaults(teamId: string, gameId: string, rosterId: stri
       ];
       for (const r of defaultRoles) {
         await db.insert(rosterRoles).values({ teamId, gameId, rosterId, name: r.name, type: r.type, sortOrder: r.sortOrder });
+      }
+    }
+
+    const existingCats = await db.select().from(eventCategories)
+      .where(and(eq(eventCategories.teamId, teamId), eq(eventCategories.gameId, gameId), eq(eventCategories.rosterId, rosterId)))
+      .limit(1);
+    if (existingCats.length === 0) {
+      const defaultCategories = [
+        { name: "Scrim", color: "#3b82f6", sortOrder: 0, subs: [
+          { name: "Practice", color: "#60a5fa", sortOrder: 0 },
+          { name: "Warm-up", color: "#93c5fd", sortOrder: 1 },
+        ]},
+        { name: "Tournament", color: "#f59e0b", sortOrder: 1, subs: [
+          { name: "Stage 1", color: "#fbbf24", sortOrder: 0 },
+          { name: "Saudi League", color: "#f97316", sortOrder: 1 },
+          { name: "Elite 3000$ Cup", color: "#ef4444", sortOrder: 2 },
+        ]},
+        { name: "Meetings", color: "#8b5cf6", sortOrder: 2, subs: [
+          { name: "Vod Review", color: "#a78bfa", sortOrder: 0 },
+          { name: "Roster Meeting", color: "#c084fc", sortOrder: 1 },
+          { name: "Organization Meeting", color: "#7c3aed", sortOrder: 2 },
+        ]},
+      ];
+      for (const cat of defaultCategories) {
+        const [inserted] = await db.insert(eventCategories).values({
+          teamId, gameId, rosterId, name: cat.name, color: cat.color, sortOrder: cat.sortOrder,
+        }).returning();
+        for (const sub of cat.subs) {
+          await db.insert(eventSubTypes).values({
+            teamId, gameId, rosterId, categoryId: inserted.id, name: sub.name, color: sub.color, sortOrder: sub.sortOrder,
+          });
+        }
+      }
+    }
+
+    const existingStaff = await db.select().from(staffTable)
+      .where(and(eq(staffTable.teamId, teamId), eq(staffTable.gameId, gameId), eq(staffTable.rosterId, rosterId)))
+      .limit(1);
+    if (existingStaff.length === 0) {
+      const defaultStaff = [
+        { name: "Head Coach", role: "Head Coach" },
+        { name: "Assistant Coach", role: "Assistant Coach" },
+        { name: "Analyst", role: "Analyst" },
+        { name: "Manager", role: "Manager" },
+      ];
+      for (const s of defaultStaff) {
+        await db.insert(staffTable).values({ teamId, gameId, rosterId, name: s.name, role: s.role });
+      }
+    }
+
+    const existingChannels = await db.select().from(chatChannels)
+      .where(and(eq(chatChannels.teamId, teamId), eq(chatChannels.gameId, gameId), eq(chatChannels.rosterId, rosterId)))
+      .limit(1);
+    if (existingChannels.length === 0) {
+      const defaultChannels = ["General", "Strategy", "Announcements"];
+      for (const ch of defaultChannels) {
+        await db.insert(chatChannels).values({ teamId, gameId, rosterId, name: ch });
       }
     }
   } catch (err) {
@@ -1848,9 +1906,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/event-categories/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
-      const { name, sortOrder } = req.body;
+      const { name, sortOrder, color } = req.body;
       if (!name || typeof name !== "string") return res.status(400).json({ error: "Name is required" });
-      const cat = await storage.updateEventCategory(req.params.id, { name, sortOrder: sortOrder ?? undefined });
+      const cat = await storage.updateEventCategory(req.params.id, { name, sortOrder: sortOrder ?? undefined, color: color ?? undefined });
       res.json(cat);
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Internal server error" });
@@ -1897,9 +1955,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/event-sub-types/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
-      const { name, sortOrder } = req.body;
+      const { name, sortOrder, color } = req.body;
       if (!name || typeof name !== "string") return res.status(400).json({ error: "Name is required" });
-      const sub = await storage.updateEventSubType(req.params.id, { name, sortOrder: sortOrder ?? undefined });
+      const sub = await storage.updateEventSubType(req.params.id, { name, sortOrder: sortOrder ?? undefined, color: color ?? undefined });
       res.json(sub);
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Internal server error" });
@@ -2774,6 +2832,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/all-event-categories", requireAuth, async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const cats = await db.select().from(eventCategories).where(eq(eventCategories.teamId, teamId));
+      res.json(cats);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
