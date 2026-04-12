@@ -123,6 +123,32 @@ async function logActivity(userId: string | null, action: string, details?: stri
   }
 }
 
+export async function ensureRostersExist() {
+  const teamId = getTeamId();
+  const allGamesList = await db.select().from(supportedGames);
+  const existingRosters = await db.select().from(rosters).where(eq(rosters.teamId, teamId));
+  if (existingRosters.length > 0) return;
+
+  console.log("[startup] Creating default rosters for all games...");
+  for (const game of allGamesList) {
+    const defaults = [
+      { name: "First Team", slug: "first-team", sortOrder: 0 },
+      { name: "Academy", slug: "academy", sortOrder: 1 },
+      { name: "Women", slug: "women", sortOrder: 2 },
+    ];
+    for (const d of defaults) {
+      await db.insert(rosters).values({ teamId, gameId: game.id, name: d.name, slug: d.slug, sortOrder: d.sortOrder });
+    }
+    const gameRosters = await db.select().from(rosters)
+      .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, game.id)));
+    for (const r of gameRosters) {
+      await seedRosterDefaults(teamId, game.id, r.id);
+    }
+  }
+  const finalCount = await db.select().from(rosters).where(eq(rosters.teamId, teamId));
+  console.log(`[startup] Created ${finalCount.length} rosters with defaults`);
+}
+
 async function seedRosterDefaults(teamId: string, gameId: string, rosterId: string) {
   try {
     const existingSlots = await db.select().from(availabilitySlots)

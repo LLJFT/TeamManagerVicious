@@ -37,13 +37,22 @@ The frontend uses a modern sidebar layout with dark mode support and Shadcn UI c
 ### Database Structure
 The database design incorporates core tables for users, games, and rosters, with extensive game-scoped tables (e.g., `players`, `events`, `schedules`) and roster-scoped tables (e.g., `attendance`, `staff_availability`), ensuring data integrity and isolation.
 
+### Startup Pipeline
+On every server start (`server/index.ts`), the following runs in order:
+1. `bootstrapDefaultAdmin()` — Migrations, supported games, default admin + roles (idempotent)
+2. `registerRoutes()` — All API endpoints; `seedRosterDefaults()` runs per-roster on first access
+3. `seedComprehensiveTestData()` — Adds player availability, staff availability, off days, chat if missing (idempotent)
+4. `fixupTestData()` — Ensures event sub-types, opponents, chat channels/messages for all rosters (idempotent)
+5. `runHealthCheck()` — 12-point verification printed to console (DB, games, users, roles, rosters, players, events, matches, stats, attendance, channels, messages)
+
 ### Deployment
-- **Target**: Autoscale deployment via Replit
+- **Target**: Autoscale deployment via Replit (or Vercel + Neon — see `DEPLOYMENT.md`)
 - **Build**: `npm run build` (Vite frontend build + esbuild server bundle)
 - **Run**: `npm run start` (Node.js production server at `dist/index.js`)
 - **Static assets**: Served from `dist/public/`
 - **Modules**: nodejs-20, web, postgresql-16 (no Python, no Playwright)
 - **Note**: Removed `playwright`, `passport`, `next-themes` and 33 Chromium/X11 system packages that were causing deployment timeouts
+- **Vercel**: `vercel.json` included for API routing, rewrites, and static asset caching
 
 ## External Dependencies
 
