@@ -402,13 +402,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       let orgRole: string;
       if (selectedRole === "management" || selectedRole === "org_admin") {
-        orgRole = "org_admin";
+        orgRole = "management";
       } else if (selectedRole === "staff" || selectedRole === "coach_analyst") {
-        orgRole = "coach_analyst";
+        orgRole = "staff";
       } else if (selectedRole === "game_manager") {
         orgRole = "game_manager";
       } else {
-        orgRole = "player";
+        orgRole = "member";
       }
 
       const baseUsername = username.trim();
@@ -470,9 +470,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(409).json({ message: "Username already taken" });
       }
 
-      const [memberRole] = await db.select().from(roles)
-        .where(and(eq(roles.name, "Member"), eq(roles.teamId, teamId)))
+      let targetRoleName = "Member";
+      if (orgRole === "staff") targetRoleName = "Staff";
+      else if (orgRole === "management") targetRoleName = "Management";
+
+      const [targetPlatformRole] = await db.select().from(roles)
+        .where(and(eq(roles.name, targetRoleName), eq(roles.teamId, teamId)))
         .limit(1);
+      const memberRole = targetPlatformRole;
 
       let isAdminCreating = false;
       if (req.session && req.session.userId) {
@@ -3003,27 +3008,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result: Record<string, any[]> = {};
 
       for (const game of allGamesList) {
-        let gameRosters = await db.select().from(rosters)
+        const gameRosters = await db.select().from(rosters)
           .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, game.id)))
           .orderBy(rosters.sortOrder);
-
-        if (gameRosters.length === 0) {
-          const defaults = [
-            { name: "Team 1", slug: "team-1", sortOrder: 0 },
-            { name: "Team 2", slug: "team-2", sortOrder: 1 },
-            { name: "Team 3", slug: "team-3", sortOrder: 2 },
-            { name: "Team 4", slug: "team-4", sortOrder: 3 },
-          ];
-          for (const d of defaults) {
-            await db.insert(rosters).values({ teamId, gameId: game.id, name: d.name, slug: d.slug, sortOrder: d.sortOrder, code: generateRosterCode() });
-          }
-          gameRosters = await db.select().from(rosters)
-            .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, game.id)))
-            .orderBy(rosters.sortOrder);
-          for (const r of gameRosters) {
-            await seedRosterDefaults(teamId, game.id, r.id);
-          }
-        }
 
         result[game.id] = gameRosters;
       }
@@ -3083,28 +3070,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const gameId = getGameId(req);
       if (!gameId) return res.status(400).json({ message: "gameId required" });
 
-      let allRosters = await db.select().from(rosters)
+      const allRosters = await db.select().from(rosters)
         .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, gameId)))
         .orderBy(rosters.sortOrder);
-
-      if (allRosters.length === 0) {
-        const defaults = [
-          { name: "Team 1", slug: "team-1", sortOrder: 0 },
-          { name: "Team 2", slug: "team-2", sortOrder: 1 },
-          { name: "Team 3", slug: "team-3", sortOrder: 2 },
-          { name: "Team 4", slug: "team-4", sortOrder: 3 },
-        ];
-        for (const d of defaults) {
-          await db.insert(rosters).values({ teamId, gameId, name: d.name, slug: d.slug, sortOrder: d.sortOrder, code: generateRosterCode() });
-        }
-        allRosters = await db.select().from(rosters)
-          .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, gameId)))
-          .orderBy(rosters.sortOrder);
-      }
-
-      for (const r of allRosters) {
-        await seedRosterDefaults(teamId, gameId, r.id);
-      }
 
       res.json(allRosters);
     } catch (error: any) {
@@ -3386,7 +3354,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const { orgRole } = req.body;
       const teamId = getTeamId();
-      const validRoles = ["player", "coach_analyst", "game_manager", "org_admin"];
+      const validRoles = ["member", "player", "staff", "coach_analyst", "management", "game_manager", "org_admin"];
       if (!validRoles.includes(orgRole)) return res.status(400).json({ message: "Invalid role" });
       await db.update(users).set({ orgRole }).where(and(eq(users.id, id), eq(users.teamId, teamId)));
       logActivity(req.session.userId!, "change_org_role", `Changed user role to ${orgRole}`, "team");

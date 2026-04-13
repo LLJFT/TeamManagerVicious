@@ -1,0 +1,56 @@
+Take your time. Do NOT rush. Fix every single issue completely before moving on. Test everything on the live site: https://team-manager-vicious.replit.app/
+
+🔴 CRITICAL — Login broken: site resets/freezes on any login attempt
+When any user (including freshly registered users and the seeded test accounts) tries to log in, the site freezes or resets instead of logging in. This affects ALL accounts — not just one. Investigate and fix the login flow completely. The session must persist after login and redirect the user to the home page.
+🔴 CRITICAL — Schedule shows players from ALL 4 rosters combined (not just current roster)
+Opening any roster’s Schedule shows players from all 4 teams combined — e.g. opening Dota 2 Team 1 shows D2_T1 players AND D2_T2, D2_T3, D2_T4 players all mixed together, AND each appears twice. Every roster must show ONLY its own 8 players and 2 staff. No data from other rosters should ever appear. Fix the query filtering so it scopes strictly to the current gameId AND rosterId.
+🔴 CRITICAL — Some games have 8 rosters instead of 4 (duplicates)
+Some games are showing 8 roster cards on the home page instead of 4 (Team 1 appears twice, Team 2 appears twice, etc.). Find and delete all duplicate rosters. Each game must have exactly 4 rosters: Team 1, Team 2, Team 3, Team 4. After deleting duplicates, make sure the remaining 4 rosters per game have correct data.
+
+🔴 CRITICAL — Fix user roles: assign correct roles everywhere
+For the home-level User Management (Users tab — orgRole field):
+	•	Players → orgRole = "member"
+	•	Staff (Coach, Analyst, etc.) → orgRole = "staff"
+	•	Managers → orgRole = "management"
+For the game-level Dashboard → Users (in-game role/permission):
+	•	ALL users (players, staff, managers) → assign "member" permission role inside the game
+For the in-game Users tab role badge (the game roster role):
+	•	Players → linked to their player record with their roster role (Tank/DPS/Support/Flex)
+	•	Staff (Coach, Analyst) → linked to their staff record with role "staff"
+	•	Managers → role "management"
+Apply this fix to all 1,394 existing seeded user accounts. Loop through every user and set their orgRole correctly based on their username suffix:
+	•	Username ends with _tank1, _tank2, _dps1, _dps2, _sup1, _sup2, _flex1, _flex2 → orgRole = "member"
+	•	Username ends with _coach, _headcoach, _assistant, _analyst → orgRole = "staff"
+	•	Username ends with _manager → orgRole = "management"
+
+🔴 CRITICAL — Fix registration: auto-assign correct roles on registration
+When a new user registers through the registration form:
+If they register as “Player”:
+	•	Set orgRole = "member" on their user account
+	•	When approved for a game → assign in-game role = "Member" (game permission role)
+	•	Set their permission role in Manage User Permissions = "member"
+If they register as “Staff”:
+	•	Set orgRole = "staff" on their user account
+	•	When approved for a game → assign in-game role = "Staff" (game permission role)
+	•	Set their permission role in Manage User Permissions = "member"
+If they register as “Management”:
+	•	Set orgRole = "management" on their user account
+	•	Gets access to all games automatically
+	•	Permission role = "management"
+This logic must be hardcoded into the registration approval flow — not manual.
+
+🔴 CRITICAL — Give all seeded users approved game access
+The 1,394 seeded user accounts need approved userGameAssignments records so they can actually enter their roster when they log in. Each user must have an approved assignment linking them to their correct gameId and rosterId. Without this they can log in but cannot access any page. Fix: loop through all seeded users, determine their game and roster from their username, and create an approved game assignment for each one.
+
+✅ VERIFY AFTER ALL FIXES:
+	1.	Log in with admin account → confirm works
+	2.	Log in with d2_1_tank1 / 0000 → confirm works and shows Dota 2 Team 1 schedule
+	3.	Open Dota 2 Team 1 Schedule → confirm shows ONLY 8 players (D2_T1_*) and 2 staff — NOT players from other teams
+	4.	Open home Games page → confirm each game shows exactly 4 roster cards (not 8)
+	5.	Open Users tab → confirm d2_1_tank1 shows orgRole = member, staff shows orgRole = staff
+	6.	Register a new account as Player → approve it → confirm they get member role and can access their roster
+At the end:
+✅ Completed — verified on live site
+⚠️ Partially done
+❌ Not done
+🐛 Bugs found and fixed — list all

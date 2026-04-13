@@ -16,6 +16,8 @@ declare module "express-session" {
 export function setupAuth(app: Express) {
   const PgStore = connectPgSimple(session);
 
+  app.set("trust proxy", 1);
+
   app.use(
     session({
       store: new PgStore({
@@ -359,7 +361,7 @@ export async function requireGameAccess(req: Request, res: Response, next: NextF
     return res.status(403).json({ message: "Forbidden" });
   }
 
-  if (user.orgRole === "super_admin") {
+  if (user.orgRole === "super_admin" || user.orgRole === "org_admin" || user.orgRole === "management") {
     return next();
   }
 

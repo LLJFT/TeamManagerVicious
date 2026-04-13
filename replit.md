@@ -42,6 +42,12 @@ The frontend uses a modern sidebar layout with dark mode support and Shadcn UI c
 - **Loading Spinner**: Custom double-ring spinner with counter-rotating animation used for page loading states. Defined in `PageSkeleton.tsx` as `LoadingSpinner` component.
 - **Calendar Colors**: Only sub-type colors are used for calendar event badges. Category-level colors are always null. The UI no longer falls back to category colors.
 - **User-Player Linking**: `PUT /api/users/:id/player` validates that the playerId belongs to the same team before linking. Security: team-scoped ownership check prevents cross-tenant data leaks.
+- **Trust Proxy**: `app.set("trust proxy", 1)` in `server/auth.ts` — required for `cookie.secure: true` behind Replit's reverse proxy. Without it, sessions don't persist after login.
+- **Duplicate Roster Prevention**: Auto-creation removed from `/api/all-rosters` and `/api/rosters` (startup handles it). `seed-fixup.ts` includes `cleanupDuplicateRosters()` that cascade-deletes orphaned data.
+- **User Roles**: `seed-fixup.ts` `fixUserRoles()` ensures Staff/Management platform roles exist and assigns correct `orgRole` by username suffix (coach/analyst→staff, players→member).
+- **Game Assignments**: `seed-fixup.ts` `createGameAssignments()` creates approved `userGameAssignments` for all seeded users linked to correct game+roster.
+- **Registration Role Mapping**: Registration maps "staff"→`orgRole:"staff"`, "player"→`orgRole:"member"`, "management"→`orgRole:"management"`. Platform role (roleId) auto-assigned based on orgRole (Staff/Management/Member).
+- **Game Access Bypass**: `requireGameAccess` bypasses for `super_admin`, `org_admin`, and `management` orgRoles. Frontend `GameAccessGate` also bypasses for these roles.
 
 ### Database Structure
 The database design incorporates core tables for users, games, and rosters, with extensive game-scoped tables (e.g., `players`, `events`, `schedules`) and roster-scoped tables (e.g., `attendance`, `staff_availability`), ensuring data integrity and isolation.
