@@ -12,7 +12,8 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { NotificationBell } from "@/components/NotificationBell";
 import { HelpButton, OnboardingGuide } from "@/components/OnboardingGuide";
 import { useState, useEffect, useCallback, useRef, type CSSProperties } from "react";
-import { Moon, Loader2 } from "lucide-react";
+import { Moon } from "lucide-react";
+import { LoadingSpinner } from "@/components/PageSkeleton";
 import Login from "@/pages/Login";
 import GamesHome from "@/pages/GamesHome";
 import Home from "@/pages/Home";
@@ -135,11 +136,7 @@ function MainContent() {
       <Route>
         {() => {
           if (isLoading) {
-            return (
-              <div className="flex items-center justify-center h-full p-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            );
+            return <LoadingSpinner message="Loading page..." />;
           }
           return <NotFound />;
         }}

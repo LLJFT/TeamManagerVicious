@@ -245,19 +245,19 @@ async function seedRosterDefaults(teamId: string, gameId: string, rosterId: stri
       .limit(1);
     if (existingCats.length === 0) {
       const defaultCategories = [
-        { name: "Scrim", color: "#3b82f6", sortOrder: 0, subs: [
-          { name: "Practice", color: "#60a5fa", sortOrder: 0 },
-          { name: "Warm-up", color: "#93c5fd", sortOrder: 1 },
+        { name: "Scrim", color: null, sortOrder: 0, subs: [
+          { name: "Practice", color: "#3b82f6", sortOrder: 0 },
+          { name: "Warm-up", color: "#06b6d4", sortOrder: 1 },
         ]},
-        { name: "Tournament", color: "#f59e0b", sortOrder: 1, subs: [
-          { name: "Stage 1", color: "#fbbf24", sortOrder: 0 },
+        { name: "Tournament", color: null, sortOrder: 1, subs: [
+          { name: "Stage 1", color: "#f59e0b", sortOrder: 0 },
           { name: "Saudi League", color: "#f97316", sortOrder: 1 },
           { name: "Elite 3000$ Cup", color: "#ef4444", sortOrder: 2 },
         ]},
-        { name: "Meetings", color: "#8b5cf6", sortOrder: 2, subs: [
-          { name: "Vod Review", color: "#a78bfa", sortOrder: 0 },
-          { name: "Roster Meeting", color: "#c084fc", sortOrder: 1 },
-          { name: "Organization Meeting", color: "#7c3aed", sortOrder: 2 },
+        { name: "Meetings", color: null, sortOrder: 2, subs: [
+          { name: "Vod Review", color: "#8b5cf6", sortOrder: 0 },
+          { name: "Roster Meeting", color: "#a855f7", sortOrder: 1 },
+          { name: "Organization Meeting", color: "#6366f1", sortOrder: 2 },
         ]},
       ];
       for (const cat of defaultCategories) {
@@ -1823,6 +1823,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/attendance", requireAuth, requirePermission("edit_events"), async (req, res) => {
     try {
       const validatedData = insertAttendanceSchema.parse(req.body);
+      if (!validatedData.playerId) validatedData.playerId = null;
+      if (!validatedData.staffId) validatedData.staffId = null;
       const attendance = await storage.addAttendance(validatedData, getGameId(req), getRosterId(req));
       res.json(attendance);
     } catch (error: any) {

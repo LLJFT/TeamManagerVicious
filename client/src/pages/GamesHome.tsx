@@ -31,8 +31,13 @@ export default function GamesHome() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-muted-foreground">Loading games...</div>
+      <div className="flex flex-col items-center justify-center h-full min-h-[300px] p-8 gap-4" data-testid="loading-spinner">
+        <div className="relative w-12 h-12">
+          <div className="absolute inset-0 rounded-full border-2 border-muted" />
+          <div className="absolute inset-0 rounded-full border-2 border-t-primary border-r-transparent border-b-transparent border-l-transparent animate-spin" />
+          <div className="absolute inset-1.5 rounded-full border-2 border-t-transparent border-r-primary/60 border-b-transparent border-l-transparent animate-spin" style={{ animationDirection: "reverse", animationDuration: "1.5s" }} />
+        </div>
+        <p className="text-sm text-muted-foreground animate-pulse">Loading games...</p>
       </div>
     );
   }

@@ -1,0 +1,79 @@
+Take your time with everything. Do not rush. Quality over speed. All work must be done on the LIVE site: https://team-manager-vicious.replit.app/
+
+🔴 CRITICAL — Results/Event detail page: “Event not found” error
+Clicking on any event shows “Event not found”. Fix the routing so event detail pages load correctly from any link on the platform — Opponents page, History, Results, calendar, everywhere.
+🔴 CRITICAL — Staff attendance: foreign key constraint error
+Adding attendance for staff fails with: insert or update on table "attendance" violates foreign key constraint "attendance_player_id_players_id_fk". When adding attendance for staff, the form must send staffId and leave playerId as null. Fix both frontend form submission and backend handler.
+🔴 CRITICAL — Calendar still shows category color not sub-type color (definitive fix)
+This has been attempted multiple times but still shows category colors. Use this definitive approach: remove the default color from ALL event categories — set category colors to null in the database. Only sub-types have colors. The calendar color logic must then only use sub-type color, falling back to neutral gray if no sub-type. With no category color to fall back to, the sub-type color will always be used correctly.
+🔴 CRITICAL — Loading performance
+Pages still take too long to load. Do both:
+	1.	Add a smooth loading animation (a gently spinning globe or pulsing spinner) that shows while any page is loading — so users see something instead of a blank screen
+	2.	Investigate and optimize the slowest queries — add database indexes on any column that is frequently filtered but missing an index, and use Promise.all() for any parallel data fetches that are currently running sequentially
+
+👥 CREATE USER ACCOUNTS FOR ALL PLAYERS AND STAFF ON THE LIVE SITE
+Previous attempts only created users in the preview/seed — NOT on the live production database. Create real accounts on the live site now.
+For every roster across all games, create accounts for:
+	•	8 players (see player structure below) → each gets orgRole = "member", linked to their player record via playerId
+	•	2–4 staff members (Coach, Analyst, etc.) → each gets orgRole = "staff", linked to their staff record
+Username format: [game_abbrev]_[team#]_[role] — examples:
+	•	d2_1_tank1, d2_1_tank2, d2_1_dps1, d2_1_dps2, d2_1_sup1, d2_1_sup2, d2_1_flex1, d2_1_flex2
+	•	d2_1_coach, d2_1_analyst
+	•	r6_2_tank1, r6_2_coach, etc.
+Password for ALL accounts = 0000 (simple, clients change it later)
+After creating accounts, link each one to its corresponding player/staff record. When a player logs in they must see their own roster data.
+
+⚙️ FIX PLAYER DATA: correct structure with roles (8 players per roster)
+Currently players were seeded with random names and no roles. Delete existing players and re-seed correctly for every roster:
+8 players per roster, 2 per role, assigned from existing Roster Roles (Tank/DPS/Support/Flex):
+	•	[GAME]_[T#]_Tank1 + [GAME]_[T#]_Tank2 → role: Tank
+	•	[GAME]_[T#]_DPS1 + [GAME]_[T#]_DPS2 → role: DPS
+	•	[GAME]_[T#]_Sup1 + [GAME]_[T#]_Sup2 → role: Support
+	•	[GAME]_[T#]_Flex1 + [GAME]_[T#]_Flex2 → role: Flex
+Example for Dota 2 Team 1: D2_T1_Tank1, D2_T1_Tank2, D2_T1_DPS1, D2_T1_DPS2, D2_T1_Sup1, D2_T1_Sup2, D2_T1_Flex1, D2_T1_Flex2
+Staff: keep 2–4 per roster — Coach, Analyst (already exist, keep them)
+Set realistic availability for all players and staff across all 7 days.
+
+⚙️ FIX GAME CONFIG FOR ALL ROSTERS
+For every roster, ensure Dashboard → Game Config has exactly:
+	•	3 Game Modes: Game Mode 1, Game Mode 2, Game Mode 3
+	•	3 Maps per mode (9 total): Mode 1 → Map 1/2/3 | Mode 2 → Map 4/5/6 | Mode 3 → Map 7/8/9
+	•	4 Stat Fields per mode:
+	•	Mode 1: Kill, Death, Assist, Time
+	•	Mode 2: Kill, Death, Plant, Defuse
+	•	Mode 3: Kill, Death, Goal, Assist
+	•	2 Seasons: Season 1, Season 2
+	•	Roster Roles: Tank, DPS, Support, Flex (player type only)
+Delete incorrect existing data first, then re-seed.
+
+📅 ADD 50+ EVENTS PER ROSTER WITH COMPLETE DATA
+For every roster, ensure at least 50 events exist between March 1 – April 10, 2026. Keep existing events and add more if needed. Use these opponents: Falcons, Liquid, Vitality, FaZe, Twisted Minds, Virtus Pro, GenG, Karmine Corp, T1, 100 Thieves, G2.
+Event breakdown:
+	•	20 Scrim events: mix Practice and Warm-up sub-types. Warm-up events scheduled ~1 hour before a tournament on the same day
+	•	20 Tournament events: use sub-types (Saudi League, Stage 1, Elite 3000$ Cup). Realistic naming like “Saudi League TOP 16 VS Falcons”, “Saudi League Quarter Finals VS Liquid”, etc.
+	•	6 Meeting events: Vod Review, Roster Meeting, Organization Meeting
+	•	5+ Off Days
+	•	Times between 15:00 and 02:00
+Inside every Scrim and Tournament event:
+	•	5 games each with: game mode selected, map selected
+	•	Mix wins and losses — NOT all wins
+	•	All 4 stat fields filled in for every player in every game
+	•	Attendance marked for all 8 players + staff: realistic mix of Present/Late/Absent
+
+✅ VERIFY ON LIVE SITE AFTER COMPLETING
+	1.	Click any event link → confirm loads correctly (no “Event not found”)
+	2.	Add staff attendance → confirm no foreign key error
+	3.	Open Schedule on any roster → confirm shows only that roster’s 8 players
+	4.	Open Calendar → confirm Practice events show different color than Warm-up events
+	5.	Log in with a player account e.g. d2_1_tank1 / 0000 → confirm works and shows correct roster
+	6.	Open Dashboard → Users → confirm user accounts appear
+	7.	Open Statistics → By Game Mode and By Map show real data
+	8.	Open Player Stats → By Map tab works
+	9.	Confirm loading animation shows while pages load
+Fix any issue found immediately.
+
+At the end:
+✅ Completed — verified on live site
+⚠️ Partially done
+❌ Not done
+🐛 Bugs found and fixed — list all

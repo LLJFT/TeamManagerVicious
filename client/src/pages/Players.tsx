@@ -199,6 +199,8 @@ export default function Players() {
     mutationFn: async (data: AttendanceFormData) => {
       const submitData = {
         ...data,
+        playerId: data.playerId || null,
+        staffId: data.staffId || null,
         eventId: data.eventId || undefined,
       };
       const response = await apiRequest("POST", "/api/attendance", submitData);

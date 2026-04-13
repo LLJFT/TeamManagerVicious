@@ -133,7 +133,7 @@ function GameStatsEditor({ game, players, statFields, onSave, isSaving }: {
 }
 
 export default function EventDetails() {
-  const [, params] = useRoute("/:slug/events/:id");
+  const [, params] = useRoute("/:gameSlug/:rosterCode/events/:id");
   const eventId = params?.id || "";
   const { fullSlug, currentGame, currentRoster } = useGame();
 

@@ -126,21 +126,11 @@ export default function CalendarPage() {
     return map;
   }, [allSubTypes]);
 
-  const categoryColorMap = useMemo(() => {
-    const map = new Map<string, string>();
-    allCategories.forEach(cat => {
-      if (cat.name && cat.color) map.set(cat.name.toLowerCase(), cat.color);
-    });
-    return map;
-  }, [allCategories]);
-
   const getEventColor = (eventType: string, eventSubType?: string) => {
     if (eventSubType) {
       const subColor = subTypeColorMap.get(eventSubType.toLowerCase());
       if (subColor) return { bg: `${subColor}25`, border: `${subColor}50`, text: subColor };
     }
-    const catColor = categoryColorMap.get(eventType?.toLowerCase());
-    if (catColor) return { bg: `${catColor}25`, border: `${catColor}50`, text: catColor };
     return { bg: "rgba(128,128,128,0.1)", border: "rgba(128,128,128,0.2)", text: "#888" };
   };
 

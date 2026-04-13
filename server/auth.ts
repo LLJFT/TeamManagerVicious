@@ -110,7 +110,7 @@ async function runMigrations() {
     `);
     await db.execute(sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS event_sub_type TEXT`);
     await db.execute(sql`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS staff_id VARCHAR REFERENCES staff(id) ON DELETE SET NULL`);
-    await db.execute(sql`ALTER TABLE event_categories ADD COLUMN IF NOT EXISTS color TEXT DEFAULT '#3b82f6'`);
+    await db.execute(sql`ALTER TABLE event_categories ADD COLUMN IF NOT EXISTS color TEXT`);
     await db.execute(sql`ALTER TABLE event_sub_types ADD COLUMN IF NOT EXISTS color TEXT`);
 
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_events_team_game_roster ON events(team_id, game_id, roster_id)`);
@@ -128,6 +128,12 @@ async function runMigrations() {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_user_game_assignments_user ON user_game_assignments(user_id)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_user_game_assignments_game ON user_game_assignments(game_id, roster_id)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_games_team_game ON games(team_id, game_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_games_event_id ON games(event_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_attendance_event_id ON attendance(event_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_pgs_match_id ON player_game_stats(match_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_pgs_player_id ON player_game_stats(player_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_events_roster_id ON events(roster_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_games_roster_id ON games(roster_id)`);
 
     console.log("[migrations] Schema migrations applied successfully");
   } catch (e: any) {
