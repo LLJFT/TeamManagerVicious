@@ -1,0 +1,113 @@
+Take your time with everything. Quality over speed. I am selling this platform to clients — zero bugs are acceptable. Test every fix on the LIVE site (https://team-manager-vicious.replit.app) before moving on.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔴 CRITICAL — Fix These First
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CRITICAL — Schedule page freezes when opening a roster
+When navigating into a roster, the Schedule page sometimes loads but appears frozen (no data, no movement). The user has to leave the tab, go to another tab (like Events), then come back to Schedule for it to work.
+Root cause is likely a timing/race condition: the Schedule query fires before rosterId is confirmed, so it returns nothing and hangs.
+Fix: Add a guard so the Schedule query does NOT fire until both gameId AND rosterId are confirmed and set. Add a loading skeleton so the UI feels responsive while data loads.
+
+CRITICAL — Schedule page sometimes shows players from other rosters
+Sometimes the Schedule page shows players from other rosters mixed in with the current roster's players.
+Fix: Every Schedule query must explicitly filter by both gameId AND rosterId. Do not rely on auto-scoping. Add WHERE rosterId = currentRosterId AND gameId = currentGameId to every relevant query. Test this on the live site across multiple rosters to confirm isolation is 100% working.
+
+CRITICAL — Calendar still shows category color instead of sub-type color
+Events on the calendar still show the parent category color (all Scrims = same blue, all Tournaments = same orange). It must show the SUB-TYPE color instead.
+Example: Practice scrims → one color, Warm-up scrims → different color, Saudi League → its own color.
+Sub-type colors are already configurable in Dashboard → Event Types.
+Fix: Make the calendar read the sub-type color, not the category color. Debug by checking what value eventSubType holds on actual events vs what keys exist in the color map. Verify on the live site with your own eyes — confirm Practice and Warm-up show different colors.
+
+CRITICAL — Slow loading: pages show no content while loading
+Every page takes too long to show content. This makes the product feel broken to clients.
+Fix:
+- Add proper loading skeleton screens to ALL pages: Schedule, Events, Results, Players, Statistics, Player Stats, History, Compare, Opponents, Dashboard, Staff
+- Optimize database queries — add indexes on: teamId, gameId, rosterId, status
+- Reduce unnecessary API calls on page load
+- Cache static/repeated data where appropriate
+The UI must feel instant even while data is loading in the background.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🟡 IMPORTANT — New Features
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+IMPORTANT — Add countdown widget above the Schedule page
+Above the availability table on the Schedule page, add a widget showing a countdown to the next 3 upcoming events for the current roster.
+- Each entry shows: event name, date, and a live countdown (days / hours / minutes)
+- Only show events that belong to THIS specific roster
+- Default: always visible above the schedule table
+
+IMPORTANT — Rename global "Dashboard" to avoid permission conflict with Roster Dashboard
+When a user is given "Dashboard" permission inside a roster, it unintentionally also gives them access to the global Home Dashboard — because both share the name "Dashboard".
+Fix: Rename the global sidebar item from "Dashboard" to "Home" or "Overview". The roster-level Dashboard keeps its current name. This resolves the naming conflict without changing any permission logic.
+
+IMPORTANT — Add per-roster custom display name (override)
+Currently, the Organization Name set in Home → Settings is used as a prefix for all rosters everywhere (e.g. "Test Availability Times"). This default behavior must stay.
+However, add a new optional field inside each Roster Dashboard → Settings called "Roster Display Name".
+
+Logic:
+- If a custom name is set for a roster → use that name everywhere this roster appears (schedule header, sidebar, home cards, etc.)
+- If the field is left empty → fall back to the default (Organization Name) — current behavior unchanged
+
+Example:
+- Organization Name = "Twisted Minds"
+- Team 1 has no custom name → shows "Twisted Minds Availability Times" (default)
+- Team 2 has custom name = "TM Academy" → shows "TM Academy Availability Times" for that roster only
+
+Rules:
+- Only affects the specific roster it's set on
+- Editable from Roster Dashboard → Settings
+- Saved per roster in the database (new column e.g. customName on the roster table)
+- Applied everywhere the roster name is displayed
+
+IMPORTANT — Statistics Event Type Filter: replace with multi-select checkbox system
+Replace the current single-select filter (All Events / Scrims / Tournaments) with a multi-select checkbox system.
+
+Structure:
+  ☑ All Events
+  Scrims (group header, collapsible)
+    ☐ Practice
+    ☐ Warm-up
+  Tournaments (group header, collapsible)
+    ☐ Stage 1
+    ☐ Saudi League
+    ☐ Elite 3000$ Cup
+  Meetings (group header, collapsible)
+    ☐ Vod Review
+    ☐ Roster Meeting
+    ☐ Organization Meeting
+
+Rules:
+- User can select multiple sub-types at once (e.g. Practice + Saudi League simultaneously)
+- Stats update instantly based on selected combination
+- Groups collapsed by default, expand to show sub-types
+- Apply to ALL analytics pages: Statistics, Player Stats (all tabs), Compare, and History
+- Sub-types shown must come from the current roster's configured event categories
+
+IMPORTANT — Player Stats: add "By Type" tab consistently across all views
+Currently "By Type" only appears in some contexts but not in the main Player Stats tabs.
+Fix: Add a "By Type" tab alongside Overall, By Mode, and By Map — in ALL Player Stats views consistently. It shows stats broken down by event sub-type (Practice, Warm-up, Stage 1, etc.).
+
+IMPORTANT — Schedule table: add collapsible columns (days of the week)
+Add a collapse/expand arrow to each column header in the Schedule table (ROLE, PLAYER, MON, TUE, WED, THU, FRI, SAT).
+- Clicking the arrow hides that column
+- Clicking again shows it
+- Default: all columns visible
+- Helps organize the table, especially on mobile
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Already Fixed — Do NOT redo
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Staff attendance foreign key error → FIXED
+- Event categories showing duplicates when adding an event → FIXED
+- Player Stats vs Opponents not showing By Mode / By Map / By Type → FIXED
+- Dashboard Event Types loading from all rosters combined → FIXED
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+At the end, provide:
+✅ Completed — fully done and verified on live site
+⚠️ Partially done — what is missing
+❌ Not done — skipped or blocked
+🐛 Bugs found and fixed during testing — list every one
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

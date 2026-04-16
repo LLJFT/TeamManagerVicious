@@ -43,12 +43,13 @@ function shouldAppendGameId(url: string): boolean {
   return GAME_SCOPED_PREFIXES.some(prefix => url.startsWith(prefix));
 }
 
-function appendGameId(url: string, gameId: string): string {
+function appendGameId(url: string, gameId: string, rosterId?: string | null): string {
   if (url.includes("gameId=")) return url;
   const separator = url.includes("?") ? "&" : "?";
   let result = `${url}${separator}gameId=${gameId}`;
-  if (_currentRosterId && !url.includes("rosterId=")) {
-    result += `&rosterId=${_currentRosterId}`;
+  const effectiveRoster = rosterId ?? _currentRosterId;
+  if (effectiveRoster && !url.includes("rosterId=")) {
+    result += `&rosterId=${effectiveRoster}`;
   }
   return result;
 }
@@ -81,6 +82,8 @@ export const getQueryFn: <T>(options: {
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
     let url: string;
+    let scopedGameId: string | null = null;
+    let scopedRosterId: string | null = null;
 
     if (queryKey.length === 1) {
       url = queryKey[0] as string;
@@ -95,8 +98,17 @@ export const getQueryFn: <T>(options: {
       }
     }
 
-    if (_currentGameId && shouldAppendGameId(url)) {
-      url = appendGameId(url, _currentGameId);
+    for (const seg of queryKey.slice(1)) {
+      if (seg && typeof seg === "object" && !Array.isArray(seg)) {
+        const s = seg as Record<string, unknown>;
+        if (typeof s.gameId === "string") scopedGameId = s.gameId;
+        if (typeof s.rosterId === "string") scopedRosterId = s.rosterId;
+      }
+    }
+
+    const effectiveGameId = scopedGameId ?? _currentGameId;
+    if (effectiveGameId && shouldAppendGameId(url)) {
+      url = appendGameId(url, effectiveGameId, scopedRosterId);
     }
 
     const res = await fetch(url, {

@@ -188,7 +188,7 @@ export function AppSidebar() {
                       <SidebarMenuButton asChild isActive={location === "/dashboard"}>
                         <Link href="/dashboard">
                           <LayoutDashboard className="h-4 w-4" />
-                          <span>Dashboard</span>
+                          <span>Overview</span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>

@@ -75,20 +75,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [selectedRosterId, setSelectedRosterId] = useState<string | null>(null);
 
   const { data: rosters = [], isLoading: rostersLoading } = useQuery<Roster[]>({
-    queryKey: ["/api/rosters", gameId],
+    queryKey: ["/api/rosters", { gameId }],
     enabled: !!gameId,
   });
 
   const rosterId = useMemo(() => {
     if (!gameId) return null;
-    if (selectedRosterId && rosters.some(r => r.id === selectedRosterId)) {
-      return selectedRosterId;
-    }
     if (rosterCode) {
       const codeRoster = rosters.find(r => r.code === rosterCode);
       if (codeRoster) return codeRoster.id;
       const idRoster = rosters.find(r => r.id === rosterCode);
       if (idRoster) return idRoster.id;
+    }
+    if (selectedRosterId && rosters.some(r => r.id === selectedRosterId)) {
+      return selectedRosterId;
     }
     return rosters[0]?.id || null;
   }, [gameId, selectedRosterId, rosters, rosterCode]);

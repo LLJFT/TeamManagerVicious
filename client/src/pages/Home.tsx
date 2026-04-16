@@ -25,7 +25,7 @@ interface StaffMember {
 export default function Home() {
   const { toast } = useToast();
   const { user, hasPermission } = useAuth();
-  const { currentGame, gameId, rosterId } = useGame();
+  const { currentGame, gameId, rosterId, rosters, rostersLoading } = useGame();
   const currentDate = format(new Date(), "MMM dd");
   const gameName = currentGame?.name || "Team";
   const { data: orgNameSetting } = useQuery<string | null>({
@@ -37,12 +37,16 @@ export default function Home() {
   const canEditOwn = hasPermission("edit_own_availability");
   const linkedPlayerId = user?.playerId || null;
 
+  const rosterReady = !!(gameId && rosterId);
+
   const { data: players = [], isLoading: playersLoading } = useQuery<Player[]>({
     queryKey: ["/api/players", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const { data: staffMembers = [] } = useQuery<StaffMember[]>({
     queryKey: ["/api/staff", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const linkedStaffId = useMemo(() => {
@@ -53,18 +57,22 @@ export default function Home() {
 
   const { data: playerAvailabilities = [] } = useQuery<PlayerAvailabilityRecord[]>({
     queryKey: ["/api/player-availability", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const { data: staffAvailabilities = [] } = useQuery<StaffAvailabilityRecord[]>({
     queryKey: ["/api/staff-availability", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const { data: availabilitySlots = [] } = useQuery<AvailabilitySlot[]>({
     queryKey: ["/api/availability-slots", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const { data: rosterRoles = [] } = useQuery<RosterRole[]>({
     queryKey: ["/api/roster-roles", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const scheduleData: PlayerAvailability[] = players.map(player => {
@@ -199,6 +207,27 @@ export default function Home() {
     }, {} as Record<string, string>);
     return { id: s.id, name: s.name, role: s.role, availability };
   });
+
+  if (!gameId || rostersLoading) {
+    return <ScheduleSkeleton />;
+  }
+
+  if (!rosterId || rosters.length === 0) {
+    return (
+      <div className="p-8 text-center" data-testid="text-no-roster">
+        <h2 className="text-xl font-bold mb-2">No roster available</h2>
+        <p className="text-muted-foreground">
+          {rosters.length === 0
+            ? "This game has no rosters yet. Ask an administrator to create one."
+            : "Select a roster to continue."}
+        </p>
+      </div>
+    );
+  }
+
+  if (playersLoading) {
+    return <ScheduleSkeleton />;
+  }
 
   return (
     <div className="min-h-screen bg-background">

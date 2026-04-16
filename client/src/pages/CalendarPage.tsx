@@ -121,15 +121,40 @@ export default function CalendarPage() {
   const subTypeColorMap = useMemo(() => {
     const map = new Map<string, string>();
     allSubTypes.forEach(sub => {
-      if (sub.name && sub.color) map.set(sub.name.toLowerCase(), sub.color);
+      if (sub.name && sub.color) map.set(sub.name.toLowerCase().trim(), sub.color);
     });
     return map;
   }, [allSubTypes]);
 
+  const categoryColorByName = useMemo(() => {
+    const map = new Map<string, string>();
+    allCategories.forEach(cat => {
+      if (cat.name && cat.color) map.set(cat.name.toLowerCase().trim(), cat.color);
+    });
+    return map;
+  }, [allCategories]);
+
+  const categoryColorBySubTypeName = useMemo(() => {
+    const map = new Map<string, string>();
+    allSubTypes.forEach(sub => {
+      if (!sub.name) return;
+      const cat = allCategories.find(c => c.id === sub.categoryId);
+      if (cat?.color) map.set(sub.name.toLowerCase().trim(), cat.color);
+    });
+    return map;
+  }, [allSubTypes, allCategories]);
+
   const getEventColor = (eventType: string, eventSubType?: string) => {
-    if (eventSubType) {
-      const subColor = subTypeColorMap.get(eventSubType.toLowerCase());
+    const key = eventSubType?.toLowerCase().trim();
+    if (key) {
+      const subColor = subTypeColorMap.get(key);
       if (subColor) return { bg: `${subColor}25`, border: `${subColor}50`, text: subColor };
+      const parentColor = categoryColorBySubTypeName.get(key);
+      if (parentColor) return { bg: `${parentColor}25`, border: `${parentColor}50`, text: parentColor };
+    }
+    if (eventType) {
+      const catColor = categoryColorByName.get(eventType.toLowerCase().trim());
+      if (catColor) return { bg: `${catColor}25`, border: `${catColor}50`, text: catColor };
     }
     return { bg: "rgba(128,128,128,0.1)", border: "rgba(128,128,128,0.2)", text: "#888" };
   };
