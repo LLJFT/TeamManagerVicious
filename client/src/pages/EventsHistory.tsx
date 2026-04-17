@@ -40,7 +40,8 @@ import { useGame } from "@/hooks/use-game";
 const ITEMS_PER_PAGE = 10;
 
 export default function EventsHistory() {
-  const { fullSlug } = useGame();
+  const { fullSlug, gameId, rosterId } = useGame();
+  const rosterReady = !!(gameId && rosterId);
   const [searchTerm, setSearchTerm] = useState("");
   const [eventTypeFilter, setEventTypeFilter] = useState<string>("all");
   const [resultFilter, setResultFilter] = useState<string>("all");
@@ -48,7 +49,8 @@ export default function EventsHistory() {
   const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
 
   const { data: events = [], isLoading: eventsLoading } = useQuery<Event[]>({
-    queryKey: ["/api/events"],
+    queryKey: ["/api/events", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const { data: allGames = [] } = useQuery<Game[]>({
@@ -64,11 +66,13 @@ export default function EventsHistory() {
   });
 
   const { data: gameModes = [] } = useQuery<GameMode[]>({
-    queryKey: ["/api/game-modes"],
+    queryKey: ["/api/game-modes", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const { data: maps = [] } = useQuery<MapType[]>({
-    queryKey: ["/api/maps"],
+    queryKey: ["/api/maps", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const getModeName = (modeId: string | null) => {

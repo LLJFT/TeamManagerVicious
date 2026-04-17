@@ -59,7 +59,8 @@ type SortOption = "matches" | "winRate" | "name" | "lastPlayed";
 
 export default function OpponentStats() {
   const { hasPermission } = useAuth();
-  const { fullSlug } = useGame();
+  const { fullSlug, gameId, rosterId } = useGame();
+  const rosterReady = !!(gameId && rosterId);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("matches");
   const [expandedOpponents, setExpandedOpponents] = useState<Set<string>>(new Set());
@@ -74,19 +75,23 @@ export default function OpponentStats() {
   };
 
   const { data: events = [], isLoading } = useQuery<Event[]>({
-    queryKey: ["/api/events"],
+    queryKey: ["/api/events", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const { data: allGames = [] } = useQuery<(Game & { eventType: string })[]>({
-    queryKey: ["/api/games"],
+    queryKey: ["/api/games", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const { data: gameModes = [] } = useQuery<GameMode[]>({
-    queryKey: ["/api/game-modes"],
+    queryKey: ["/api/game-modes", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const { data: maps = [] } = useQuery<MapType[]>({
-    queryKey: ["/api/maps"],
+    queryKey: ["/api/maps", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const calculateStats = (items: { result?: string | null }[]): StatsSummary => {

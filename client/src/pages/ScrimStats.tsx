@@ -18,6 +18,8 @@ import {
   CalendarDays,
 } from "lucide-react";
 import type { Event, Game, GameMode, Map as MapType } from "@shared/schema";
+import { useGame } from "@/hooks/use-game";
+import { StatsSkeleton } from "@/components/PageSkeleton";
 
 interface StatsSummary {
   total: number;
@@ -28,8 +30,11 @@ interface StatsSummary {
 }
 
 export default function ScrimStats() {
+  const { gameId, rosterId } = useGame();
+  const rosterReady = !!(gameId && rosterId);
   const { data: events = [], isLoading: eventsLoading } = useQuery<Event[]>({
-    queryKey: ["/api/events"],
+    queryKey: ["/api/events", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const scrimEvents = events.filter(e => e.eventType?.toLowerCase() === "scrim");
@@ -43,11 +48,13 @@ export default function ScrimStats() {
   });
 
   const { data: gameModes = [] } = useQuery<GameMode[]>({
-    queryKey: ["/api/game-modes"],
+    queryKey: ["/api/game-modes", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const { data: maps = [] } = useQuery<MapType[]>({
-    queryKey: ["/api/maps"],
+    queryKey: ["/api/maps", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const calculateStats = (items: { result?: string | null }[]): StatsSummary => {
@@ -97,14 +104,7 @@ export default function ScrimStats() {
   };
 
   if (eventsLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center space-y-3">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="text-muted-foreground">Loading statistics...</p>
-        </div>
-      </div>
-    );
+    return <StatsSkeleton />;
   }
 
   const overallEventStats = calculateEventStats();

@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import {
   Select,
   SelectContent,
@@ -7,7 +7,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Lock } from "lucide-react";
+import { Lock, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Player, PlayerAvailabilityRecord, DayOfWeek } from "@shared/schema";
 import { dayOfWeek } from "@shared/schema";
 
@@ -72,6 +72,19 @@ export function ScheduleTable({
   editableStaffId = null,
 }: ScheduleTableProps) {
   const tableRef = useRef<HTMLDivElement>(null);
+  const [collapsedCols, setCollapsedCols] = useState<Set<string>>(new Set());
+  const isCollapsed = (key: string) => collapsedCols.has(key);
+  const toggleCol = (key: string) => {
+    setCollapsedCols(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+  const colHeaderClass = (key: string, base: string) =>
+    isCollapsed(key)
+      ? "border-r border-primary-border px-1 py-3 text-center text-xs font-semibold uppercase tracking-wide w-8 cursor-pointer select-none last:border-r-0"
+      : `${base} cursor-pointer select-none`;
 
   const getPlayerAvailability = (playerId: string, day: string): string => {
     const record = playerAvailabilities.find(pa => pa.playerId === playerId && pa.day === day);
@@ -95,18 +108,37 @@ export function ScheduleTable({
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-primary text-primary-foreground">
-                <th className="border-r border-primary-border px-4 py-3 text-left text-sm font-semibold uppercase tracking-wide">
-                  Role
+                <th
+                  className={colHeaderClass("role", "border-r border-primary-border px-4 py-3 text-left text-sm font-semibold uppercase tracking-wide")}
+                  onClick={() => toggleCol("role")}
+                  data-testid="th-role"
+                >
+                  <span className="inline-flex items-center gap-1">
+                    {isCollapsed("role") ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
+                    {!isCollapsed("role") && "Role"}
+                  </span>
                 </th>
-                <th className="border-r border-primary-border px-4 py-3 text-left text-sm font-semibold uppercase tracking-wide min-w-[140px]">
-                  Player
+                <th
+                  className={colHeaderClass("player", "border-r border-primary-border px-4 py-3 text-left text-sm font-semibold uppercase tracking-wide min-w-[140px]")}
+                  onClick={() => toggleCol("player")}
+                  data-testid="th-player"
+                >
+                  <span className="inline-flex items-center gap-1">
+                    {isCollapsed("player") ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
+                    {!isCollapsed("player") && "Player"}
+                  </span>
                 </th>
                 {dayOfWeek.map((day) => (
                   <th
                     key={day}
-                    className="border-r border-primary-border px-3 py-3 text-center text-sm font-semibold uppercase tracking-wide min-w-[160px] last:border-r-0"
+                    className={colHeaderClass(day, "border-r border-primary-border px-3 py-3 text-center text-sm font-semibold uppercase tracking-wide min-w-[160px] last:border-r-0")}
+                    onClick={() => toggleCol(day)}
+                    data-testid={`th-${day}`}
                   >
-                    {day}
+                    <span className="inline-flex items-center gap-1">
+                      {isCollapsed(day) ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
+                      {!isCollapsed(day) && day}
+                    </span>
                   </th>
                 ))}
               </tr>
@@ -119,48 +151,61 @@ export function ScheduleTable({
                   const canEditThis = canEditAll || editablePlayerId === player.id;
                   return (
                   <tr key={player.id} className="border-t border-border hover-elevate" data-testid={`row-player-${player.id}`}>
-                    <td className="border-r border-border px-2 py-2 bg-card">
-                      <Select
-                        value={player.role}
-                        onValueChange={(value: string) => onRoleChange?.(player.id, value)}
-                        disabled={isLoading || !canEditAll}
-                      >
-                        <SelectTrigger className={`w-full h-9 text-xs font-medium ${getRoleColor(player.role, allRolesForColor)} border-0`} data-testid={`select-role-${player.id}`}>
-                          <SelectValue>{player.role}</SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {roleOptions.map((r) => (
-                            <SelectItem key={r} value={r}>{r}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <td className={`border-r border-border bg-card ${isCollapsed("role") ? "px-1 py-2 w-8" : "px-2 py-2"}`}>
+                      {isCollapsed("role") ? (
+                        <div className={`h-2 w-2 rounded-full mx-auto ${getRoleColor(player.role, allRolesForColor).split(" ")[0]}`} />
+                      ) : (
+                        <Select
+                          value={player.role}
+                          onValueChange={(value: string) => onRoleChange?.(player.id, value)}
+                          disabled={isLoading || !canEditAll}
+                        >
+                          <SelectTrigger className={`w-full h-9 text-xs font-medium ${getRoleColor(player.role, allRolesForColor)} border-0`} data-testid={`select-role-${player.id}`}>
+                            <SelectValue>{player.role}</SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {roleOptions.map((r) => (
+                              <SelectItem key={r} value={r}>{r}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </td>
-                    <td className="border-r border-border px-4 py-2 bg-card">
-                      <div className="flex items-center gap-1">
-                        <span className="text-sm font-medium" data-testid={`text-player-name-${player.id}`}>{player.name}</span>
-                        {!canEditThis && (
-                          <Lock className="h-3 w-3 text-muted-foreground shrink-0" />
-                        )}
-                      </div>
+                    <td className={`border-r border-border bg-card ${isCollapsed("player") ? "px-1 py-2 w-8" : "px-4 py-2"}`}>
+                      {isCollapsed("player") ? (
+                        <span className="text-xs text-muted-foreground">·</span>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <span className="text-sm font-medium" data-testid={`text-player-name-${player.id}`}>{player.name}</span>
+                          {!canEditThis && (
+                            <Lock className="h-3 w-3 text-muted-foreground shrink-0" />
+                          )}
+                        </div>
+                      )}
                     </td>
                     {dayOfWeek.map((day) => {
                       const avail = getPlayerAvailability(player.id, day);
+                      const collapsed = isCollapsed(day);
                       return (
-                        <td key={day} className="border-r border-border px-2 py-2 bg-card">
-                          <Select
-                            value={avail}
-                            onValueChange={(value: string) => onAvailabilityChange(player.id, day, value)}
-                            disabled={isLoading || !canEditThis}
-                          >
-                            <SelectTrigger className={`w-full h-9 text-xs font-medium ${getAvailabilityColor(avail)} border-0`} data-testid={`select-avail-${player.id}-${day}`}>
-                              <SelectValue><span className="truncate">{avail}</span></SelectValue>
-                            </SelectTrigger>
-                            <SelectContent>
-                              {slotLabels.map((label) => (
-                                <SelectItem key={label} value={label}>{label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                        <td key={day} className={`border-r border-border bg-card ${collapsed ? "px-1 py-2 w-8" : "px-2 py-2"}`}>
+                          {collapsed ? (
+                            <div className={`h-2 w-2 rounded-full mx-auto ${getAvailabilityColor(avail).split(" ")[0]}`} title={avail} />
+                          ) : (
+                            <Select
+                              value={avail}
+                              onValueChange={(value: string) => onAvailabilityChange(player.id, day, value)}
+                              disabled={isLoading || !canEditThis}
+                            >
+                              <SelectTrigger className={`w-full h-9 text-xs font-medium ${getAvailabilityColor(avail)} border-0`} data-testid={`select-avail-${player.id}-${day}`}>
+                                <SelectValue><span className="truncate">{avail}</span></SelectValue>
+                              </SelectTrigger>
+                              <SelectContent>
+                                {slotLabels.map((label) => (
+                                  <SelectItem key={label} value={label}>{label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
                         </td>
                       );
                     })}

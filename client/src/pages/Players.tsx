@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus, Pencil, Trash2, ArrowLeft, Check, X, Clock, UserPlus, Users, Send, ChevronDown, ChevronUp } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import type { Player, Attendance, AttendanceStatus, TeamNotes as TeamNotesType, RosterRole, Staff, Event } from "@shared/schema";
+import { useGame } from "@/hooks/use-game";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -50,6 +51,8 @@ type AttendanceFormData = z.infer<typeof attendanceFormSchema>;
 type TeamNoteFormData = z.infer<typeof teamNoteFormSchema>;
 
 export default function Players() {
+  const { gameId, rosterId } = useGame();
+  const rosterReady = !!(gameId && rosterId);
   const { hasPermission } = useAuth();
   const [showPlayerDialog, setShowPlayerDialog] = useState(false);
   const [showAttendanceDialog, setShowAttendanceDialog] = useState(false);
@@ -69,27 +72,33 @@ export default function Players() {
   const RECORDS_PER_PAGE = 5;
 
   const { data: players = [], isLoading: playersLoading } = useQuery<Player[]>({
-    queryKey: ["/api/players"],
+    queryKey: ["/api/players", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const { data: allAttendance = [], isLoading: attendanceLoading } = useQuery<Attendance[]>({
-    queryKey: ["/api/attendance"],
+    queryKey: ["/api/attendance", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const { data: teamNotes = [] } = useQuery<TeamNotesType[]>({
-    queryKey: ["/api/team-notes"],
+    queryKey: ["/api/team-notes", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const { data: rosterRoles = [] } = useQuery<RosterRole[]>({
-    queryKey: ["/api/roster-roles"],
+    queryKey: ["/api/roster-roles", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const { data: staffMembers = [] } = useQuery<Staff[]>({
-    queryKey: ["/api/staff"],
+    queryKey: ["/api/staff", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const { data: events = [] } = useQuery<Event[]>({
-    queryKey: ["/api/events"],
+    queryKey: ["/api/events", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const playerRoleOptions = rosterRoles

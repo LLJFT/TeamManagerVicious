@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied } from "@/components/AccessDenied";
 import { StatsSkeleton } from "@/components/PageSkeleton";
 import { useGame } from "@/hooks/use-game";
+import { MultiSelectEventTypeFilter } from "@/components/MultiSelectEventTypeFilter";
 
 interface StatAggregate {
   fieldName: string;
@@ -87,6 +88,9 @@ export default function PlayerStats() {
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [statsView, setStatsView] = useState<"overall" | "byMode" | "byMap" | "bySubType">("overall");
   const [expandedOpponents, setExpandedOpponents] = useState<Set<string>>(new Set());
+  const [selectedSubTypes, setSelectedSubTypes] = useState<Set<string>>(new Set());
+  const [showFilter, setShowFilter] = useState(false);
+  const [expandedFilterCats, setExpandedFilterCats] = useState<Set<string>>(new Set());
 
   if (!hasPermission("view_player_stats")) {
     return <AccessDenied />;
@@ -98,7 +102,17 @@ export default function PlayerStats() {
     enabled: rosterReady,
   });
 
-  const selectedPlayer = summaries.find(s => s.player.id === selectedPlayerId);
+  const rawSelectedPlayer = summaries.find(s => s.player.id === selectedPlayerId);
+  const selectedPlayer = rawSelectedPlayer && selectedSubTypes.size > 0
+    ? {
+        ...rawSelectedPlayer,
+        statsBySubType: (rawSelectedPlayer.statsBySubType || []).filter(s => selectedSubTypes.has(s.subTypeName)),
+        opponents: rawSelectedPlayer.opponents.map(o => ({
+          ...o,
+          bySubType: (o.bySubType || []).filter(s => selectedSubTypes.has(s.subTypeName)),
+        })),
+      }
+    : rawSelectedPlayer;
   const playersWithStats = summaries.filter(s => s.gamesPlayed > 0);
 
   const toggleOpponent = (opponent: string) => {
@@ -124,6 +138,19 @@ export default function PlayerStats() {
             </div>
           </div>
         </div>
+
+        <MultiSelectEventTypeFilter
+          selectedSubTypes={selectedSubTypes}
+          onChange={setSelectedSubTypes}
+          showFilter={showFilter}
+          onToggleShow={() => setShowFilter(!showFilter)}
+          expandedCategories={expandedFilterCats}
+          onToggleCategory={(name) => setExpandedFilterCats(prev => {
+            const next = new Set(prev);
+            if (next.has(name)) next.delete(name); else next.add(name);
+            return next;
+          })}
+        />
 
         {isLoading ? (
           <StatsSkeleton />

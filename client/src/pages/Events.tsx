@@ -13,6 +13,7 @@ import { EventDialog } from "@/components/EventDialog";
 import { SimpleToast } from "@/components/SimpleToast";
 import { useAuth } from "@/hooks/use-auth";
 import { useGame } from "@/hooks/use-game";
+import { StatsSkeleton } from "@/components/PageSkeleton";
 import { AccessDenied } from "@/components/AccessDenied";
 
 interface CustomCalendarProps {
@@ -152,7 +153,8 @@ function CustomCalendar({ selectedDate, onSelectDate, eventsByDate, offDaysByDat
 
 export default function Events() {
   const { hasPermission } = useAuth();
-  const { fullSlug } = useGame();
+  const { fullSlug, gameId, rosterId } = useGame();
+  const rosterReady = !!(gameId && rosterId);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [showEventDialog, setShowEventDialog] = useState(false);
   const [eventToEdit, setEventToEdit] = useState<Event | undefined>(undefined);
@@ -161,11 +163,13 @@ export default function Events() {
   const [toastType, setToastType] = useState<"success" | "error">("success");
 
   const { data: events = [], isLoading } = useQuery<Event[]>({
-    queryKey: ["/api/events"],
+    queryKey: ["/api/events", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const { data: offDays = [] } = useQuery<OffDay[]>({
-    queryKey: ["/api/off-days"],
+    queryKey: ["/api/off-days", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const deleteMutation = useMutation({

@@ -21,6 +21,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { UserCog, Plus, Pencil, Trash2, Phone, User, Link2, LinkIcon } from "lucide-react";
 import type { Staff } from "@shared/schema";
+import { useGame } from "@/hooks/use-game";
+import { StatsSkeleton } from "@/components/PageSkeleton";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
@@ -43,6 +45,8 @@ const emptyForm: StaffFormData = {
 };
 
 export default function StaffPage() {
+  const { gameId, rosterId } = useGame();
+  const rosterReady = !!(gameId && rosterId);
   const { toast } = useToast();
   const { hasPermission } = useAuth();
   const canManage = hasPermission("manage_staff");
@@ -57,7 +61,8 @@ export default function StaffPage() {
   const [formData, setFormData] = useState<StaffFormData>(emptyForm);
 
   const { data: staffList = [], isLoading } = useQuery<Staff[]>({
-    queryKey: ["/api/staff"],
+    queryKey: ["/api/staff", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const { data: allUsers = [] } = useQuery<any[]>({

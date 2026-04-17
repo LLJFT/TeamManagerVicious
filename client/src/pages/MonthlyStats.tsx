@@ -27,6 +27,8 @@ import {
 } from "lucide-react";
 import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
 import type { Event, Game, GameMode, Map as MapType } from "@shared/schema";
+import { useGame } from "@/hooks/use-game";
+import { StatsSkeleton } from "@/components/PageSkeleton";
 
 interface StatsSummary {
   total: number;
@@ -44,22 +46,28 @@ interface MonthOption {
 }
 
 export default function MonthlyStats() {
+  const { gameId, rosterId } = useGame();
+  const rosterReady = !!(gameId && rosterId);
   const [selectedMonth, setSelectedMonth] = useState<string>("");
 
   const { data: events = [], isLoading: eventsLoading } = useQuery<Event[]>({
-    queryKey: ["/api/events"],
+    queryKey: ["/api/events", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const { data: allGames = [] } = useQuery<(Game & { eventType: string })[]>({
-    queryKey: ["/api/games"],
+    queryKey: ["/api/games", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const { data: gameModes = [] } = useQuery<GameMode[]>({
-    queryKey: ["/api/game-modes"],
+    queryKey: ["/api/game-modes", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const { data: maps = [] } = useQuery<MapType[]>({
-    queryKey: ["/api/maps"],
+    queryKey: ["/api/maps", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const availableMonths = useMemo<MonthOption[]>(() => {
@@ -170,14 +178,7 @@ export default function MonthlyStats() {
   const selectedMonthLabel = availableMonths.find(m => m.value === selectedMonth)?.label;
 
   if (eventsLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center space-y-3">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="text-muted-foreground">Loading statistics...</p>
-        </div>
-      </div>
-    );
+    return <StatsSkeleton />;
   }
 
   const overallEventStats = calculateEventStats();

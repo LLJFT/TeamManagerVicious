@@ -8,17 +8,21 @@ import { format, parseISO, isAfter, startOfDay } from "date-fns";
 import { Calendar, Trophy, Eye } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useGame } from "@/hooks/use-game";
+import { StatsSkeleton } from "@/components/PageSkeleton";
 import { AccessDenied } from "@/components/AccessDenied";
 import { ShareButton } from "@/components/ShareButton";
 
 export default function EventsResults() {
   const { hasPermission } = useAuth();
-  const { fullSlug, currentGame, currentRoster } = useGame();
+  const { fullSlug, currentGame, currentRoster, gameId, rosterId } = useGame();
+  const rosterReady = !!(gameId && rosterId);
   const { data: events = [], isLoading } = useQuery<Event[]>({
-    queryKey: ["/api/events"],
+    queryKey: ["/api/events", { gameId, rosterId }],
+    enabled: rosterReady,
   });
   const { data: allGames = [] } = useQuery<Game[]>({
-    queryKey: ["/api/games"],
+    queryKey: ["/api/games", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const now = new Date();
