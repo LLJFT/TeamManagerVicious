@@ -209,7 +209,7 @@ export default function Home() {
     return { id: s.id, name: s.name, role: s.role, availability };
   });
 
-  if (!gameId || rostersLoading) {
+  if (!gameId || rostersLoading || (!rosterId && rosters.length > 0)) {
     return <ScheduleSkeleton />;
   }
 
