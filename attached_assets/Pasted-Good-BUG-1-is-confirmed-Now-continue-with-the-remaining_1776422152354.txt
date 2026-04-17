@@ -1,0 +1,136 @@
+Good. BUG 1 is confirmed.
+
+Now continue with the remaining items below, but still work one item at a time in this exact order.
+After each item, stop and wait for confirmation before moving to the next.
+Do not combine multiple fixes in one step.
+Do not make bulk changes.
+Keep each fix as small and safe as possible.
+
+---
+
+BUG 2 — Dashboard access conflict
+Problem:
+When a user has "view dashboard" permission inside a roster, clicking Dashboard shows the Home-level Dashboard / Overview instead of the roster-level Dashboard.
+
+Required behavior:
+- Home Overview and Roster Dashboard must be fully separate
+- A roster user with dashboard access should only see the roster dashboard
+- They must not be routed to or shown the Home overview
+- Home overview should remain only for users who truly have home-level access
+
+---
+
+BUG 3 — Schedule page empty on first load
+Problem:
+When a user opens the roster site for the first time, the Schedule page appears blank/buggy.
+They must navigate to another tab (Events, Results, etc.) and come back for it to load correctly.
+
+Required behavior:
+- Schedule must render correctly on the first open
+- No need to visit another page first
+
+---
+
+BUG 4 — Events Calendar: sub-type colors not showing inside roster
+Problem:
+Inside the roster Events page, the calendar does not show sub-type colors on events.
+The Home calendar shows them correctly.
+
+Required behavior:
+- Apply the same sub-type color logic to the roster Events calendar
+- Countdown/event cards should stay consistent too if they use the same source
+
+---
+
+BUG 5 — Grant Access by Role returns 0 users / 0 new assignments
+Problem:
+In Game Access > Grant Access by Role, after selecting rosters and clicking Grant Access, it returns:
+"Access granted to 0 users, 0 new assignments"
+even when matching users exist.
+
+Required behavior:
+- Correctly find users by the selected role
+- Correctly create assignments
+- Show accurate success counts
+
+---
+
+BUG 6 — Schedule column collapse behavior
+Problem:
+When pressing the arrow to collapse a day column in Schedule, the behavior is wrong.
+
+Required behavior:
+- The collapse should hide upward / from bottom to top as requested
+- The expanded state should restore correctly when reopened
+
+---
+
+FEATURE 1 — Roster custom display name
+Problem:
+Each roster currently follows the organization/home name.
+
+Required behavior:
+- Each roster should be able to set its own display name independently
+- Add a "Roster Name" field in roster settings
+- That name should override the displayed roster name only for that roster
+
+---
+
+FEATURE 2 — Events Calendar timezone selector
+Problem:
+Different rosters use different timezones (KSA, CET, CEST, KST, etc.).
+
+Required behavior:
+- Add a timezone selector on the Events calendar page
+- Support both Home and Roster calendar views if possible
+- Display event times using the selected timezone
+
+---
+
+FEATURE 3 — Game Access UI cleanup
+Problem:
+The top "Grant Access" section and the "Grant Access by Role" section feel too similar / confusing.
+
+Required behavior:
+- Either remove the top individual "Grant Access" section
+- Or make the distinction very clear visually
+- Also add a collapse arrow to the "Grant Access by Role" section so it can be hidden
+
+---
+
+FEATURE 4 — Game Access users list improvements
+Required behavior:
+- The users list at the bottom should be collapsed by default
+- Add filters: All Users / Specific Game / Specific Roster
+- Keep search by name
+- Allow filter + search together
+
+---
+
+FEATURE 5 — Management test users should use staff user role type
+Problem:
+When creating roster managers for test data, they are being given management user roles.
+
+Required behavior:
+- Roster manager-type users used inside team/roster contexts should use staff user role type, not management user role type
+- Management type should remain for actual home/system management users only
+
+---
+
+FEATURE 6 — Home permissions default off for roster roles
+Problem:
+For roles created inside rosters, Home permissions are being available/checked when they should not be.
+
+Required behavior:
+- For roster-created roles, all Home-section permissions should be unchecked/off by default
+- This includes Calendar, Upcoming Events, Users Tab, Roles Tab, Game Access, Settings, and similar Home-only permissions
+- Home access should only be granted explicitly
+
+---
+
+Current rule:
+Start with BUG 2 only.
+After BUG 2 is finished, stop and wait for confirmation before proceeding to BUG 3.
+Reply only with:
+- BUG 2 done
+when finished.
