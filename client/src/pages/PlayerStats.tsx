@@ -6,10 +6,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart3, Users, Trophy, Target, Gamepad2, ChevronDown, ChevronRight, Map as MapIcon } from "lucide-react";
+import { BarChart3, Users, Trophy, Target, Gamepad2, ChevronDown, ChevronRight, Map as MapIcon, Tag } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied } from "@/components/AccessDenied";
 import { StatsSkeleton } from "@/components/PageSkeleton";
+import { useGame } from "@/hooks/use-game";
 
 interface StatAggregate {
   fieldName: string;
@@ -25,6 +26,15 @@ interface ModeStats {
 
 interface MapStats {
   mapName: string;
+  stats: StatAggregate[];
+}
+
+interface SubTypeStats {
+  subTypeName: string;
+  wins: number;
+  losses: number;
+  draws: number;
+  gamesPlayed: number;
   stats: StatAggregate[];
 }
 
@@ -66,22 +76,26 @@ interface PlayerSummary {
   stats: StatAggregate[];
   statsByMode: ModeStats[];
   statsByMap: MapStats[];
+  statsBySubType?: SubTypeStats[];
   opponents: OpponentStat[];
   eventTypeGames: Record<string, number>;
 }
 
 export default function PlayerStats() {
   const { hasPermission } = useAuth();
+  const { gameId, rosterId } = useGame();
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
-  const [statsView, setStatsView] = useState<"overall" | "byMode" | "byMap">("overall");
+  const [statsView, setStatsView] = useState<"overall" | "byMode" | "byMap" | "bySubType">("overall");
   const [expandedOpponents, setExpandedOpponents] = useState<Set<string>>(new Set());
 
   if (!hasPermission("view_player_stats")) {
     return <AccessDenied />;
   }
 
+  const rosterReady = !!(gameId && rosterId);
   const { data: summaries = [], isLoading } = useQuery<PlayerSummary[]>({
-    queryKey: ["/api/player-stats-summary"],
+    queryKey: ["/api/player-stats-summary", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const selectedPlayer = summaries.find(s => s.player.id === selectedPlayerId);
@@ -236,11 +250,12 @@ export default function PlayerStats() {
                           Across {selectedPlayer.gamesPlayed} games
                         </CardDescription>
                       </div>
-                      <Tabs value={statsView} onValueChange={(v) => setStatsView(v as "overall" | "byMode" | "byMap")}>
+                      <Tabs value={statsView} onValueChange={(v) => setStatsView(v as "overall" | "byMode" | "byMap" | "bySubType")}>
                         <TabsList>
                           <TabsTrigger value="overall" data-testid="tab-overall-stats">Overall</TabsTrigger>
                           <TabsTrigger value="byMode" data-testid="tab-bymode-stats">By Mode</TabsTrigger>
                           <TabsTrigger value="byMap" data-testid="tab-bymap-stats">By Map</TabsTrigger>
+                          <TabsTrigger value="bySubType" data-testid="tab-bysubtype-stats">By Type</TabsTrigger>
                         </TabsList>
                       </Tabs>
                     </div>
@@ -305,6 +320,56 @@ export default function PlayerStats() {
                               </div>
                             </div>
                           ))}
+                        </div>
+                      )
+                    )}
+                    {statsView === "bySubType" && (
+                      !selectedPlayer.statsBySubType || selectedPlayer.statsBySubType.length === 0 ? (
+                        <div className="p-6 text-center" data-testid="empty-bysubtype">
+                          <Tag className="h-10 w-10 mx-auto mb-2 text-muted-foreground/30" />
+                          <p className="text-sm text-muted-foreground">No stats by event type available</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-6">
+                          {selectedPlayer.statsBySubType.map((sub, si) => {
+                            const swr = sub.gamesPlayed > 0 ? Math.round((sub.wins / sub.gamesPlayed) * 100) : 0;
+                            return (
+                              <div key={si} data-testid={`subtype-group-${si}`}>
+                                <div className="flex items-center justify-between gap-2 flex-wrap mb-3">
+                                  <div className="flex items-center gap-2">
+                                    <Tag className="h-4 w-4 text-primary" />
+                                    <h3 className="text-sm font-semibold">{sub.subTypeName}</h3>
+                                  </div>
+                                  <div className="flex gap-2 text-xs text-muted-foreground items-center">
+                                    <Badge variant={swr >= 50 ? "default" : "secondary"} className="text-xs">{swr}% WR</Badge>
+                                    <span>{sub.gamesPlayed}G</span>
+                                    <span className="text-green-600 dark:text-green-400">{sub.wins}W</span>
+                                    <span className="text-red-600 dark:text-red-400">{sub.losses}L</span>
+                                    {sub.draws > 0 && <span>{sub.draws}D</span>}
+                                  </div>
+                                </div>
+                                <div className="space-y-2 pl-6">
+                                  {sub.stats.length === 0 ? (
+                                    <p className="text-xs text-muted-foreground py-2">No stat data for this type</p>
+                                  ) : sub.stats.map((stat, sti) => (
+                                    <div key={sti} className="flex items-center justify-between p-3 rounded-md border border-border">
+                                      <span className="text-sm font-medium">{stat.fieldName}</span>
+                                      <div className="flex items-center gap-4">
+                                        <div className="text-right">
+                                          <span className="text-xs text-muted-foreground">Total</span>
+                                          <p className="text-sm font-semibold">{stat.total}</p>
+                                        </div>
+                                        <div className="text-right">
+                                          <span className="text-xs text-muted-foreground">Avg</span>
+                                          <p className="text-sm font-semibold">{stat.avg}</p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       )
                     )}

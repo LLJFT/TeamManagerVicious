@@ -90,7 +90,7 @@ export function AppSidebar() {
             </div>
             {currentRoster && (
               <Badge variant="secondary" className="text-xs w-fit" data-testid="badge-roster-name">
-                {currentRoster.name}
+                {(currentRoster as any).customName || currentRoster.name}
               </Badge>
             )}
           </div>

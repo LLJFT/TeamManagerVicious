@@ -27,12 +27,17 @@ import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval, isBefore,
 import type { Event, Game, GameMode, Map as MapType, Season } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied } from "@/components/AccessDenied";
+import { MultiSelectEventTypeFilter } from "@/components/MultiSelectEventTypeFilter";
 
 const ITEMS_PER_PAGE = 10;
 
 export default function History() {
   const { hasPermission } = useAuth();
-  const { fullSlug } = useGame();
+  const { fullSlug, gameId, rosterId } = useGame();
+  const rosterReady = !!(gameId && rosterId);
+  const [selectedSubTypes, setSelectedSubTypes] = useState<Set<string>>(new Set());
+  const [showFilter, setShowFilter] = useState(false);
+  const [expandedFilterCats, setExpandedFilterCats] = useState<Set<string>>(new Set());
   const [selectedSeason, setSelectedSeason] = useState<string>("all");
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [selectedMode, setSelectedMode] = useState<string>("all");
@@ -42,23 +47,28 @@ export default function History() {
   const [showPastOnly, setShowPastOnly] = useState(true);
 
   const { data: events = [], isLoading } = useQuery<Event[]>({
-    queryKey: ["/api/events"],
+    queryKey: ["/api/events", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const { data: allGames = [] } = useQuery<(Game & { eventType: string })[]>({
-    queryKey: ["/api/games"],
+    queryKey: ["/api/games", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const { data: gameModes = [] } = useQuery<GameMode[]>({
-    queryKey: ["/api/game-modes"],
+    queryKey: ["/api/game-modes", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const { data: maps = [] } = useQuery<MapType[]>({
-    queryKey: ["/api/maps"],
+    queryKey: ["/api/maps", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const { data: seasons = [] } = useQuery<Season[]>({
-    queryKey: ["/api/seasons"],
+    queryKey: ["/api/seasons", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const availableMonths = useMemo(() => {
@@ -101,6 +111,10 @@ export default function History() {
 
   const filteredEvents = useMemo(() => {
     let result = [...events];
+
+    if (selectedSubTypes.size > 0) {
+      result = result.filter(e => e.eventSubType && selectedSubTypes.has(e.eventSubType));
+    }
 
     if (showPastOnly) {
       result = result.filter(isPastEvent);
@@ -149,7 +163,7 @@ export default function History() {
     });
 
     return result;
-  }, [events, allGames, selectedSeason, selectedMonth, selectedMode, selectedMap, sortOrder, showPastOnly]);
+  }, [events, allGames, selectedSeason, selectedMonth, selectedMode, selectedMap, sortOrder, showPastOnly, selectedSubTypes]);
 
   const totalPages = Math.ceil(filteredEvents.length / ITEMS_PER_PAGE);
   const paginatedEvents = filteredEvents.slice(
@@ -240,6 +254,19 @@ export default function History() {
             </Button>
           </div>
         </div>
+
+        <MultiSelectEventTypeFilter
+          selectedSubTypes={selectedSubTypes}
+          onChange={setSelectedSubTypes}
+          showFilter={showFilter}
+          onToggleShow={() => setShowFilter(s => !s)}
+          expandedCategories={expandedFilterCats}
+          onToggleCategory={(c) => {
+            const next = new Set(expandedFilterCats);
+            if (next.has(c)) next.delete(c); else next.add(c);
+            setExpandedFilterCats(next);
+          }}
+        />
 
         <Card className="mb-6">
           <CardHeader className="pb-3">

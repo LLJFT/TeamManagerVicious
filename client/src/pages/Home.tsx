@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { ScheduleSkeleton } from "@/components/PageSkeleton";
 import { ScheduleTable } from "@/components/ScheduleTable";
+import { UpcomingCountdown } from "@/components/UpcomingCountdown";
 import { PlayerManager } from "@/components/PlayerManager";
 import { AvailabilityAnalytics } from "@/components/AvailabilityAnalytics";
 import { WeeklyAvailabilityOverview } from "@/components/WeeklyAvailabilityOverview";
@@ -260,6 +261,7 @@ export default function Home() {
             <ScheduleSkeleton />
           ) : (
             <>
+              <UpcomingCountdown gameId={gameId} rosterId={rosterId} enabled={rosterReady} />
               <ScheduleTable
                 players={players}
                 playerAvailabilities={playerAvailabilities}

@@ -88,7 +88,7 @@ function UserGameRosterCheckboxes({
                           onToggle(user.id, game.id, roster.id, !!checked, assignment?.id);
                         }}
                       />
-                      <span className="text-sm">{roster.name}</span>
+                      <span className="text-sm">{(roster as any).customName || roster.name}</span>
                     </label>
                   );
                 })}
@@ -138,7 +138,7 @@ export default function GameAccessPage() {
           value: `${game.id}:${roster.id}`,
           gameId: game.id,
           rosterId: roster.id,
-          label: `${game.name} — ${roster.name}`,
+          label: `${game.name} — ${(roster as any).customName || roster.name}`,
         });
       });
     });
@@ -346,7 +346,7 @@ export default function GameAccessPage() {
                                   checked={bulkSelectedRosters.has(key)}
                                   onCheckedChange={() => toggleBulkRoster(key)}
                                 />
-                                <span className="text-sm">{roster.name}</span>
+                                <span className="text-sm">{(roster as any).customName || roster.name}</span>
                               </label>
                             );
                           })}

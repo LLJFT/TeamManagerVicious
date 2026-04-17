@@ -156,6 +156,7 @@ export const rosters = pgTable("rosters", {
   slug: text("slug").notNull(),
   sortOrder: integer("sort_order").default(0),
   code: varchar("code"),
+  customName: text("custom_name"),
 }, (table) => [
   index("rosters_team_id_idx").on(table.teamId),
   index("rosters_game_id_idx").on(table.gameId),
@@ -256,6 +257,10 @@ export const attendance = pgTable("attendance", {
 }, (table) => [
   index("attendance_team_id_idx").on(table.teamId),
   index("attendance_game_id_idx").on(table.gameId),
+  index("attendance_roster_id_idx").on(table.rosterId),
+  index("attendance_event_id_idx").on(table.eventId),
+  index("attendance_player_id_idx").on(table.playerId),
+  index("attendance_date_idx").on(table.date),
 ]);
 
 export const teamNotes = pgTable("team_notes", {
@@ -283,6 +288,8 @@ export const schedules = pgTable("schedules", {
 }, (table) => [
   index("schedules_team_id_idx").on(table.teamId),
   index("schedules_game_id_idx").on(table.gameId),
+  index("schedules_roster_id_idx").on(table.rosterId),
+  index("schedules_week_start_idx").on(table.weekStartDate),
 ]);
 
 export const settings = pgTable("settings", {
@@ -295,6 +302,8 @@ export const settings = pgTable("settings", {
 }, (table) => [
   index("settings_team_id_idx").on(table.teamId),
   index("settings_game_id_idx").on(table.gameId),
+  index("settings_roster_id_idx").on(table.rosterId),
+  index("settings_key_idx").on(table.key),
 ]);
 
 export const eventCategories = pgTable("event_categories", {
@@ -342,6 +351,10 @@ export const events = pgTable("events", {
 }, (table) => [
   index("events_team_id_idx").on(table.teamId),
   index("events_game_id_idx").on(table.gameId),
+  index("events_roster_id_idx").on(table.rosterId),
+  index("events_date_idx").on(table.date),
+  index("events_event_type_idx").on(table.eventType),
+  index("events_season_id_idx").on(table.seasonId),
 ]);
 
 export const seasons = pgTable("seasons", {
@@ -397,6 +410,8 @@ export const games = pgTable("games", {
 }, (table) => [
   index("games_team_id_idx").on(table.teamId),
   index("games_game_id_idx").on(table.gameId),
+  index("games_event_id_idx").on(table.eventId),
+  index("games_roster_id_idx").on(table.rosterId),
 ]);
 
 export const offDays = pgTable("off_days", {
@@ -408,6 +423,8 @@ export const offDays = pgTable("off_days", {
 }, (table) => [
   index("off_days_team_id_idx").on(table.teamId),
   index("off_days_game_id_idx").on(table.gameId),
+  index("off_days_roster_id_idx").on(table.rosterId),
+  index("off_days_date_idx").on(table.date),
 ]);
 
 export const statFields = pgTable("stat_fields", {

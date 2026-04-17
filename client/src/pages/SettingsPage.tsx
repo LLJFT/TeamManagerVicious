@@ -54,6 +54,7 @@ export default function SettingsPage() {
   const [newRosterName, setNewRosterName] = useState("");
   const [editingRoster, setEditingRoster] = useState<string | null>(null);
   const [editRosterName, setEditRosterName] = useState("");
+  const [editRosterCustomName, setEditRosterCustomName] = useState("");
   const [editingMgmtPerms, setEditingMgmtPerms] = useState(false);
   const [mgmtPermissions, setMgmtPermissions] = useState<string[]>([]);
 
@@ -146,13 +147,14 @@ export default function SettingsPage() {
   });
 
   const renameRosterMutation = useMutation({
-    mutationFn: async ({ id, name }: { id: string; name: string }) => {
-      await apiRequest("PUT", `/api/rosters/${id}/rename`, { name });
+    mutationFn: async ({ id, name, customName }: { id: string; name: string; customName?: string | null }) => {
+      await apiRequest("PATCH", `/api/rosters/${id}`, { name, customName });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/all-rosters"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/rosters"] });
       setEditingRoster(null);
-      toast({ title: "Roster renamed" });
+      toast({ title: "Roster updated" });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -431,9 +433,10 @@ export default function SettingsPage() {
                     {gameRosters.map(roster => (
                       <div key={roster.id} className="flex items-center justify-between gap-2 text-sm" data-testid={`row-roster-${roster.id}`}>
                         {editingRoster === roster.id ? (
-                          <div className="flex items-center gap-2">
-                            <Input value={editRosterName} onChange={(e) => setEditRosterName(e.target.value)} className="w-[160px]" />
-                            <Button size="sm" onClick={() => renameRosterMutation.mutate({ id: roster.id, name: editRosterName })}>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Input value={editRosterName} onChange={(e) => setEditRosterName(e.target.value)} placeholder="Roster name" className="w-[160px]" data-testid={`input-roster-name-${roster.id}`} />
+                            <Input value={editRosterCustomName} onChange={(e) => setEditRosterCustomName(e.target.value)} placeholder="Display name (optional)" className="w-[180px]" data-testid={`input-roster-custom-name-${roster.id}`} />
+                            <Button size="sm" onClick={() => renameRosterMutation.mutate({ id: roster.id, name: editRosterName, customName: editRosterCustomName.trim() || null })} data-testid={`button-save-roster-${roster.id}`}>
                               <Save className="h-3 w-3" />
                             </Button>
                             <Button size="sm" variant="outline" onClick={() => setEditingRoster(null)}>
@@ -441,11 +444,16 @@ export default function SettingsPage() {
                             </Button>
                           </div>
                         ) : (
-                          <span>{roster.name}</span>
+                          <div className="flex items-center gap-2">
+                            <span>{roster.name}</span>
+                            {(roster as any).customName && (
+                              <Badge variant="secondary" className="text-xs">"{(roster as any).customName}"</Badge>
+                            )}
+                          </div>
                         )}
                         <div className="flex items-center gap-1">
                           {editingRoster !== roster.id && (
-                            <Button size="icon" variant="ghost" onClick={() => { setEditingRoster(roster.id); setEditRosterName(roster.name); }}>
+                            <Button size="icon" variant="ghost" onClick={() => { setEditingRoster(roster.id); setEditRosterName(roster.name); setEditRosterCustomName((roster as any).customName || ""); }} data-testid={`button-edit-roster-${roster.id}`}>
                               <Pencil className="h-3 w-3" />
                             </Button>
                           )}

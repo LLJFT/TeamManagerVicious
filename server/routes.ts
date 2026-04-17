@@ -2681,6 +2681,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
           eventTypeGames[eventType] = (eventTypeGames[eventType] || 0) + 1;
         }
 
+        const statsBySubType: Record<string, { subTypeName: string; wins: number; losses: number; draws: number; gamesPlayed: number; stats: Record<string, { fieldName: string; total: number; count: number; avg: number }> }> = {};
+        for (const gameId of gameIds) {
+          const game = allGames.find(g => g.id === gameId);
+          if (!game) continue;
+          const event = allEvents.find(e => e.id === game.eventId);
+          const subType = event?.eventSubType || "Unknown";
+          if (!statsBySubType[subType]) {
+            statsBySubType[subType] = { subTypeName: subType, wins: 0, losses: 0, draws: 0, gamesPlayed: 0, stats: {} };
+          }
+          statsBySubType[subType].gamesPlayed++;
+          if (game.result === "win") statsBySubType[subType].wins++;
+          else if (game.result === "loss") statsBySubType[subType].losses++;
+          else if (game.result === "draw") statsBySubType[subType].draws++;
+
+          const gameStats = playerStats.filter(s => s.matchId === gameId);
+          for (const gs of gameStats) {
+            const field = allStatFields.find(f => f.id === gs.statFieldId);
+            if (!field) continue;
+            const fname = field.name;
+            const val = parseFloat(gs.value) || 0;
+            if (!statsBySubType[subType].stats[fname]) {
+              statsBySubType[subType].stats[fname] = { fieldName: fname, total: 0, count: 0, avg: 0 };
+            }
+            statsBySubType[subType].stats[fname].total += val;
+            statsBySubType[subType].stats[fname].count += 1;
+          }
+        }
+        for (const sub of Object.values(statsBySubType)) {
+          for (const st of Object.values(sub.stats)) {
+            st.avg = st.count > 0 ? Math.round((st.total / st.count) * 100) / 100 : 0;
+          }
+        }
+
         const opponentsList = Object.values(opponentStats).map(o => ({
           ...o,
           stats: Object.values(o.stats),
@@ -2695,6 +2728,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           stats: Object.values(statAggregatesByName),
           statsByMode: Object.values(statsByMode),
           statsByMap: Object.values(statsByMap),
+          statsBySubType: Object.values(statsBySubType).map(s => ({ ...s, stats: Object.values(s.stats) })),
           opponents: opponentsList,
           eventTypeGames,
         };
@@ -2991,7 +3025,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const gameRosters = await db.select().from(rosters)
           .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, game.id)));
         if (gameRosters.length > 0) {
-          result[game.id] = gameRosters.map(r => ({ id: r.id, name: r.name, slug: r.slug }));
+          result[game.id] = gameRosters.map(r => ({ id: r.id, name: r.name, slug: r.slug, customName: r.customName }));
         }
       }
       res.json(result);
@@ -3100,10 +3134,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/rosters/:id", requireAuth, requirePermission("manage_users"), async (req, res) => {
     try {
-      const { name } = req.body;
+      const teamId = getTeamId();
+      const { name, customName } = req.body;
+      const updates: any = {};
+      if (typeof name === "string") updates.name = name;
+      if (customName !== undefined) updates.customName = customName === null || customName === "" ? null : String(customName);
+      if (Object.keys(updates).length === 0) return res.status(400).json({ message: "No fields to update" });
       const [updated] = await db.update(rosters)
-        .set({ name })
-        .where(eq(rosters.id, req.params.id))
+        .set(updates)
+        .where(and(eq(rosters.id, req.params.id), eq(rosters.teamId, teamId)))
         .returning();
       if (!updated) return res.status(404).json({ message: "Roster not found" });
       res.json(updated);

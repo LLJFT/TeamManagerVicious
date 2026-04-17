@@ -28,6 +28,9 @@ import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval } from "da
 import type { Event, Game, GameMode, Map as MapType, Season } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied } from "@/components/AccessDenied";
+import { useGame } from "@/hooks/use-game";
+import { MultiSelectEventTypeFilter } from "@/components/MultiSelectEventTypeFilter";
+import { StatsSkeleton } from "@/components/PageSkeleton";
 
 interface StatsSummary {
   total: number;
@@ -46,28 +49,38 @@ type CompareMode = "season" | "month";
 
 export default function Compare() {
   const { hasPermission } = useAuth();
+  const { gameId, rosterId } = useGame();
+  const rosterReady = !!(gameId && rosterId);
   const [compareMode, setCompareMode] = useState<CompareMode>("season");
   const [selection1, setSelection1] = useState<string>("");
   const [selection2, setSelection2] = useState<string>("");
+  const [selectedSubTypes, setSelectedSubTypes] = useState<Set<string>>(new Set());
+  const [showFilter, setShowFilter] = useState(false);
+  const [expandedFilterCats, setExpandedFilterCats] = useState<Set<string>>(new Set());
 
   const { data: events = [], isLoading } = useQuery<Event[]>({
-    queryKey: ["/api/events"],
+    queryKey: ["/api/events", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const { data: allGames = [] } = useQuery<(Game & { eventType: string })[]>({
-    queryKey: ["/api/games"],
+    queryKey: ["/api/games", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const { data: gameModes = [] } = useQuery<GameMode[]>({
-    queryKey: ["/api/game-modes"],
+    queryKey: ["/api/game-modes", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const { data: maps = [] } = useQuery<MapType[]>({
-    queryKey: ["/api/maps"],
+    queryKey: ["/api/maps", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const { data: seasons = [] } = useQuery<Season[]>({
-    queryKey: ["/api/seasons"],
+    queryKey: ["/api/seasons", { gameId, rosterId }],
+    enabled: rosterReady,
   });
 
   const availableMonths = useMemo<MonthOption[]>(() => {
@@ -93,16 +106,22 @@ export default function Compare() {
     return monthsList.sort((a, b) => b.value.localeCompare(a.value));
   }, [events]);
 
+  const subTypeFilteredEvents = useMemo(() => {
+    if (selectedSubTypes.size === 0) return events;
+    return events.filter(e => e.eventSubType && selectedSubTypes.has(e.eventSubType));
+  }, [events, selectedSubTypes]);
+
   const getFilteredData = (selection: string) => {
     let filteredEvents: Event[] = [];
+    const sourceEvents = subTypeFilteredEvents;
 
     if (compareMode === "season") {
-      filteredEvents = events.filter(e => e.seasonId === selection);
+      filteredEvents = sourceEvents.filter(e => e.seasonId === selection);
     } else {
       const [year, month] = selection.split("-").map(Number);
       const startDate = startOfMonth(new Date(year, month - 1));
       const endDate = endOfMonth(new Date(year, month - 1));
-      filteredEvents = events.filter(event => {
+      filteredEvents = sourceEvents.filter(event => {
         if (!event.date) return false;
         try {
           const eventDate = parseISO(event.date);
@@ -199,10 +218,9 @@ export default function Compare() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center space-y-3">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="text-muted-foreground">Loading comparison data...</p>
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-4 py-6 max-w-7xl">
+          <StatsSkeleton />
         </div>
       </div>
     );
@@ -229,6 +247,19 @@ export default function Compare() {
             </div>
           </div>
         </div>
+
+        <MultiSelectEventTypeFilter
+          selectedSubTypes={selectedSubTypes}
+          onChange={setSelectedSubTypes}
+          showFilter={showFilter}
+          onToggleShow={() => setShowFilter(s => !s)}
+          expandedCategories={expandedFilterCats}
+          onToggleCategory={(c) => {
+            const next = new Set(expandedFilterCats);
+            if (next.has(c)) next.delete(c); else next.add(c);
+            setExpandedFilterCats(next);
+          }}
+        />
 
         <Card className="mb-6">
           <CardHeader className="pb-3">
