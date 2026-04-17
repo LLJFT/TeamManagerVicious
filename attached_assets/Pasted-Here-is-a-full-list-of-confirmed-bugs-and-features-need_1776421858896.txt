@@ -1,0 +1,75 @@
+Here is a full list of confirmed bugs and features needed. 
+Please handle them one at a time, starting from the top.
+Do not combine multiple fixes in one step.
+Do not make bulk changes.
+Confirm each fix before moving to the next.
+
+---
+
+BUG 1 — PlayerStats: Remove "Filter by Event Sub-Types"
+File: client/src/pages/PlayerStats.tsx
+The "Filter by Event Sub-Types" bar near the top of PlayerStats should not exist on this page. Remove it completely. Do not touch anything else.
+
+---
+
+BUG 2 — Dashboard access conflict
+When a user has "view dashboard" permission inside a roster, clicking Dashboard shows them the Home-level Dashboard (Overview) instead of the roster-level Dashboard. These two must be fully separated. A roster user with dashboard access should only see their roster dashboard, never the home overview.
+
+---
+
+BUG 3 — Schedule page empty on first load
+When a user opens the roster site for the first time, the Schedule page appears blank/buggy. They must navigate to another tab (Events, Results, etc.) and come back for it to load correctly. Fix the initial load so Schedule renders correctly on first open.
+
+---
+
+BUG 4 — Events Calendar: sub-type colors not showing inside roster
+Inside the roster Events page, the calendar does not show sub-type colors on events. The Home calendar shows them correctly. Apply the same color logic to the roster Events calendar.
+
+---
+
+BUG 5 — Grant Access by Role: always shows "0 users, 0 new assignments"
+In Game Access > Grant Access by Role, after selecting rosters and clicking Grant Access, it always returns "Access granted to 0 users, 0 new assignments" even when Management users exist. Fix the logic so it correctly finds and assigns users with the selected role.
+
+---
+
+BUG 6 — Schedule: column collapse direction wrong
+When pressing the arrow to collapse a day column in Schedule, it should collapse from bottom to top (the content hides upward). Fix the collapse animation/behavior to match this direction.
+
+---
+
+FEATURE 1 — Roster custom name
+Each roster should be able to set its own display name independently, instead of always using the organization name from Home. Add a "Roster Name" field in roster settings that overrides the displayed name for that roster only.
+
+---
+
+FEATURE 2 — Events Calendar: timezone selector
+Add a timezone selector option on the Events calendar page (both Home and Roster). Rosters operate in different timezones (KSA, CET, CEST, KST, etc.). The selected timezone should adjust how event times are displayed.
+
+---
+
+FEATURE 3 — Game Access UI cleanup
+The top "Grant Access" section (individual user grant) and the "Grant Access by Role" section look like they serve the same purpose. Either remove the top individual grant section, or visually separate them clearly so the difference is obvious. If keeping both, add a collapse arrow to the "Grant Access by Role" section so it can be hidden.
+
+---
+
+FEATURE 4 — Game Access: Users list filter + collapsed by default
+In Game Access, the users list at the bottom should:
+- Be collapsed by default (not expanded showing all users)
+- Have filters: All Users / Specific Game / Specific Roster
+- Allow searching by name
+- Allow combining filter + search together
+
+---
+
+FEATURE 5 — Roles: restrict Management role type change
+In the Users page, when viewing a user with the Management role, the role type dropdown (Player / Staff / Management) should not show Player or Staff as options for Management users. Management users should only be assignable as Management type, not Player or Staff.
+
+---
+
+FEATURE 6 — Home Roles: Inside Roster roles default permissions
+For roles created inside rosters (not the Home/system roles), the default state for all Home-section permissions (Calendar, Upcoming Events, Users Tab, Roles Tab, Game Access, Settings, etc.) should be unchecked/off by default. Roster roles should not get Home access unless explicitly granted.
+
+---
+
+Start with BUG 1 only.
+After completing BUG 1, stop and wait for confirmation before proceeding.
