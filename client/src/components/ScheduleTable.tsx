@@ -7,7 +7,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Lock, ChevronLeft, ChevronRight } from "lucide-react";
+import { Lock, ChevronUp, ChevronDown } from "lucide-react";
 import type { Player, PlayerAvailabilityRecord, DayOfWeek } from "@shared/schema";
 import { dayOfWeek } from "@shared/schema";
 
@@ -114,7 +114,7 @@ export function ScheduleTable({
                   data-testid="th-role"
                 >
                   <span className="inline-flex items-center gap-1">
-                    {isCollapsed("role") ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
+                    {isCollapsed("role") ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
                     {!isCollapsed("role") && "Role"}
                   </span>
                 </th>
@@ -124,7 +124,7 @@ export function ScheduleTable({
                   data-testid="th-player"
                 >
                   <span className="inline-flex items-center gap-1">
-                    {isCollapsed("player") ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
+                    {isCollapsed("player") ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
                     {!isCollapsed("player") && "Player"}
                   </span>
                 </th>
@@ -136,7 +136,7 @@ export function ScheduleTable({
                     data-testid={`th-${day}`}
                   >
                     <span className="inline-flex items-center gap-1">
-                      {isCollapsed(day) ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
+                      {isCollapsed(day) ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
                       {!isCollapsed(day) && day}
                     </span>
                   </th>
