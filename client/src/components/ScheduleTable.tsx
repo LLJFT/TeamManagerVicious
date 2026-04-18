@@ -152,9 +152,7 @@ export function ScheduleTable({
                   return (
                   <tr key={player.id} className="border-t border-border hover-elevate" data-testid={`row-player-${player.id}`}>
                     <td className={`border-r border-border bg-card ${isCollapsed("role") ? "px-1 py-2 w-8" : "px-2 py-2"}`}>
-                      {isCollapsed("role") ? (
-                        <div className={`h-2 w-2 rounded-full mx-auto ${getRoleColor(player.role, allRolesForColor).split(" ")[0]}`} />
-                      ) : (
+                      {isCollapsed("role") ? null : (
                         <Select
                           value={player.role}
                           onValueChange={(value: string) => onRoleChange?.(player.id, value)}
@@ -172,9 +170,7 @@ export function ScheduleTable({
                       )}
                     </td>
                     <td className={`border-r border-border bg-card ${isCollapsed("player") ? "px-1 py-2 w-8" : "px-4 py-2"}`}>
-                      {isCollapsed("player") ? (
-                        <span className="text-xs text-muted-foreground">·</span>
-                      ) : (
+                      {isCollapsed("player") ? null : (
                         <div className="flex items-center gap-1">
                           <span className="text-sm font-medium" data-testid={`text-player-name-${player.id}`}>{player.name}</span>
                           {!canEditThis && (
@@ -188,9 +184,7 @@ export function ScheduleTable({
                       const collapsed = isCollapsed(day);
                       return (
                         <td key={day} className={`border-r border-border bg-card ${collapsed ? "px-1 py-2 w-8" : "px-2 py-2"}`}>
-                          {collapsed ? (
-                            <div className={`h-2 w-2 rounded-full mx-auto ${getAvailabilityColor(avail).split(" ")[0]}`} title={avail} />
-                          ) : (
+                          {collapsed ? null : (
                             <Select
                               value={avail}
                               onValueChange={(value: string) => onAvailabilityChange(player.id, day, value)}
@@ -278,16 +272,12 @@ export function ScheduleTable({
                 {staffMembers.map((s) => (
                   <tr key={s.id} className="border-t border-border hover-elevate" data-testid={`row-staff-${s.id}`}>
                     <td className={`border-r border-border bg-card ${isCollapsed("staff_role") ? "px-1 py-2 w-8" : "px-4 py-2"}`}>
-                      {isCollapsed("staff_role") ? (
-                        <span className="text-xs text-muted-foreground">·</span>
-                      ) : (
+                      {isCollapsed("staff_role") ? null : (
                         <Badge variant="secondary" className="text-xs">{s.role}</Badge>
                       )}
                     </td>
                     <td className={`border-r border-border bg-card ${isCollapsed("staff_name") ? "px-1 py-2 w-8" : "px-4 py-2"}`}>
-                      {isCollapsed("staff_name") ? (
-                        <span className="text-xs text-muted-foreground">·</span>
-                      ) : (
+                      {isCollapsed("staff_name") ? null : (
                         <span className="text-sm font-medium" data-testid={`text-staff-name-${s.id}`}>{s.name}</span>
                       )}
                     </td>
@@ -296,9 +286,7 @@ export function ScheduleTable({
                       const collapsed = isCollapsed(day);
                       return (
                         <td key={day} className={`border-r border-border bg-card ${collapsed ? "px-1 py-2 w-8" : "px-2 py-2"}`}>
-                          {collapsed ? (
-                            <div className={`h-2 w-2 rounded-full mx-auto ${getAvailabilityColor(avail).split(" ")[0]}`} title={avail} />
-                          ) : (
+                          {collapsed ? null : (
                             <Select
                               value={avail}
                               onValueChange={(value: string) => onStaffAvailabilityChange(s.id, day as DayOfWeek, value)}
