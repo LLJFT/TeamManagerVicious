@@ -183,7 +183,7 @@ export function AppSidebar() {
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                  {hasPermission("view_dashboard" as Permission) && (
+                  {hasOrgRole("super_admin" as any, "org_admin" as any, "management" as any) && (
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild isActive={location === "/dashboard"}>
                         <Link href="/dashboard">
