@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Calendar } from "@/components/ui/calendar";
@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, ArrowLeft, ChevronLeft, ChevronRight, Pencil, Eye, Copy, X, Moon } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from "date-fns";
-import type { Event, OffDay } from "@shared/schema";
+import type { Event, OffDay, EventCategory, EventSubType } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { EventDialog } from "@/components/EventDialog";
 import { SimpleToast } from "@/components/SimpleToast";
@@ -24,9 +24,10 @@ interface CustomCalendarProps {
   onEventDoubleClick: (event: Event) => void;
   onDayDoubleClick: (date: Date) => void;
   onToggleOffDay: (date: Date, isCurrentlyOff: boolean) => void;
+  getEventColor: (eventType: string, eventSubType?: string | null) => { bg: string; border: string; text: string };
 }
 
-function CustomCalendar({ selectedDate, onSelectDate, eventsByDate, offDaysByDate, onEventDoubleClick, onDayDoubleClick, onToggleOffDay }: CustomCalendarProps) {
+function CustomCalendar({ selectedDate, onSelectDate, eventsByDate, offDaysByDate, onEventDoubleClick, onDayDoubleClick, onToggleOffDay, getEventColor }: CustomCalendarProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
   const monthStart = startOfMonth(currentMonth);
@@ -120,16 +121,13 @@ function CustomCalendar({ selectedDate, onSelectDate, eventsByDate, offDaysByDat
                       OFF DAY
                     </div>
                   )}
-                  {dayEvents.map((event, eventIdx) => (
+                  {dayEvents.map((event, eventIdx) => {
+                    const c = getEventColor(event.eventType, event.eventSubType);
+                    return (
                     <div
                       key={eventIdx}
-                      className={`text-xs px-2 py-1 rounded truncate cursor-pointer ${
-                        event.eventType === "Tournament"
-                          ? "bg-amber-500 dark:bg-amber-600 text-white"
-                          : event.eventType === "Scrim"
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-violet-500 dark:bg-violet-600 text-white"
-                      }`}
+                      className="text-xs px-2 py-1 rounded truncate cursor-pointer border"
+                      style={{ backgroundColor: c.bg, borderColor: c.border, color: c.text }}
                       title={`${event.title}${event.time ? ` - ${event.time}` : ''}`}
                       data-testid={`calendar-event-${event.id}`}
                       onDoubleClick={(e) => {
@@ -140,7 +138,8 @@ function CustomCalendar({ selectedDate, onSelectDate, eventsByDate, offDaysByDat
                       <div className="font-semibold">{event.time || ""}</div>
                       <div>{event.title}</div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -171,6 +170,57 @@ export default function Events() {
     queryKey: ["/api/off-days", { gameId, rosterId }],
     enabled: rosterReady,
   });
+
+  const { data: allCategories = [] } = useQuery<EventCategory[]>({
+    queryKey: ["/api/event-categories", { gameId, rosterId }],
+    enabled: rosterReady,
+  });
+
+  const { data: allSubTypes = [] } = useQuery<EventSubType[]>({
+    queryKey: ["/api/event-sub-types", { gameId, rosterId }],
+    enabled: rosterReady,
+  });
+
+  const subTypeColorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    allSubTypes.forEach(sub => {
+      if (sub.name && sub.color) map.set(sub.name.toLowerCase().trim(), sub.color);
+    });
+    return map;
+  }, [allSubTypes]);
+
+  const categoryColorByName = useMemo(() => {
+    const map = new Map<string, string>();
+    allCategories.forEach(cat => {
+      if (cat.name && cat.color) map.set(cat.name.toLowerCase().trim(), cat.color);
+    });
+    return map;
+  }, [allCategories]);
+
+  const categoryColorBySubTypeName = useMemo(() => {
+    const map = new Map<string, string>();
+    allSubTypes.forEach(sub => {
+      if (!sub.name) return;
+      const cat = allCategories.find(c => c.id === sub.categoryId);
+      if (cat?.color) map.set(sub.name.toLowerCase().trim(), cat.color);
+    });
+    return map;
+  }, [allSubTypes, allCategories]);
+
+  const getEventColor = (eventType: string, eventSubType?: string | null) => {
+    const key = eventSubType?.toLowerCase().trim();
+    if (key) {
+      const subColor = subTypeColorMap.get(key);
+      if (subColor) return { bg: `${subColor}25`, border: `${subColor}50`, text: subColor };
+      const parentColor = categoryColorBySubTypeName.get(key);
+      if (parentColor) return { bg: `${parentColor}25`, border: `${parentColor}50`, text: parentColor };
+    }
+    if (eventType) {
+      const catColor = categoryColorByName.get(eventType.toLowerCase().trim());
+      if (catColor) return { bg: `${catColor}25`, border: `${catColor}50`, text: catColor };
+    }
+    return { bg: "rgba(128,128,128,0.1)", border: "rgba(128,128,128,0.2)", text: "#888" };
+  };
 
   const deleteMutation = useMutation({
     mutationFn: async (eventId: string) => {
@@ -355,6 +405,7 @@ export default function Events() {
                 setShowEventDialog(true);
               }}
               onToggleOffDay={handleToggleOffDay}
+              getEventColor={getEventColor}
             />
           </Card>
 
