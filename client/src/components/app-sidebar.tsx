@@ -256,7 +256,7 @@ export function AppSidebar() {
                       <SidebarMenuButton asChild isActive={location === "/org-chat"}>
                         <Link href="/org-chat">
                           <MessageSquare className="h-4 w-4" />
-                          <span>Chat</span>
+                          <span>Management Chat</span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>

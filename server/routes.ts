@@ -3299,19 +3299,111 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==================== ORG-LEVEL MANAGEMENT CHAT (no gameId) ====================
+  async function ensureOrgDefaultChannel(teamId: string) {
+    let [channel] = await db.select().from(chatChannels)
+      .where(and(eq(chatChannels.teamId, teamId), isNull(chatChannels.gameId), isNull(chatChannels.rosterId), eq(chatChannels.name, "Management")))
+      .limit(1);
+    if (!channel) {
+      [channel] = await db.insert(chatChannels).values({ teamId, gameId: null, rosterId: null, name: "Management" }).returning();
+    }
+    return channel;
+  }
+
+  app.get("/api/org-chat/channels", requireAuth, requirePermission("view_chat"), async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      await ensureOrgDefaultChannel(teamId);
+      const list = await db.select().from(chatChannels)
+        .where(and(eq(chatChannels.teamId, teamId), isNull(chatChannels.gameId), isNull(chatChannels.rosterId)))
+        .orderBy(chatChannels.name);
+      res.json(list);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/org-chat/channels", requireAuth, async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const userId = req.session.userId!;
+      const [currentUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      const orgRole = currentUser?.orgRole || "";
+      if (orgRole !== "super_admin" && orgRole !== "org_admin") {
+        return res.status(403).json({ message: "Only Admin or Super Admin can create channels" });
+      }
+      const name = (req.body?.name || "").trim();
+      if (!name) return res.status(400).json({ message: "Channel name is required" });
+      const [channel] = await db.insert(chatChannels).values({ teamId, name, gameId: null, rosterId: null }).returning();
+      res.json(channel);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.put("/api/org-chat/channels/:id", requireAuth, async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const userId = req.session.userId!;
+      const [currentUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      const orgRole = currentUser?.orgRole || "";
+      if (orgRole !== "super_admin" && orgRole !== "org_admin") {
+        return res.status(403).json({ message: "Only Admin or Super Admin can rename channels" });
+      }
+      const { id } = req.params;
+      const name = (req.body?.name || "").trim();
+      if (!name) return res.status(400).json({ message: "Channel name is required" });
+      const [updated] = await db.update(chatChannels)
+        .set({ name })
+        .where(and(eq(chatChannels.id, id), eq(chatChannels.teamId, teamId), isNull(chatChannels.gameId), isNull(chatChannels.rosterId)))
+        .returning();
+      if (!updated) return res.status(404).json({ message: "Channel not found" });
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/org-chat/channels/:id", requireAuth, async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const userId = req.session.userId!;
+      const [currentUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      const orgRole = currentUser?.orgRole || "";
+      if (orgRole !== "super_admin" && orgRole !== "org_admin") {
+        return res.status(403).json({ message: "Only Admin or Super Admin can delete channels" });
+      }
+      const { id } = req.params;
+      const [existing] = await db.select().from(chatChannels)
+        .where(and(eq(chatChannels.id, id), eq(chatChannels.teamId, teamId), isNull(chatChannels.gameId), isNull(chatChannels.rosterId)))
+        .limit(1);
+      if (!existing) return res.status(404).json({ message: "Channel not found" });
+      if (existing.name === "Management") {
+        return res.status(400).json({ message: "Cannot delete the default Management channel" });
+      }
+      await db.delete(chatChannels).where(eq(chatChannels.id, id));
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   app.get("/api/org-chat/messages", requireAuth, requirePermission("view_chat"), async (req, res) => {
     try {
       const teamId = getTeamId();
-      let [channel] = await db.select().from(chatChannels)
-        .where(and(eq(chatChannels.teamId, teamId), isNull(chatChannels.gameId), eq(chatChannels.name, "Management")))
-        .limit(1);
+      const requestedChannelId = (req.query.channelId as string | undefined) || undefined;
+      let channel: typeof chatChannels.$inferSelect | undefined;
+      if (requestedChannelId) {
+        [channel] = await db.select().from(chatChannels)
+          .where(and(eq(chatChannels.id, requestedChannelId), eq(chatChannels.teamId, teamId), isNull(chatChannels.gameId), isNull(chatChannels.rosterId)))
+          .limit(1);
+      }
       if (!channel) {
-        [channel] = await db.insert(chatChannels).values({ teamId, gameId: null, name: "Management" }).returning();
+        channel = await ensureOrgDefaultChannel(teamId);
       }
       const msgs = await db.select().from(chatMessages)
         .where(and(eq(chatMessages.teamId, teamId), eq(chatMessages.channelId, channel.id)))
         .orderBy(chatMessages.createdAt)
-        .limit(100);
+        .limit(200);
       const allUsers = await db.select().from(users).where(eq(users.teamId, teamId));
       const enriched = msgs.map(m => {
         const sender = allUsers.find(u => u.id === m.userId);
@@ -3327,11 +3419,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const teamId = getTeamId();
       const content = req.body.content || req.body.message || "";
-      let [channel] = await db.select().from(chatChannels)
-        .where(and(eq(chatChannels.teamId, teamId), isNull(chatChannels.gameId), eq(chatChannels.name, "Management")))
-        .limit(1);
+      const requestedChannelId = (req.body.channelId as string | undefined) || (req.query.channelId as string | undefined) || undefined;
+      let channel: typeof chatChannels.$inferSelect | undefined;
+      if (requestedChannelId) {
+        [channel] = await db.select().from(chatChannels)
+          .where(and(eq(chatChannels.id, requestedChannelId), eq(chatChannels.teamId, teamId), isNull(chatChannels.gameId), isNull(chatChannels.rosterId)))
+          .limit(1);
+      }
       if (!channel) {
-        [channel] = await db.insert(chatChannels).values({ teamId, gameId: null, name: "Management" }).returning();
+        channel = await ensureOrgDefaultChannel(teamId);
       }
 
       let attachmentUrl: string | null = null;
@@ -3358,6 +3454,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }).returning();
       const [sender] = await db.select().from(users).where(eq(users.id, req.session.userId!));
       res.json({ ...msg, senderName: sender?.username || "Unknown" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/org-chat/messages/:id", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = getTeamId();
+      const userId = req.session.userId!;
+      const [msg] = await db.select().from(chatMessages)
+        .where(and(eq(chatMessages.id, id), eq(chatMessages.teamId, teamId)))
+        .limit(1);
+      if (!msg) return res.status(404).json({ message: "Message not found" });
+
+      const [currentUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      const orgRole = currentUser?.orgRole || "";
+      const isAdmin = orgRole === "super_admin" || orgRole === "org_admin";
+      const isOwnMessage = msg.userId === userId;
+
+      if (!isAdmin && !isOwnMessage) {
+        return res.status(403).json({ message: "You can only delete your own messages" });
+      }
+
+      await db.delete(chatMessages).where(and(eq(chatMessages.id, id), eq(chatMessages.teamId, teamId)));
+      res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
