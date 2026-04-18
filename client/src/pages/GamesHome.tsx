@@ -66,44 +66,63 @@ export default function GamesHome() {
       </div>
 
       <div className="space-y-6">
-        {allGames.map((game) => {
-          const gameRosterCards = rosterCards.filter(rc => rc.game.id === game.id);
-          if (gameRosterCards.length === 0) return null;
-          return (
-            <div key={game.id}>
-              <div className="flex items-center gap-2 mb-2">
-                <GameIcon slug={game.slug} name={game.name} size="sm" />
-                <h2 className="text-sm font-semibold text-muted-foreground">{game.name}</h2>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                {gameRosterCards.map(({ roster }) => {
-                  const hasAccess = roster.id ? hasRosterAccess(game.id, roster.id) : hasGameAccess(game.id);
-                  return (
-                    <Card
-                      key={`${game.id}-${roster.id}`}
-                      className={`relative cursor-pointer transition-opacity ${hasAccess ? "hover-elevate" : "opacity-40"}`}
-                      data-testid={`card-roster-${game.slug}-${roster.slug}`}
-                      onClick={() => handleRosterCardClick(game, roster)}
-                    >
-                      <CardContent className="p-4 flex items-center gap-3">
-                        {!hasAccess && (
-                          <div className="absolute top-2 right-2">
-                            <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+        {[...allGames]
+          .map((game) => {
+            const gameRosterCards = rosterCards.filter(rc => rc.game.id === game.id);
+            const accessibleRosters = gameRosterCards.filter(({ roster }) =>
+              roster.id ? hasRosterAccess(game.id, roster.id) : hasGameAccess(game.id)
+            );
+            const lockedRosters = gameRosterCards.filter(({ roster }) =>
+              !(roster.id ? hasRosterAccess(game.id, roster.id) : hasGameAccess(game.id))
+            );
+            return { game, accessibleRosters, lockedRosters, gameRosterCards };
+          })
+          .filter(g => g.gameRosterCards.length > 0)
+          .sort((a, b) => {
+            const aHas = a.accessibleRosters.length > 0 ? 1 : 0;
+            const bHas = b.accessibleRosters.length > 0 ? 1 : 0;
+            if (aHas !== bHas) return bHas - aHas;
+            return a.game.name.localeCompare(b.game.name);
+          })
+          .map(({ game, accessibleRosters, lockedRosters }) => {
+            const orderedRosters = [...accessibleRosters, ...lockedRosters];
+            return (
+              <div key={game.id}>
+                <div className="flex items-center gap-2 mb-2">
+                  <GameIcon slug={game.slug} name={game.name} size="sm" />
+                  <h2 className="text-sm font-semibold text-muted-foreground">{game.name}</h2>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {orderedRosters.map(({ roster }) => {
+                    const hasAccess = roster.id ? hasRosterAccess(game.id, roster.id) : hasGameAccess(game.id);
+                    return (
+                      <Card
+                        key={`${game.id}-${roster.id}`}
+                        className={`relative transition-opacity ${hasAccess ? "cursor-pointer hover-elevate" : "opacity-50 cursor-not-allowed"}`}
+                        data-testid={`card-roster-${game.slug}-${roster.slug}`}
+                        onClick={() => hasAccess && handleRosterCardClick(game, roster)}
+                        title={hasAccess ? undefined : "You don't have access to this roster"}
+                        aria-disabled={!hasAccess}
+                      >
+                        <CardContent className="p-4 flex items-center gap-3">
+                          {!hasAccess && (
+                            <div className="absolute top-2 right-2">
+                              <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                            </div>
+                          )}
+                          <GameIcon slug={game.slug} name={game.name} />
+                          <div className="flex flex-col gap-1 min-w-0">
+                            <span className="text-sm font-medium leading-tight">{game.name}</span>
+                            <RosterBadge name={roster.name} />
                           </div>
-                        )}
-                        <GameIcon slug={game.slug} name={game.name} />
-                        <div className="flex flex-col gap-1 min-w-0">
-                          <span className="text-sm font-medium leading-tight">{game.name}</span>
-                          <RosterBadge name={roster.name} />
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
       </div>
     </div>
   );
