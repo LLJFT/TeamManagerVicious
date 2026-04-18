@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -1342,6 +1342,7 @@ export default function Dashboard() {
 
           {/* Tab 2: Team */}
           <TabsContent value="team">
+            <RosterSettingsCard canEdit={canManageUsers} />
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card className="h-fit">
                 <CardHeader className="pb-4 border-b border-border">
@@ -2485,5 +2486,76 @@ export default function Dashboard() {
         </Dialog>
       </div>
     </div>
+  );
+}
+
+function RosterSettingsCard({ canEdit }: { canEdit: boolean }) {
+  const { toast } = useToast();
+  const gameId = getCurrentGameId();
+  const rosterId = getCurrentRosterId();
+  const { data: rostersList = [] } = useQuery<any[]>({
+    queryKey: ["/api/rosters", { gameId }],
+    enabled: !!gameId,
+  });
+  const currentRoster = rostersList.find((r: any) => r.id === rosterId);
+  const [value, setValue] = useState("");
+
+  useEffect(() => {
+    setValue(currentRoster?.customName || "");
+  }, [currentRoster?.id, currentRoster?.customName]);
+
+  const saveMutation = useMutation({
+    mutationFn: async (customName: string | null) => {
+      await apiRequest("PATCH", `/api/rosters/${rosterId}`, { customName });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/rosters"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/all-rosters-by-game"] });
+      toast({ title: "Roster name saved" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  if (!currentRoster) return null;
+
+  return (
+    <Card className="mb-6">
+      <CardHeader className="pb-4 border-b border-border">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-primary/10">
+            <Settings className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <CardTitle className="text-xl">Roster Settings</CardTitle>
+            <CardDescription>Set a custom display name for this roster</CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-6 space-y-3">
+        <div className="space-y-1 max-w-md">
+          <Label htmlFor="roster-custom-name">Roster Name</Label>
+          <Input
+            id="roster-custom-name"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder={currentRoster.name}
+            disabled={!canEdit}
+            data-testid="input-roster-custom-name"
+          />
+          <p className="text-xs text-muted-foreground">
+            Default: {currentRoster.name}. Leave blank to use default.
+          </p>
+        </div>
+        {canEdit && (
+          <Button
+            onClick={() => saveMutation.mutate(value.trim() || null)}
+            disabled={saveMutation.isPending}
+            data-testid="button-save-roster-custom-name"
+          >
+            Save
+          </Button>
+        )}
+      </CardContent>
+    </Card>
   );
 }
