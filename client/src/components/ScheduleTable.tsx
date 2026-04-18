@@ -233,15 +233,43 @@ export function ScheduleTable({
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-muted/30">
-                  <th className="border-r border-border px-4 py-2 text-left text-sm font-semibold uppercase tracking-wide">
-                    Role
+                  <th
+                    className={isCollapsed("staff_role")
+                      ? "border-r border-border px-1 py-2 text-center text-xs font-semibold uppercase tracking-wide w-8 cursor-pointer select-none"
+                      : "border-r border-border px-4 py-2 text-left text-sm font-semibold uppercase tracking-wide cursor-pointer select-none"}
+                    onClick={() => toggleCol("staff_role")}
+                    data-testid="th-staff-role"
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      {isCollapsed("staff_role") ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
+                      {!isCollapsed("staff_role") && "Role"}
+                    </span>
                   </th>
-                  <th className="border-r border-border px-4 py-2 text-left text-sm font-semibold uppercase tracking-wide min-w-[140px]">
-                    Staff
+                  <th
+                    className={isCollapsed("staff_name")
+                      ? "border-r border-border px-1 py-2 text-center text-xs font-semibold uppercase tracking-wide w-8 cursor-pointer select-none"
+                      : "border-r border-border px-4 py-2 text-left text-sm font-semibold uppercase tracking-wide min-w-[140px] cursor-pointer select-none"}
+                    onClick={() => toggleCol("staff_name")}
+                    data-testid="th-staff-name"
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      {isCollapsed("staff_name") ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
+                      {!isCollapsed("staff_name") && "Staff"}
+                    </span>
                   </th>
                   {dayOfWeek.map((day) => (
-                    <th key={day} className="border-r border-border px-3 py-2 text-center text-sm font-semibold uppercase tracking-wide min-w-[160px] last:border-r-0">
-                      {day}
+                    <th
+                      key={day}
+                      className={isCollapsed(day)
+                        ? "border-r border-border px-1 py-2 text-center text-xs font-semibold uppercase tracking-wide w-8 cursor-pointer select-none last:border-r-0"
+                        : "border-r border-border px-3 py-2 text-center text-sm font-semibold uppercase tracking-wide min-w-[160px] cursor-pointer select-none last:border-r-0"}
+                      onClick={() => toggleCol(day)}
+                      data-testid={`th-staff-${day}`}
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        {isCollapsed(day) ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
+                        {!isCollapsed(day) && day}
+                      </span>
                     </th>
                   ))}
                 </tr>
@@ -249,30 +277,43 @@ export function ScheduleTable({
               <tbody>
                 {staffMembers.map((s) => (
                   <tr key={s.id} className="border-t border-border hover-elevate" data-testid={`row-staff-${s.id}`}>
-                    <td className="border-r border-border px-4 py-2 bg-card">
-                      <Badge variant="secondary" className="text-xs">{s.role}</Badge>
+                    <td className={`border-r border-border bg-card ${isCollapsed("staff_role") ? "px-1 py-2 w-8" : "px-4 py-2"}`}>
+                      {isCollapsed("staff_role") ? (
+                        <span className="text-xs text-muted-foreground">·</span>
+                      ) : (
+                        <Badge variant="secondary" className="text-xs">{s.role}</Badge>
+                      )}
                     </td>
-                    <td className="border-r border-border px-4 py-2 bg-card">
-                      <span className="text-sm font-medium" data-testid={`text-staff-name-${s.id}`}>{s.name}</span>
+                    <td className={`border-r border-border bg-card ${isCollapsed("staff_name") ? "px-1 py-2 w-8" : "px-4 py-2"}`}>
+                      {isCollapsed("staff_name") ? (
+                        <span className="text-xs text-muted-foreground">·</span>
+                      ) : (
+                        <span className="text-sm font-medium" data-testid={`text-staff-name-${s.id}`}>{s.name}</span>
+                      )}
                     </td>
                     {dayOfWeek.map((day) => {
                       const avail = s.availability[day] || "unknown";
+                      const collapsed = isCollapsed(day);
                       return (
-                        <td key={day} className="border-r border-border px-2 py-2 bg-card">
-                          <Select
-                            value={avail}
-                            onValueChange={(value: string) => onStaffAvailabilityChange(s.id, day as DayOfWeek, value)}
-                            disabled={isLoading || !(canEditAll || editableStaffId === s.id)}
-                          >
-                            <SelectTrigger className={`w-full h-9 text-xs font-medium ${getAvailabilityColor(avail)} border-0`} data-testid={`select-staff-avail-${s.id}-${day}`}>
-                              <SelectValue><span className="truncate">{avail}</span></SelectValue>
-                            </SelectTrigger>
-                            <SelectContent>
-                              {slotLabels.map((label) => (
-                                <SelectItem key={label} value={label}>{label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                        <td key={day} className={`border-r border-border bg-card ${collapsed ? "px-1 py-2 w-8" : "px-2 py-2"}`}>
+                          {collapsed ? (
+                            <div className={`h-2 w-2 rounded-full mx-auto ${getAvailabilityColor(avail).split(" ")[0]}`} title={avail} />
+                          ) : (
+                            <Select
+                              value={avail}
+                              onValueChange={(value: string) => onStaffAvailabilityChange(s.id, day as DayOfWeek, value)}
+                              disabled={isLoading || !(canEditAll || editableStaffId === s.id)}
+                            >
+                              <SelectTrigger className={`w-full h-9 text-xs font-medium ${getAvailabilityColor(avail)} border-0`} data-testid={`select-staff-avail-${s.id}-${day}`}>
+                                <SelectValue><span className="truncate">{avail}</span></SelectValue>
+                              </SelectTrigger>
+                              <SelectContent>
+                                {slotLabels.map((label) => (
+                                  <SelectItem key={label} value={label}>{label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
                         </td>
                       );
                     })}
