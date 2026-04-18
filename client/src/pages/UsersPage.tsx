@@ -409,9 +409,15 @@ export default function UsersPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="player">Player</SelectItem>
-                      <SelectItem value="coach_analyst">Staff</SelectItem>
-                      <SelectItem value="org_admin">Management</SelectItem>
+                      {user.orgRole === "org_admin" ? (
+                        <SelectItem value="org_admin">Management</SelectItem>
+                      ) : (
+                        <>
+                          <SelectItem value="player">Player</SelectItem>
+                          <SelectItem value="coach_analyst">Staff</SelectItem>
+                          <SelectItem value="org_admin">Management</SelectItem>
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
                   <Button
