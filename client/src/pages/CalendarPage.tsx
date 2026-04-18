@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,35 @@ import {
 } from "date-fns";
 import type { SupportedGame, Roster, EventCategory, EventSubType } from "@shared/schema";
 
+const TIMEZONE_OPTIONS = [
+  { value: "UTC", label: "UTC (Greenwich)", offset: 0 },
+  { value: "CET", label: "CET (UTC+1)", offset: 1 },
+  { value: "CEST", label: "CEST (UTC+2)", offset: 2 },
+  { value: "KSA", label: "KSA (UTC+3)", offset: 3 },
+  { value: "MSK", label: "MSK (UTC+3)", offset: 3 },
+  { value: "GST", label: "GST (UTC+4)", offset: 4 },
+  { value: "IST", label: "IST (UTC+5:30)", offset: 5.5 },
+  { value: "CST_CN", label: "CST China (UTC+8)", offset: 8 },
+  { value: "KST", label: "KST (UTC+9)", offset: 9 },
+  { value: "AEST", label: "AEST (UTC+10)", offset: 10 },
+  { value: "EST", label: "EST (UTC-5)", offset: -5 },
+  { value: "CST_US", label: "CST US (UTC-6)", offset: -6 },
+  { value: "MST", label: "MST (UTC-7)", offset: -7 },
+  { value: "PST", label: "PST (UTC-8)", offset: -8 },
+  { value: "BRT", label: "BRT (UTC-3)", offset: -3 },
+];
+
+function shiftTime(time: string | null | undefined, offsetHours: number): string {
+  if (!time) return "";
+  const m = time.match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return time;
+  const total = parseInt(m[1], 10) * 60 + parseInt(m[2], 10) + Math.round(offsetHours * 60);
+  const wrapped = ((total % 1440) + 1440) % 1440;
+  const h = Math.floor(wrapped / 60);
+  const min = wrapped % 60;
+  return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+}
+
 export default function CalendarPage() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -30,6 +59,16 @@ export default function CalendarPage() {
   const [rosterFilter, setRosterFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [timezone, setTimezone] = useState<string>("UTC");
+  useEffect(() => {
+    const stored = typeof window !== "undefined" ? localStorage.getItem("home_calendar_tz") : null;
+    if (stored) setTimezone(stored);
+  }, []);
+  const handleTimezoneChange = (val: string) => {
+    setTimezone(val);
+    if (typeof window !== "undefined") localStorage.setItem("home_calendar_tz", val);
+  };
+  const tzOffset = TIMEZONE_OPTIONS.find(t => t.value === timezone)?.offset ?? 0;
 
   const { data: allEvents = [] } = useQuery<any[]>({
     queryKey: ["/api/all-events"],
@@ -206,6 +245,16 @@ export default function CalendarPage() {
               </SelectContent>
             </Select>
           )}
+          <Select value={timezone} onValueChange={handleTimezoneChange}>
+            <SelectTrigger className="w-[180px]" data-testid="select-home-calendar-timezone">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TIMEZONE_OPTIONS.map(tz => (
+                <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <div className="relative">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -346,7 +395,7 @@ export default function CalendarPage() {
                     {event.time && (
                       <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1">
                         <Clock className="h-3 w-3" />
-                        {event.time}
+                        {shiftTime(event.time, tzOffset)}
                       </p>
                     )}
                   </CardContent>
