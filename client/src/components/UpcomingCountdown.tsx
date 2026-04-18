@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -46,23 +46,26 @@ export function UpcomingCountdown({ gameId, rosterId, enabled }: Props) {
     enabled,
   });
 
-  const upcoming = events
-    .map(e => {
-      if (!e.date) return null;
-      try {
-        const dt = parseISO(e.date);
-        if (e.time) {
-          const [h, m] = e.time.split(":").map(Number);
-          dt.setHours(h || 0, m || 0, 0, 0);
+  const upcoming = useMemo(() => {
+    const cutoff = Date.now() - 60_000;
+    return events
+      .map(e => {
+        if (!e.date) return null;
+        try {
+          const dt = parseISO(e.date);
+          if (e.time) {
+            const [h, m] = e.time.split(":").map(Number);
+            dt.setHours(h || 0, m || 0, 0, 0);
+          }
+          return { event: e, when: dt };
+        } catch {
+          return null;
         }
-        return { event: e, when: dt };
-      } catch {
-        return null;
-      }
-    })
-    .filter((x): x is { event: Event; when: Date } => !!x && x.when.getTime() > now.getTime() - 60_000)
-    .sort((a, b) => a.when.getTime() - b.when.getTime())
-    .slice(0, 3);
+      })
+      .filter((x): x is { event: Event; when: Date } => !!x && x.when.getTime() > cutoff)
+      .sort((a, b) => a.when.getTime() - b.when.getTime())
+      .slice(0, 3);
+  }, [events]);
 
   if (upcoming.length === 0) return null;
 
