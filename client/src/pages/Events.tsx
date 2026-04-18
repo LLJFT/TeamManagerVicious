@@ -16,6 +16,35 @@ import { useGame } from "@/hooks/use-game";
 import { StatsSkeleton } from "@/components/PageSkeleton";
 import { AccessDenied } from "@/components/AccessDenied";
 
+const TIMEZONE_OPTIONS = [
+  { value: "UTC", label: "UTC (Greenwich)", offset: 0 },
+  { value: "CET", label: "CET (UTC+1)", offset: 1 },
+  { value: "CEST", label: "CEST (UTC+2)", offset: 2 },
+  { value: "KSA", label: "KSA (UTC+3)", offset: 3 },
+  { value: "MSK", label: "MSK (UTC+3)", offset: 3 },
+  { value: "GST", label: "GST (UTC+4)", offset: 4 },
+  { value: "IST", label: "IST (UTC+5:30)", offset: 5.5 },
+  { value: "CST_CN", label: "CST China (UTC+8)", offset: 8 },
+  { value: "KST", label: "KST (UTC+9)", offset: 9 },
+  { value: "AEST", label: "AEST (UTC+10)", offset: 10 },
+  { value: "EST", label: "EST (UTC-5)", offset: -5 },
+  { value: "CST_US", label: "CST US (UTC-6)", offset: -6 },
+  { value: "MST", label: "MST (UTC-7)", offset: -7 },
+  { value: "PST", label: "PST (UTC-8)", offset: -8 },
+  { value: "BRT", label: "BRT (UTC-3)", offset: -3 },
+];
+
+function shiftTime(time: string | null | undefined, offsetHours: number): string {
+  if (!time) return "";
+  const m = time.match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return time;
+  const totalMinutes = parseInt(m[1], 10) * 60 + parseInt(m[2], 10) + Math.round(offsetHours * 60);
+  const wrapped = ((totalMinutes % 1440) + 1440) % 1440;
+  const h = Math.floor(wrapped / 60);
+  const min = wrapped % 60;
+  return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+}
+
 interface CustomCalendarProps {
   selectedDate: Date | undefined;
   onSelectDate: (date: Date | undefined) => void;
@@ -25,9 +54,10 @@ interface CustomCalendarProps {
   onDayDoubleClick: (date: Date) => void;
   onToggleOffDay: (date: Date, isCurrentlyOff: boolean) => void;
   getEventColor: (eventType: string, eventSubType?: string | null) => { bg: string; border: string; text: string };
+  tzOffset?: number;
 }
 
-function CustomCalendar({ selectedDate, onSelectDate, eventsByDate, offDaysByDate, onEventDoubleClick, onDayDoubleClick, onToggleOffDay, getEventColor }: CustomCalendarProps) {
+function CustomCalendar({ selectedDate, onSelectDate, eventsByDate, offDaysByDate, onEventDoubleClick, onDayDoubleClick, onToggleOffDay, getEventColor, tzOffset = 0 }: CustomCalendarProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
   const monthStart = startOfMonth(currentMonth);
@@ -128,14 +158,14 @@ function CustomCalendar({ selectedDate, onSelectDate, eventsByDate, offDaysByDat
                       key={eventIdx}
                       className="text-xs px-2 py-1 rounded truncate cursor-pointer border"
                       style={{ backgroundColor: c.bg, borderColor: c.border, color: c.text }}
-                      title={`${event.title}${event.time ? ` - ${event.time}` : ''}`}
+                      title={`${event.title}${event.time ? ` - ${shiftTime(event.time, tzOffset)}` : ''}`}
                       data-testid={`calendar-event-${event.id}`}
                       onDoubleClick={(e) => {
                         e.stopPropagation();
                         onEventDoubleClick(event);
                       }}
                     >
-                      <div className="font-semibold">{event.time || ""}</div>
+                      <div className="font-semibold">{event.time ? shiftTime(event.time, tzOffset) : ""}</div>
                       <div>{event.title}</div>
                     </div>
                     );
@@ -160,6 +190,19 @@ export default function Events() {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [toastType, setToastType] = useState<"success" | "error">("success");
+
+  const tzKey = rosterId ? `roster_tz_${rosterId}` : "";
+  const [timezone, setTimezone] = useState<string>("UTC");
+  useEffect(() => {
+    if (!tzKey) return;
+    const stored = typeof window !== "undefined" ? localStorage.getItem(tzKey) : null;
+    setTimezone(stored || "UTC");
+  }, [tzKey]);
+  const handleTimezoneChange = (val: string) => {
+    setTimezone(val);
+    if (tzKey && typeof window !== "undefined") localStorage.setItem(tzKey, val);
+  };
+  const tzOffset = TIMEZONE_OPTIONS.find(t => t.value === timezone)?.offset ?? 0;
 
   const { data: events = [], isLoading } = useQuery<Event[]>({
     queryKey: ["/api/events", { gameId, rosterId }],
@@ -389,7 +432,22 @@ export default function Events() {
 
         <div className="grid grid-cols-1 gap-6">
           <Card className="p-8">
-            <h2 className="text-xl font-semibold mb-6 text-foreground">Calendar</h2>
+            <div className="flex items-center justify-between mb-6 gap-2 flex-wrap">
+              <h2 className="text-xl font-semibold text-foreground">Calendar</h2>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Timezone</span>
+                <Select value={timezone} onValueChange={handleTimezoneChange}>
+                  <SelectTrigger className="w-[200px]" data-testid="select-events-timezone">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TIMEZONE_OPTIONS.map(tz => (
+                      <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
             <CustomCalendar
               selectedDate={selectedDate}
               onSelectDate={setSelectedDate}
@@ -406,6 +464,7 @@ export default function Events() {
               }}
               onToggleOffDay={handleToggleOffDay}
               getEventColor={getEventColor}
+              tzOffset={tzOffset}
             />
           </Card>
 
