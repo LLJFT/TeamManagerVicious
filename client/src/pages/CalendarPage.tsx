@@ -144,7 +144,7 @@ export default function CalendarPage() {
   const getGameName = (gameId: string) => allGames.find(g => g.id === gameId)?.name || "Unknown";
   const getRosterName = (rosterId: string) => {
     const r = allRosters.find(r => r.id === rosterId);
-    return r ? ((r as any).customName || r.name) : "";
+    return r ? r.name : "";
   };
 
   const rosterOptions = useMemo(() => {
@@ -152,7 +152,7 @@ export default function CalendarPage() {
     allGames.forEach(game => {
       const gameRosters = allRostersMap[game.id] || [];
       gameRosters.forEach(roster => {
-        options.push({ id: roster.id, label: `${game.name} — ${(roster as any).customName || roster.name}` });
+        options.push({ id: roster.id, label: `${game.name} — ${roster.name}` });
       });
     });
     return options;

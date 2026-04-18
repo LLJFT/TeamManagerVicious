@@ -314,7 +314,7 @@ export default function Login() {
                       </SelectTrigger>
                       <SelectContent>
                         {selectedGameRosters.map(roster => (
-                          <SelectItem key={roster.id} value={roster.id}>{(roster as any).customName || roster.name}</SelectItem>
+                          <SelectItem key={roster.id} value={roster.id}>{roster.name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>

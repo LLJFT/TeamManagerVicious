@@ -94,7 +94,7 @@ export default function GamesHome() {
                         <GameIcon slug={game.slug} name={game.name} />
                         <div className="flex flex-col gap-1 min-w-0">
                           <span className="text-sm font-medium leading-tight">{game.name}</span>
-                          <RosterBadge name={(roster as any).customName || roster.name} />
+                          <RosterBadge name={roster.name} />
                         </div>
                       </CardContent>
                     </Card>

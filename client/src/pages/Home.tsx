@@ -26,14 +26,15 @@ interface StaffMember {
 export default function Home() {
   const { toast } = useToast();
   const { user, hasPermission } = useAuth();
-  const { currentGame, gameId, rosterId, rosters, rostersLoading } = useGame();
+  const { currentGame, gameId, rosterId, rosters, currentRoster, rostersLoading } = useGame();
   const currentDate = format(new Date(), "MMM dd");
   const gameName = currentGame?.name || "Team";
   const { data: orgNameSetting } = useQuery<string | null>({
     queryKey: ["/api/org-setting/org_name"],
     staleTime: 1000 * 60 * 10,
   });
-  const orgName = orgNameSetting || "Team";
+  const rosterCustomName = ((currentRoster as any)?.customName as string | null | undefined)?.trim();
+  const orgName = (rosterCustomName && rosterCustomName.length > 0) ? rosterCustomName : (orgNameSetting || "Team");
   const canEditAll = hasPermission("edit_all_availability");
   const canEditOwn = hasPermission("edit_own_availability");
   const linkedPlayerId = user?.playerId || null;
