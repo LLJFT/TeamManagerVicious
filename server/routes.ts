@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db";
-import { eq, and, ilike, sql, isNull } from "drizzle-orm";
+import { eq, and, ilike, sql, isNull, inArray } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { requireAuth, requirePermission, requireOrgRole, requireGameAccess } from "./auth";
 import { getTeamId } from "./storage";
@@ -2824,8 +2824,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ message: "Each assignment must have gameId and rosterId" });
         }
       }
+      const orgRoleAliases: Record<string, string[]> = {
+        org_admin: ["org_admin", "management"],
+        coach_analyst: ["coach_analyst", "staff"],
+        player: ["player", "member"],
+        game_manager: ["game_manager"],
+        super_admin: ["super_admin"],
+      };
+      const acceptedRoles = orgRoleAliases[orgRole] || [orgRole];
       const targetUsers = await db.select().from(users)
-        .where(and(eq(users.teamId, teamId), eq(users.orgRole, orgRole)));
+        .where(and(eq(users.teamId, teamId), inArray(users.orgRole, acceptedRoles)));
       let created = 0;
       for (const user of targetUsers) {
         for (const { gameId, rosterId } of assignments) {
