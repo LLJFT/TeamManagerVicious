@@ -2742,13 +2742,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==================== SUPPORTED GAMES ====================
-  app.get("/api/supported-games", async (_req, res) => {
+  app.get("/api/supported-games", async (req, res) => {
     try {
       const teamId = getTeamId();
       const allGamesData = await storage.getSupportedGames();
       const teamRosters = await db.select().from(rosters).where(eq(rosters.teamId, teamId));
       const activeGameIds = new Set(teamRosters.map(r => r.gameId));
-      const activeGames = allGamesData.filter(g => activeGameIds.has(g.id));
+      let activeGames = allGamesData.filter(g => activeGameIds.has(g.id));
+
+      const userId = (req.session as any)?.userId;
+      if (userId) {
+        const [currentUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+        if (currentUser && currentUser.orgRole !== "super_admin") {
+          const userAssignments = await db.select().from(userGameAssignments)
+            .where(and(
+              eq(userGameAssignments.teamId, teamId),
+              eq(userGameAssignments.userId, userId),
+              eq(userGameAssignments.status, "approved"),
+            ));
+          const allowedGameIds = new Set(userAssignments.map(a => a.gameId));
+          activeGames = activeGames.filter(g => allowedGameIds.has(g.id));
+        }
+      }
       res.json(activeGames);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -3112,9 +3127,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const gameId = getGameId(req);
       if (!gameId) return res.status(400).json({ message: "gameId required" });
 
-      const allRosters = await db.select().from(rosters)
+      let allRosters = await db.select().from(rosters)
         .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, gameId)))
         .orderBy(rosters.sortOrder);
+
+      const userId = (req.session as any)?.userId;
+      if (userId) {
+        const [currentUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+        if (currentUser && currentUser.orgRole !== "super_admin") {
+          const userAssignments = await db.select().from(userGameAssignments)
+            .where(and(
+              eq(userGameAssignments.teamId, teamId),
+              eq(userGameAssignments.userId, userId),
+              eq(userGameAssignments.gameId, gameId),
+              eq(userGameAssignments.status, "approved"),
+            ));
+          const allowedRosterIds = new Set(userAssignments.map(a => a.rosterId).filter(Boolean) as string[]);
+          allRosters = allRosters.filter(r => allowedRosterIds.has(r.id));
+        }
+      }
 
       res.json(allRosters);
     } catch (error: any) {
