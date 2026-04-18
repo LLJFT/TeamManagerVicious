@@ -109,6 +109,14 @@ export default function GameAccessPage() {
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
 
   const [bulkRole, setBulkRole] = useState<string>("");
+
+  const orgRoleLabelFor = (role: string): string => {
+    if (orgRoleLabels[role as OrgRole]) return orgRoleLabels[role as OrgRole];
+    if (role === "management") return "Management";
+    if (role === "staff") return "Staff";
+    if (role === "member") return "Member";
+    return role.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+  };
   const [bulkRoleExpanded, setBulkRoleExpanded] = useState<boolean>(false);
   const [bulkExpandedGames, setBulkExpandedGames] = useState<Set<string>>(new Set());
   const [bulkSelectedRosters, setBulkSelectedRosters] = useState<Set<string>>(new Set());
@@ -336,14 +344,30 @@ export default function GameAccessPage() {
                 <SelectValue placeholder="Select role" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="org_admin">Management</SelectItem>
+                {(() => {
+                  const counts = new Map<string, number>();
+                  for (const u of allUsers) {
+                    const r = (u.orgRole || "").trim();
+                    if (!r) continue;
+                    counts.set(r, (counts.get(r) || 0) + 1);
+                  }
+                  const opts = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+                  if (opts.length === 0) {
+                    return <SelectItem value="__none" disabled>No users found</SelectItem>;
+                  }
+                  return opts.map(([role, n]) => (
+                    <SelectItem key={role} value={role} data-testid={`option-bulk-role-${role}`}>
+                      {orgRoleLabelFor(role)} ({n})
+                    </SelectItem>
+                  ));
+                })()}
               </SelectContent>
             </Select>
           </div>
 
           {bulkRole && (
             <>
-              <p className="text-xs text-muted-foreground">Select rosters to grant access to all {orgRoleLabels[bulkRole as OrgRole] || bulkRole} users:</p>
+              <p className="text-xs text-muted-foreground">Select rosters to grant access to all {orgRoleLabelFor(bulkRole)} users:</p>
               <div className="space-y-1">
                 {gamesWithRosters.map(game => {
                   const gameRosters = allRostersMap[game.id] || [];
