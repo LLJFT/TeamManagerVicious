@@ -931,9 +931,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       let allRoles = await db.select().from(roles).where(and(...conditions));
 
+      const ROSTER_HOME_PERMS_TO_STRIP = [
+        "view_calendar",
+        "view_upcoming_events",
+        "view_users_tab",
+        "view_roles_tab",
+        "view_game_access",
+        "view_settings",
+        "manage_settings",
+      ];
+
       if (gameId && rosterId && allRoles.length === 0) {
         const ownerPerms = [...allPermissions] as string[];
         const staffPerms = allPermissions.filter(p => p !== "manage_roles") as string[];
+        const rosterAdminStaffPerms = staffPerms.filter(p => !ROSTER_HOME_PERMS_TO_STRIP.includes(p));
         const memberPerms = [
           "view_schedule", "edit_own_availability", "view_events", "view_results",
           "view_players", "view_statistics", "view_player_stats", "view_history",
@@ -942,13 +953,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const defaults = [
           { name: "Management", permissions: ownerPerms, isSystem: true },
-          { name: "Admin", permissions: staffPerms, isSystem: true },
-          { name: "Staff", permissions: staffPerms, isSystem: true },
+          { name: "Admin", permissions: rosterAdminStaffPerms, isSystem: true },
+          { name: "Staff", permissions: rosterAdminStaffPerms, isSystem: true },
           { name: "Member", permissions: memberPerms, isSystem: true },
         ];
 
         for (const d of defaults) {
           await db.insert(roles).values({ teamId, gameId, rosterId, name: d.name, permissions: d.permissions, isSystem: d.isSystem });
+        }
+        allRoles = await db.select().from(roles).where(and(...conditions));
+      } else if (gameId && rosterId && allRoles.length > 0) {
+        for (const r of allRoles) {
+          if (r.isSystem && (r.name === "Admin" || r.name === "Staff")) {
+            const current = (r.permissions as string[]) || [];
+            const cleaned = current.filter(p => !ROSTER_HOME_PERMS_TO_STRIP.includes(p));
+            if (cleaned.length !== current.length) {
+              await db.update(roles).set({ permissions: cleaned }).where(eq(roles.id, r.id));
+            }
+          }
         }
         allRoles = await db.select().from(roles).where(and(...conditions));
       } else if (gameId && !rosterId && allRoles.length === 0) {
