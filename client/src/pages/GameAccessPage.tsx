@@ -146,9 +146,18 @@ export default function GameAccessPage() {
     return options;
   }, [allGames, allRostersMap]);
 
-  const filteredUsers = allUsers.filter(u =>
-    u.username.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const [usersFilterScope, setUsersFilterScope] = useState<string>("all");
+  const filteredUsers = allUsers.filter(u => {
+    if (searchQuery && !u.username.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    if (usersFilterScope.startsWith("game:")) {
+      const gid = usersFilterScope.slice(5);
+      if (!u.gameAssignments.some(a => a.gameId === gid)) return false;
+    } else if (usersFilterScope.startsWith("roster:")) {
+      const [gid, rid] = usersFilterScope.slice(7).split("|");
+      if (!u.gameAssignments.some(a => a.gameId === gid && a.rosterId === rid)) return false;
+    }
+    return true;
+  });
 
   const addAccessMutation = useMutation({
     mutationFn: async ({ userId, gameId, rosterId }: { userId: string; gameId: string; rosterId: string }) => {
@@ -390,15 +399,36 @@ export default function GameAccessPage() {
         )}
       </Card>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <Search className="h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Search users..."
+          placeholder="Search users by name..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="max-w-sm"
+          className="max-w-xs"
           data-testid="input-search-access"
         />
+        <Select value={usersFilterScope} onValueChange={setUsersFilterScope}>
+          <SelectTrigger className="w-[260px]" data-testid="select-users-filter-scope">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Users</SelectItem>
+            {allGames.map(g => (
+              <SelectItem key={`game-${g.id}`} value={`game:${g.id}`}>Game: {g.name}</SelectItem>
+            ))}
+            {allGames.flatMap(g =>
+              (allRostersMap[g.id] || []).map(r => (
+                <SelectItem key={`roster-${g.id}-${r.id}`} value={`roster:${g.id}|${r.id}`}>
+                  Roster: {g.name} — {(r as any).customName || r.name}
+                </SelectItem>
+              ))
+            )}
+          </SelectContent>
+        </Select>
+        <span className="text-xs text-muted-foreground" data-testid="text-users-count">
+          {filteredUsers.length} user{filteredUsers.length === 1 ? "" : "s"}
+        </span>
       </div>
 
       <div className="space-y-1">
