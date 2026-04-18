@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { KeyRound, Plus, Search, ChevronDown, ChevronRight, Users } from "lucide-react";
+import { KeyRound, Plus, Search, ChevronDown, ChevronRight, ChevronUp, Users, UserPlus } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { orgRoleLabels, type OrgRole } from "@shared/schema";
 import type { SupportedGame, Roster } from "@shared/schema";
@@ -109,6 +109,7 @@ export default function GameAccessPage() {
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
 
   const [bulkRole, setBulkRole] = useState<string>("");
+  const [bulkRoleExpanded, setBulkRoleExpanded] = useState<boolean>(false);
   const [bulkExpandedGames, setBulkExpandedGames] = useState<Set<string>>(new Set());
   const [bulkSelectedRosters, setBulkSelectedRosters] = useState<Set<string>>(new Set());
 
@@ -249,9 +250,13 @@ export default function GameAccessPage() {
         <h1 className="text-2xl font-bold" data-testid="text-game-access-title">Game Access</h1>
       </div>
 
-      <Card>
+      <Card className="border-l-2 border-l-primary/40">
         <CardHeader className="pb-3 gap-2">
-          <CardTitle className="text-base">Grant Access</CardTitle>
+          <CardTitle className="text-base flex items-center gap-2">
+            <UserPlus className="h-4 w-4 text-primary" />
+            Grant Access to a Single User
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">Pick one user and assign them to one specific roster.</p>
         </CardHeader>
         <CardContent>
           <div className="flex items-end gap-3 flex-wrap">
@@ -293,13 +298,27 @@ export default function GameAccessPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="border-l-2 border-l-chart-2/60 bg-muted/30">
         <CardHeader className="pb-3 gap-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            Grant Access by Role
-          </CardTitle>
+          <button
+            type="button"
+            className="flex items-center justify-between gap-2 w-full text-left hover-elevate rounded-md p-1 -m-1"
+            onClick={() => setBulkRoleExpanded(v => !v)}
+            data-testid="button-toggle-bulk-grant"
+          >
+            <div className="flex flex-col gap-0.5">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Users className="h-4 w-4 text-chart-2" />
+                Grant Access by Role (Bulk)
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">Assign every user with a chosen role to one or more rosters at once.</p>
+            </div>
+            {bulkRoleExpanded
+              ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+              : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
+          </button>
         </CardHeader>
+        {bulkRoleExpanded && (
         <CardContent className="space-y-4">
           <div className="space-y-1 max-w-xs">
             <label className="text-xs text-muted-foreground">Role</label>
@@ -368,6 +387,7 @@ export default function GameAccessPage() {
             </>
           )}
         </CardContent>
+        )}
       </Card>
 
       <div className="flex items-center gap-2">
