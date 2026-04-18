@@ -81,10 +81,6 @@ export function ScheduleTable({
       return next;
     });
   };
-  const colHeaderClass = (key: string, base: string) =>
-    isCollapsed(key)
-      ? "border-r border-primary-border px-1 py-3 text-center text-xs font-semibold uppercase tracking-wide w-8 cursor-pointer select-none last:border-r-0"
-      : `${base} cursor-pointer select-none`;
 
   const getPlayerAvailability = (playerId: string, day: string): string => {
     const record = playerAvailabilities.find(pa => pa.playerId === playerId && pa.day === day);
@@ -101,192 +97,247 @@ export function ScheduleTable({
   const roleOrder = roleOptions.length > 0 ? roleOptions : Object.keys(groupedByRole);
   const allRolesForColor = Array.from(new Set([...roleOptions, ...Object.keys(groupedByRole)]));
 
+  const visibleDays = dayOfWeek.filter(d => !isCollapsed(d));
+  const visibleStaffDays = dayOfWeek.filter(d => !isCollapsed(`staff_${d}`));
+
+  const playerCollapsedChips: { key: string; label: string }[] = [];
+  if (isCollapsed("role")) playerCollapsedChips.push({ key: "role", label: "Role" });
+  if (isCollapsed("player")) playerCollapsedChips.push({ key: "player", label: "Player" });
+  for (const d of dayOfWeek) {
+    if (isCollapsed(d)) playerCollapsedChips.push({ key: d, label: d });
+  }
+
+  const staffCollapsedChips: { key: string; label: string }[] = [];
+  if (isCollapsed("staff_role")) staffCollapsedChips.push({ key: "staff_role", label: "Role" });
+  if (isCollapsed("staff_name")) staffCollapsedChips.push({ key: "staff_name", label: "Staff" });
+  for (const d of dayOfWeek) {
+    if (isCollapsed(`staff_${d}`)) staffCollapsedChips.push({ key: `staff_${d}`, label: d });
+  }
+
+  const headerThClass = "border-r border-primary-border px-3 py-3 text-center text-sm font-semibold uppercase tracking-wide cursor-pointer select-none last:border-r-0";
+
   return (
     <div className="space-y-6">
-      <div className="w-full overflow-hidden rounded-lg border border-border bg-card" ref={tableRef}>
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-primary text-primary-foreground">
-                <th
-                  className={colHeaderClass("role", "border-r border-primary-border px-4 py-3 text-left text-sm font-semibold uppercase tracking-wide")}
-                  onClick={() => toggleCol("role")}
-                  data-testid="th-role"
-                >
-                  <span className="inline-flex items-center gap-1">
-                    {isCollapsed("role") ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
-                    {!isCollapsed("role") && "Role"}
-                  </span>
-                </th>
-                <th
-                  className={colHeaderClass("player", "border-r border-primary-border px-4 py-3 text-left text-sm font-semibold uppercase tracking-wide min-w-[140px]")}
-                  onClick={() => toggleCol("player")}
-                  data-testid="th-player"
-                >
-                  <span className="inline-flex items-center gap-1">
-                    {isCollapsed("player") ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
-                    {!isCollapsed("player") && "Player"}
-                  </span>
-                </th>
-                {dayOfWeek.map((day) => (
-                  <th
-                    key={day}
-                    className={colHeaderClass(day, "border-r border-primary-border px-3 py-3 text-center text-sm font-semibold uppercase tracking-wide min-w-[160px] last:border-r-0")}
-                    onClick={() => toggleCol(day)}
-                    data-testid={`th-${day}`}
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      {isCollapsed(day) ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
-                      {!isCollapsed(day) && day}
-                    </span>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {roleOrder.map((role) => {
-                const playersInRole = groupedByRole[role] || [];
-                if (playersInRole.length === 0) return null;
-                return playersInRole.map((player) => {
-                  const canEditThis = canEditAll || editablePlayerId === player.id;
-                  return (
-                  <tr key={player.id} className="border-t border-border hover-elevate" data-testid={`row-player-${player.id}`}>
-                    <td className={`border-r border-border bg-card ${isCollapsed("role") ? "px-1 py-2 w-8" : "px-2 py-2"}`}>
-                      {isCollapsed("role") ? null : (
-                        <Select
-                          value={player.role}
-                          onValueChange={(value: string) => onRoleChange?.(player.id, value)}
-                          disabled={isLoading || !canEditAll}
-                        >
-                          <SelectTrigger className={`w-full h-9 text-xs font-medium ${getRoleColor(player.role, allRolesForColor)} border-0`} data-testid={`select-role-${player.id}`}>
-                            <SelectValue>{player.role}</SelectValue>
-                          </SelectTrigger>
-                          <SelectContent>
-                            {roleOptions.map((r) => (
-                              <SelectItem key={r} value={r}>{r}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </td>
-                    <td className={`border-r border-border bg-card ${isCollapsed("player") ? "px-1 py-2 w-8" : "px-4 py-2"}`}>
-                      {isCollapsed("player") ? null : (
-                        <div className="flex items-center gap-1">
-                          <span className="text-sm font-medium" data-testid={`text-player-name-${player.id}`}>{player.name}</span>
-                          {!canEditThis && (
-                            <Lock className="h-3 w-3 text-muted-foreground shrink-0" />
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    {dayOfWeek.map((day) => {
-                      const avail = getPlayerAvailability(player.id, day);
-                      const collapsed = isCollapsed(day);
-                      return (
-                        <td key={day} className={`border-r border-border bg-card ${collapsed ? "px-1 py-2 w-8" : "px-2 py-2"}`}>
-                          {collapsed ? null : (
-                            <Select
-                              value={avail}
-                              onValueChange={(value: string) => onAvailabilityChange(player.id, day, value)}
-                              disabled={isLoading || !canEditThis}
-                            >
-                              <SelectTrigger className={`w-full h-9 text-xs font-medium ${getAvailabilityColor(avail)} border-0`} data-testid={`select-avail-${player.id}-${day}`}>
-                                <SelectValue><span className="truncate">{avail}</span></SelectValue>
-                              </SelectTrigger>
-                              <SelectContent>
-                                {slotLabels.map((label) => (
-                                  <SelectItem key={label} value={label}>{label}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-                })}
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {players.length === 0 && (
-          <div className="py-12 text-center text-muted-foreground" data-testid="text-no-players">
-            No players in the schedule. Add players to get started.
+      <div className="space-y-2" ref={tableRef}>
+        {playerCollapsedChips.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5" data-testid="bar-collapsed-cols">
+            <span className="text-xs text-muted-foreground mr-1">Hidden:</span>
+            {playerCollapsedChips.map(c => (
+              <button
+                key={c.key}
+                type="button"
+                onClick={() => toggleCol(c.key)}
+                className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-border bg-muted hover-elevate"
+                data-testid={`button-expand-${c.key}`}
+                title={`Show ${c.label}`}
+              >
+                <ChevronDown className="h-3 w-3" />
+                {c.label}
+              </button>
+            ))}
           </div>
         )}
-      </div>
-
-      {staffMembers.length > 0 && (
         <div className="w-full overflow-hidden rounded-lg border border-border bg-card">
-          <div className="px-4 py-3 bg-muted/50 border-b border-border">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground" data-testid="text-staff-section-title">Staff Availability</h3>
-          </div>
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
               <thead>
-                <tr className="bg-muted/30">
-                  <th
-                    className={isCollapsed("staff_role")
-                      ? "border-r border-border px-1 py-2 text-center text-xs font-semibold uppercase tracking-wide w-8 cursor-pointer select-none"
-                      : "border-r border-border px-4 py-2 text-left text-sm font-semibold uppercase tracking-wide cursor-pointer select-none"}
-                    onClick={() => toggleCol("staff_role")}
-                    data-testid="th-staff-role"
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      {isCollapsed("staff_role") ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
-                      {!isCollapsed("staff_role") && "Role"}
-                    </span>
-                  </th>
-                  <th
-                    className={isCollapsed("staff_name")
-                      ? "border-r border-border px-1 py-2 text-center text-xs font-semibold uppercase tracking-wide w-8 cursor-pointer select-none"
-                      : "border-r border-border px-4 py-2 text-left text-sm font-semibold uppercase tracking-wide min-w-[140px] cursor-pointer select-none"}
-                    onClick={() => toggleCol("staff_name")}
-                    data-testid="th-staff-name"
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      {isCollapsed("staff_name") ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
-                      {!isCollapsed("staff_name") && "Staff"}
-                    </span>
-                  </th>
-                  {dayOfWeek.map((day) => (
+                <tr className="bg-primary text-primary-foreground">
+                  {!isCollapsed("role") && (
                     <th
-                      key={day}
-                      className={isCollapsed(day)
-                        ? "border-r border-border px-1 py-2 text-center text-xs font-semibold uppercase tracking-wide w-8 cursor-pointer select-none last:border-r-0"
-                        : "border-r border-border px-3 py-2 text-center text-sm font-semibold uppercase tracking-wide min-w-[160px] cursor-pointer select-none last:border-r-0"}
-                      onClick={() => toggleCol(day)}
-                      data-testid={`th-staff-${day}`}
+                      className="border-r border-primary-border px-4 py-3 text-left text-sm font-semibold uppercase tracking-wide cursor-pointer select-none"
+                      onClick={() => toggleCol("role")}
+                      data-testid="th-role"
                     >
                       <span className="inline-flex items-center gap-1">
-                        {isCollapsed(day) ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
-                        {!isCollapsed(day) && day}
+                        <ChevronUp className="h-3 w-3" />
+                        Role
+                      </span>
+                    </th>
+                  )}
+                  {!isCollapsed("player") && (
+                    <th
+                      className="border-r border-primary-border px-4 py-3 text-left text-sm font-semibold uppercase tracking-wide min-w-[140px] cursor-pointer select-none"
+                      onClick={() => toggleCol("player")}
+                      data-testid="th-player"
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        <ChevronUp className="h-3 w-3" />
+                        Player
+                      </span>
+                    </th>
+                  )}
+                  {visibleDays.map((day) => (
+                    <th
+                      key={day}
+                      className={`${headerThClass} min-w-[160px]`}
+                      onClick={() => toggleCol(day)}
+                      data-testid={`th-${day}`}
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        <ChevronUp className="h-3 w-3" />
+                        {day}
                       </span>
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {staffMembers.map((s) => (
-                  <tr key={s.id} className="border-t border-border hover-elevate" data-testid={`row-staff-${s.id}`}>
-                    <td className={`border-r border-border bg-card ${isCollapsed("staff_role") ? "px-1 py-2 w-8" : "px-4 py-2"}`}>
-                      {isCollapsed("staff_role") ? null : (
-                        <Badge variant="secondary" className="text-xs">{s.role}</Badge>
+                {roleOrder.map((role) => {
+                  const playersInRole = groupedByRole[role] || [];
+                  if (playersInRole.length === 0) return null;
+                  return playersInRole.map((player) => {
+                    const canEditThis = canEditAll || editablePlayerId === player.id;
+                    return (
+                      <tr key={player.id} className="border-t border-border hover-elevate" data-testid={`row-player-${player.id}`}>
+                        {!isCollapsed("role") && (
+                          <td className="border-r border-border bg-card px-2 py-2">
+                            <Select
+                              value={player.role}
+                              onValueChange={(value: string) => onRoleChange?.(player.id, value)}
+                              disabled={isLoading || !canEditAll}
+                            >
+                              <SelectTrigger className={`w-full h-9 text-xs font-medium ${getRoleColor(player.role, allRolesForColor)} border-0`} data-testid={`select-role-${player.id}`}>
+                                <SelectValue>{player.role}</SelectValue>
+                              </SelectTrigger>
+                              <SelectContent>
+                                {roleOptions.map((r) => (
+                                  <SelectItem key={r} value={r}>{r}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </td>
+                        )}
+                        {!isCollapsed("player") && (
+                          <td className="border-r border-border bg-card px-4 py-2">
+                            <div className="flex items-center gap-1">
+                              <span className="text-sm font-medium" data-testid={`text-player-name-${player.id}`}>{player.name}</span>
+                              {!canEditThis && (
+                                <Lock className="h-3 w-3 text-muted-foreground shrink-0" />
+                              )}
+                            </div>
+                          </td>
+                        )}
+                        {visibleDays.map((day) => {
+                          const avail = getPlayerAvailability(player.id, day);
+                          return (
+                            <td key={day} className="border-r border-border bg-card px-2 py-2">
+                              <Select
+                                value={avail}
+                                onValueChange={(value: string) => onAvailabilityChange(player.id, day, value)}
+                                disabled={isLoading || !canEditThis}
+                              >
+                                <SelectTrigger className={`w-full h-9 text-xs font-medium ${getAvailabilityColor(avail)} border-0`} data-testid={`select-avail-${player.id}-${day}`}>
+                                  <SelectValue><span className="truncate">{avail}</span></SelectValue>
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {slotLabels.map((label) => (
+                                    <SelectItem key={label} value={label}>{label}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  });
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {players.length === 0 && (
+            <div className="py-12 text-center text-muted-foreground" data-testid="text-no-players">
+              No players in the schedule. Add players to get started.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {staffMembers.length > 0 && (
+        <div className="space-y-2">
+          {staffCollapsedChips.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5" data-testid="bar-staff-collapsed-cols">
+              <span className="text-xs text-muted-foreground mr-1">Hidden:</span>
+              {staffCollapsedChips.map(c => (
+                <button
+                  key={c.key}
+                  type="button"
+                  onClick={() => toggleCol(c.key)}
+                  className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-border bg-muted hover-elevate"
+                  data-testid={`button-expand-${c.key}`}
+                  title={`Show ${c.label}`}
+                >
+                  <ChevronDown className="h-3 w-3" />
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="w-full overflow-hidden rounded-lg border border-border bg-card">
+            <div className="px-4 py-3 bg-muted/50 border-b border-border">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground" data-testid="text-staff-section-title">Staff Availability</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-muted/30">
+                    {!isCollapsed("staff_role") && (
+                      <th
+                        className="border-r border-border px-4 py-2 text-left text-sm font-semibold uppercase tracking-wide cursor-pointer select-none"
+                        onClick={() => toggleCol("staff_role")}
+                        data-testid="th-staff-role"
+                      >
+                        <span className="inline-flex items-center gap-1">
+                          <ChevronUp className="h-3 w-3" />
+                          Role
+                        </span>
+                      </th>
+                    )}
+                    {!isCollapsed("staff_name") && (
+                      <th
+                        className="border-r border-border px-4 py-2 text-left text-sm font-semibold uppercase tracking-wide min-w-[140px] cursor-pointer select-none"
+                        onClick={() => toggleCol("staff_name")}
+                        data-testid="th-staff-name"
+                      >
+                        <span className="inline-flex items-center gap-1">
+                          <ChevronUp className="h-3 w-3" />
+                          Staff
+                        </span>
+                      </th>
+                    )}
+                    {visibleStaffDays.map((day) => (
+                      <th
+                        key={day}
+                        className="border-r border-border px-3 py-2 text-center text-sm font-semibold uppercase tracking-wide min-w-[160px] cursor-pointer select-none last:border-r-0"
+                        onClick={() => toggleCol(`staff_${day}`)}
+                        data-testid={`th-staff-${day}`}
+                      >
+                        <span className="inline-flex items-center gap-1">
+                          <ChevronUp className="h-3 w-3" />
+                          {day}
+                        </span>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {staffMembers.map((s) => (
+                    <tr key={s.id} className="border-t border-border hover-elevate" data-testid={`row-staff-${s.id}`}>
+                      {!isCollapsed("staff_role") && (
+                        <td className="border-r border-border bg-card px-4 py-2">
+                          <Badge variant="secondary" className="text-xs">{s.role}</Badge>
+                        </td>
                       )}
-                    </td>
-                    <td className={`border-r border-border bg-card ${isCollapsed("staff_name") ? "px-1 py-2 w-8" : "px-4 py-2"}`}>
-                      {isCollapsed("staff_name") ? null : (
-                        <span className="text-sm font-medium" data-testid={`text-staff-name-${s.id}`}>{s.name}</span>
+                      {!isCollapsed("staff_name") && (
+                        <td className="border-r border-border bg-card px-4 py-2">
+                          <span className="text-sm font-medium" data-testid={`text-staff-name-${s.id}`}>{s.name}</span>
+                        </td>
                       )}
-                    </td>
-                    {dayOfWeek.map((day) => {
-                      const avail = s.availability[day] || "unknown";
-                      const collapsed = isCollapsed(day);
-                      return (
-                        <td key={day} className={`border-r border-border bg-card ${collapsed ? "px-1 py-2 w-8" : "px-2 py-2"}`}>
-                          {collapsed ? null : (
+                      {visibleStaffDays.map((day) => {
+                        const avail = s.availability[day] || "unknown";
+                        return (
+                          <td key={day} className="border-r border-border bg-card px-2 py-2">
                             <Select
                               value={avail}
                               onValueChange={(value: string) => onStaffAvailabilityChange(s.id, day as DayOfWeek, value)}
@@ -301,14 +352,14 @@ export function ScheduleTable({
                                 ))}
                               </SelectContent>
                             </Select>
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
