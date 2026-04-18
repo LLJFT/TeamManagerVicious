@@ -1063,7 +1063,14 @@ export default function Dashboard() {
     if (editingRole) {
       updateRoleMutation.mutate({ id: editingRole.id, role: data });
     } else {
-      createRoleMutation.mutate(data);
+      const homePerms = new Set(
+        permissionCategories.find(c => c.category === "home")?.permissions ?? []
+      );
+      const sanitized = {
+        ...data,
+        permissions: (data.permissions ?? []).filter(p => !homePerms.has(p)),
+      };
+      createRoleMutation.mutate(sanitized);
     }
   };
 
@@ -1647,7 +1654,11 @@ export default function Dashboard() {
                       <CardDescription>{allRoles.length} roles</CardDescription>
                     </div>
                   </div>
-                  <Button onClick={() => { setEditingRole(undefined); roleForm.reset({ name: "", permissions: [] }); setShowRoleDialog(true); }} size="sm" className="gap-2" data-testid="button-add-role">
+                  <Button onClick={() => {
+                    setEditingRole(undefined);
+                    roleForm.reset({ name: "", permissions: [] });
+                    setShowRoleDialog(true);
+                  }} size="sm" className="gap-2" data-testid="button-add-role">
                     <Plus className="h-4 w-4" />
                     Add Role
                   </Button>
@@ -2188,28 +2199,42 @@ export default function Dashboard() {
                   <FormItem>
                     <FormLabel>Permissions</FormLabel>
                     <div className="space-y-4 mt-2">
-                      {permissionCategories.map((cat) => (
-                        <div key={cat.category}>
-                          <h4 className="text-sm font-medium text-muted-foreground mb-2 capitalize">{cat.category}</h4>
-                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                            {cat.permissions.map((perm) => (
-                              <div key={perm} className="flex items-center gap-2">
-                                <Checkbox
-                                  checked={field.value.includes(perm)}
-                                  onCheckedChange={(checked) => {
-                                    const newVal = checked
-                                      ? [...field.value, perm]
-                                      : field.value.filter((p: string) => p !== perm);
-                                    field.onChange(newVal);
-                                  }}
-                                  data-testid={`checkbox-role-perm-${perm}`}
-                                />
-                                <label className="text-sm text-foreground cursor-pointer">{perm.replace(/_/g, " ")}</label>
-                              </div>
-                            ))}
+                      {permissionCategories.map((cat) => {
+                        const isHome = cat.category === "home";
+                        const isCreatingNew = !editingRole;
+                        const lockedOff = isHome && isCreatingNew;
+                        return (
+                          <div key={cat.category}>
+                            <h4 className="text-sm font-medium text-muted-foreground mb-2 capitalize">
+                              {cat.category}
+                              {lockedOff && (
+                                <span className="ml-2 text-xs font-normal italic">
+                                  (off by default for new roster roles — edit role after creation to grant)
+                                </span>
+                              )}
+                            </h4>
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                              {cat.permissions.map((perm) => (
+                                <div key={perm} className="flex items-center gap-2">
+                                  <Checkbox
+                                    checked={lockedOff ? false : field.value.includes(perm)}
+                                    disabled={lockedOff}
+                                    onCheckedChange={(checked) => {
+                                      if (lockedOff) return;
+                                      const newVal = checked
+                                        ? [...field.value, perm]
+                                        : field.value.filter((p: string) => p !== perm);
+                                      field.onChange(newVal);
+                                    }}
+                                    data-testid={`checkbox-role-perm-${perm}`}
+                                  />
+                                  <label className="text-sm text-foreground cursor-pointer">{perm.replace(/_/g, " ")}</label>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                     <FormMessage />
                   </FormItem>
