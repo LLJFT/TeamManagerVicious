@@ -13,6 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   ArrowLeft,
   Trophy,
@@ -25,9 +27,12 @@ import {
   Swords,
   Calendar,
   CalendarDays,
+  ChevronDown,
+  ChevronRight,
+  Filter,
 } from "lucide-react";
 import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
-import type { Event, Game, GameMode, Map as MapType, Season } from "@shared/schema";
+import type { Event, Game, GameMode, Map as MapType, Season, EventCategory, EventSubType } from "@shared/schema";
 import { useGame } from "@/hooks/use-game";
 import { StatsSkeleton } from "@/components/PageSkeleton";
 import { useAuth } from "@/hooks/use-auth";
@@ -49,7 +54,6 @@ interface MonthOption {
 }
 
 type StatsMode = "overall" | "monthly" | "seasonal";
-type EventTypeFilter = "all" | "scrim" | "tournament";
 
 export default function UnifiedStats() {
   const { gameId, rosterId } = useGame();
@@ -57,7 +61,10 @@ export default function UnifiedStats() {
   const { hasPermission } = useAuth();
   const initialMode: StatsMode = "overall";
   const [statsMode, setStatsMode] = useState<StatsMode>(initialMode);
-  const [eventTypeFilter, setEventTypeFilter] = useState<EventTypeFilter>("all");
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
+  const [selectedSubTypes, setSelectedSubTypes] = useState<Set<string>>(new Set());
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [eventFilterOpen, setEventFilterOpen] = useState(false);
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>("");
   const [selectedMonth, setSelectedMonth] = useState<string>("");
 
@@ -85,6 +92,69 @@ export default function UnifiedStats() {
     queryKey: ["/api/seasons", { gameId, rosterId }],
     enabled: rosterReady,
   });
+
+  const { data: eventCategories = [] } = useQuery<EventCategory[]>({
+    queryKey: ["/api/event-categories", { gameId, rosterId }],
+    enabled: rosterReady,
+  });
+
+  const { data: eventSubTypes = [] } = useQuery<EventSubType[]>({
+    queryKey: ["/api/event-sub-types", { gameId, rosterId }],
+    enabled: rosterReady,
+  });
+
+  const categoryGroups = useMemo(() => {
+    const uniqueCats = Array.from(new Set(eventCategories.map(c => c.name)));
+    return uniqueCats.map(catName => {
+      const cat = eventCategories.find(c => c.name === catName)!;
+      const subs = eventSubTypes.filter(s => {
+        const matchingCat = eventCategories.find(c => c.id === s.categoryId);
+        return matchingCat?.name === catName;
+      });
+      const uniqueSubs = subs.filter((s, i, arr) => arr.findIndex(x => x.name === s.name) === i);
+      return { name: catName, color: cat.color, subTypes: uniqueSubs };
+    });
+  }, [eventCategories, eventSubTypes]);
+
+  const toggleCategoryExpand = (catName: string) => {
+    setExpandedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(catName)) next.delete(catName); else next.add(catName);
+      return next;
+    });
+  };
+
+  const toggleCategorySelect = (catName: string) => {
+    setSelectedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(catName)) next.delete(catName); else next.add(catName);
+      return next;
+    });
+  };
+
+  const toggleSubTypeSelect = (subName: string) => {
+    setSelectedSubTypes(prev => {
+      const next = new Set(prev);
+      if (next.has(subName)) next.delete(subName); else next.add(subName);
+      return next;
+    });
+  };
+
+  const allEventsSelected = selectedCategories.size === 0 && selectedSubTypes.size === 0;
+
+  const toggleAllEvents = () => {
+    setSelectedCategories(new Set());
+    setSelectedSubTypes(new Set());
+  };
+
+  const eventTypeFilterLabel = useMemo(() => {
+    if (allEventsSelected) return "All Events";
+    const parts: string[] = [];
+    selectedCategories.forEach(c => parts.push(c));
+    selectedSubTypes.forEach(s => parts.push(s));
+    if (parts.length <= 2) return parts.join(", ");
+    return `${parts.length} selected`;
+  }, [allEventsSelected, selectedCategories, selectedSubTypes]);
 
   const selectedSeason = seasons.find(s => s.id === selectedSeasonId);
 
@@ -137,28 +207,22 @@ export default function UnifiedStats() {
       });
     }
 
-    if (eventTypeFilter === "scrim") {
-      baseEvents = baseEvents.filter(e => e.eventType?.toLowerCase() === "scrim");
-    } else if (eventTypeFilter === "tournament") {
-      baseEvents = baseEvents.filter(e => e.eventType?.toLowerCase() === "tournament");
+    if (!allEventsSelected) {
+      baseEvents = baseEvents.filter(e => {
+        const catMatch = e.eventType && selectedCategories.has(e.eventType);
+        const subMatch = e.eventSubType && selectedSubTypes.has(e.eventSubType);
+        return catMatch || subMatch;
+      });
     }
 
     return baseEvents;
-  }, [events, statsMode, selectedSeasonId, selectedMonth, eventTypeFilter]);
+  }, [events, statsMode, selectedSeasonId, selectedMonth, allEventsSelected, selectedCategories, selectedSubTypes]);
 
   const filteredEventIds = useMemo(() => new Set(filteredEvents.map(e => e.id)), [filteredEvents]);
-  
+
   const filteredGames = useMemo(() => {
-    let games = allGames.filter(g => filteredEventIds.has(g.eventId || ""));
-    
-    if (eventTypeFilter === "scrim") {
-      games = games.filter(g => g.eventType?.toLowerCase() === "scrim");
-    } else if (eventTypeFilter === "tournament") {
-      games = games.filter(g => g.eventType?.toLowerCase() === "tournament");
-    }
-    
-    return games;
-  }, [allGames, filteredEventIds, eventTypeFilter]);
+    return allGames.filter(g => filteredEventIds.has(g.eventId || ""));
+  }, [allGames, filteredEventIds]);
 
   const calculateStats = (items: { result?: string | null }[]): StatsSummary => {
     const total = items.length;
@@ -282,22 +346,31 @@ export default function UnifiedStats() {
               <CardTitle className="text-base">Stats Mode</CardTitle>
             </CardHeader>
             <CardContent>
-              <Tabs value={statsMode} onValueChange={(v) => setStatsMode(v as StatsMode)} className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="overall" className="gap-2" data-testid="tab-overall">
-                    <BarChart3 className="h-4 w-4" />
-                    Overall
-                  </TabsTrigger>
-                  <TabsTrigger value="monthly" className="gap-2" data-testid="tab-monthly">
-                    <Calendar className="h-4 w-4" />
-                    Monthly
-                  </TabsTrigger>
-                  <TabsTrigger value="seasonal" className="gap-2" data-testid="tab-seasonal">
-                    <CalendarDays className="h-4 w-4" />
-                    Seasonal
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
+              <Select value={statsMode} onValueChange={(v) => setStatsMode(v as StatsMode)}>
+                <SelectTrigger className="w-full" data-testid="select-stats-mode">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="overall" data-testid="option-stats-overall">
+                    <span className="inline-flex items-center gap-2">
+                      <BarChart3 className="h-4 w-4" />
+                      Overall
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="monthly" data-testid="option-stats-monthly">
+                    <span className="inline-flex items-center gap-2">
+                      <Calendar className="h-4 w-4" />
+                      Monthly
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="seasonal" data-testid="option-stats-seasonal">
+                    <span className="inline-flex items-center gap-2">
+                      <CalendarDays className="h-4 w-4" />
+                      Seasonal
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </CardContent>
           </Card>
 
@@ -306,22 +379,97 @@ export default function UnifiedStats() {
               <CardTitle className="text-base">Event Type Filter</CardTitle>
             </CardHeader>
             <CardContent>
-              <Tabs value={eventTypeFilter} onValueChange={(v) => setEventTypeFilter(v as EventTypeFilter)} className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="all" className="gap-2" data-testid="tab-all-events">
-                    <Trophy className="h-4 w-4" />
-                    All Events
-                  </TabsTrigger>
-                  <TabsTrigger value="scrim" className="gap-2" data-testid="tab-scrims">
-                    <Swords className="h-4 w-4" />
-                    Scrims
-                  </TabsTrigger>
-                  <TabsTrigger value="tournament" className="gap-2" data-testid="tab-tournaments">
-                    <Trophy className="h-4 w-4" />
-                    Tournaments
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
+              <Popover open={eventFilterOpen} onOpenChange={setEventFilterOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-between font-normal"
+                    data-testid="button-event-type-filter"
+                  >
+                    <span className="inline-flex items-center gap-2 truncate">
+                      <Filter className="h-4 w-4 text-muted-foreground" />
+                      <span className="truncate">{eventTypeFilterLabel}</span>
+                    </span>
+                    <ChevronDown className="h-4 w-4 opacity-50 shrink-0" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-2" align="start">
+                  <label
+                    className="flex items-center gap-2 px-2 py-2 rounded-md hover-elevate cursor-pointer"
+                    data-testid="filter-all-events"
+                  >
+                    <Checkbox
+                      checked={allEventsSelected}
+                      onCheckedChange={() => toggleAllEvents()}
+                    />
+                    <Trophy className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">All Events</span>
+                  </label>
+                  {categoryGroups.length === 0 ? (
+                    <div className="px-2 py-2 text-xs text-muted-foreground">
+                      No event categories configured for this roster.
+                    </div>
+                  ) : (
+                    <div className="mt-1 space-y-1 max-h-80 overflow-y-auto">
+                      {categoryGroups.map(group => {
+                        const isExpanded = expandedCategories.has(group.name);
+                        const catSelected = selectedCategories.has(group.name);
+                        return (
+                          <div key={group.name} className="rounded-md border border-border">
+                            <div className="flex items-center gap-2 px-2 py-1.5">
+                              <button
+                                type="button"
+                                className="flex items-center"
+                                onClick={() => toggleCategoryExpand(group.name)}
+                                data-testid={`button-expand-cat-${group.name}`}
+                              >
+                                {isExpanded ? (
+                                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                )}
+                              </button>
+                              <div
+                                className="h-3 w-3 rounded-full shrink-0"
+                                style={{ backgroundColor: group.color || "#888" }}
+                              />
+                              <label className="flex-1 flex items-center gap-2 cursor-pointer">
+                                <Checkbox
+                                  checked={catSelected}
+                                  onCheckedChange={() => toggleCategorySelect(group.name)}
+                                  data-testid={`checkbox-cat-${group.name}`}
+                                />
+                                <span className="text-sm font-medium">{group.name}</span>
+                              </label>
+                            </div>
+                            {isExpanded && group.subTypes.length > 0 && (
+                              <div className="border-t border-border px-3 py-1 space-y-0.5 bg-muted/20">
+                                {group.subTypes.map(sub => (
+                                  <label
+                                    key={sub.name}
+                                    className="flex items-center gap-2 py-1 cursor-pointer text-sm"
+                                    data-testid={`filter-subtype-${sub.name}`}
+                                  >
+                                    <Checkbox
+                                      checked={selectedSubTypes.has(sub.name)}
+                                      onCheckedChange={() => toggleSubTypeSelect(sub.name)}
+                                    />
+                                    <div
+                                      className="h-2 w-2 rounded-full shrink-0"
+                                      style={{ backgroundColor: sub.color || group.color || "#888" }}
+                                    />
+                                    <span>{sub.name}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </PopoverContent>
+              </Popover>
             </CardContent>
           </Card>
         </div>
