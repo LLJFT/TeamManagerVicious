@@ -76,7 +76,7 @@ function GameAccessGate({ slug }: { slug: string }) {
       return () => clearTimeout(t);
     }
 
-    if (user?.orgRole === "super_admin" || user?.orgRole === "org_admin" || user?.orgRole === "management") return;
+    if (user?.orgRole === "super_admin" || user?.orgRole === "org_admin") return;
 
     if (!hasGameAccess(currentGame.id)) {
       setDenied(true);
@@ -107,7 +107,7 @@ function GameAccessGate({ slug }: { slug: string }) {
     );
   }
 
-  if (currentGame && (user?.orgRole !== "super_admin" && user?.orgRole !== "org_admin" && user?.orgRole !== "management")) {
+  if (currentGame && (user?.orgRole !== "super_admin" && user?.orgRole !== "org_admin")) {
     if (!hasGameAccess(currentGame.id)) return null;
     if (rosterId && !hasRosterAccess(currentGame.id, rosterId)) return null;
   }

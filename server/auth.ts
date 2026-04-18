@@ -361,7 +361,7 @@ export async function requireGameAccess(req: Request, res: Response, next: NextF
     return res.status(403).json({ message: "Forbidden" });
   }
 
-  if (user.orgRole === "super_admin" || user.orgRole === "org_admin" || user.orgRole === "management") {
+  if (user.orgRole === "super_admin" || user.orgRole === "org_admin") {
     return next();
   }
 
