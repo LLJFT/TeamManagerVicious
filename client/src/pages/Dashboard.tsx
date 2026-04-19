@@ -14,7 +14,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   ArrowLeft, Plus, Pencil, Trash2, Gamepad2, Map as MapIcon,
   ChevronRight, Calendar, BarChart3, Settings, Users, Shield,
-  Clock, UserCog, Check, Ban, UserCheck, Search
+  Clock, UserCog, Check, Ban, UserCheck, Search,
+  AlertTriangle, Database, Loader2
 } from "lucide-react";
 import type {
   GameMode, Map as MapType, Season, StatField, Role, Player,
@@ -348,7 +349,7 @@ function ActivityLogTab() {
 }
 
 export default function Dashboard() {
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
   const { toast } = useToast();
 
   const [showGameModeDialog, setShowGameModeDialog] = useState(false);
@@ -1097,6 +1098,7 @@ export default function Dashboard() {
     { value: "event-types", label: "Event Types", icon: Calendar, show: canManageGameConfig },
     { value: "stat-fields", label: "Stat Fields", icon: BarChart3, show: canManageStatFields },
     { value: "activity", label: "Activity", icon: Clock, show: canViewActivityLog },
+    { value: "reset-roster", label: "Reset Roster", icon: AlertTriangle, show: user?.orgRole === "super_admin" },
   ];
 
   const visibleTabs = availableTabs.filter(t => t.show);
@@ -1975,6 +1977,10 @@ export default function Dashboard() {
           <TabsContent value="activity">
             <ActivityLogTab />
           </TabsContent>
+
+          <TabsContent value="reset-roster">
+            <ResetRosterTab />
+          </TabsContent>
         </Tabs>
 
         {/* Dialogs */}
@@ -2510,6 +2516,233 @@ export default function Dashboard() {
           </DialogContent>
         </Dialog>
       </div>
+    </div>
+  );
+}
+
+function ResetRosterTab() {
+  const { toast } = useToast();
+  const gameId = getCurrentGameId();
+  const rosterId = getCurrentRosterId();
+  const { data: rostersList = [] } = useQuery<any[]>({
+    queryKey: ["/api/rosters", { gameId }],
+    enabled: !!gameId,
+  });
+  const { data: gamesList = [] } = useQuery<any[]>({
+    queryKey: ["/api/supported-games"],
+  });
+  const currentRoster = rostersList.find((r: any) => r.id === rosterId);
+  const currentGame = gamesList.find((g: any) => g.id === gameId);
+  const rosterDisplayName = currentRoster?.customName || currentRoster?.name || "—";
+  const gameDisplayName = currentGame?.name || "—";
+
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetPwd, setResetPwd] = useState("");
+  const [loadOpen, setLoadOpen] = useState(false);
+  const [loadPwd, setLoadPwd] = useState("");
+
+  const resetMutation = useMutation({
+    mutationFn: async (password: string) => {
+      const res = await apiRequest("POST", `/api/admin/rosters/${rosterId}/reset`, { password });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Roster reset", description: "Roster has been reset. It is now empty and ready for a new team." });
+      setResetOpen(false);
+      setResetPwd("");
+      queryClient.invalidateQueries();
+    },
+    onError: (e: any) => toast({ title: "Reset failed", description: e?.message || "Unknown error", variant: "destructive" }),
+  });
+
+  const loadMutation = useMutation({
+    mutationFn: async (password: string) => {
+      const res = await apiRequest("POST", `/api/admin/rosters/${rosterId}/load-example`, { password });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "Example data loaded",
+        description: `Example data loaded successfully. ${data?.events ?? 0} events, ${data?.games ?? 0} games. You can now explore all features or delete this data when ready.`,
+      });
+      setLoadOpen(false);
+      setLoadPwd("");
+      queryClient.invalidateQueries();
+    },
+    onError: (e: any) => toast({ title: "Load failed", description: e?.message || "Unknown error", variant: "destructive" }),
+  });
+
+  if (!rosterId) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center text-muted-foreground">
+          Select a roster first.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Section 1 — Remove Roster Data */}
+      <Card>
+        <CardHeader className="pb-4 border-b border-border">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-destructive/10">
+              <Trash2 className="h-5 w-5 text-destructive" />
+            </div>
+            <div>
+              <CardTitle className="text-xl">Remove Roster Data</CardTitle>
+              <CardDescription>
+                Permanently wipe everything tied to this roster. The roster shell stays.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-6 space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Deletes players, staff, events, results, statistics, attendance, chat,
+            and game configuration. Users whose only access is this roster will also be deleted.
+          </p>
+          <Button
+            variant="destructive"
+            onClick={() => setResetOpen(true)}
+            data-testid="button-open-reset-roster"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Remove Roster Data
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Section 2 — Load Example Data */}
+      <Card>
+        <CardHeader className="pb-4 border-b border-border">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Database className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <CardTitle className="text-xl">Load Example Data</CardTitle>
+              <CardDescription>
+                Replaces this roster with a complete demo dataset.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-6 space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Wipes the roster and seeds players, staff, game config, two months of events
+            with games and stats. Use this to demo the platform to a new client.
+          </p>
+          <Button
+            className="bg-cyan-600 hover:bg-cyan-700 text-white border-cyan-700"
+            onClick={() => setLoadOpen(true)}
+            data-testid="button-open-load-example"
+          >
+            <Database className="h-4 w-4 mr-2" />
+            Load Example Data
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Reset confirmation dialog */}
+      <Dialog open={resetOpen} onOpenChange={(o) => { if (!resetMutation.isPending) { setResetOpen(o); if (!o) setResetPwd(""); } }}>
+        <DialogContent data-testid="dialog-reset-roster">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Confirm Roster Reset
+            </DialogTitle>
+            <DialogDescription>
+              This will permanently delete ALL data linked to this roster including:
+              players, staff, events, results, statistics, attendance records,
+              chat messages, and game configuration. Any user whose ONLY roster access
+              is this roster will also have their account deleted.
+              The roster itself will remain but start completely empty.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-md border border-border p-3 bg-muted/30 space-y-1">
+            <div className="text-xs text-muted-foreground">Game</div>
+            <div className="font-medium" data-testid="text-reset-game-name">{gameDisplayName}</div>
+            <div className="text-xs text-muted-foreground mt-2">Roster</div>
+            <div className="font-medium" data-testid="text-reset-roster-name">{rosterDisplayName}</div>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="reset-password">Enter admin password to confirm</Label>
+            <Input
+              id="reset-password"
+              type="password"
+              value={resetPwd}
+              onChange={(e) => setResetPwd(e.target.value)}
+              disabled={resetMutation.isPending}
+              data-testid="input-reset-password"
+              autoComplete="off"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setResetOpen(false); setResetPwd(""); }} disabled={resetMutation.isPending} data-testid="button-cancel-reset">
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => resetMutation.mutate(resetPwd)}
+              disabled={resetPwd.length === 0 || resetMutation.isPending}
+              data-testid="button-confirm-reset"
+            >
+              {resetMutation.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Resetting…</> : "Confirm Reset"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Load example confirmation dialog */}
+      <Dialog open={loadOpen} onOpenChange={(o) => { if (!loadMutation.isPending) { setLoadOpen(o); if (!o) setLoadPwd(""); } }}>
+        <DialogContent data-testid="dialog-load-example">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Database className="h-5 w-5 text-cyan-600" />
+              Load Example Data
+            </DialogTitle>
+            <DialogDescription>
+              This will first clear all existing roster data, then load a complete example
+              dataset so you can see how the platform works. Everything currently in this
+              roster will be replaced. Use this to demo the platform to a new client.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-md border border-border p-3 bg-muted/30 space-y-1">
+            <div className="text-xs text-muted-foreground">Game</div>
+            <div className="font-medium" data-testid="text-load-game-name">{gameDisplayName}</div>
+            <div className="text-xs text-muted-foreground mt-2">Roster</div>
+            <div className="font-medium" data-testid="text-load-roster-name">{rosterDisplayName}</div>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="load-password">Enter admin password to confirm</Label>
+            <Input
+              id="load-password"
+              type="password"
+              value={loadPwd}
+              onChange={(e) => setLoadPwd(e.target.value)}
+              disabled={loadMutation.isPending}
+              data-testid="input-load-password"
+              autoComplete="off"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setLoadOpen(false); setLoadPwd(""); }} disabled={loadMutation.isPending} data-testid="button-cancel-load">
+              Cancel
+            </Button>
+            <Button
+              className="bg-cyan-600 hover:bg-cyan-700 text-white border-cyan-700"
+              onClick={() => loadMutation.mutate(loadPwd)}
+              disabled={loadPwd.length === 0 || loadMutation.isPending}
+              data-testid="button-confirm-load"
+            >
+              {loadMutation.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Loading…</> : "Load Example Data"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

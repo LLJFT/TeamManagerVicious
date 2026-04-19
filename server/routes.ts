@@ -984,6 +984,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==================== ROSTER RESET / EXAMPLE DATA ====================
+  app.post("/api/admin/fix-broken-events", requireAuth, requireOrgRole("super_admin", "org_admin"), async (_req, res) => {
+    try {
+      const { fixBrokenEventsAprilMay } = await import("./roster-reset");
+      const result = await fixBrokenEventsAprilMay();
+      res.json({ ok: true, ...result });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/admin/rosters/:id/reset", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+    try {
+      const { RESET_PASSWORD, resetRosterData } = await import("./roster-reset");
+      const password = (req.body?.password ?? "").toString();
+      if (password !== RESET_PASSWORD) {
+        return res.status(403).json({ message: "Invalid admin password" });
+      }
+      const result = await resetRosterData(req.params.id);
+      res.json({ ok: true, ...result });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/admin/rosters/:id/load-example", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+    try {
+      const { LOAD_EXAMPLE_PASSWORD, loadExampleData } = await import("./roster-reset");
+      const password = (req.body?.password ?? "").toString();
+      if (password !== LOAD_EXAMPLE_PASSWORD) {
+        return res.status(403).json({ message: "Invalid admin password" });
+      }
+      const result = await loadExampleData(req.params.id);
+      res.json({ ok: true, ...result });
+    } catch (err: any) {
+      console.error("[load-example] failed:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // ==================== ROLES MANAGEMENT ====================
   app.get("/api/roles", requireAuth, async (req, res) => {
     try {

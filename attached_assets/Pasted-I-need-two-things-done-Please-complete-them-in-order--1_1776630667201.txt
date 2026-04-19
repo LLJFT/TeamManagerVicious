@@ -1,0 +1,170 @@
+I need two things done. Please complete them in order.
+
+═══════════════════════════════════════════
+TASK 1 — Fix Broken Events (Do this first)
+═══════════════════════════════════════════
+
+There is a data issue with events added to April and May 2026 
+on the live production site.
+
+These events were inserted without a valid eventCategoryId or 
+eventSubTypeId, so they display as gray with a UUID shown 
+instead of the sub-type name (e.g. "Practice", "Warm-up").
+
+Find all events where eventCategoryId is null OR does not match 
+a valid category in the event_categories table for that roster.
+For each broken event, look at its title to determine the correct 
+category and sub-type:
+- If title contains "Practice" → find the Practice sub-type for that roster
+- If title contains "Warm-up" or "Warmup" → find the Warm-up sub-type
+- If title contains "Saudi League" → find the Saudi League sub-type
+- If title contains "Stage 1" → find the Stage 1 sub-type
+- If title contains "Elite" → find the Elite 3000$ Cup sub-type
+- If title contains "Vod Review" → find the Vod Review sub-type
+- If title contains "Roster Meeting" → find the Roster Meeting sub-type
+- If title contains "Organization Meeting" → find the Organization Meeting sub-type
+
+Update each broken event with the correct categoryId and subTypeId 
+from its own roster's event_categories and event_sub_types tables.
+
+Only fix April and May events — do not touch March events.
+Do not delete any events.
+Do not run any reseed, bootstrap, or seed script.
+Only UPDATE existing rows — do not insert or duplicate.
+
+Report how many events were fixed, then move to Task 2.
+
+═══════════════════════════════════════════
+TASK 2 — Add "Reset Roster" Tab
+═══════════════════════════════════════════
+
+Add a new tab to the roster Dashboard called "Reset Roster".
+Place it at the end of the existing tabs: Game Config, Team, Users, 
+Roles, Event Types, Stat Fields, Activity — add "Reset Roster" after Activity.
+
+Inside the Reset Roster tab, show two sections:
+
+═══════════════════════════════
+SECTION 1 — Remove Roster Data
+═══════════════════════════════
+A button labeled "Remove Roster Data" styled in red.
+
+When clicked, show a confirmation modal with:
+- Warning message:
+  "This will permanently delete ALL data linked to this roster including:
+  players, staff, events, results, statistics, attendance records,
+  chat messages, and game configuration.
+  Any user whose ONLY roster access is this roster will also have
+  their account deleted.
+  The roster itself will remain but start completely empty."
+- Display the game name and roster name prominently
+- A password field labeled "Enter admin password to confirm"
+- Cancel button and red "Confirm Reset" button (disabled until password matches)
+
+Password required: TheBootcamp&2!@90A94
+
+When confirmed, delete in this order for this roster only:
+1. player_game_stats
+2. attendance records
+3. games/matches
+4. events
+5. players
+6. staff
+7. chat messages and channels
+8. availability records
+9. game config (modes, maps, stat fields, seasons)
+10. event categories and sub-types
+11. roster roles
+12. user_game_assignments — and delete the user account entirely
+    for any user whose ONLY assignment was this roster
+
+Do NOT delete the roster record itself, other rosters, or
+users who have access to other rosters.
+
+Success message: "Roster has been reset. It is now empty and ready for a new team."
+
+═══════════════════════════════
+SECTION 2 — Load Example Data
+═══════════════════════════════
+A button labeled "Load Example Data" styled in blue/cyan.
+
+When clicked, show a confirmation modal with:
+- Info message:
+  "This will first clear all existing roster data, then load
+  a complete example dataset so you can see how the platform works.
+  Everything currently in this roster will be replaced.
+  Use this to demo the platform to a new client."
+- Display the game name and roster name prominently
+- A password field labeled "Enter admin password to confirm"
+- Cancel button and blue "Load Example Data" button (disabled until password matches)
+
+Password required: TheBootcamp&2!@90A90
+
+When confirmed, first run the same deletion as Section 1 (clear all roster data),
+then add the following example data for this roster:
+
+Game Config:
+- 3 game modes: Game Mode 1, Game Mode 2, Game Mode 3
+- 3 maps per mode (9 total): Mode 1 → Map 1/2/3, Mode 2 → Map 4/5/6, Mode 3 → Map 7/8/9
+- 2 seasons: Season 1, Season 2
+- Roster roles: Tank, DPS, Support, Flex
+- Stat fields: Mode 1 → Kill/Death/Assist/Time, Mode 2 → Kill/Death/Plant/Defuse, Mode 3 → Kill/Death/Goal/Assist
+- Event categories: Scrim (sub: Practice, Warm-up), Tournament (sub: Stage 1, Saudi League, Elite 3000$ Cup), Meetings (sub: Vod Review, Roster Meeting, Organization Meeting)
+
+Players (8 total, 2 per role):
+- Tank: [GAME]_T[N]_Tank1, [GAME]_T[N]_Tank2
+- DPS: [GAME]_T[N]_DPS1, [GAME]_T[N]_DPS2
+- Support: [GAME]_T[N]_Sup1, [GAME]_T[N]_Sup2
+- Flex: [GAME]_T[N]_Flex1, [GAME]_T[N]_Flex2
+Use the actual game abbreviation and team number in the names.
+Set random realistic availability for all 7 days.
+
+Staff (4 total):
+- Head Coach, Assistant Coach, Analyst, Manager
+Set random realistic availability for all 7 days.
+
+Opponents: Falcons, Liquid, Vitality, FaZe, Twisted Minds,
+Virtus Pro, GenG, Karmine Corp, T1, 100 Thieves, G2
+
+Events — date range is DYNAMIC, calculated at the moment the button is clicked:
+- Start date = exactly 1 month before today's date
+- End date = exactly 1 month after today's date
+- Example: if today is April 20, range is March 20 – May 20
+- Always use today's actual server date, never hardcode dates
+
+Event structure within that date range:
+- Thursday and Friday = Off Day (no scrims or tournaments)
+- Other days: realistic mix of Scrims (Practice + Warm-up),
+  Tournaments (Stage 1, Saudi League, Elite 3000$ Cup),
+  Meetings (Vod Review, Roster Meeting, Organization Meeting)
+- Warm-up scrims scheduled ~1 hour before a tournament on the same day
+- Event times between 15:00 and 02:00
+- Each Scrim and Tournament: 5 games with game mode + map selected,
+  player stats filled for all players, attendance marked (mix Present/Late/Absent)
+- Add as many events as possible within the date range
+
+User accounts (one per player and staff):
+- Create login accounts linked to each player and staff member
+- Username format: [game]_[team#]_[role] (e.g. d2_1_tank1, apex_2_coach)
+- Password: 0000
+- Players get orgRole = "member", staff get orgRole = "staff"
+- Give each account an approved game assignment for this roster
+
+Success message: "Example data loaded successfully.
+You can now explore all features or delete this data when ready."
+
+═══════════════════════════════
+GENERAL RULES FOR BOTH SECTIONS
+═══════════════════════════════
+- Both sections visible to super_admin only
+- Both require password confirmation before any action
+- Both passwords are different:
+  Section 1 (Remove): TheBootcamp&2!@90A94
+  Section 2 (Load Example): TheBootcamp&2!@90A90
+- Show a loading indicator while the operation is running (may take 30-60 seconds)
+- Never affect any other roster's data
+- All operations happen server side — never expose passwords in frontend code
+
+Stop after both tasks are done and report:
+1. How many events were fixed in Task 1
+2. What was built/changed in Task 2
