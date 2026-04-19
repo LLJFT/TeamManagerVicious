@@ -247,7 +247,7 @@ export function AppSidebar() {
               </SidebarGroup>
             )}
 
-            {hasPermission("view_chat" as Permission) && (
+            {(user?.orgRole === "management" || user?.orgRole === "super_admin") && (
               <SidebarGroup>
                 <SidebarGroupLabel>Communication</SidebarGroupLabel>
                 <SidebarGroupContent>
