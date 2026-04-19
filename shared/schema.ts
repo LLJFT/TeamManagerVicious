@@ -453,6 +453,8 @@ export const playerGameStats = pgTable("player_game_stats", {
 }, (table) => [
   index("player_game_stats_team_id_idx").on(table.teamId),
   index("player_game_stats_game_id_idx").on(table.gameId),
+  index("player_game_stats_match_id_idx").on(table.matchId),
+  index("player_game_stats_player_id_idx").on(table.playerId),
 ]);
 
 export const roles = pgTable("roles", {
