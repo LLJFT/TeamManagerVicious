@@ -948,7 +948,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const ADVISORY_LOCK_KEY = "7345291004981234";
       const holders: any = await db.execute(sql.raw(`
-        SELECT pid, state, query_start, now() - query_start AS held_for, left(query, 200) AS query
+        SELECT a.pid AS pid, a.state AS state, a.query_start AS query_start,
+               now() - a.query_start AS held_for, left(a.query, 200) AS query
         FROM pg_stat_activity a
         JOIN pg_locks l ON l.pid = a.pid
         WHERE l.locktype = 'advisory'
