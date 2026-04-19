@@ -944,6 +944,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/admin/prod-bootstrap/force-release-lock", requireAuth, requireOrgRole("org_admin"), async (_req, res) => {
+    try {
+      const ADVISORY_LOCK_KEY = "7345291004981234";
+      const holders: any = await db.execute(sql.raw(`
+        SELECT pid, state, query_start, now() - query_start AS held_for, left(query, 200) AS query
+        FROM pg_stat_activity a
+        JOIN pg_locks l ON l.pid = a.pid
+        WHERE l.locktype = 'advisory'
+          AND ((l.classid::bigint << 32) | l.objid::bigint) = ${ADVISORY_LOCK_KEY}
+      `));
+      const terminated: any[] = [];
+      for (const row of (holders.rows as any[]) ?? []) {
+        const pid = row.pid;
+        const r: any = await db.execute(sql.raw(`SELECT pg_terminate_backend(${pid}) AS killed`));
+        terminated.push({ pid, killed: r.rows?.[0]?.killed, heldFor: row.held_for, query: row.query });
+      }
+      res.json({ ok: true, holders: holders.rows, terminated });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   app.get("/api/admin/prod-bootstrap/status", requireAuth, requireOrgRole("org_admin"), async (_req, res) => {
     try {
       const r: any = await db.execute(sql`
