@@ -104,17 +104,50 @@ async function markDone(): Promise<void> {
   `);
 }
 
+const CLEANUP_CHUNK_SIZE = 500;
+
+async function chunkedDeleteByPredicate(table: string, predicateSql: string): Promise<number> {
+  let total = 0;
+  let pass = 0;
+  while (true) {
+    pass++;
+    const t0 = Date.now();
+    const q = `WITH del AS (
+        SELECT ctid FROM ${table} WHERE ${predicateSql} LIMIT ${CLEANUP_CHUNK_SIZE}
+      )
+      DELETE FROM ${table} WHERE ctid IN (SELECT ctid FROM del)`;
+    const r: any = await db.execute(sql.raw(q));
+    const n = r.rowCount ?? 0;
+    total += n;
+    _log(`[prod-bootstrap]   chunk ${table} pass#${pass}: deleted ${n} in ${Date.now() - t0}ms (total=${total})`);
+    if (n < CLEANUP_CHUNK_SIZE) break;
+    if (pass > 10000) {
+      _warn(`[prod-bootstrap]   chunk ${table} aborting after ${pass} passes (safety limit)`);
+      break;
+    }
+  }
+  return total;
+}
+
 async function cleanupOrphans(): Promise<Record<string, number>> {
   const summary: Record<string, number> = {};
-  for (const table of TEAM_SCOPED_TABLES_BOTTOM_UP) {
+  for (let i = 0; i < TEAM_SCOPED_TABLES_BOTTOM_UP.length; i++) {
+    const table = TEAM_SCOPED_TABLES_BOTTOM_UP[i];
     const t0 = Date.now();
+    _log(`[prod-bootstrap] cleanup START [${i + 1}/${TEAM_SCOPED_TABLES_BOTTOM_UP.length}] ${table}`);
     try {
-      const r: any = await db.execute(sql.raw(
-        `DELETE FROM ${table} WHERE team_id IS NOT NULL AND team_id <> '${CANONICAL_TEAM_ID}'`
+      const cntRow: any = await db.execute(sql.raw(
+        `SELECT COUNT(*)::bigint AS c FROM ${table} WHERE team_id IS NOT NULL AND team_id <> '${CANONICAL_TEAM_ID}'`
       ));
-      const dt = Date.now() - t0;
-      summary[table] = r.rowCount ?? 0;
-      _log(`[prod-bootstrap] cleanup ${table}: deleted ${summary[table]} in ${dt}ms`);
+      const expected = Number(cntRow.rows?.[0]?.c ?? 0);
+      _log(`[prod-bootstrap]   ${table}: ${expected} candidate rows to delete`);
+
+      const deleted = await chunkedDeleteByPredicate(
+        table,
+        `team_id IS NOT NULL AND team_id <> '${CANONICAL_TEAM_ID}'`,
+      );
+      summary[table] = deleted;
+      _log(`[prod-bootstrap] cleanup END   [${i + 1}/${TEAM_SCOPED_TABLES_BOTTOM_UP.length}] ${table}: deleted ${deleted} in ${Date.now() - t0}ms`);
     } catch (err: any) {
       const dt = Date.now() - t0;
       _warn(`[prod-bootstrap] cleanup ${table} FAILED after ${dt}ms: ${err.message}`);
@@ -126,23 +159,31 @@ async function cleanupOrphans(): Promise<Record<string, number>> {
 
 async function cleanupWindow(): Promise<Record<string, number>> {
   const summary: Record<string, number> = {};
-  const sub = `(SELECT id FROM events WHERE team_id = '${CANONICAL_TEAM_ID}' AND date BETWEEN '${WINDOW_START}' AND '${WINDOW_END}')`;
-  const gameSub = `(SELECT id FROM games WHERE team_id = '${CANONICAL_TEAM_ID}' AND event_id IN ${sub})`;
+  const eventIdsSub = `SELECT id FROM events WHERE team_id = '${CANONICAL_TEAM_ID}' AND date BETWEEN '${WINDOW_START}' AND '${WINDOW_END}'`;
+  const gameIdsSub = `SELECT id FROM games WHERE team_id = '${CANONICAL_TEAM_ID}' AND event_id IN (${eventIdsSub})`;
 
-  const stmts: Array<[string, string]> = [
-    ["player_game_stats(window)", `DELETE FROM player_game_stats WHERE match_id IN ${gameSub}`],
-    ["attendance(window)", `DELETE FROM attendance WHERE event_id IN ${sub}`],
-    ["games(window)", `DELETE FROM games WHERE team_id = '${CANONICAL_TEAM_ID}' AND event_id IN ${sub}`],
-    ["off_days(window)", `DELETE FROM off_days WHERE team_id = '${CANONICAL_TEAM_ID}' AND date BETWEEN '${WINDOW_START}' AND '${WINDOW_END}'`],
-    ["events(window)", `DELETE FROM events WHERE team_id = '${CANONICAL_TEAM_ID}' AND date BETWEEN '${WINDOW_START}' AND '${WINDOW_END}'`],
+  const stmts: Array<[string, string, string]> = [
+    ["player_game_stats(window)", "player_game_stats", `match_id IN (${gameIdsSub})`],
+    ["attendance(window)",        "attendance",        `event_id IN (${eventIdsSub})`],
+    ["games(window)",             "games",             `team_id = '${CANONICAL_TEAM_ID}' AND event_id IN (${eventIdsSub})`],
+    ["off_days(window)",          "off_days",          `team_id = '${CANONICAL_TEAM_ID}' AND date BETWEEN '${WINDOW_START}' AND '${WINDOW_END}'`],
+    ["events(window)",            "events",            `team_id = '${CANONICAL_TEAM_ID}' AND date BETWEEN '${WINDOW_START}' AND '${WINDOW_END}'`],
   ];
 
-  for (const [label, q] of stmts) {
+  for (let i = 0; i < stmts.length; i++) {
+    const [label, table, predicate] = stmts[i];
     const t0 = Date.now();
+    _log(`[prod-bootstrap] window START [${i + 1}/${stmts.length}] ${label}`);
     try {
-      const r: any = await db.execute(sql.raw(q));
-      summary[label] = r.rowCount ?? 0;
-      _log(`[prod-bootstrap] window ${label}: deleted ${summary[label]} in ${Date.now() - t0}ms`);
+      const cntRow: any = await db.execute(sql.raw(
+        `SELECT COUNT(*)::bigint AS c FROM ${table} WHERE ${predicate}`
+      ));
+      const expected = Number(cntRow.rows?.[0]?.c ?? 0);
+      _log(`[prod-bootstrap]   ${label}: ${expected} candidate rows to delete`);
+
+      const deleted = await chunkedDeleteByPredicate(table, predicate);
+      summary[label] = deleted;
+      _log(`[prod-bootstrap] window END   [${i + 1}/${stmts.length}] ${label}: deleted ${deleted} in ${Date.now() - t0}ms`);
     } catch (err: any) {
       _warn(`[prod-bootstrap] window ${label} FAILED after ${Date.now() - t0}ms: ${err.message}`);
       summary[label] = -1;
@@ -240,7 +281,11 @@ async function loadRosterContexts(): Promise<RosterCtx[]> {
 async function reseedWindow(ctxs: RosterCtx[]): Promise<{ events: number; games: number; stats: number; attendance: number; offDays: number }> {
   let evCount = 0, gameCount = 0, statCount = 0, attCount = 0, offCount = 0;
 
-  for (const ctx of ctxs) {
+  for (let ci = 0; ci < ctxs.length; ci++) {
+    const ctx = ctxs[ci];
+    const ctxT0 = Date.now();
+    _log(`[prod-bootstrap] reseed START roster [${ci + 1}/${ctxs.length}] ${ctx.rosterId} (players=${ctx.playerIds.length}, staff=${ctx.staffIds.length}, modes=${ctx.modes.length})`);
+    let ctxEv = 0, ctxGames = 0;
     for (const date of dateRange(WINDOW_START, WINDOW_END)) {
       const dow = dayOfWeekUTC(date);
       if (dow === 4 || dow === 5) {
@@ -287,6 +332,7 @@ async function reseedWindow(ctxs: RosterCtx[]): Promise<{ events: number; games:
         `);
         const eventId = ins.rows?.[0]?.id as string;
         evCount++;
+        ctxEv++;
 
         if (ev.kind !== "meeting" && ctx.modes.length > 0) {
           for (let g = 1; g <= 5; g++) {
@@ -309,6 +355,7 @@ async function reseedWindow(ctxs: RosterCtx[]): Promise<{ events: number; games:
             `);
             const matchId = gins.rows?.[0]?.id as string;
             gameCount++;
+            ctxGames++;
 
             const statRows: string[] = [];
             for (const playerId of ctx.playerIds) {
@@ -346,6 +393,7 @@ async function reseedWindow(ctxs: RosterCtx[]): Promise<{ events: number; games:
         }
       }
     }
+    _log(`[prod-bootstrap] reseed END   roster [${ci + 1}/${ctxs.length}] ${ctx.rosterId}: events=${ctxEv} games=${ctxGames} in ${Date.now() - ctxT0}ms`);
   }
   return { events: evCount, games: gameCount, stats: statCount, attendance: attCount, offDays: offCount };
 }
