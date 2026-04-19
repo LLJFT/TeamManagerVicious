@@ -1,24 +1,32 @@
 import { db } from "./db";
-import { eq, and, sql, inArray, isNull } from "drizzle-orm";
+import { eq, and, sql, isNull } from "drizzle-orm";
 import {
-  events, eventCategories, players, staff as staffTable,
-  supportedGames, rosters, users, roles, userGameAssignments,
-  attendance, games, playerGameStats, playerAvailability, staffAvailability,
-  offDays, chatChannels, chatMessages, availabilitySlots, rosterRoles,
-  eventSubTypes, gameModes, maps, statFields, seasons,
+  events, supportedGames, rosters, users, roles, userGameAssignments,
   GAME_ABBREVIATIONS,
 } from "@shared/schema";
 import { getTeamId } from "./storage";
 
+/**
+ * Republish-safe data hygiene.
+ *
+ * GUARANTEES:
+ *   - NEVER DROPs, TRUNCATEs, or DELETEs any rows.
+ *   - Only normalizes a small set of legacy/inconsistent values via UPDATE.
+ *   - Only INSERTs rows that do not already exist.
+ *   - Safe to run on every boot.
+ */
 export async function fixupTestData() {
   const teamId = getTeamId();
-  console.log("[fixup] Starting test data fixup...");
+  console.log("[fixup] Starting non-destructive data fixup...");
 
+  // 1. Rename legacy "Meeting" event type to canonical "Meetings".
+  //    UPDATE only — no rows removed.
   await db.update(events)
     .set({ eventType: "Meetings" })
     .where(and(eq(events.teamId, teamId), eq(events.eventType, "Meeting")));
-  console.log("[fixup] Renamed 'Meeting' -> 'Meetings' event type");
 
+  // 2. Normalize result/status casing so filters work consistently.
+  //    UPDATE only — no rows removed, no values lost.
   await db.execute(sql`UPDATE events SET result = lower(result) WHERE team_id = ${teamId} AND result IS NOT NULL AND result != lower(result)`);
   await db.execute(sql`UPDATE games SET result = lower(result) WHERE team_id = ${teamId} AND result IS NOT NULL AND result != lower(result)`);
   await db.execute(sql`UPDATE attendance SET status = CASE
@@ -27,88 +35,24 @@ export async function fixupTestData() {
     WHEN lower(status) = 'absent' THEN 'absent'
     ELSE lower(status)
   END WHERE team_id = ${teamId} AND (status != lower(status) OR lower(status) = 'present')`);
-  console.log("[fixup] Normalized result/status values to lowercase");
+  console.log("[fixup] Normalized event types and result/status casing");
 
-  await db.update(eventCategories)
-    .set({ color: null })
-    .where(eq(eventCategories.teamId, teamId));
-  console.log("[fixup] Nulled out all event category colors (sub-type colors only)");
-
-  await cleanupDuplicateRosters(teamId);
-
+  // 3. Ensure the platform-level Staff / Management / Member roles exist
+  //    and back-fill orgRole + roleId for seed-account users only.
+  //    INSERT-if-missing only; UPDATE only when current values are wrong.
   await fixUserRoles(teamId);
 
+  // 4. Create user_game_assignments for seed users that don't have one yet.
+  //    INSERT-if-missing only.
   await createGameAssignments(teamId);
 
-  console.log("[fixup] Fixup complete!");
-}
-
-async function cleanupDuplicateRosters(teamId: string) {
-  const allGames = await db.select().from(supportedGames);
-  let totalDeleted = 0;
-
-  for (const game of allGames) {
-    const gameRosters = await db.select().from(rosters)
-      .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, game.id)))
-      .orderBy(rosters.sortOrder, rosters.id);
-
-    if (gameRosters.length <= 4) continue;
-
-    const keep = gameRosters.slice(0, 4);
-    const keepIds = new Set(keep.map(r => r.id));
-    const duplicates = gameRosters.filter(r => !keepIds.has(r.id));
-    const dupIds = duplicates.map(r => r.id);
-
-    for (const dupId of dupIds) {
-      await db.execute(sql`DELETE FROM player_game_stats WHERE team_id = ${teamId} AND match_id IN (SELECT id FROM games WHERE roster_id = ${dupId})`);
-      await db.delete(playerGameStats).where(and(eq(playerGameStats.teamId, teamId), sql`player_id IN (SELECT id FROM players WHERE roster_id = ${dupId})`));
-      await db.delete(games).where(and(eq(games.teamId, teamId), eq(games.rosterId, dupId)));
-      await db.delete(attendance).where(and(eq(attendance.teamId, teamId), eq(attendance.rosterId, dupId)));
-      await db.delete(events).where(and(eq(events.teamId, teamId), eq(events.rosterId, dupId)));
-      await db.delete(playerAvailability).where(and(eq(playerAvailability.teamId, teamId), eq(playerAvailability.rosterId, dupId)));
-      await db.delete(staffAvailability).where(and(eq(staffAvailability.teamId, teamId), eq(staffAvailability.rosterId, dupId)));
-      await db.delete(offDays).where(and(eq(offDays.teamId, teamId), eq(offDays.rosterId, dupId)));
-      await db.delete(chatMessages).where(sql`channel_id IN (SELECT id FROM chat_channels WHERE roster_id = ${dupId})`);
-      await db.delete(chatChannels).where(and(eq(chatChannels.teamId, teamId), eq(chatChannels.rosterId, dupId)));
-      await db.delete(availabilitySlots).where(and(eq(availabilitySlots.teamId, teamId), eq(availabilitySlots.rosterId, dupId)));
-      await db.delete(rosterRoles).where(and(eq(rosterRoles.teamId, teamId), eq(rosterRoles.rosterId, dupId)));
-      await db.delete(maps).where(and(eq(maps.teamId, teamId), eq(maps.rosterId, dupId)));
-      await db.delete(statFields).where(and(eq(statFields.teamId, teamId), eq(statFields.rosterId, dupId)));
-      await db.delete(gameModes).where(and(eq(gameModes.teamId, teamId), eq(gameModes.rosterId, dupId)));
-      await db.delete(seasons).where(and(eq(seasons.teamId, teamId), eq(seasons.rosterId, dupId)));
-      await db.delete(eventCategories).where(and(eq(eventCategories.teamId, teamId), eq(eventCategories.rosterId, dupId)));
-      await db.delete(eventSubTypes).where(and(eq(eventSubTypes.teamId, teamId), sql`category_id IN (SELECT id FROM event_categories WHERE roster_id = ${dupId})`));
-
-      await db.update(users).set({ playerId: null }).where(and(eq(users.teamId, teamId), sql`player_id IN (SELECT id FROM players WHERE roster_id = ${dupId})`));
-      await db.delete(players).where(and(eq(players.teamId, teamId), eq(players.rosterId, dupId)));
-      await db.delete(staffTable).where(and(eq(staffTable.teamId, teamId), eq(staffTable.rosterId, dupId)));
-
-      await db.delete(userGameAssignments).where(and(eq(userGameAssignments.teamId, teamId), eq(userGameAssignments.rosterId, dupId)));
-
-      await db.delete(rosters).where(eq(rosters.id, dupId));
-      totalDeleted++;
-    }
-
-    for (let i = 0; i < keep.length; i++) {
-      await db.update(rosters).set({
-        name: `Team ${i + 1}`,
-        slug: `team-${i + 1}`,
-        sortOrder: i,
-      }).where(eq(rosters.id, keep[i].id));
-    }
-  }
-
-  if (totalDeleted > 0) {
-    console.log(`[fixup] Deleted ${totalDeleted} duplicate rosters`);
-  } else {
-    console.log("[fixup] No duplicate rosters found");
-  }
+  console.log("[fixup] Fixup complete (no destructive operations performed).");
 }
 
 async function fixUserRoles(teamId: string) {
   const staffRoleId = await ensureRole(teamId, "Staff");
-  const managementRoleId = await ensureRole(teamId, "Management");
   const memberRoleId = await ensureRole(teamId, "Member");
+  await ensureRole(teamId, "Management");
 
   const allUsers = await db.select().from(users).where(eq(users.teamId, teamId));
   let updated = 0;
@@ -127,10 +71,8 @@ async function fixUserRoles(teamId: string) {
       newOrgRole = "member";
       newRoleId = memberRoleId;
     } else if (un.endsWith("_coach") || un.endsWith("_headcoach") ||
-               un.endsWith("_assistant") || un.endsWith("_analyst")) {
-      newOrgRole = "staff";
-      newRoleId = staffRoleId;
-    } else if (un.endsWith("_manager")) {
+               un.endsWith("_assistant") || un.endsWith("_analyst") ||
+               un.endsWith("_manager")) {
       newOrgRole = "staff";
       newRoleId = staffRoleId;
     }
@@ -141,7 +83,7 @@ async function fixUserRoles(teamId: string) {
     }
   }
 
-  console.log(`[fixup] Fixed orgRole for ${updated} users`);
+  console.log(`[fixup] Verified orgRole/roleId for ${updated} seed user(s)`);
 }
 
 async function ensureRole(teamId: string, name: string): Promise<string> {
@@ -161,7 +103,7 @@ async function ensureRole(teamId: string, name: string): Promise<string> {
     permissions: basePerms,
     rank: name === "Management" ? 4 : 3,
   }).returning();
-  console.log(`[fixup] Created "${name}" platform role`);
+  console.log(`[fixup] Created missing platform role "${name}"`);
   return created.id;
 }
 
@@ -189,7 +131,6 @@ async function createGameAssignments(teamId: string) {
     rostersByGameSort[roster.gameId][roster.sortOrder ?? 0] = roster.id;
   }
 
-  let created = 0;
   const batchRows: any[] = [];
 
   for (const user of allUsersArr) {
@@ -201,8 +142,7 @@ async function createGameAssignments(teamId: string) {
     if (parts.length < 3) continue;
 
     const abbrPart = parts[0];
-    const teamNumStr = parts[1];
-    const teamNum = parseInt(teamNumStr, 10);
+    const teamNum = parseInt(parts[1], 10);
     if (isNaN(teamNum) || teamNum < 1 || teamNum > 4) continue;
 
     const gameSlug = abbrToSlug[abbrPart];
@@ -211,8 +151,7 @@ async function createGameAssignments(teamId: string) {
     const gameId = gamesBySlug[gameSlug];
     if (!gameId) continue;
 
-    const sortOrder = teamNum - 1;
-    const rosterId = rostersByGameSort[gameId]?.[sortOrder];
+    const rosterId = rostersByGameSort[gameId]?.[teamNum - 1];
     if (!rosterId) continue;
 
     const key = `${user.id}|${gameId}`;
@@ -229,15 +168,13 @@ async function createGameAssignments(teamId: string) {
       approvalOrgStatus: "approved",
     });
     assignmentSet.add(key);
-    created++;
   }
 
   if (batchRows.length > 0) {
     for (let i = 0; i < batchRows.length; i += 100) {
-      const batch = batchRows.slice(i, i + 100);
-      await db.insert(userGameAssignments).values(batch);
+      await db.insert(userGameAssignments).values(batchRows.slice(i, i + 100));
     }
   }
 
-  console.log(`[fixup] Created ${created} approved game assignments for seeded users`);
+  console.log(`[fixup] Inserted ${batchRows.length} new game assignment(s) (existing rows untouched)`);
 }

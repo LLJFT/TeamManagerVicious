@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, and, sql, inArray } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import {
   players, staff as staffTable, events, games, playerGameStats, attendance,
   offDays, seasons, gameModes, maps, statFields as statFieldsTable,
@@ -103,16 +103,9 @@ export async function seedComprehensiveTestData() {
 
     let rosterPlayers = existingPlayers;
 
-    if (existingPlayers.length !== 8 && (needsPlayerRestructure || needsPlayerSeed)) {
-      if (existingPlayers.length > 0) {
-        const playerIds = existingPlayers.map(p => p.id);
-        await db.delete(playerGameStats).where(and(eq(playerGameStats.teamId, teamId), inArray(playerGameStats.playerId, playerIds)));
-        await db.delete(attendance).where(and(eq(attendance.teamId, teamId), inArray(attendance.playerId, playerIds)));
-        await db.delete(playerAvailability).where(and(eq(playerAvailability.teamId, teamId), inArray(playerAvailability.playerId, playerIds)));
-        await db.update(users).set({ playerId: null }).where(and(eq(users.teamId, teamId), inArray(users.playerId, playerIds)));
-        await db.delete(players).where(and(eq(players.teamId, teamId), eq(players.rosterId, roster.id)));
-      }
-
+    // REPUBLISH-SAFE: only seed players if NONE exist for this roster.
+    // Never delete or restructure existing players.
+    if (existingPlayers.length === 0 && (needsPlayerRestructure || needsPlayerSeed)) {
       const playerRows: any[] = [];
       for (const role of PLAYER_ROLES) {
         for (let i = 1; i <= 2; i++) {
@@ -156,14 +149,9 @@ export async function seedComprehensiveTestData() {
 
     let modeEntries: { id: string; name: string; maps: { id: string; name: string }[]; statFields: { id: string; name: string }[] }[] = [];
 
-    if (existModes.length < 3) {
-      if (existModes.length > 0) {
-        const modeIds = existModes.map(m => m.id);
-        await db.delete(maps).where(and(eq(maps.teamId, teamId), inArray(maps.gameModeId, modeIds)));
-        await db.delete(statFieldsTable).where(and(eq(statFieldsTable.teamId, teamId), inArray(statFieldsTable.gameModeId, modeIds)));
-        await db.delete(gameModes).where(and(eq(gameModes.teamId, teamId), eq(gameModes.gameId, game.id), eq(gameModes.rosterId, roster.id)));
-      }
-
+    // REPUBLISH-SAFE: only seed game modes if NONE exist for this roster.
+    // Never delete or rebuild existing modes/maps/stat fields.
+    if (existModes.length === 0) {
       for (const [modeName, modeStatNames] of Object.entries(MODE_STAT_FIELDS)) {
         const [gm] = await db.insert(gameModes).values({
           teamId, gameId: game.id, rosterId: roster.id, name: modeName, sortOrder: "0",
@@ -236,23 +224,12 @@ export async function seedComprehensiveTestData() {
       continue;
     }
 
+    // REPUBLISH-SAFE: only seed events if NONE exist for this roster.
+    // Never delete or rebuild existing events / games / attendance / player stats.
     if (rEvCount > 0) {
-      await db.execute(sql`
-        DELETE FROM player_game_stats WHERE team_id = ${teamId} AND match_id IN (
-          SELECT g.id FROM games g JOIN events e ON g.event_id = e.id WHERE e.roster_id = ${roster.id} AND e.team_id = ${teamId}
-        )
-      `);
-      await db.execute(sql`
-        DELETE FROM games WHERE team_id = ${teamId} AND event_id IN (
-          SELECT id FROM events WHERE roster_id = ${roster.id} AND team_id = ${teamId}
-        )
-      `);
-      await db.execute(sql`
-        DELETE FROM attendance WHERE team_id = ${teamId} AND event_id IN (
-          SELECT id FROM events WHERE roster_id = ${roster.id} AND team_id = ${teamId}
-        )
-      `);
-      await db.delete(events).where(and(eq(events.teamId, teamId), eq(events.rosterId, roster.id)));
+      await seedUsersForRoster(teamId, abbr, teamNum, rosterPlayers, rosterStaff, passwordHash, playerRoleId, staffRoleId, stats);
+      if (ri % 10 === 0) console.log(`[seed] Progress: ${ri + 1}/${allRosters.length} rosters (events kept as-is)...`);
+      continue;
     }
 
     const existOD = await db.select().from(offDays)
