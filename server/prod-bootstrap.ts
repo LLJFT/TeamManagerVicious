@@ -106,12 +106,66 @@ async function markDone(): Promise<void> {
 
 const CLEANUP_CHUNK_SIZE = 500;
 
+const FK_SAFETY_INDEXES: Array<[string, string, string]> = [
+  ["player_game_stats", "stat_field_id", "idx_pgs_stat_field_id"],
+  ["player_game_stats", "player_id",     "idx_pgs_player_id"],
+  ["player_game_stats", "match_id",      "idx_pgs_match_id"],
+  ["attendance",        "player_id",     "idx_att_player_id"],
+  ["attendance",        "staff_id",      "idx_att_staff_id"],
+  ["attendance",        "event_id",      "idx_att_event_id"],
+  ["attendance",        "roster_id",     "idx_att_roster_id"],
+  ["games",             "event_id",      "idx_games_event_id"],
+  ["games",             "game_mode_id",  "idx_games_game_mode_id"],
+  ["games",             "map_id",        "idx_games_map_id"],
+  ["games",             "roster_id",     "idx_games_roster_id"],
+  ["events",            "roster_id",     "idx_events_roster_id"],
+  ["event_sub_types",   "category_id",   "idx_est_category_id"],
+  ["event_sub_types",   "roster_id",     "idx_est_roster_id"],
+  ["maps",              "game_mode_id",  "idx_maps_game_mode_id"],
+  ["maps",              "roster_id",     "idx_maps_roster_id"],
+  ["stat_fields",       "game_mode_id",  "idx_sf_game_mode_id"],
+  ["stat_fields",       "roster_id",     "idx_sf_roster_id"],
+  ["game_modes",        "roster_id",     "idx_gm_roster_id"],
+  ["seasons",           "roster_id",     "idx_seasons_roster_id"],
+  ["chat_messages",     "channel_id",    "idx_chat_msg_channel_id"],
+  ["chat_messages",     "user_id",       "idx_chat_msg_user_id"],
+  ["chat_channel_permissions", "channel_id", "idx_ccp_channel_id"],
+  ["chat_channel_permissions", "role_id",    "idx_ccp_role_id"],
+  ["staff_availability", "staff_id",     "idx_sa_staff_id"],
+  ["staff_availability", "roster_id",    "idx_sa_roster_id"],
+  ["player_availability","player_id",    "idx_pa_player_id"],
+  ["player_availability","roster_id",    "idx_pa_roster_id"],
+  ["user_game_assignments","user_id",    "idx_uga_user_id"],
+  ["user_game_assignments","roster_id",  "idx_uga_roster_id"],
+  ["notifications",     "roster_id",     "idx_notif_roster_id"],
+  ["activity_logs",     "roster_id",     "idx_al_roster_id"],
+  ["players",           "roster_id",     "idx_players_roster_id"],
+  ["staff",             "roster_id",     "idx_staff_roster_id"],
+  ["roster_roles",      "roster_id",     "idx_rr_roster_id"],
+  ["off_days",          "roster_id",     "idx_od_roster_id"],
+];
+
+async function ensureFkSafetyIndexes(): Promise<void> {
+  _log(`[prod-bootstrap] Ensuring ${FK_SAFETY_INDEXES.length} FK safety indexes...`);
+  for (const [table, col, name] of FK_SAFETY_INDEXES) {
+    const t0 = Date.now();
+    try {
+      await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS ${name} ON ${table} (${col})`));
+      _log(`[prod-bootstrap]   index OK ${name} on ${table}(${col}) in ${Date.now() - t0}ms`);
+    } catch (err: any) {
+      _warn(`[prod-bootstrap]   index FAILED ${name} on ${table}(${col}) after ${Date.now() - t0}ms: ${err.message}`);
+    }
+  }
+  _log(`[prod-bootstrap] FK safety indexes ensured.`);
+}
+
 async function chunkedDeleteByPredicate(table: string, predicateSql: string): Promise<number> {
   let total = 0;
   let pass = 0;
   while (true) {
     pass++;
     const t0 = Date.now();
+    _log(`[prod-bootstrap]   chunk ${table} pass#${pass} STARTING (limit=${CLEANUP_CHUNK_SIZE})...`);
     const q = `WITH del AS (
         SELECT ctid FROM ${table} WHERE ${predicateSql} LIMIT ${CLEANUP_CHUNK_SIZE}
       )
@@ -414,6 +468,9 @@ async function releaseLock(): Promise<void> {
 async function runCorePhases(): Promise<{ ok: boolean; summary: any }> {
   const t0 = Date.now();
   _log("[prod-bootstrap] STARTING (lock acquired) — orphan cleanup + Mar 28-May 28 reseed...");
+
+  _log("[prod-bootstrap] Phase 0: ensuring FK safety indexes (prevents seq-scan hangs on DELETE)...");
+  await ensureFkSafetyIndexes();
 
   _log("[prod-bootstrap] Phase A: orphan cleanup...");
   const orphanSummary = await cleanupOrphans();
