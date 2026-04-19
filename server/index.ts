@@ -5,6 +5,7 @@ import { setupAuth, bootstrapDefaultAdmin } from "./auth";
 import { seedComprehensiveTestData } from "./seed-comprehensive";
 import { fixupTestData } from "./seed-fixup";
 import { runHealthCheck } from "./health-check";
+import { runProdBootstrap } from "./prod-bootstrap";
 
 const app = express();
 
@@ -58,6 +59,7 @@ app.use((req, res, next) => {
   ensureRostersExist()
     .then(() => seedComprehensiveTestData())
     .then(() => fixupTestData())
+    .then(() => runProdBootstrap())
     .then(() => runHealthCheck())
     .catch(err => console.error("[seed] Error:", err.message));
 
