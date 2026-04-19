@@ -1,0 +1,51 @@
+Fix these three issues in the Reset Roster tab. One by one.
+
+FIX 1 — Wrong passwords:
+Both "Remove Roster Data" and "Load Example Data" must use 
+the EXACT same password: TheBootcamp&2!@90A94
+Change the Load Example Data password from TheBootcamp&2!@90A90 
+to TheBootcamp&2!@90A94 so both sections use identical passwords.
+Check the backend route where the password is validated and fix it there.
+
+FIX 2 — Foreign key constraint error on Reset:
+When clicking "Confirm Reset", this error appears:
+"update or delete on table players violates foreign key constraint 
+users_player_id_players_id_fk on table users"
+
+The deletion order is wrong. Before deleting players, 
+you must first null out the player_id reference in the users table.
+Fix the deletion order to:
+1. SET users.player_id = NULL where player_id belongs to this roster's players
+2. Then delete player_game_stats
+3. Then delete attendance records
+4. Then delete games/matches
+5. Then delete events
+6. Then delete players
+7. Then delete staff
+8. Then delete user_game_assignments for this roster
+9. Then delete user accounts whose only assignment was this roster
+10. Then delete chat messages and channels
+11. Then delete availability records
+12. Then delete game config, event categories, roster roles
+
+FIX 3 — Load Example Data: events added without event type or sub-type:
+Events are being inserted with null or invalid eventCategoryId and 
+eventSubTypeId, causing them to show a UUID badge instead of 
+the sub-type name, and appear gray with no color.
+
+Fix the Load Example Data event creation to:
+1. First insert the event categories and sub-types for this roster
+2. Query back the inserted category and sub-type IDs
+3. Use those exact IDs when inserting each event
+4. Never insert an event before its categories exist in the database
+
+Also ensure the dynamic date range works correctly:
+- Start date = exactly 1 month before today's server date
+- End date = exactly 1 month after today's server date
+- Calculate using today's actual date at the moment the button is clicked
+
+Do not delete or modify any existing production data.
+Do not run any reseed or bootstrap.
+Only fix the code — no database changes until Publish and testing.
+
+Stop after all three fixes. Report exactly what was changed for each fix.

@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { GAME_ABBREVIATIONS } from "@shared/schema";
 
 export const RESET_PASSWORD = "TheBootcamp&2!@90A94";
-export const LOAD_EXAMPLE_PASSWORD = "TheBootcamp&2!@90A90";
+export const LOAD_EXAMPLE_PASSWORD = "TheBootcamp&2!@90A94";
 
 // ====================================================================
 // TASK 1: Fix broken events in April/May 2026
@@ -85,6 +85,15 @@ export async function resetRosterData(rosterId: string): Promise<{ deletedUsers:
   `);
   const userIds: string[] = (candidateUsersRes.rows ?? []).map((r: any) => r.user_id).filter(Boolean);
 
+  // 0. CRITICAL: null out users.player_id pointing to this roster's players (prevents FK violation)
+  await db.execute(sql`
+    UPDATE users SET player_id = NULL
+    WHERE player_id IN (SELECT id FROM players WHERE roster_id = ${rosterId})
+  `);
+  // 0b. null out staff.user_id references too (staff has user_id FK to users; will be safer)
+  await db.execute(sql`
+    UPDATE staff SET user_id = NULL WHERE roster_id = ${rosterId}
+  `);
   // 1. player_game_stats (via games of this roster)
   await db.execute(sql`
     DELETE FROM player_game_stats
@@ -263,21 +272,45 @@ export async function loadExampleData(rosterId: string): Promise<{
       statFieldsByMode[modeName].push({ id: ins.rows[0].id, name: fn });
     }
   }
-  // Event categories + sub-types
-  const subTypesByCat: Record<string, { id: string; name: string }[]> = {};
+  // Event categories + sub-types — insert FIRST, then re-query for verification
+  const catIdByName: Record<string, string> = {};
   for (const cat of CATEGORIES) {
     const catIns: any = await db.execute(sql`
       INSERT INTO event_categories (team_id, game_id, roster_id, name, color, sort_order)
       VALUES (${teamId}, ${gameId}, ${rosterId}, ${cat.name}, ${cat.color}, ${0}) RETURNING id
     `);
-    const catId = catIns.rows[0].id;
-    subTypesByCat[cat.name] = [];
+    catIdByName[cat.name] = catIns.rows[0].id;
     for (const sn of cat.subs) {
-      const subIns: any = await db.execute(sql`
+      await db.execute(sql`
         INSERT INTO event_sub_types (team_id, game_id, roster_id, category_id, name, color, sort_order)
-        VALUES (${teamId}, ${gameId}, ${rosterId}, ${catId}, ${sn}, ${cat.color}, ${0}) RETURNING id
+        VALUES (${teamId}, ${gameId}, ${rosterId}, ${catIdByName[cat.name]}, ${sn}, ${cat.color}, ${0})
       `);
-      subTypesByCat[cat.name].push({ id: subIns.rows[0].id, name: sn });
+    }
+  }
+  // Re-query everything back from the DB to make sure we use the IDs that actually exist
+  const catRowsRes: any = await db.execute(sql`
+    SELECT id, name FROM event_categories WHERE roster_id = ${rosterId}
+  `);
+  const subRowsRes: any = await db.execute(sql`
+    SELECT id, name, category_id FROM event_sub_types WHERE roster_id = ${rosterId}
+  `);
+  const catIdToName: Record<string, string> = {};
+  const catNameToId: Record<string, string> = {};
+  for (const row of (catRowsRes.rows ?? [])) {
+    catIdToName[row.id] = row.name;
+    catNameToId[row.name] = row.id;
+  }
+  const subTypesByCat: Record<string, { id: string; name: string }[]> = {};
+  for (const row of (subRowsRes.rows ?? [])) {
+    const catName = catIdToName[row.category_id];
+    if (!catName) continue;
+    if (!subTypesByCat[catName]) subTypesByCat[catName] = [];
+    subTypesByCat[catName].push({ id: row.id, name: row.name });
+  }
+  // Verify every category we expect exists with sub-types
+  for (const cat of CATEGORIES) {
+    if (!subTypesByCat[cat.name] || subTypesByCat[cat.name].length === 0) {
+      throw new Error(`Failed to seed sub-types for category "${cat.name}" on roster ${rosterId}`);
     }
   }
 
