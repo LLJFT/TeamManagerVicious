@@ -6,6 +6,24 @@ const SENTINEL_KEY = "prod_bootstrap_v2_done";
 const WINDOW_START = "2026-03-28";
 const WINDOW_END = "2026-05-28";
 
+type LogFn = (line: string) => void;
+let _activeLogger: LogFn | null = null;
+export function setBootstrapLogger(fn: LogFn | null): void {
+  _activeLogger = fn;
+}
+function _log(line: string): void {
+  console.log(line);
+  if (_activeLogger) {
+    try { _activeLogger(line); } catch {}
+  }
+}
+function _warn(line: string): void {
+  console.warn(line);
+  if (_activeLogger) {
+    try { _activeLogger("WARN " + line); } catch {}
+  }
+}
+
 const TEAM_SCOPED_TABLES_BOTTOM_UP = [
   "player_game_stats",
   "attendance",
@@ -96,10 +114,10 @@ async function cleanupOrphans(): Promise<Record<string, number>> {
       ));
       const dt = Date.now() - t0;
       summary[table] = r.rowCount ?? 0;
-      console.log(`[prod-bootstrap] cleanup ${table}: deleted ${summary[table]} in ${dt}ms`);
+      _log(`[prod-bootstrap] cleanup ${table}: deleted ${summary[table]} in ${dt}ms`);
     } catch (err: any) {
       const dt = Date.now() - t0;
-      console.warn(`[prod-bootstrap] cleanup ${table} FAILED after ${dt}ms:`, err.message);
+      _warn(`[prod-bootstrap] cleanup ${table} FAILED after ${dt}ms: ${err.message}`);
       summary[table] = -1;
     }
   }
@@ -124,9 +142,9 @@ async function cleanupWindow(): Promise<Record<string, number>> {
     try {
       const r: any = await db.execute(sql.raw(q));
       summary[label] = r.rowCount ?? 0;
-      console.log(`[prod-bootstrap] window ${label}: deleted ${summary[label]} in ${Date.now() - t0}ms`);
+      _log(`[prod-bootstrap] window ${label}: deleted ${summary[label]} in ${Date.now() - t0}ms`);
     } catch (err: any) {
-      console.warn(`[prod-bootstrap] window ${label} FAILED after ${Date.now() - t0}ms:`, err.message);
+      _warn(`[prod-bootstrap] window ${label} FAILED after ${Date.now() - t0}ms: ${err.message}`);
       summary[label] = -1;
     }
   }
@@ -345,6 +363,32 @@ async function releaseLock(): Promise<void> {
   } catch {}
 }
 
+async function runCorePhases(): Promise<{ ok: boolean; summary: any }> {
+  const t0 = Date.now();
+  _log("[prod-bootstrap] STARTING (lock acquired) — orphan cleanup + Mar 28-May 28 reseed...");
+
+  _log("[prod-bootstrap] Phase A: orphan cleanup...");
+  const orphanSummary = await cleanupOrphans();
+  _log(`[prod-bootstrap] Phase A complete. Per-table totals: ${JSON.stringify(orphanSummary)}`);
+
+  _log("[prod-bootstrap] Phase B: window cleanup (Mar 28 - May 28)...");
+  const windowSummary = await cleanupWindow();
+  _log(`[prod-bootstrap] Phase B complete: ${JSON.stringify(windowSummary)}`);
+
+  _log("[prod-bootstrap] Phase C: loading roster contexts...");
+  const ctxs = await loadRosterContexts();
+  _log(`[prod-bootstrap] Phase C complete. Loaded ${ctxs.length} roster contexts.`);
+
+  _log("[prod-bootstrap] Phase D: reseeding events with Thu/Fri off-days...");
+  const reseedSummary = await reseedWindow(ctxs);
+  _log(`[prod-bootstrap] Phase D complete: ${JSON.stringify(reseedSummary)}`);
+
+  await markDone();
+  const dt = ((Date.now() - t0) / 1000).toFixed(1);
+  _log(`[prod-bootstrap] DONE in ${dt}s. Sentinel marked.`);
+  return { ok: true, summary: { orphanSummary, windowSummary, reseedSummary, durationSec: dt } };
+}
+
 export async function runProdBootstrap(): Promise<void> {
   if (process.env.NODE_ENV !== "production") {
     console.log("[prod-bootstrap] Skipped (NODE_ENV is not production).");
@@ -366,30 +410,31 @@ export async function runProdBootstrap(): Promise<void> {
   }
 
   try {
-    console.log("[prod-bootstrap] STARTING (lock acquired) — orphan cleanup + Mar 28-May 28 reseed...");
-    const t0 = Date.now();
-
-    console.log("[prod-bootstrap] Phase A: orphan cleanup...");
-    const orphanSummary = await cleanupOrphans();
-    console.log("[prod-bootstrap] Phase A complete. Per-table totals:", orphanSummary);
-
-    console.log("[prod-bootstrap] Phase B: window cleanup (Mar 28 - May 28)...");
-    const windowSummary = await cleanupWindow();
-    console.log("[prod-bootstrap] Phase B complete:", windowSummary);
-
-    console.log("[prod-bootstrap] Phase C: loading roster contexts...");
-    const ctxs = await loadRosterContexts();
-    console.log(`[prod-bootstrap] Phase C complete. Loaded ${ctxs.length} roster contexts.`);
-
-    console.log("[prod-bootstrap] Phase D: reseeding events with Thu/Fri off-days...");
-    const reseedSummary = await reseedWindow(ctxs);
-    console.log("[prod-bootstrap] Phase D complete:", reseedSummary);
-
-    await markDone();
-    const dt = ((Date.now() - t0) / 1000).toFixed(1);
-    console.log(`[prod-bootstrap] DONE in ${dt}s. Sentinel marked.`);
+    await runCorePhases();
   } catch (err: any) {
     console.error("[prod-bootstrap] FATAL:", err?.message || err, err?.stack);
+  } finally {
+    await releaseLock();
+  }
+}
+
+export async function runProdBootstrapNow(): Promise<{ status: string; summary?: any; error?: string }> {
+  if (process.env.TEAM_ID !== CANONICAL_TEAM_ID) {
+    return { status: "skipped", error: `TEAM_ID=${process.env.TEAM_ID} != canonical` };
+  }
+  if (await isAlreadyDone()) {
+    return { status: "already_done" };
+  }
+  const gotLock = await tryAcquireLock();
+  if (!gotLock) {
+    return { status: "locked", error: "Another instance is already running the bootstrap" };
+  }
+  try {
+    const r = await runCorePhases();
+    return { status: "completed", summary: r.summary };
+  } catch (err: any) {
+    _warn(`[prod-bootstrap] FATAL: ${err?.message || err}`);
+    return { status: "error", error: err?.message || String(err) };
   } finally {
     await releaseLock();
   }

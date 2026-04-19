@@ -916,6 +916,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==================== PROD BOOTSTRAP (admin streaming) ====================
+  app.post("/api/admin/prod-bootstrap/run", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+    const { runProdBootstrapNow, setBootstrapLogger } = await import("./prod-bootstrap");
+    res.status(200);
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders?.();
+    const writer = (line: string) => {
+      try { res.write(`[${new Date().toISOString()}] ${line}\n`); } catch {}
+    };
+    writer(`prod-bootstrap admin run requested by user=${req.session.userId}`);
+    let keepalive: NodeJS.Timeout | null = setInterval(() => {
+      try { res.write(`[${new Date().toISOString()}] ...keepalive\n`); } catch {}
+    }, 25000);
+    setBootstrapLogger(writer);
+    try {
+      const result = await runProdBootstrapNow();
+      writer(`RESULT: ${JSON.stringify(result)}`);
+    } catch (err: any) {
+      writer(`ERROR: ${err?.message || err}`);
+    } finally {
+      setBootstrapLogger(null);
+      if (keepalive) { clearInterval(keepalive); keepalive = null; }
+      res.end();
+    }
+  });
+
+  app.get("/api/admin/prod-bootstrap/status", requireAuth, requireOrgRole("org_admin"), async (_req, res) => {
+    try {
+      const r: any = await db.execute(sql`
+        SELECT key, value FROM settings
+        WHERE team_id = '9ae96acf-6ae9-40b4-945b-86651991bfc3'
+          AND key = 'prod_bootstrap_v2_done'
+        LIMIT 1
+      `);
+      res.json({
+        sentinel: (r.rows?.length ?? 0) > 0,
+        value: r.rows?.[0]?.value || null,
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // ==================== ROLES MANAGEMENT ====================
   app.get("/api/roles", requireAuth, async (req, res) => {
     try {
