@@ -343,6 +343,7 @@ export const events = pgTable("events", {
   eventSubType: text("event_sub_type"),
   date: text("date").notNull(),
   time: text("time"),
+  timezone: text("timezone"),
   description: text("description"),
   result: text("result"),
   opponentName: text("opponent_name"),

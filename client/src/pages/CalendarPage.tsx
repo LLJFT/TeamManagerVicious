@@ -22,6 +22,7 @@ import {
   isSameMonth,
 } from "date-fns";
 import type { SupportedGame, Roster, EventCategory, EventSubType } from "@shared/schema";
+import { shiftDateTime } from "@/lib/eventTimezones";
 
 const TIMEZONE_OPTIONS = [
   { value: "UTC", label: "UTC (Greenwich)", offset: 0 },
@@ -60,15 +61,12 @@ const TIMEZONE_OPTIONS = [
   { value: "BRT", label: "BRT (UTC-3)", offset: -3 },
 ];
 
-function shiftTime(time: string | null | undefined, offsetHours: number): string {
-  if (!time) return "";
-  const m = time.match(/^(\d{1,2}):(\d{2})/);
-  if (!m) return time;
-  const total = parseInt(m[1], 10) * 60 + parseInt(m[2], 10) + Math.round(offsetHours * 60);
-  const wrapped = ((total % 1440) + 1440) % 1440;
-  const h = Math.floor(wrapped / 60);
-  const min = wrapped % 60;
-  return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+function getEventDisplay(event: any, displayOffset: number): { date: string; time: string } {
+  if (!event?.date) return { date: "", time: "" };
+  // Events stored before timezone support: assume UTC for time-bearing events,
+  // and treat date-only events as date-only (no shift).
+  if (!event.time) return { date: event.date, time: "" };
+  return shiftDateTime(event.date, event.time, displayOffset);
 }
 
 export default function CalendarPage() {
@@ -130,14 +128,14 @@ export default function CalendarPage() {
   const eventsByDate = useMemo(() => {
     const map = new Map<string, any[]>();
     filteredEvents.forEach(event => {
-      if (event.date) {
-        const key = format(new Date(event.date), "yyyy-MM-dd");
-        if (!map.has(key)) map.set(key, []);
-        map.get(key)!.push(event);
-      }
+      if (!event.date) return;
+      const { date: displayDate } = getEventDisplay(event, tzOffset);
+      const key = displayDate || event.date;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(event);
     });
     return map;
-  }, [filteredEvents]);
+  }, [filteredEvents, tzOffset]);
 
   const calendarDays = useMemo(() => {
     const monthStart = startOfMonth(currentMonth);
@@ -414,7 +412,7 @@ export default function CalendarPage() {
                     {event.time && (
                       <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1">
                         <Clock className="h-3 w-3" />
-                        {shiftTime(event.time, tzOffset)}
+                        {getEventDisplay(event, tzOffset).time}
                       </p>
                     )}
                   </CardContent>

@@ -29,10 +29,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { TIMEZONE_OPTIONS, getTzOffset, localToUtc, utcToLocal } from "@/lib/eventTimezones";
 import { eventTypes, insertEventSchema, type Event, type Season, type EventCategory, type EventSubType } from "@shared/schema";
 
 const formSchema = insertEventSchema.extend({
   time: z.string().optional(),
+  timezone: z.string().optional(),
   description: z.string().optional(),
   seasonId: z.string().optional(),
   eventSubType: z.string().optional(),
@@ -73,14 +75,21 @@ export function EventDialog({
     ? [...new Set(eventCategories.map(c => c.name))]
     : [...eventTypes];
 
+  const defaultTz = (typeof window !== "undefined" && localStorage.getItem("home_calendar_tz")) || "UTC";
+  const editTz = eventToEdit?.timezone || defaultTz;
+  const editLocal = eventToEdit?.date
+    ? utcToLocal(eventToEdit.date, eventToEdit.time || "", getTzOffset(editTz))
+    : null;
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       title: eventToEdit?.title || "",
       eventType: eventToEdit?.eventType || (allEventTypeOptions[0] || "Tournament"),
       eventSubType: eventToEdit?.eventSubType || "",
-      date: eventToEdit?.date || (selectedDate ? format(selectedDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd")),
-      time: eventToEdit?.time || "",
+      date: editLocal?.date || (selectedDate ? format(selectedDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd")),
+      time: editLocal?.time || "",
+      timezone: editTz,
       description: eventToEdit?.description || "",
       seasonId: eventToEdit?.seasonId || "",
     },
@@ -97,24 +106,39 @@ export function EventDialog({
 
   useEffect(() => {
     if (eventToEdit) {
+      const tz = eventToEdit.timezone || defaultTz;
+      const local = utcToLocal(eventToEdit.date, eventToEdit.time || "", getTzOffset(tz));
       form.reset({
         title: eventToEdit.title,
         eventType: eventToEdit.eventType,
         eventSubType: eventToEdit.eventSubType || "",
-        date: eventToEdit.date,
-        time: eventToEdit.time || "",
+        date: local.date || eventToEdit.date,
+        time: local.time || "",
+        timezone: tz,
         description: eventToEdit.description || "",
         seasonId: eventToEdit.seasonId || "",
       });
     } else if (selectedDate) {
       form.setValue("date", format(selectedDate, "yyyy-MM-dd"));
     }
-  }, [eventToEdit, selectedDate, form]);
+  }, [eventToEdit, selectedDate, form, defaultTz]);
 
   const saveEventMutation = useMutation({
     mutationFn: async (data: FormValues) => {
+      const tz = data.timezone || "UTC";
+      const offset = getTzOffset(tz);
+      let utcDate = data.date;
+      let utcTime: string | null = data.time || null;
+      if (data.date && data.time) {
+        const u = localToUtc(data.date, data.time, offset);
+        utcDate = u.date;
+        utcTime = u.time;
+      }
       const payload = {
         ...data,
+        date: utcDate,
+        time: utcTime,
+        timezone: tz,
         seasonId: data.seasonId === "" || data.seasonId === "none" ? null : data.seasonId,
         eventSubType: data.eventSubType === "" || data.eventSubType === "none" ? null : data.eventSubType,
       };
@@ -269,6 +293,29 @@ export function EventDialog({
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="timezone"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Timezone</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value || "UTC"}>
+                    <FormControl>
+                      <SelectTrigger data-testid="select-event-timezone">
+                        <SelectValue placeholder="Select timezone" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {TIMEZONE_OPTIONS.map(tz => (
+                        <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}
