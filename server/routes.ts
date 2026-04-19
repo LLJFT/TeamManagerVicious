@@ -230,10 +230,10 @@ async function seedRosterDefaults(teamId: string, gameId: string, rosterId: stri
       .limit(1);
     if (existingRoles.length === 0) {
       const defaultRoles = [
-        { name: "Tank", type: "role", sortOrder: 0 },
-        { name: "DPS", type: "role", sortOrder: 1 },
-        { name: "Support", type: "role", sortOrder: 2 },
-        { name: "Flex", type: "role", sortOrder: 3 },
+        { name: "Tank", type: "player", sortOrder: 0 },
+        { name: "DPS", type: "player", sortOrder: 1 },
+        { name: "Support", type: "player", sortOrder: 2 },
+        { name: "Flex", type: "player", sortOrder: 3 },
       ];
       for (const r of defaultRoles) {
         await db.insert(rosterRoles).values({ teamId, gameId, rosterId, name: r.name, type: r.type, sortOrder: r.sortOrder });
