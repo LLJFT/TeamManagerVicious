@@ -1,0 +1,52 @@
+Do these two tasks in order. Do not skip either one.
+
+TASK 1 — Add events to the LIVE production database:
+Target: https://team-manager-vicious.replit.app/ — NOT the Replit preview.
+Connect to the production database and add events directly there.
+
+For every roster across all games, add as many events as possible 
+between March 28, 2026 and May 28, 2026 with this structure:
+
+- Every Thursday and Friday must be marked as Off Day using the 
+  "Mark as Off Day" feature in the calendar — the same way a user 
+  would click "Mark as Off Day" on those dates. No scrims or 
+  tournaments on Thursdays and Fridays.
+- Remaining days: realistic mix of Scrims (Practice + Warm-up), 
+  Tournaments (Saudi League, Stage 1, Elite 3000$ Cup), 
+  and Meetings (Vod Review, Roster Meeting, Organization Meeting)
+- Warm-up scrims scheduled ~1 hour before a tournament on the same day
+- Each Scrim and Tournament event must have: 5 games, game mode + map 
+  selected, player stats filled for all players, attendance marked 
+  (mix Present/Late/Absent)
+- Event times between 15:00 and 02:00
+
+Do NOT delete any existing data — users, players, and previous events 
+must all remain untouched. Only add new events on top.
+
+TASK 2 — Fix data persistence on the LIVE site:
+Current problem: every time I republish the app on Replit, ALL data on 
+the live production site (https://team-manager-vicious.replit.app/) is 
+completely wiped — users, players, events, everything. The database is 
+reset to empty and the seed runs from scratch. This is happening on the 
+live site, NOT the preview.
+
+This must never happen — clients will lose all their work on every update.
+
+Fix 1: In the seed script, add a guard at the very top:
+Check if any real user data already exists in the production database.
+If yes, skip the entire seed completely and do nothing.
+The seed must ONLY run when the database is completely empty (first deploy).
+
+Fix 2: In the database migration and setup files, ensure no DROP TABLE 
+or TRUNCATE statements ever run on startup.
+Use CREATE TABLE IF NOT EXISTS only — never drop existing tables.
+
+After fixing, test it by:
+1. Noting the current user and event count on the live site
+2. Restarting the server to simulate a republish
+3. Confirming all users, players, and events still exist after restart
+4. Confirming the live site data was NOT touched
+
+Stop after both tasks are complete.
+Report: total new events added per roster, and exactly what was 
+causing the live site data wipe and how it was fixed.
