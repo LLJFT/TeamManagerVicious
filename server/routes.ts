@@ -2867,13 +2867,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const allRolesArr = await db.select().from(roles).where(eq(roles.teamId, teamId));
       const roleNameForOrgRole = (or: string | null | undefined): string => {
-        if (or === "staff" || or === "coach_analyst") return "Staff";
-        if (or === "management" || or === "org_admin") return "Management";
+        if (or === "staff" || or === "coach_analyst" || or === "management") return "Staff";
+        if (or === "org_admin") return "Management";
         return "Member";
       };
       const assignedRoleForOrgRole = (or: string | null | undefined): string => {
-        if (or === "staff" || or === "coach_analyst") return "staff";
-        if (or === "management" || or === "org_admin") return "management";
+        if (or === "staff" || or === "coach_analyst" || or === "management") return "staff";
+        if (or === "org_admin") return "management";
         return "player";
       };
 
