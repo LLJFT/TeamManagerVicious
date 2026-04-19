@@ -22,6 +22,13 @@ app.use(express.json({
 app.use(express.urlencoded({ extended: false }));
 app.use("/uploads", express.static("uploads"));
 
+app.get("/health", (_req, res) => {
+  res.status(200).type("text/plain").send("OK");
+});
+app.get("/healthz", (_req, res) => {
+  res.status(200).type("text/plain").send("OK");
+});
+
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -54,14 +61,7 @@ app.use((req, res, next) => {
 
 (async () => {
   setupAuth(app);
-  await bootstrapDefaultAdmin();
   const server = await registerRoutes(app);
-  ensureRostersExist()
-    .then(() => seedComprehensiveTestData())
-    .then(() => fixupTestData())
-    .then(() => runProdBootstrap())
-    .then(() => runHealthCheck())
-    .catch(err => console.error("[seed] Error:", err.message));
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -91,5 +91,19 @@ app.use((req, res, next) => {
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
+
+    // Defer ALL seed/bootstrap work to a background task so the server can
+    // respond to deployment health checks immediately. We delay slightly past
+    // the listen callback to ensure the event loop has fully drained the
+    // initial accept queue before heavy DB work starts.
+    setTimeout(() => {
+      bootstrapDefaultAdmin()
+        .then(() => ensureRostersExist())
+        .then(() => seedComprehensiveTestData())
+        .then(() => fixupTestData())
+        .then(() => runProdBootstrap())
+        .then(() => runHealthCheck())
+        .catch(err => console.error("[boot-bg] Error:", err?.message || err));
+    }, 250);
   });
 })();
