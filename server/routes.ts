@@ -2864,8 +2864,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const targetUsers = await db.select().from(users)
         .where(and(eq(users.teamId, teamId), eq(users.orgRole, orgRole)));
       console.log(`[bulk-assign] role="${orgRole}" → ${targetUsers.length} target user(s); rosters:`, assignments.map(a => `${a.gameId}/${a.rosterId}`));
+
+      const allRolesArr = await db.select().from(roles).where(eq(roles.teamId, teamId));
+      const roleNameForOrgRole = (or: string | null | undefined): string => {
+        if (or === "staff" || or === "coach_analyst") return "Staff";
+        if (or === "management" || or === "org_admin") return "Management";
+        return "Member";
+      };
+      const assignedRoleForOrgRole = (or: string | null | undefined): string => {
+        if (or === "staff" || or === "coach_analyst") return "staff";
+        if (or === "management" || or === "org_admin") return "management";
+        return "player";
+      };
+
       let created = 0;
       for (const user of targetUsers) {
+        const targetRoleName = roleNameForOrgRole(user.orgRole);
+        const targetRole = allRolesArr.find(r => r.name === targetRoleName) || allRolesArr.find(r => r.name === "Member");
+        const desiredAssignedRole = assignedRoleForOrgRole(user.orgRole);
         for (const { gameId, rosterId } of assignments) {
           const existing = await db.select().from(userGameAssignments)
             .where(and(
@@ -2881,13 +2897,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
               userId: user.id,
               gameId,
               rosterId: rosterId || null,
-              assignedRole: "player",
+              assignedRole: desiredAssignedRole,
               status: "approved",
               approvalGameStatus: "approved",
               approvalOrgStatus: "approved",
             });
             created++;
           }
+        }
+        if (targetRole && user.roleId !== targetRole.id) {
+          await db.update(users).set({ roleId: targetRole.id }).where(eq(users.id, user.id));
         }
       }
       logActivity(req.session.userId!, "bulk_assign_game", `Bulk assigned ${created} access entries for role ${orgRole}`, "team");
@@ -2985,13 +3004,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const allRolesArr = await db.select().from(roles).where(eq(roles.teamId, teamId));
-      const assignedRole = updated.assignedRole || "player";
       let targetRoleName = "Member";
-      if (assignedRole === "coach_analyst" || assignedRole === "staff") targetRoleName = "Staff";
-      else if (assignedRole === "org_admin" || assignedRole === "management") targetRoleName = "Management";
+      if (user?.orgRole === "staff" || user?.orgRole === "coach_analyst") targetRoleName = "Staff";
+      else if (user?.orgRole === "management" || user?.orgRole === "org_admin") targetRoleName = "Management";
       const targetRole = allRolesArr.find(r => r.name === targetRoleName) || allRolesArr.find(r => r.name === "Member");
       if (targetRole && user) {
         await db.update(users).set({ roleId: targetRole.id }).where(eq(users.id, user.id));
+      }
+      const desiredAssignedRole = user?.orgRole === "staff" || user?.orgRole === "coach_analyst" ? "staff"
+        : user?.orgRole === "management" || user?.orgRole === "org_admin" ? "management"
+        : "player";
+      if (updated.assignedRole !== desiredAssignedRole) {
+        await db.update(userGameAssignments).set({ assignedRole: desiredAssignedRole }).where(eq(userGameAssignments.id, updated.id));
       }
 
       const [game] = await db.select().from(supportedGames).where(eq(supportedGames.id, updated.gameId)).limit(1);
