@@ -131,8 +131,8 @@ async function fixUserRoles(teamId: string) {
       newOrgRole = "staff";
       newRoleId = staffRoleId;
     } else if (un.endsWith("_manager")) {
-      newOrgRole = "management";
-      newRoleId = managementRoleId;
+      newOrgRole = "staff";
+      newRoleId = staffRoleId;
     }
 
     if (newOrgRole && (user.orgRole !== newOrgRole || user.roleId !== newRoleId)) {
