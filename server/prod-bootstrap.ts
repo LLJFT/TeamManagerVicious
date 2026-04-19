@@ -89,13 +89,17 @@ async function markDone(): Promise<void> {
 async function cleanupOrphans(): Promise<Record<string, number>> {
   const summary: Record<string, number> = {};
   for (const table of TEAM_SCOPED_TABLES_BOTTOM_UP) {
+    const t0 = Date.now();
     try {
       const r: any = await db.execute(sql.raw(
         `DELETE FROM ${table} WHERE team_id IS NOT NULL AND team_id <> '${CANONICAL_TEAM_ID}'`
       ));
+      const dt = Date.now() - t0;
       summary[table] = r.rowCount ?? 0;
+      console.log(`[prod-bootstrap] cleanup ${table}: deleted ${summary[table]} in ${dt}ms`);
     } catch (err: any) {
-      console.warn(`[prod-bootstrap] cleanup ${table}:`, err.message);
+      const dt = Date.now() - t0;
+      console.warn(`[prod-bootstrap] cleanup ${table} FAILED after ${dt}ms:`, err.message);
       summary[table] = -1;
     }
   }
@@ -116,8 +120,15 @@ async function cleanupWindow(): Promise<Record<string, number>> {
   ];
 
   for (const [label, q] of stmts) {
-    const r: any = await db.execute(sql.raw(q));
-    summary[label] = r.rowCount ?? 0;
+    const t0 = Date.now();
+    try {
+      const r: any = await db.execute(sql.raw(q));
+      summary[label] = r.rowCount ?? 0;
+      console.log(`[prod-bootstrap] window ${label}: deleted ${summary[label]} in ${Date.now() - t0}ms`);
+    } catch (err: any) {
+      console.warn(`[prod-bootstrap] window ${label} FAILED after ${Date.now() - t0}ms:`, err.message);
+      summary[label] = -1;
+    }
   }
   return summary;
 }
@@ -321,6 +332,19 @@ async function reseedWindow(ctxs: RosterCtx[]): Promise<{ events: number; games:
   return { events: evCount, games: gameCount, stats: statCount, attendance: attCount, offDays: offCount };
 }
 
+const ADVISORY_LOCK_KEY = 7345291004981234;
+
+async function tryAcquireLock(): Promise<boolean> {
+  const r: any = await db.execute(sql`SELECT pg_try_advisory_lock(${ADVISORY_LOCK_KEY}) AS got`);
+  return Boolean(r.rows?.[0]?.got);
+}
+
+async function releaseLock(): Promise<void> {
+  try {
+    await db.execute(sql`SELECT pg_advisory_unlock(${ADVISORY_LOCK_KEY})`);
+  } catch {}
+}
+
 export async function runProdBootstrap(): Promise<void> {
   if (process.env.NODE_ENV !== "production") {
     console.log("[prod-bootstrap] Skipped (NODE_ENV is not production).");
@@ -335,26 +359,38 @@ export async function runProdBootstrap(): Promise<void> {
     return;
   }
 
-  console.log("[prod-bootstrap] STARTING one-time orphan cleanup + Mar 28-May 28 reseed...");
-  const t0 = Date.now();
+  const gotLock = await tryAcquireLock();
+  if (!gotLock) {
+    console.log("[prod-bootstrap] Another instance holds the bootstrap lock; skipping this replica.");
+    return;
+  }
 
-  console.log("[prod-bootstrap] Phase A: orphan cleanup...");
-  const orphanSummary = await cleanupOrphans();
-  console.log("[prod-bootstrap] Orphan cleanup deleted:", orphanSummary);
+  try {
+    console.log("[prod-bootstrap] STARTING (lock acquired) — orphan cleanup + Mar 28-May 28 reseed...");
+    const t0 = Date.now();
 
-  console.log("[prod-bootstrap] Phase B: window cleanup (Mar 28 - May 28)...");
-  const windowSummary = await cleanupWindow();
-  console.log("[prod-bootstrap] Window cleanup deleted:", windowSummary);
+    console.log("[prod-bootstrap] Phase A: orphan cleanup...");
+    const orphanSummary = await cleanupOrphans();
+    console.log("[prod-bootstrap] Phase A complete. Per-table totals:", orphanSummary);
 
-  console.log("[prod-bootstrap] Phase C: loading roster contexts...");
-  const ctxs = await loadRosterContexts();
-  console.log(`[prod-bootstrap] Loaded ${ctxs.length} roster contexts.`);
+    console.log("[prod-bootstrap] Phase B: window cleanup (Mar 28 - May 28)...");
+    const windowSummary = await cleanupWindow();
+    console.log("[prod-bootstrap] Phase B complete:", windowSummary);
 
-  console.log("[prod-bootstrap] Phase D: reseeding events with Thu/Fri off-days...");
-  const reseedSummary = await reseedWindow(ctxs);
-  console.log("[prod-bootstrap] Reseed inserted:", reseedSummary);
+    console.log("[prod-bootstrap] Phase C: loading roster contexts...");
+    const ctxs = await loadRosterContexts();
+    console.log(`[prod-bootstrap] Phase C complete. Loaded ${ctxs.length} roster contexts.`);
 
-  await markDone();
-  const dt = ((Date.now() - t0) / 1000).toFixed(1);
-  console.log(`[prod-bootstrap] DONE in ${dt}s. Sentinel marked.`);
+    console.log("[prod-bootstrap] Phase D: reseeding events with Thu/Fri off-days...");
+    const reseedSummary = await reseedWindow(ctxs);
+    console.log("[prod-bootstrap] Phase D complete:", reseedSummary);
+
+    await markDone();
+    const dt = ((Date.now() - t0) / 1000).toFixed(1);
+    console.log(`[prod-bootstrap] DONE in ${dt}s. Sentinel marked.`);
+  } catch (err: any) {
+    console.error("[prod-bootstrap] FATAL:", err?.message || err, err?.stack);
+  } finally {
+    await releaseLock();
+  }
 }
