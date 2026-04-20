@@ -55,10 +55,11 @@ interface CustomCalendarProps {
   onDayDoubleClick: (date: Date) => void;
   onToggleOffDay: (date: Date, isCurrentlyOff: boolean) => void;
   getEventColor: (eventType: string, eventSubType?: string | null) => { bg: string; border: string; text: string };
+  getSubTypeName: (eventSubType?: string | null) => string | null;
   tzOffset?: number;
 }
 
-function CustomCalendar({ selectedDate, onSelectDate, eventsByDate, offDaysByDate, onEventDoubleClick, onDayDoubleClick, onToggleOffDay, getEventColor, tzOffset = 0 }: CustomCalendarProps) {
+function CustomCalendar({ selectedDate, onSelectDate, eventsByDate, offDaysByDate, onEventDoubleClick, onDayDoubleClick, onToggleOffDay, getEventColor, getSubTypeName, tzOffset = 0 }: CustomCalendarProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
   const monthStart = startOfMonth(currentMonth);
@@ -154,12 +155,13 @@ function CustomCalendar({ selectedDate, onSelectDate, eventsByDate, offDaysByDat
                   )}
                   {dayEvents.map((event, eventIdx) => {
                     const c = getEventColor(event.eventType, event.eventSubType);
+                    const subName = getSubTypeName(event.eventSubType);
                     return (
                     <div
                       key={eventIdx}
                       className="text-xs px-2 py-1 rounded truncate cursor-pointer border"
                       style={{ backgroundColor: c.bg, borderColor: c.border, color: c.text }}
-                      title={`${event.title}${event.time ? ` - ${shiftTime(event.time, tzOffset)}` : ''}`}
+                      title={`${event.title}${event.time ? ` - ${shiftTime(event.time, tzOffset)}` : ''}${subName ? ` (${subName})` : ''}`}
                       data-testid={`calendar-event-${event.id}`}
                       onDoubleClick={(e) => {
                         e.stopPropagation();
@@ -168,6 +170,7 @@ function CustomCalendar({ selectedDate, onSelectDate, eventsByDate, offDaysByDat
                     >
                       <div className="font-semibold">{event.time ? shiftTime(event.time, tzOffset) : ""}</div>
                       <div>{event.title}</div>
+                      {subName && <div className="text-[10px] opacity-80 truncate">{subName}</div>}
                     </div>
                     );
                   })}
@@ -225,6 +228,24 @@ export default function Events() {
     enabled: rosterReady,
   });
 
+  // Resolve a stored event_sub_type value (which may be a UUID OR a legacy name)
+  // to the actual EventSubType row. This is the single source of truth for
+  // sub-type display name and color in this component.
+  const resolveSubType = useMemo(() => {
+    return (value?: string | null): EventSubType | null => {
+      if (!value) return null;
+      const byId = allSubTypes.find(s => s.id === value);
+      if (byId) return byId;
+      const lower = value.toLowerCase().trim();
+      const byName = allSubTypes.find(s => (s.name || "").toLowerCase().trim() === lower);
+      return byName || null;
+    };
+  }, [allSubTypes]);
+
+  const getSubTypeName = (value?: string | null): string | null => {
+    return resolveSubType(value)?.name ?? null;
+  };
+
   const subTypeColorMap = useMemo(() => {
     const map = new Map<string, string>();
     allSubTypes.forEach(sub => {
@@ -252,12 +273,11 @@ export default function Events() {
   }, [allSubTypes, allCategories]);
 
   const getEventColor = (eventType: string, eventSubType?: string | null) => {
-    const key = eventSubType?.toLowerCase().trim();
-    if (key) {
-      const subColor = subTypeColorMap.get(key);
-      if (subColor) return { bg: `${subColor}25`, border: `${subColor}50`, text: subColor };
-      const parentColor = categoryColorBySubTypeName.get(key);
-      if (parentColor) return { bg: `${parentColor}25`, border: `${parentColor}50`, text: parentColor };
+    const sub = resolveSubType(eventSubType);
+    if (sub) {
+      const c = sub.color
+        || allCategories.find(cat => cat.id === sub.categoryId)?.color;
+      if (c) return { bg: `${c}25`, border: `${c}50`, text: c };
     }
     if (eventType) {
       const catColor = categoryColorByName.get(eventType.toLowerCase().trim());
@@ -454,6 +474,7 @@ export default function Events() {
               onSelectDate={setSelectedDate}
               eventsByDate={eventsByDate}
               offDaysByDate={offDaysByDate}
+              getSubTypeName={getSubTypeName}
               onEventDoubleClick={(event) => {
                 setEventToEdit(event);
                 setShowEventDialog(true);

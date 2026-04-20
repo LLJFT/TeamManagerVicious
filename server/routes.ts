@@ -1011,15 +1011,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/admin/rosters/:id/load-example", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
     try {
-      const { LOAD_EXAMPLE_PASSWORD, loadExampleData } = await import("./roster-reset");
+      const { LOAD_EXAMPLE_PASSWORD, loadExampleData, startJob } = await import("./roster-reset");
       const password = (req.body?.password ?? "").toString();
       if (password !== LOAD_EXAMPLE_PASSWORD) {
         return res.status(403).json({ message: "Invalid admin password" });
       }
-      const result = await loadExampleData(req.params.id);
-      res.json({ ok: true, ...result });
+      const rosterId = req.params.id;
+      // Start the heavy work in the background and return a job ID immediately.
+      // The frontend polls /api/admin/jobs/:jobId for completion.
+      const job = startJob(`load-example:${rosterId}`, () => loadExampleData(rosterId));
+      res.json({ ok: true, jobId: job.id, status: job.status });
     } catch (err: any) {
-      console.error("[load-example] failed:", err);
+      console.error("[load-example] failed to start job:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/admin/jobs/:jobId", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+    try {
+      const { getJob } = await import("./roster-reset");
+      const job = getJob(req.params.jobId);
+      if (!job) return res.status(404).json({ message: "Job not found or expired" });
+      res.json({
+        id: job.id,
+        type: job.type,
+        status: job.status,
+        message: job.message,
+        startedAt: job.startedAt,
+        finishedAt: job.finishedAt,
+        result: job.result,
+        error: job.error,
+      });
+    } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
   });

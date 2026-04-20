@@ -1,0 +1,94 @@
+Fix these three issues only.
+
+FIX 1 — Events showing UUID instead of sub-type name and gray color:
+Some events display a raw UUID like "314e018e-1d40-4bae-b093-da2291ae1451" 
+as their badge instead of the sub-type name (Practice, Warm-up, etc.)
+and appear gray with no color.
+
+This happens because events were inserted with an eventCategoryId or 
+eventSubTypeId that does not exist in the event_categories or 
+event_sub_types tables for that roster.
+
+Fix in two parts:
+
+Part A — Fix existing broken events in the database:
+Find all events where the eventSubTypeId does not match any record 
+in the event_sub_types table for that same roster.
+For each broken event, determine the correct sub-type by reading 
+the event title:
+- Title contains "Practice" → link to Practice sub-type of that roster
+- Title contains "Warm-up" or "Warmup" → link to Warm-up sub-type
+- Title contains "Saudi League" → link to Saudi League sub-type
+- Title contains "Stage 1" → link to Stage 1 sub-type
+- Title contains "Elite" → link to Elite 3000$ Cup sub-type
+- Title contains "Vod Review" → link to Vod Review sub-type
+- Title contains "Roster Meeting" → link to Roster Meeting sub-type
+- Title contains "Organization Meeting" → link to Organization Meeting sub-type
+- Title contains "Tournament Match" or no match found → link to Stage 1 sub-type as default
+Update eventCategoryId and eventSubTypeId on each broken event 
+using the correct IDs from that roster's own categories.
+
+Part B — Fix the Load Example Data function to never insert broken events:
+In the roster example data loader, ensure this order is always followed:
+1. Insert event categories first
+2. Insert event sub-types second
+3. Query back and store the inserted IDs in variables
+4. Only then insert events using those exact IDs
+5. Never use hardcoded IDs or IDs from a different roster
+6. Add a validation check: before inserting any event, verify that 
+   its categoryId and subTypeId exist in the database — if not, skip it 
+   and log a warning
+
+FIX 2 — Load Example Data gives 504 upstream request timeout:
+The operation is timing out because generating a full roster 
+(players, staff, events with games/stats/attendance) takes longer 
+than the request timeout allows.
+
+Fix this by making the operation asynchronous:
+1. When the user clicks "Load Example Data" and enters the password,
+   the server immediately responds with 200 OK and a job ID
+2. The heavy data generation runs in the background on the server
+3. The frontend polls every 3 seconds using the job ID to check status
+4. Show a progress indicator: "Loading example data... this may take 
+   up to 2 minutes"
+5. When the background job finishes, show the success message
+6. If the job fails, show the error message
+
+This prevents the 504 timeout while keeping the UI responsive.
+
+FIX 3 — Events created manually via the UI also appear gray:
+Even events created directly through the UI (not via seed) 
+show gray color and no sub-type name badge.
+
+This suggests the frontend event display component is not correctly
+reading eventSubTypeId to look up the color and name from the 
+event_sub_types table.
+
+Investigate and fix the frontend event rendering so that:
+- Any event with a valid eventSubTypeId shows the correct sub-type name 
+  (not a UUID)
+- Any event with a valid eventSubTypeId shows the correct color 
+  (not gray)
+- This must work for ALL rosters regardless of their sub-type names 
+  — the color and name must be looked up dynamically from the database, 
+  never hardcoded
+
+Important — This fix must work for ANY sub-type name, not just the 
+predefined ones (Practice, Warm-up, etc.).
+
+Rosters will create their own custom sub-types with any name, for example:
+"OWCS STAGE 1", "Championship Clash", "EWC 2026", etc.
+
+The frontend must NEVER hardcode sub-type names or colors.
+Instead:
+- Fetch all event_sub_types for the current roster from the database
+- Use the stored color field from each sub-type record to render the badge
+- Use the stored name field from each sub-type record to render the label
+- Any new sub-type added by the roster admin must automatically appear 
+  with its correct name and color without any code changes
+
+Do not delete or modify any existing production data.
+Do not run any reseed or bootstrap.
+Only fix the code — no database changes until Publish and testing.
+
+Stop after all three fixes. Report exactly what was changed for each fix.

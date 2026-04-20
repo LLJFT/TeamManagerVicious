@@ -69,11 +69,20 @@ export function UpcomingCountdown({ gameId, rosterId, enabled }: Props) {
 
   if (upcoming.length === 0) return null;
 
-  const colorFor = (subTypeName?: string | null): string | undefined => {
-    if (!subTypeName) return undefined;
-    const st = subTypes.find(s => s.name === subTypeName);
-    if (st?.color) return st.color;
-    if (st?.categoryId) return categories.find(c => c.id === st.categoryId)?.color || undefined;
+  // Resolve event_sub_type (UUID or legacy name) to the actual sub-type record
+  const resolveSubType = (value?: string | null): EventSubType | null => {
+    if (!value) return null;
+    const byId = subTypes.find(s => s.id === value);
+    if (byId) return byId;
+    const lower = value.toLowerCase().trim();
+    return subTypes.find(s => (s.name || "").toLowerCase().trim() === lower) || null;
+  };
+
+  const colorFor = (value?: string | null): string | undefined => {
+    const st = resolveSubType(value);
+    if (!st) return undefined;
+    if (st.color) return st.color;
+    if (st.categoryId) return categories.find(c => c.id === st.categoryId)?.color || undefined;
     return undefined;
   };
 
@@ -81,14 +90,15 @@ export function UpcomingCountdown({ gameId, rosterId, enabled }: Props) {
     <div className="grid grid-cols-1 md:grid-cols-3 gap-3" data-testid="section-upcoming-countdown">
       {upcoming.map(({ event, when }) => {
         const color = colorFor(event.eventSubType);
+        const subTypeName = resolveSubType(event.eventSubType)?.name;
         return (
           <Card key={event.id} className="hover-elevate" data-testid={`card-countdown-${event.id}`}>
             <CardContent className="p-4 space-y-2">
               <div className="flex items-center gap-2 flex-wrap">
                 <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: color || "hsl(var(--muted-foreground))" }} />
-                {event.eventSubType && (
+                {subTypeName && (
                   <Badge variant="outline" className="text-xs" data-testid={`badge-subtype-${event.id}`}>
-                    {event.eventSubType}
+                    {subTypeName}
                   </Badge>
                 )}
                 {event.opponentName && (

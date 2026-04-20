@@ -7,6 +7,59 @@ export const RESET_PASSWORD = "TheBootcamp&2!@90A94";
 export const LOAD_EXAMPLE_PASSWORD = "TheBootcamp&2!@90A94";
 
 // ====================================================================
+// In-memory job tracker for long-running async operations
+// ====================================================================
+type JobStatus = "running" | "completed" | "failed";
+interface Job {
+  id: string;
+  type: string;
+  status: JobStatus;
+  startedAt: number;
+  finishedAt?: number;
+  result?: any;
+  error?: string;
+  message?: string;
+}
+const jobs = new Map<string, Job>();
+
+function newJobId(): string {
+  return `job_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function startJob<T>(type: string, work: () => Promise<T>): Job {
+  const job: Job = {
+    id: newJobId(),
+    type,
+    status: "running",
+    startedAt: Date.now(),
+    message: "Starting...",
+  };
+  jobs.set(job.id, job);
+  // Fire-and-forget; updates happen via the closure
+  work()
+    .then((res) => {
+      job.status = "completed";
+      job.finishedAt = Date.now();
+      job.result = res;
+      job.message = "Completed";
+    })
+    .catch((err) => {
+      job.status = "failed";
+      job.finishedAt = Date.now();
+      job.error = err?.message || String(err);
+      job.message = "Failed";
+      console.error(`[job ${job.id}] ${type} failed:`, err);
+    });
+  // Auto-clean after 1 hour
+  setTimeout(() => jobs.delete(job.id), 60 * 60 * 1000);
+  return job;
+}
+
+export function getJob(id: string): Job | null {
+  return jobs.get(id) || null;
+}
+
+// ====================================================================
 // TASK 1: Fix broken events in April/May 2026
 // ====================================================================
 const FIX_PATTERNS: { pattern: RegExp; subTypeName: string; categoryName: string }[] = [
@@ -20,7 +73,10 @@ const FIX_PATTERNS: { pattern: RegExp; subTypeName: string; categoryName: string
   { pattern: /practice/i,                subTypeName: "Practice",              categoryName: "Scrim" },
 ];
 
-function pickSubType(title: string, existingSubText: string | null): { sub: string; cat: string } | null {
+// Default fallback sub-type when no title pattern matches
+const DEFAULT_FALLBACK = { subTypeName: "Stage 1", categoryName: "Tournament" };
+
+function pickSubType(title: string, existingSubText: string | null): { sub: string; cat: string } {
   for (const p of FIX_PATTERNS) {
     if (p.pattern.test(title)) return { sub: p.subTypeName, cat: p.categoryName };
   }
@@ -29,34 +85,47 @@ function pickSubType(title: string, existingSubText: string | null): { sub: stri
       if (p.pattern.test(existingSubText)) return { sub: p.subTypeName, cat: p.categoryName };
     }
   }
-  return null;
+  // Default for "Tournament Match" or any unknown title
+  return { sub: DEFAULT_FALLBACK.subTypeName, cat: DEFAULT_FALLBACK.categoryName };
 }
 
 export async function fixBrokenEventsAprilMay(): Promise<{ scanned: number; fixed: number; unmatched: any[] }> {
+  // NOTE: name kept for backward compatibility with the existing endpoint;
+  // now scans ALL dates (not just April/May) and uses a default fallback so
+  // every broken event gets repaired.
   const broken: any = await db.execute(sql`
     SELECT e.id, e.roster_id, e.title, e.event_type, e.event_sub_type
     FROM events e
-    WHERE e.date >= '2026-04-01' AND e.date < '2026-06-01'
-      AND (e.event_sub_type IS NULL
-           OR e.event_sub_type = ''
-           OR e.event_sub_type NOT IN (SELECT id FROM event_sub_types))
+    WHERE e.event_sub_type IS NULL
+       OR e.event_sub_type = ''
+       OR e.event_sub_type NOT IN (SELECT id FROM event_sub_types)
   `);
   const rows: any[] = broken.rows ?? [];
   let fixed = 0;
   const unmatched: any[] = [];
   for (const ev of rows) {
     const match = pickSubType(ev.title || "", ev.event_sub_type);
-    if (!match) {
-      unmatched.push({ id: ev.id, title: ev.title, sub: ev.event_sub_type });
-      continue;
-    }
-    const sub: any = await db.execute(sql`
+    let sub: any = await db.execute(sql`
       SELECT id FROM event_sub_types
       WHERE roster_id = ${ev.roster_id} AND lower(name) = lower(${match.sub})
       LIMIT 1
     `);
+    // If the matched sub-type doesn't exist for this roster, try the default
+    if (!sub.rows?.length && match.sub !== DEFAULT_FALLBACK.subTypeName) {
+      sub = await db.execute(sql`
+        SELECT id FROM event_sub_types
+        WHERE roster_id = ${ev.roster_id} AND lower(name) = lower(${DEFAULT_FALLBACK.subTypeName})
+        LIMIT 1
+      `);
+    }
+    // If still no sub-type, fall back to ANY sub-type for this roster
     if (!sub.rows?.length) {
-      unmatched.push({ id: ev.id, title: ev.title, reason: "no sub-type for roster", subName: match.sub });
+      sub = await db.execute(sql`
+        SELECT id FROM event_sub_types WHERE roster_id = ${ev.roster_id} LIMIT 1
+      `);
+    }
+    if (!sub.rows?.length) {
+      unmatched.push({ id: ev.id, title: ev.title, reason: "roster has no sub-types at all" });
       continue;
     }
     await db.execute(sql`

@@ -2555,22 +2555,66 @@ function ResetRosterTab() {
     onError: (e: any) => toast({ title: "Reset failed", description: e?.message || "Unknown error", variant: "destructive" }),
   });
 
+  const [loadJobId, setLoadJobId] = useState<string | null>(null);
+  const [loadElapsed, setLoadElapsed] = useState(0);
+
+  // Tick a timer while a job is running (for the "X seconds elapsed" display)
+  useEffect(() => {
+    if (!loadJobId) return;
+    setLoadElapsed(0);
+    const id = setInterval(() => setLoadElapsed((s) => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [loadJobId]);
+
+  // Poll job status every 3 seconds
+  const { data: jobStatus } = useQuery<any>({
+    queryKey: ["/api/admin/jobs", loadJobId],
+    enabled: !!loadJobId,
+    refetchInterval: 3000,
+    queryFn: async () => {
+      const r = await apiRequest("GET", `/api/admin/jobs/${loadJobId}`, null);
+      return r.json();
+    },
+  });
+
+  // React to job completion / failure
+  useEffect(() => {
+    if (!jobStatus || !loadJobId) return;
+    if (jobStatus.status === "completed") {
+      const r = jobStatus.result || {};
+      toast({
+        title: "Example data loaded",
+        description: `Example data loaded successfully. ${r.events ?? 0} events, ${r.games ?? 0} games, ${r.players ?? 0} players, ${r.staff ?? 0} staff.`,
+      });
+      setLoadJobId(null);
+      setLoadOpen(false);
+      setLoadPwd("");
+      queryClient.invalidateQueries();
+    } else if (jobStatus.status === "failed") {
+      toast({ title: "Load failed", description: jobStatus.error || "Unknown error", variant: "destructive" });
+      setLoadJobId(null);
+    }
+  }, [jobStatus, loadJobId, toast]);
+
   const loadMutation = useMutation({
     mutationFn: async (password: string) => {
       const res = await apiRequest("POST", `/api/admin/rosters/${rosterId}/load-example`, { password });
       return res.json();
     },
     onSuccess: (data: any) => {
-      toast({
-        title: "Example data loaded",
-        description: `Example data loaded successfully. ${data?.events ?? 0} events, ${data?.games ?? 0} games. You can now explore all features or delete this data when ready.`,
-      });
-      setLoadOpen(false);
-      setLoadPwd("");
-      queryClient.invalidateQueries();
+      if (data?.jobId) {
+        setLoadJobId(data.jobId);
+      } else {
+        // Fallback for unexpected response
+        toast({ title: "Started", description: "Loading example data..." });
+        setLoadOpen(false);
+        setLoadPwd("");
+      }
     },
     onError: (e: any) => toast({ title: "Load failed", description: e?.message || "Unknown error", variant: "destructive" }),
   });
+
+  const loadInProgress = loadMutation.isPending || !!loadJobId;
 
   if (!rosterId) {
     return (
@@ -2723,22 +2767,31 @@ function ResetRosterTab() {
               type="password"
               value={loadPwd}
               onChange={(e) => setLoadPwd(e.target.value)}
-              disabled={loadMutation.isPending}
+              disabled={loadInProgress}
               data-testid="input-load-password"
               autoComplete="off"
             />
           </div>
+          {loadJobId && (
+            <div className="rounded-md border border-cyan-600/30 bg-cyan-600/10 p-3 text-sm flex items-center gap-2" data-testid="status-load-job">
+              <Loader2 className="h-4 w-4 animate-spin text-cyan-600" />
+              <div>
+                <div className="font-medium text-cyan-700 dark:text-cyan-300">Loading example data… this may take up to 2 minutes</div>
+                <div className="text-xs text-muted-foreground">Elapsed: {loadElapsed}s</div>
+              </div>
+            </div>
+          )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setLoadOpen(false); setLoadPwd(""); }} disabled={loadMutation.isPending} data-testid="button-cancel-load">
+            <Button variant="outline" onClick={() => { setLoadOpen(false); setLoadPwd(""); }} disabled={loadInProgress} data-testid="button-cancel-load">
               Cancel
             </Button>
             <Button
               className="bg-cyan-600 hover:bg-cyan-700 text-white border-cyan-700"
               onClick={() => loadMutation.mutate(loadPwd)}
-              disabled={loadPwd.length === 0 || loadMutation.isPending}
+              disabled={loadPwd.length === 0 || loadInProgress}
               data-testid="button-confirm-load"
             >
-              {loadMutation.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Loading…</> : "Load Example Data"}
+              {loadInProgress ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Loading…</> : "Load Example Data"}
             </Button>
           </DialogFooter>
         </DialogContent>

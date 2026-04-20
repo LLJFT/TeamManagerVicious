@@ -177,13 +177,18 @@ export default function CalendarPage() {
 
   const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-  const subTypeColorMap = useMemo(() => {
-    const map = new Map<string, string>();
-    allSubTypes.forEach(sub => {
-      if (sub.name && sub.color) map.set(sub.name.toLowerCase().trim(), sub.color);
-    });
-    return map;
-  }, [allSubTypes]);
+  // Resolve event_sub_type (UUID or legacy name) to a sub-type record
+  const resolveSubType = (value?: string | null) => {
+    if (!value) return null;
+    const byId = allSubTypes.find(s => s.id === value);
+    if (byId) return byId;
+    const lower = value.toLowerCase().trim();
+    return allSubTypes.find(s => (s.name || "").toLowerCase().trim() === lower) || null;
+  };
+
+  const getSubTypeName = (value?: string | null): string | null => {
+    return resolveSubType(value)?.name ?? null;
+  };
 
   const categoryColorByName = useMemo(() => {
     const map = new Map<string, string>();
@@ -193,23 +198,11 @@ export default function CalendarPage() {
     return map;
   }, [allCategories]);
 
-  const categoryColorBySubTypeName = useMemo(() => {
-    const map = new Map<string, string>();
-    allSubTypes.forEach(sub => {
-      if (!sub.name) return;
-      const cat = allCategories.find(c => c.id === sub.categoryId);
-      if (cat?.color) map.set(sub.name.toLowerCase().trim(), cat.color);
-    });
-    return map;
-  }, [allSubTypes, allCategories]);
-
   const getEventColor = (eventType: string, eventSubType?: string) => {
-    const key = eventSubType?.toLowerCase().trim();
-    if (key) {
-      const subColor = subTypeColorMap.get(key);
-      if (subColor) return { bg: `${subColor}25`, border: `${subColor}50`, text: subColor };
-      const parentColor = categoryColorBySubTypeName.get(key);
-      if (parentColor) return { bg: `${parentColor}25`, border: `${parentColor}50`, text: parentColor };
+    const sub = resolveSubType(eventSubType);
+    if (sub) {
+      const c = sub.color || allCategories.find(cat => cat.id === sub.categoryId)?.color;
+      if (c) return { bg: `${c}25`, border: `${c}50`, text: c };
     }
     if (eventType) {
       const catColor = categoryColorByName.get(eventType.toLowerCase().trim());
