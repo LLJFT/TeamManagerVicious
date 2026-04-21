@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { eq, and, sql } from "drizzle-orm";
@@ -159,6 +160,16 @@ export async function bootstrapDefaultAdmin() {
     return;
   }
 
+  const envPassword = process.env.ADMIN_INITIAL_PASSWORD;
+  const isProduction = process.env.NODE_ENV === "production";
+
+  if (!envPassword && isProduction) {
+    throw new Error(
+      "[SECURITY] ADMIN_INITIAL_PASSWORD environment variable must be set before first production deploy. " +
+      "Set it to a strong secret to bootstrap the admin account securely."
+    );
+  }
+
   const ownerPermissions = [...allPermissions] as Permission[];
   const adminPermissions = allPermissions.filter(
     (p) => p !== "manage_roles"
@@ -189,7 +200,8 @@ export async function bootstrapDefaultAdmin() {
     permissions: memberPermissions,
   });
 
-  const passwordHash = bcrypt.hashSync("admin", 10);
+  const initialPassword = envPassword || crypto.randomBytes(16).toString("hex");
+  const passwordHash = await bcrypt.hash(initialPassword, 10);
 
   const [adminUser] = await db.insert(users).values({
     teamId,
@@ -211,7 +223,14 @@ export async function bootstrapDefaultAdmin() {
     });
   }
 
-  console.log("Default admin user created (username: Admin, password: Admin)");
+  if (envPassword) {
+    console.log("[SECURITY] Default admin account created (username: Admin). Password set from ADMIN_INITIAL_PASSWORD env var.");
+  } else {
+    console.log("[SECURITY] Default admin account created (username: Admin).");
+    console.log(`[SECURITY] One-time temporary password: ${initialPassword}`);
+    console.log("[SECURITY] Set ADMIN_INITIAL_PASSWORD env var before first production deploy to avoid credential exposure in logs.");
+  }
+  console.log("[SECURITY] Change the admin password immediately after first login.");
 }
 
 export function parseUserAgent(ua: string): string {

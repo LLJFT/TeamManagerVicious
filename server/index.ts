@@ -101,7 +101,14 @@ app.use((req, res, next) => {
         .then(() => seedComprehensiveTestData())
         .then(() => fixupTestData())
         .then(() => runHealthCheck())
-        .catch(err => console.error("[boot-bg] Error:", err?.message || err));
+        .catch(err => {
+          const msg = err?.message || String(err);
+          console.error("[boot-bg] Error:", msg);
+          if (msg.includes("[SECURITY]")) {
+            console.error("[boot-bg] Critical security configuration error — shutting down.");
+            process.exit(1);
+          }
+        });
     }, 250);
   });
 })();

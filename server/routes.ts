@@ -361,7 +361,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!user) {
         return res.status(401).json({ message: "Invalid credentials" });
       }
-      if (!bcrypt.compareSync(password.toLowerCase(), user.passwordHash)) {
+      if (!bcrypt.compareSync(password, user.passwordHash)) {
         return res.status(401).json({ message: "Invalid credentials" });
       }
       if (user.status === "pending") {
@@ -487,7 +487,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      const passwordHash = bcrypt.hashSync(password.toLowerCase(), 10);
+      const passwordHash = bcrypt.hashSync(password, 10);
       const [newUser] = await db.insert(users).values({
         teamId,
         username: baseUsername,
@@ -565,7 +565,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (newPassword) {
         if (!currentPassword) return res.status(400).json({ message: "Current password required" });
-        const valid = await bcrypt.compare(currentPassword.toLowerCase(), currentUser.passwordHash);
+        const valid = await bcrypt.compare(currentPassword, currentUser.passwordHash);
         if (!valid) return res.status(400).json({ message: "Current password is incorrect" });
       }
       
@@ -578,7 +578,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (dup && dup.id !== userId) return res.status(400).json({ message: "Username already taken" });
         updates.username = username.trim();
       }
-      if (newPassword) updates.passwordHash = await bcrypt.hash(newPassword.toLowerCase(), 10);
+      if (newPassword) updates.passwordHash = await bcrypt.hash(newPassword, 10);
       if (avatarUrl !== undefined) updates.avatarUrl = avatarUrl;
       
       if (Object.keys(updates).length > 0) {
@@ -657,7 +657,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const existing = await db.select().from(users).where(and(ilike(users.username, username.trim()), eq(users.teamId, teamId)));
       if (existing.length > 0) return res.status(400).json({ message: "Username already taken" });
       
-      const passwordHash = await bcrypt.hash(password.toLowerCase(), 10);
+      const passwordHash = await bcrypt.hash(password, 10);
       const [newUser] = await db.insert(users).values({
         teamId,
         username,
@@ -793,7 +793,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (let i = 0; i < 8; i++) {
         tempPassword += chars.charAt(Math.floor(Math.random() * chars.length));
       }
-      const passwordHash = bcrypt.hashSync(tempPassword.toLowerCase(), 10);
+      const passwordHash = bcrypt.hashSync(tempPassword, 10);
       const [updated] = await db.update(users)
         .set({ passwordHash })
         .where(and(eq(users.id, id), eq(users.teamId, teamId)))

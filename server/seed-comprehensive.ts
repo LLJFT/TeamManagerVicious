@@ -8,6 +8,7 @@ import {
   GAME_ABBREVIATIONS,
 } from "@shared/schema";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { getTeamId } from "./storage";
 
 const OPPONENTS = ["Falcons", "Liquid", "Vitality", "FaZe", "Twisted Minds", "Virtus Pro", "GenG", "Karmine Corp", "T1", "100 Thieves", "G2"];
@@ -82,7 +83,6 @@ export async function seedComprehensiveTestData() {
   console.log("[seed] Starting comprehensive data restructuring...");
   const stats = { players: 0, staff: 0, modes: 0, maps: 0, fields: 0, seasons: 0, events: 0, matches: 0, playerStats: 0, attendance: 0, avail: 0, offDays: 0, users: 0, roles: 0 };
 
-  const passwordHash = bcrypt.hashSync("0000", 10);
   const playerRole = await db.select().from(roles).where(and(eq(roles.teamId, teamId), eq(roles.name, "Player"))).limit(1);
   const staffRole = await db.select().from(roles).where(and(eq(roles.teamId, teamId), eq(roles.name, "Staff"))).limit(1);
   const playerRoleId = playerRole[0]?.id || null;
@@ -219,7 +219,7 @@ export async function seedComprehensiveTestData() {
       .where(and(eq(events.teamId, teamId), eq(events.rosterId, roster.id)));
     const rEvCount = Number(existEvCount[0]?.count || 0);
     if (rEvCount >= 50) {
-      await seedUsersForRoster(teamId, abbr, teamNum, rosterPlayers, rosterStaff, passwordHash, playerRoleId, staffRoleId, stats);
+      await seedUsersForRoster(teamId, abbr, teamNum, rosterPlayers, rosterStaff, playerRoleId, staffRoleId, stats);
       if (ri % 10 === 0) console.log(`[seed] Progress: ${ri + 1}/${allRosters.length} rosters...`);
       continue;
     }
@@ -227,7 +227,7 @@ export async function seedComprehensiveTestData() {
     // REPUBLISH-SAFE: only seed events if NONE exist for this roster.
     // Never delete or rebuild existing events / games / attendance / player stats.
     if (rEvCount > 0) {
-      await seedUsersForRoster(teamId, abbr, teamNum, rosterPlayers, rosterStaff, passwordHash, playerRoleId, staffRoleId, stats);
+      await seedUsersForRoster(teamId, abbr, teamNum, rosterPlayers, rosterStaff, playerRoleId, staffRoleId, stats);
       if (ri % 10 === 0) console.log(`[seed] Progress: ${ri + 1}/${allRosters.length} rosters (events kept as-is)...`);
       continue;
     }
@@ -379,7 +379,7 @@ export async function seedComprehensiveTestData() {
       if (statRows.length > 0) { await batchInsert(playerGameStats, statRows, 500); stats.playerStats += statRows.length; }
     }
 
-    await seedUsersForRoster(teamId, abbr, teamNum, rosterPlayers, rosterStaff, passwordHash, playerRoleId, staffRoleId, stats);
+    await seedUsersForRoster(teamId, abbr, teamNum, rosterPlayers, rosterStaff, playerRoleId, staffRoleId, stats);
 
     if (ri % 10 === 0) console.log(`[seed] Progress: ${ri + 1}/${allRosters.length} rosters...`);
   }
@@ -397,7 +397,7 @@ export async function seedComprehensiveTestData() {
 async function seedUsersForRoster(
   teamId: string, abbr: string, teamNum: number,
   rosterPlayers: any[], rosterStaff: any[],
-  passwordHash: string, playerRoleId: string | null, staffRoleId: string | null,
+  playerRoleId: string | null, staffRoleId: string | null,
   stats: any
 ) {
   for (const p of rosterPlayers) {
@@ -413,6 +413,7 @@ async function seedUsersForRoster(
       .where(and(eq(users.teamId, teamId), eq(users.username, username))).limit(1);
     if (existUsername.length > 0) continue;
 
+    const passwordHash = await bcrypt.hash(crypto.randomBytes(16).toString("hex"), 10);
     await db.insert(users).values({
       teamId, username, passwordHash,
       playerId: p.id, roleId: playerRoleId,
@@ -429,6 +430,7 @@ async function seedUsersForRoster(
       .where(and(eq(users.teamId, teamId), eq(users.username, username))).limit(1);
     if (existUsername.length > 0) continue;
 
+    const passwordHash = await bcrypt.hash(crypto.randomBytes(16).toString("hex"), 10);
     await db.insert(users).values({
       teamId, username, passwordHash,
       roleId: staffRoleId,
