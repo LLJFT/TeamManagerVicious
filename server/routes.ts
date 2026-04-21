@@ -1,3 +1,4 @@
+import express from "express";
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
@@ -33,14 +34,50 @@ for (const sub of ["logos", "game-icons", "chat", "general"]) {
   fs.mkdirSync(path.join(UPLOAD_DIR, sub), { recursive: true });
 }
 
+// One-time startup cleanup: quarantine any previously-uploaded files whose
+// extension is not in the allowlist (e.g. legacy .svg files).
+const QUARANTINE_DIR = path.join(UPLOAD_DIR, "_quarantine");
+fs.mkdirSync(QUARANTINE_DIR, { recursive: true });
+(function quarantineDisallowedUploads() {
+  const ALLOWED_UPLOAD_EXTS = new Set([
+    ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".ico",
+    ".mp4", ".mov", ".webm", ".avi",
+    ".mp3", ".m4a", ".ogg", ".wav", ".aac", ".opus",
+    ".pdf", ".zip", ".rar", ".7z", ".doc", ".docx", ".xls", ".xlsx", ".txt", ".csv",
+  ]);
+  for (const sub of ["logos", "game-icons", "chat", "general"]) {
+    const dir = path.join(UPLOAD_DIR, sub);
+    try {
+      const files = fs.readdirSync(dir);
+      for (const file of files) {
+        const ext = path.extname(file).toLowerCase();
+        if (!ALLOWED_UPLOAD_EXTS.has(ext)) {
+          const src = path.join(dir, file);
+          const dst = path.join(QUARANTINE_DIR, `${sub}_${file}`);
+          try {
+            fs.renameSync(src, dst);
+            console.log(`[security] Quarantined disallowed upload: ${sub}/${file}`);
+          } catch (e) {
+            console.error(`[security] Failed to quarantine ${sub}/${file}:`, e);
+          }
+        }
+      }
+    } catch (e) {
+      // Directory may not exist yet or be unreadable – ignore
+    }
+  }
+})();
+
 const ALLOWED_EXTENSIONS = new Set([
-  ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".ico", ".svg",
+  ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".ico",
   ".mp4", ".mov", ".webm", ".avi",
   ".mp3", ".m4a", ".ogg", ".wav", ".aac", ".opus",
   ".pdf", ".zip", ".rar", ".7z", ".doc", ".docx", ".xls", ".xlsx", ".txt", ".csv",
 ]);
 
-const BLOCKED_EXTENSIONS = new Set([".html", ".htm", ".js", ".mjs", ".ts", ".php", ".asp", ".aspx", ".jsp", ".exe", ".bat", ".cmd", ".sh"]);
+// Kept for reference only – the upload filter now uses the ALLOWED_EXTENSIONS allowlist above.
+// Any extension absent from ALLOWED_EXTENSIONS is rejected, making this list redundant.
+// const BLOCKED_EXTENSIONS = [...];
 
 function createDiskUpload(subfolder: string) {
   return multer({
@@ -58,7 +95,7 @@ function createDiskUpload(subfolder: string) {
     limits: { fileSize: 10 * 1024 * 1024 },
     fileFilter: (_req, file, cb) => {
       const ext = path.extname(file.originalname).toLowerCase();
-      if (BLOCKED_EXTENSIONS.has(ext)) {
+      if (!ALLOWED_EXTENSIONS.has(ext)) {
         return cb(new Error(`File type ${ext} is not allowed`));
       }
       cb(null, true);
@@ -314,6 +351,118 @@ export async function registerRoutes(app: Express): Promise<Server> {
   for (const path of gameAccessPaths) {
     app.use(path, requireGameAccess);
   }
+
+  // ==================== STATIC FILE SERVING ====================
+  // Branding assets (logos, game icons) are public – needed on login/public pages
+  app.use("/uploads/logos", express.static(path.join(UPLOAD_DIR, "logos")));
+  app.use("/uploads/game-icons", express.static(path.join(UPLOAD_DIR, "game-icons")));
+
+  // Inline-safe media types that may be rendered directly in the browser
+  const INLINE_MEDIA_EXTS = new Set([
+    ".jpg",".jpeg",".png",".gif",".webp",".bmp",".ico",
+    ".mp4",".mov",".webm",".avi",
+    ".mp3",".m4a",".ogg",".wav",".aac",".opus",
+  ]);
+
+  // Serve chat attachments with full channel + game + roster + role authorization.
+  // Mirror the same permission chain used by GET /api/chat/channels/:channelId/messages.
+  app.get("/uploads/chat/:filename", requireAuth, requirePermission("view_chat"), async (req: any, res: any) => {
+    try {
+      const rawName = req.params.filename as string;
+      if (!/^[a-f0-9-]+\.[a-zA-Z0-9]+$/.test(rawName)) {
+        return res.status(400).json({ message: "Invalid filename" });
+      }
+
+      const teamId = getTeamId();
+      const userId = req.session.userId as string;
+      const attachmentUrl = `/uploads/chat/${rawName}`;
+
+      // Find the chat message that owns this file
+      const [msg] = await db.select().from(chatMessages)
+        .where(and(eq(chatMessages.attachmentUrl, attachmentUrl), eq(chatMessages.teamId, teamId)))
+        .limit(1);
+      if (!msg) return res.status(404).json({ message: "Not found" });
+
+      // Load the channel the message belongs to
+      const [channel] = await db.select().from(chatChannels)
+        .where(and(eq(chatChannels.id, msg.channelId!), eq(chatChannels.teamId, teamId)))
+        .limit(1);
+      if (!channel) return res.status(404).json({ message: "Not found" });
+
+      // Resolve current user once (reused for all downstream checks)
+      const [currentUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      const isOrgLevel = currentUser?.orgRole === "org_admin" || currentUser?.orgRole === "super_admin" || currentUser?.orgRole === "game_manager";
+
+      // For game/roster-scoped channels, verify the user has an approved assignment
+      // that matches BOTH gameId AND rosterId (when present), mirroring requireGameAccess.
+      if (channel.gameId && !isOrgLevel) {
+        const assignmentConditions: any[] = [
+          eq(userGameAssignments.userId, userId),
+          eq(userGameAssignments.gameId, channel.gameId),
+          eq(userGameAssignments.teamId, teamId),
+          eq(userGameAssignments.approvalGameStatus, "approved"),
+          eq(userGameAssignments.approvalOrgStatus, "approved"),
+        ];
+        if (channel.rosterId) {
+          assignmentConditions.push(eq(userGameAssignments.rosterId, channel.rosterId));
+        }
+        const [assignment] = await db.select().from(userGameAssignments)
+          .where(and(...assignmentConditions))
+          .limit(1);
+        if (!assignment) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      // Check channel-level view permissions (role-based)
+      if (currentUser?.roleId) {
+        const channelPerms = await db.select().from(chatChannelPermissions)
+          .where(and(
+            eq(chatChannelPermissions.channelId, channel.id),
+            eq(chatChannelPermissions.roleId, currentUser.roleId),
+            eq(chatChannelPermissions.teamId, teamId),
+          ))
+          .limit(1);
+        if (channelPerms.length > 0 && !channelPerms[0].canView) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const filePath = path.join(UPLOAD_DIR, "chat", rawName);
+      if (!fs.existsSync(filePath)) return res.status(404).json({ message: "Not found" });
+
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      const ext = path.extname(rawName).toLowerCase();
+      if (!INLINE_MEDIA_EXTS.has(ext)) {
+        res.setHeader("Content-Disposition", `attachment; filename="${rawName}"`);
+      }
+      return res.sendFile(filePath);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Serve general uploads (event scoreboards, org assets) to authenticated team members.
+  // requireAuth guarantees the user's teamId matches this deployment's teamId.
+  app.get("/uploads/general/:filename", requireAuth, async (req: any, res: any) => {
+    try {
+      const rawName = req.params.filename as string;
+      if (!/^[a-f0-9-]+\.[a-zA-Z0-9]+$/.test(rawName)) {
+        return res.status(400).json({ message: "Invalid filename" });
+      }
+      const filePath = path.join(UPLOAD_DIR, "general", rawName);
+      if (!fs.existsSync(filePath)) return res.status(404).json({ message: "Not found" });
+
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      const ext = path.extname(rawName).toLowerCase();
+      if (!INLINE_MEDIA_EXTS.has(ext)) {
+        res.setHeader("Content-Disposition", `attachment; filename="${rawName}"`);
+      }
+      return res.sendFile(filePath);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
 
   // ==================== FILE UPLOAD (Local Filesystem) ====================
   app.post("/api/upload", requireAuth, requirePermission("send_messages"), uploadChat.single("file"), async (req, res) => {
@@ -1381,10 +1530,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { channelId } = req.params;
       const teamId = getTeamId();
       const userId = req.session.userId!;
-      const { message, attachmentUrl, attachmentType, attachmentName, attachmentSize, mentions } = req.body;
+      const { message, attachmentUrl: rawAttachmentUrl, attachmentType, attachmentName, attachmentSize, mentions } = req.body;
+      const SAFE_UPLOAD_PATTERN = /^\/uploads\/(chat|general)\/[a-f0-9-]+\.[a-zA-Z0-9]+$/;
+      // Verify the file both matches the expected pattern AND exists on disk,
+      // preventing references to files that were never actually uploaded.
+      const attachmentUrl = (rawAttachmentUrl && SAFE_UPLOAD_PATTERN.test(rawAttachmentUrl) &&
+        fs.existsSync(path.join(process.cwd(), rawAttachmentUrl))) ? rawAttachmentUrl : null;
       const [msg] = await db.insert(chatMessages).values({
-        teamId, channelId, userId, message, attachmentUrl, attachmentType,
-        attachmentName: attachmentName || null, attachmentSize: attachmentSize || null,
+        teamId, channelId, userId, message, attachmentUrl, attachmentType: attachmentUrl ? attachmentType : null,
+        attachmentName: attachmentUrl ? (attachmentName || null) : null, attachmentSize: attachmentUrl ? (attachmentSize || null) : null,
         mentions: mentions || [],
       }).returning();
       const [sender] = await db.select().from(users).where(eq(users.id, userId)).limit(1);

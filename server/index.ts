@@ -19,7 +19,6 @@ app.use(express.json({
   }
 }));
 app.use(express.urlencoded({ extended: false }));
-app.use("/uploads", express.static("uploads"));
 
 app.get("/health", (_req, res) => {
   res.status(200).type("text/plain").send("OK");
