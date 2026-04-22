@@ -41,8 +41,8 @@ export interface IStorage {
   setSetting(key: string, value: string, gameId?: string | null, rosterId?: string | null): Promise<Setting>;
   getAllEvents(gameId?: string | null, rosterId?: string | null): Promise<Event[]>;
   addEvent(event: InsertEvent, gameId?: string | null, rosterId?: string | null): Promise<Event>;
-  updateEvent(id: string, event: Partial<InsertEvent>): Promise<Event>;
-  removeEvent(id: string): Promise<boolean>;
+  updateEvent(id: string, event: Partial<InsertEvent>, gameId?: string | null, rosterId?: string | null): Promise<Event>;
+  removeEvent(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean>;
   getAllAttendance(gameId?: string | null, rosterId?: string | null): Promise<Attendance[]>;
   getAttendanceByPlayerId(playerId: string): Promise<Attendance[]>;
   addAttendance(attendance: InsertAttendance, gameId?: string | null, rosterId?: string | null): Promise<Attendance>;
@@ -51,34 +51,34 @@ export interface IStorage {
   getTeamNotes(gameId?: string | null, rosterId?: string | null): Promise<TeamNotes[]>;
   addTeamNote(note: InsertTeamNotes, gameId?: string | null, rosterId?: string | null): Promise<TeamNotes>;
   deleteTeamNote(id: string): Promise<boolean>;
-  getGamesByEventId(eventId: string): Promise<Game[]>;
+  getGamesByEventId(eventId: string, gameId?: string | null, rosterId?: string | null): Promise<Game[]>;
   getAllGamesWithEventType(scope?: string, gameId?: string | null, rosterId?: string | null): Promise<(Game & { eventType: string })[]>;
   addGame(game: InsertGame, gameId?: string | null, rosterId?: string | null): Promise<Game>;
-  updateGame(id: string, game: Partial<InsertGame>): Promise<Game>;
-  removeGame(id: string): Promise<boolean>;
+  updateGame(id: string, game: Partial<InsertGame>, gameId?: string | null, rosterId?: string | null): Promise<Game>;
+  removeGame(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean>;
   getAllGameModes(gameId?: string | null, rosterId?: string | null): Promise<GameMode[]>;
   addGameMode(gameMode: InsertGameMode, gameId?: string | null, rosterId?: string | null): Promise<GameMode>;
-  updateGameMode(id: string, gameMode: Partial<InsertGameMode>): Promise<GameMode>;
-  removeGameMode(id: string): Promise<boolean>;
+  updateGameMode(id: string, gameMode: Partial<InsertGameMode>, gameId?: string | null, rosterId?: string | null): Promise<GameMode>;
+  removeGameMode(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean>;
   getAllMaps(gameId?: string | null, rosterId?: string | null): Promise<Map[]>;
   getMapsByGameModeId(gameModeId: string): Promise<Map[]>;
   addMap(map: InsertMap, gameId?: string | null, rosterId?: string | null): Promise<Map>;
-  updateMap(id: string, map: Partial<InsertMap>): Promise<Map>;
-  removeMap(id: string): Promise<boolean>;
+  updateMap(id: string, map: Partial<InsertMap>, gameId?: string | null, rosterId?: string | null): Promise<Map>;
+  removeMap(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean>;
   getAllEventCategories(gameId?: string | null, rosterId?: string | null): Promise<EventCategory[]>;
   addEventCategory(cat: InsertEventCategory, gameId?: string | null, rosterId?: string | null): Promise<EventCategory>;
-  updateEventCategory(id: string, cat: Partial<InsertEventCategory>): Promise<EventCategory>;
-  removeEventCategory(id: string): Promise<boolean>;
+  updateEventCategory(id: string, cat: Partial<InsertEventCategory>, gameId?: string | null, rosterId?: string | null): Promise<EventCategory>;
+  removeEventCategory(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean>;
   getAllEventSubTypes(gameId?: string | null, rosterId?: string | null): Promise<EventSubType[]>;
   getEventSubTypesByCategory(categoryId: string): Promise<EventSubType[]>;
   addEventSubType(sub: InsertEventSubType, gameId?: string | null, rosterId?: string | null): Promise<EventSubType>;
-  updateEventSubType(id: string, sub: Partial<InsertEventSubType>): Promise<EventSubType>;
-  removeEventSubType(id: string): Promise<boolean>;
-  getAttendanceByEventId(eventId: string): Promise<Attendance[]>;
+  updateEventSubType(id: string, sub: Partial<InsertEventSubType>, gameId?: string | null, rosterId?: string | null): Promise<EventSubType>;
+  removeEventSubType(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean>;
+  getAttendanceByEventId(eventId: string, gameId?: string | null, rosterId?: string | null): Promise<Attendance[]>;
   getAllSeasons(gameId?: string | null, rosterId?: string | null): Promise<Season[]>;
   addSeason(season: InsertSeason, gameId?: string | null, rosterId?: string | null): Promise<Season>;
-  updateSeason(id: string, season: Partial<InsertSeason>): Promise<Season>;
-  removeSeason(id: string): Promise<boolean>;
+  updateSeason(id: string, season: Partial<InsertSeason>, gameId?: string | null, rosterId?: string | null): Promise<Season>;
+  removeSeason(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean>;
   getAllOffDays(gameId?: string | null, rosterId?: string | null): Promise<OffDay[]>;
   addOffDay(offDay: InsertOffDay, gameId?: string | null, rosterId?: string | null): Promise<OffDay>;
   removeOffDay(date: string, gameId?: string | null, rosterId?: string | null): Promise<boolean>;
@@ -87,9 +87,9 @@ export interface IStorage {
   getAllStatFields(gameId?: string | null, rosterId?: string | null): Promise<StatField[]>;
   getStatFieldsByGameModeId(gameModeId: string): Promise<StatField[]>;
   addStatField(statField: InsertStatField, gameId?: string | null, rosterId?: string | null): Promise<StatField>;
-  updateStatField(id: string, statField: Partial<InsertStatField>): Promise<StatField>;
-  removeStatField(id: string): Promise<boolean>;
-  getPlayerGameStats(matchId: string): Promise<PlayerGameStat[]>;
+  updateStatField(id: string, statField: Partial<InsertStatField>, gameId?: string | null, rosterId?: string | null): Promise<StatField>;
+  removeStatField(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean>;
+  getPlayerGameStats(matchId: string, gameId?: string | null, rosterId?: string | null): Promise<PlayerGameStat[]>;
   savePlayerGameStats(matchId: string, stats: InsertPlayerGameStat[], gameId?: string | null, rosterId?: string | null): Promise<PlayerGameStat[]>;
   getPlayerAvailabilities(gameId?: string | null, rosterId?: string | null): Promise<PlayerAvailabilityRecord[]>;
   savePlayerAvailability(playerId: string, day: string, availability: string, gameId?: string | null, rosterId?: string | null): Promise<PlayerAvailabilityRecord>;
@@ -212,15 +212,21 @@ export class DbStorage implements IStorage {
     return inserted[0];
   }
 
-  async updateEvent(id: string, updateData: Partial<InsertEvent>): Promise<Event> {
+  async updateEvent(id: string, updateData: Partial<InsertEvent>, gameId?: string | null, rosterId?: string | null): Promise<Event> {
     const teamId = getTeamId();
-    const updated = await db.update(events).set(updateData).where(and(eq(events.id, id), eq(events.teamId, teamId))).returning();
+    const conditions: any[] = [eq(events.id, id), eq(events.teamId, teamId)];
+    if (gameId) conditions.push(eq(events.gameId, gameId));
+    if (rosterId) conditions.push(eq(events.rosterId, rosterId));
+    const updated = await db.update(events).set(updateData).where(and(...conditions)).returning();
     return updated[0];
   }
 
-  async removeEvent(id: string): Promise<boolean> {
+  async removeEvent(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean> {
     const teamId = getTeamId();
-    const deleted = await db.delete(events).where(and(eq(events.id, id), eq(events.teamId, teamId))).returning();
+    const conditions: any[] = [eq(events.id, id), eq(events.teamId, teamId)];
+    if (gameId) conditions.push(eq(events.gameId, gameId));
+    if (rosterId) conditions.push(eq(events.rosterId, rosterId));
+    const deleted = await db.delete(events).where(and(...conditions)).returning();
     return deleted.length > 0;
   }
 
@@ -269,9 +275,12 @@ export class DbStorage implements IStorage {
     return deleted.length > 0;
   }
 
-  async getGamesByEventId(eventId: string): Promise<Game[]> {
+  async getGamesByEventId(eventId: string, gameId?: string | null, rosterId?: string | null): Promise<Game[]> {
     const teamId = getTeamId();
-    return await db.select().from(games).where(and(eq(games.eventId, eventId), eq(games.teamId, teamId)));
+    const conditions: any[] = [eq(games.eventId, eventId), eq(games.teamId, teamId)];
+    if (gameId) conditions.push(eq(games.gameId, gameId));
+    if (rosterId) conditions.push(eq(games.rosterId, rosterId));
+    return await db.select().from(games).where(and(...conditions));
   }
 
   async getAllGamesWithEventType(scope?: string, gameId?: string | null, rosterId?: string | null): Promise<(Game & { eventType: string })[]> {
@@ -309,15 +318,21 @@ export class DbStorage implements IStorage {
     return inserted[0];
   }
 
-  async updateGame(id: string, updateData: Partial<InsertGame>): Promise<Game> {
+  async updateGame(id: string, updateData: Partial<InsertGame>, gameId?: string | null, rosterId?: string | null): Promise<Game> {
     const teamId = getTeamId();
-    const updated = await db.update(games).set(updateData).where(and(eq(games.id, id), eq(games.teamId, teamId))).returning();
+    const conditions: any[] = [eq(games.id, id), eq(games.teamId, teamId)];
+    if (gameId) conditions.push(eq(games.gameId, gameId));
+    if (rosterId) conditions.push(eq(games.rosterId, rosterId));
+    const updated = await db.update(games).set(updateData).where(and(...conditions)).returning();
     return updated[0];
   }
 
-  async removeGame(id: string): Promise<boolean> {
+  async removeGame(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean> {
     const teamId = getTeamId();
-    const deleted = await db.delete(games).where(and(eq(games.id, id), eq(games.teamId, teamId))).returning();
+    const conditions: any[] = [eq(games.id, id), eq(games.teamId, teamId)];
+    if (gameId) conditions.push(eq(games.gameId, gameId));
+    if (rosterId) conditions.push(eq(games.rosterId, rosterId));
+    const deleted = await db.delete(games).where(and(...conditions)).returning();
     return deleted.length > 0;
   }
 
@@ -332,15 +347,21 @@ export class DbStorage implements IStorage {
     return inserted[0];
   }
 
-  async updateGameMode(id: string, updateData: Partial<InsertGameMode>): Promise<GameMode> {
+  async updateGameMode(id: string, updateData: Partial<InsertGameMode>, gameId?: string | null, rosterId?: string | null): Promise<GameMode> {
     const teamId = getTeamId();
-    const updated = await db.update(gameModes).set(updateData).where(and(eq(gameModes.id, id), eq(gameModes.teamId, teamId))).returning();
+    const conditions: any[] = [eq(gameModes.id, id), eq(gameModes.teamId, teamId)];
+    if (gameId) conditions.push(eq(gameModes.gameId, gameId));
+    if (rosterId) conditions.push(eq(gameModes.rosterId, rosterId));
+    const updated = await db.update(gameModes).set(updateData).where(and(...conditions)).returning();
     return updated[0];
   }
 
-  async removeGameMode(id: string): Promise<boolean> {
+  async removeGameMode(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean> {
     const teamId = getTeamId();
-    const deleted = await db.delete(gameModes).where(and(eq(gameModes.id, id), eq(gameModes.teamId, teamId))).returning();
+    const conditions: any[] = [eq(gameModes.id, id), eq(gameModes.teamId, teamId)];
+    if (gameId) conditions.push(eq(gameModes.gameId, gameId));
+    if (rosterId) conditions.push(eq(gameModes.rosterId, rosterId));
+    const deleted = await db.delete(gameModes).where(and(...conditions)).returning();
     return deleted.length > 0;
   }
 
@@ -360,15 +381,21 @@ export class DbStorage implements IStorage {
     return inserted[0];
   }
 
-  async updateMap(id: string, updateData: Partial<InsertMap>): Promise<Map> {
+  async updateMap(id: string, updateData: Partial<InsertMap>, gameId?: string | null, rosterId?: string | null): Promise<Map> {
     const teamId = getTeamId();
-    const updated = await db.update(maps).set(updateData).where(and(eq(maps.id, id), eq(maps.teamId, teamId))).returning();
+    const conditions: any[] = [eq(maps.id, id), eq(maps.teamId, teamId)];
+    if (gameId) conditions.push(eq(maps.gameId, gameId));
+    if (rosterId) conditions.push(eq(maps.rosterId, rosterId));
+    const updated = await db.update(maps).set(updateData).where(and(...conditions)).returning();
     return updated[0];
   }
 
-  async removeMap(id: string): Promise<boolean> {
+  async removeMap(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean> {
     const teamId = getTeamId();
-    const deleted = await db.delete(maps).where(and(eq(maps.id, id), eq(maps.teamId, teamId))).returning();
+    const conditions: any[] = [eq(maps.id, id), eq(maps.teamId, teamId)];
+    if (gameId) conditions.push(eq(maps.gameId, gameId));
+    if (rosterId) conditions.push(eq(maps.rosterId, rosterId));
+    const deleted = await db.delete(maps).where(and(...conditions)).returning();
     return deleted.length > 0;
   }
 
@@ -383,15 +410,21 @@ export class DbStorage implements IStorage {
     return inserted[0];
   }
 
-  async updateEventCategory(id: string, cat: Partial<InsertEventCategory>): Promise<EventCategory> {
+  async updateEventCategory(id: string, cat: Partial<InsertEventCategory>, gameId?: string | null, rosterId?: string | null): Promise<EventCategory> {
     const teamId = getTeamId();
-    const updated = await db.update(eventCategories).set(cat).where(and(eq(eventCategories.id, id), eq(eventCategories.teamId, teamId))).returning();
+    const conditions: any[] = [eq(eventCategories.id, id), eq(eventCategories.teamId, teamId)];
+    if (gameId) conditions.push(eq(eventCategories.gameId, gameId));
+    if (rosterId) conditions.push(eq(eventCategories.rosterId, rosterId));
+    const updated = await db.update(eventCategories).set(cat).where(and(...conditions)).returning();
     return updated[0];
   }
 
-  async removeEventCategory(id: string): Promise<boolean> {
+  async removeEventCategory(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean> {
     const teamId = getTeamId();
-    const deleted = await db.delete(eventCategories).where(and(eq(eventCategories.id, id), eq(eventCategories.teamId, teamId))).returning();
+    const conditions: any[] = [eq(eventCategories.id, id), eq(eventCategories.teamId, teamId)];
+    if (gameId) conditions.push(eq(eventCategories.gameId, gameId));
+    if (rosterId) conditions.push(eq(eventCategories.rosterId, rosterId));
+    const deleted = await db.delete(eventCategories).where(and(...conditions)).returning();
     return deleted.length > 0;
   }
 
@@ -411,21 +444,30 @@ export class DbStorage implements IStorage {
     return inserted[0];
   }
 
-  async updateEventSubType(id: string, sub: Partial<InsertEventSubType>): Promise<EventSubType> {
+  async updateEventSubType(id: string, sub: Partial<InsertEventSubType>, gameId?: string | null, rosterId?: string | null): Promise<EventSubType> {
     const teamId = getTeamId();
-    const updated = await db.update(eventSubTypes).set(sub).where(and(eq(eventSubTypes.id, id), eq(eventSubTypes.teamId, teamId))).returning();
+    const conditions: any[] = [eq(eventSubTypes.id, id), eq(eventSubTypes.teamId, teamId)];
+    if (gameId) conditions.push(eq(eventSubTypes.gameId, gameId));
+    if (rosterId) conditions.push(eq(eventSubTypes.rosterId, rosterId));
+    const updated = await db.update(eventSubTypes).set(sub).where(and(...conditions)).returning();
     return updated[0];
   }
 
-  async removeEventSubType(id: string): Promise<boolean> {
+  async removeEventSubType(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean> {
     const teamId = getTeamId();
-    const deleted = await db.delete(eventSubTypes).where(and(eq(eventSubTypes.id, id), eq(eventSubTypes.teamId, teamId))).returning();
+    const conditions: any[] = [eq(eventSubTypes.id, id), eq(eventSubTypes.teamId, teamId)];
+    if (gameId) conditions.push(eq(eventSubTypes.gameId, gameId));
+    if (rosterId) conditions.push(eq(eventSubTypes.rosterId, rosterId));
+    const deleted = await db.delete(eventSubTypes).where(and(...conditions)).returning();
     return deleted.length > 0;
   }
 
-  async getAttendanceByEventId(eventId: string): Promise<Attendance[]> {
+  async getAttendanceByEventId(eventId: string, gameId?: string | null, rosterId?: string | null): Promise<Attendance[]> {
     const teamId = getTeamId();
-    return await db.select().from(attendance).where(and(eq(attendance.eventId, eventId), eq(attendance.teamId, teamId)));
+    const conditions: any[] = [eq(attendance.eventId, eventId), eq(attendance.teamId, teamId)];
+    if (gameId) conditions.push(eq(attendance.gameId, gameId));
+    if (rosterId) conditions.push(eq(attendance.rosterId, rosterId));
+    return await db.select().from(attendance).where(and(...conditions));
   }
 
   async getAllSeasons(gameId?: string | null, rosterId?: string | null): Promise<Season[]> {
@@ -439,15 +481,21 @@ export class DbStorage implements IStorage {
     return inserted[0];
   }
 
-  async updateSeason(id: string, updateData: Partial<InsertSeason>): Promise<Season> {
+  async updateSeason(id: string, updateData: Partial<InsertSeason>, gameId?: string | null, rosterId?: string | null): Promise<Season> {
     const teamId = getTeamId();
-    const updated = await db.update(seasons).set(updateData).where(and(eq(seasons.id, id), eq(seasons.teamId, teamId))).returning();
+    const conditions: any[] = [eq(seasons.id, id), eq(seasons.teamId, teamId)];
+    if (gameId) conditions.push(eq(seasons.gameId, gameId));
+    if (rosterId) conditions.push(eq(seasons.rosterId, rosterId));
+    const updated = await db.update(seasons).set(updateData).where(and(...conditions)).returning();
     return updated[0];
   }
 
-  async removeSeason(id: string): Promise<boolean> {
+  async removeSeason(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean> {
     const teamId = getTeamId();
-    const deleted = await db.delete(seasons).where(and(eq(seasons.id, id), eq(seasons.teamId, teamId))).returning();
+    const conditions: any[] = [eq(seasons.id, id), eq(seasons.teamId, teamId)];
+    if (gameId) conditions.push(eq(seasons.gameId, gameId));
+    if (rosterId) conditions.push(eq(seasons.rosterId, rosterId));
+    const deleted = await db.delete(seasons).where(and(...conditions)).returning();
     return deleted.length > 0;
   }
 
@@ -493,6 +541,7 @@ export class DbStorage implements IStorage {
       .values({
         teamId,
         gameId: event.gameId || gameId,
+        rosterId: event.rosterId || rosterId || null,
         title: event.title + " (Copy)",
         eventType: event.eventType,
         date: event.date,
@@ -534,26 +583,36 @@ export class DbStorage implements IStorage {
     return inserted[0];
   }
 
-  async updateStatField(id: string, updateData: Partial<InsertStatField>): Promise<StatField> {
+  async updateStatField(id: string, updateData: Partial<InsertStatField>, gameId?: string | null, rosterId?: string | null): Promise<StatField> {
     const teamId = getTeamId();
-    const updated = await db.update(statFields).set(updateData).where(and(eq(statFields.id, id), eq(statFields.teamId, teamId))).returning();
+    const conditions: any[] = [eq(statFields.id, id), eq(statFields.teamId, teamId)];
+    if (gameId) conditions.push(eq(statFields.gameId, gameId));
+    if (rosterId) conditions.push(eq(statFields.rosterId, rosterId));
+    const updated = await db.update(statFields).set(updateData).where(and(...conditions)).returning();
     return updated[0];
   }
 
-  async removeStatField(id: string): Promise<boolean> {
+  async removeStatField(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean> {
     const teamId = getTeamId();
-    const deleted = await db.delete(statFields).where(and(eq(statFields.id, id), eq(statFields.teamId, teamId))).returning();
+    const conditions: any[] = [eq(statFields.id, id), eq(statFields.teamId, teamId)];
+    if (gameId) conditions.push(eq(statFields.gameId, gameId));
+    if (rosterId) conditions.push(eq(statFields.rosterId, rosterId));
+    const deleted = await db.delete(statFields).where(and(...conditions)).returning();
     return deleted.length > 0;
   }
 
-  async getPlayerGameStats(matchId: string): Promise<PlayerGameStat[]> {
+  async getPlayerGameStats(matchId: string, gameId?: string | null, rosterId?: string | null): Promise<PlayerGameStat[]> {
     const teamId = getTeamId();
-    return await db.select().from(playerGameStats).where(and(eq(playerGameStats.matchId, matchId), eq(playerGameStats.teamId, teamId)));
+    const conditions: any[] = [eq(playerGameStats.matchId, matchId), eq(playerGameStats.teamId, teamId)];
+    if (gameId) conditions.push(eq(playerGameStats.gameId, gameId));
+    return await db.select().from(playerGameStats).where(and(...conditions));
   }
 
   async savePlayerGameStats(matchId: string, stats: InsertPlayerGameStat[], gameId?: string | null, rosterId?: string | null): Promise<PlayerGameStat[]> {
     const teamId = getTeamId();
-    await db.delete(playerGameStats).where(and(eq(playerGameStats.matchId, matchId), eq(playerGameStats.teamId, teamId)));
+    const delConditions: any[] = [eq(playerGameStats.matchId, matchId), eq(playerGameStats.teamId, teamId)];
+    if (gameId) delConditions.push(eq(playerGameStats.gameId, gameId));
+    await db.delete(playerGameStats).where(and(...delConditions));
     if (stats.length === 0) return [];
     const inserted = await db.insert(playerGameStats).values(stats.map(s => ({ ...s, matchId, teamId, gameId }))).returning();
     return inserted;

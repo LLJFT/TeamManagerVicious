@@ -2,7 +2,7 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, isNull, or } from "drizzle-orm";
 import { db, pool } from "./db";
 import { getTeamId } from "./storage";
 import { roles, users, allPermissions, supportedGames, userGameAssignments, SUPPORTED_GAMES_LIST, type Permission } from "@shared/schema";
@@ -365,8 +365,9 @@ export function requireOrgRole(...allowedRoles: string[]) {
 export async function requireGameAccess(req: Request, res: Response, next: NextFunction) {
   const gameId = (req.query.gameId as string) || null;
   const rosterId = (req.query.rosterId as string) || null;
-  if (!gameId || !req.session.userId) {
-    return next();
+
+  if (!req.session.userId) {
+    return next(); // requireAuth on each route handles unauthenticated requests
   }
 
   const teamId = getTeamId();
@@ -377,26 +378,30 @@ export async function requireGameAccess(req: Request, res: Response, next: NextF
     .limit(1);
 
   if (!user) {
-    return res.status(403).json({ message: "Forbidden" });
+    return next(); // requireAuth will reject
   }
 
   if (user.orgRole === "super_admin" || user.orgRole === "org_admin") {
     return next();
   }
 
-  const conditions = [
-    eq(userGameAssignments.userId, user.id),
-    eq(userGameAssignments.gameId, gameId),
-    eq(userGameAssignments.status, "approved"),
-    eq(userGameAssignments.teamId, teamId),
-  ];
-
-  if (rosterId) {
-    conditions.push(eq(userGameAssignments.rosterId, rosterId));
+  // Non-admin users must provide a gameId to scope their request
+  if (!gameId) {
+    return res.status(403).json({ message: "Game scope required" });
   }
 
+  // Check for an approved assignment covering the requested game (and optionally roster)
   const [assignment] = await db.select().from(userGameAssignments)
-    .where(and(...conditions))
+    .where(and(
+      eq(userGameAssignments.userId, user.id),
+      eq(userGameAssignments.gameId, gameId),
+      eq(userGameAssignments.status, "approved"),
+      eq(userGameAssignments.teamId, teamId),
+      // A game-wide assignment (rosterId IS NULL) or an exact roster match both grant access
+      rosterId
+        ? or(isNull(userGameAssignments.rosterId), eq(userGameAssignments.rosterId, rosterId))
+        : sql`1=1`,
+    ))
     .limit(1);
 
   if (!assignment) {

@@ -3,7 +3,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db";
-import { eq, and, ilike, sql, isNull, inArray } from "drizzle-orm";
+import { eq, and, ilike, sql, isNull, inArray, or } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { requireAuth, requirePermission, requireOrgRole, requireGameAccess } from "./auth";
 import { getTeamId } from "./storage";
@@ -16,7 +16,7 @@ import {
   insertChatChannelPermissionSchema, insertEventCategorySchema, insertEventSubTypeSchema,
   users, roles, chatChannels, chatMessages, availabilitySlots, rosterRoles,
   chatChannelPermissions, activityLogs, playerGameStats, allPermissions,
-  players, events, attendance, games, gameModes, maps, seasons, offDays,
+  players, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays,
   statFields as statFieldsTable,
   staff as staffTable,
   supportedGames, userGameAssignments, notifications, rosters,
@@ -114,6 +114,68 @@ function getGameId(req: any): string | null {
 
 function getRosterId(req: any): string | null {
   return (req.query.rosterId as string) || null;
+}
+
+
+async function verifyChatChannelScope(channelId: string, req: any, res: any): Promise<boolean> {
+  const teamId = getTeamId();
+  const [channel] = await db.select().from(chatChannels).where(and(eq(chatChannels.id, channelId), eq(chatChannels.teamId, teamId))).limit(1);
+  if (!channel) { res.status(404).json({ message: "Channel not found" }); return false; }
+  if (!channel.gameId) return true;
+  const userId = req.session?.userId;
+  if (!userId) { res.status(401).json({ message: "Unauthorized" }); return false; }
+  const [user] = await db.select().from(users).where(and(eq(users.id, userId), eq(users.teamId, teamId))).limit(1);
+  if (!user) { res.status(403).json({ message: "Forbidden" }); return false; }
+  if (user.orgRole === "super_admin" || user.orgRole === "org_admin") return true;
+  const conditions: any[] = [
+    eq(userGameAssignments.userId, userId),
+    eq(userGameAssignments.gameId, channel.gameId),
+    eq(userGameAssignments.status, "approved"),
+    eq(userGameAssignments.teamId, teamId),
+  ];
+  if (channel.rosterId) conditions.push(or(isNull(userGameAssignments.rosterId), eq(userGameAssignments.rosterId, channel.rosterId)));
+  const [assignment] = await db.select().from(userGameAssignments).where(and(...conditions)).limit(1);
+  if (!assignment) { res.status(403).json({ message: "You do not have access to this channel" }); return false; }
+  return true;
+}
+
+async function verifyObjectScope(req: any, res: any, objectGameId: string | null | undefined, objectRosterId: string | null | undefined): Promise<boolean> {
+  const userId = req.session?.userId;
+  if (!userId) { res.status(401).json({ message: "Unauthorized" }); return false; }
+  const teamId = getTeamId();
+  const [user] = await db.select().from(users).where(and(eq(users.id, userId), eq(users.teamId, teamId))).limit(1);
+  if (!user) { res.status(403).json({ message: "Forbidden" }); return false; }
+  if (user.orgRole === "super_admin" || user.orgRole === "org_admin") return true;
+  if (!objectGameId) { res.status(403).json({ message: "Forbidden" }); return false; }
+  const baseConditions: any[] = [
+    eq(userGameAssignments.userId, userId),
+    eq(userGameAssignments.gameId, objectGameId),
+    eq(userGameAssignments.status, "approved"),
+    eq(userGameAssignments.teamId, teamId),
+  ];
+  if (objectRosterId) {
+    baseConditions.push(or(isNull(userGameAssignments.rosterId), eq(userGameAssignments.rosterId, objectRosterId)));
+  }
+  const [assignment] = await db.select().from(userGameAssignments).where(and(...baseConditions)).limit(1);
+  if (!assignment) { res.status(403).json({ message: "You do not have access to this record" }); return false; }
+  return true;
+}
+
+/**
+ * Strip scope-changing fields (rosterId, gameId) from an update payload for non-admin callers.
+ * Admins (super_admin / org_admin) are allowed to reassign records between scopes.
+ * Non-admins must not be able to move a record they own in roster A into roster B.
+ */
+async function sanitizeScopeFields<T extends Record<string, any>>(req: any, data: T): Promise<T> {
+  const userId = req.session?.userId;
+  if (!userId) return data;
+  const teamId = getTeamId();
+  const [user] = await db.select().from(users).where(and(eq(users.id, userId), eq(users.teamId, teamId))).limit(1);
+  if (!user || user.orgRole === "super_admin" || user.orgRole === "org_admin") return data;
+  const sanitized = { ...data };
+  delete sanitized.rosterId;
+  delete sanitized.gameId;
+  return sanitized;
 }
 
 const ORG_ROLE_RANK: Record<string, number> = {
@@ -1397,12 +1459,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const teamId = getTeamId();
-      const validatedData = insertStaffSchema.partial().parse(req.body);
-      const [updated] = await db.update(staffTable).set(validatedData)
-        .where(and(eq(staffTable.id, id), eq(staffTable.teamId, teamId)))
-        .returning();
+      const [existing] = await db.select().from(staffTable).where(and(eq(staffTable.id, id), eq(staffTable.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ message: "Staff not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      const validatedData = await sanitizeScopeFields(req, insertStaffSchema.partial().parse(req.body));
+      const [updated] = await db.update(staffTable).set(validatedData).where(and(eq(staffTable.id, id), eq(staffTable.teamId, teamId))).returning();
       if (!updated) return res.status(404).json({ message: "Staff not found" });
-      logActivity(req.session.userId!, "edit_staff", `Updated staff member "${updated.name}"`, "team", undefined, getGameId(req));
+      logActivity(req.session.userId!, "edit_staff", `Updated staff member "${updated.name}"`, "team", undefined, existing.gameId);
       res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1413,11 +1476,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const teamId = getTeamId();
-      const [deleted] = await db.delete(staffTable)
-        .where(and(eq(staffTable.id, id), eq(staffTable.teamId, teamId)))
-        .returning();
+      const [existing] = await db.select().from(staffTable).where(and(eq(staffTable.id, id), eq(staffTable.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ message: "Staff not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      const [deleted] = await db.delete(staffTable).where(and(eq(staffTable.id, id), eq(staffTable.teamId, teamId))).returning();
       if (!deleted) return res.status(404).json({ message: "Staff not found" });
-      logActivity(req.session.userId!, "remove_staff", `Removed staff member "${deleted.name}"`, "team", undefined, getGameId(req));
+      logActivity(req.session.userId!, "remove_staff", `Removed staff member "${deleted.name}"`, "team", undefined, existing.gameId);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1428,16 +1492,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/chat/channels", requireAuth, requirePermission("view_chat"), async (req, res) => {
     try {
       const teamId = getTeamId();
-      const gid = getGameId(req);
-      const rid = getRosterId(req);
-      const chatConditions: any[] = [eq(chatChannels.teamId, teamId)];
-      if (gid) chatConditions.push(eq(chatChannels.gameId, gid));
-      if (rid) chatConditions.push(eq(chatChannels.rosterId, rid));
-      const channels = await db.select().from(chatChannels).where(and(...chatConditions));
       const userId = req.session.userId!;
-      const [currentUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-      const perms = await db.select().from(chatChannelPermissions).where(eq(chatChannelPermissions.teamId, teamId));
+      const [currentUser] = await db.select().from(users).where(and(eq(users.id, userId), eq(users.teamId, teamId))).limit(1);
+      const isAdmin = currentUser && (currentUser.orgRole === "super_admin" || currentUser.orgRole === "org_admin");
 
+      let channels;
+      if (isAdmin) {
+        channels = await db.select().from(chatChannels).where(eq(chatChannels.teamId, teamId));
+      } else {
+        const assignments = await db.select().from(userGameAssignments)
+          .where(and(eq(userGameAssignments.userId, userId), eq(userGameAssignments.status, "approved"), eq(userGameAssignments.teamId, teamId)));
+        if (assignments.length === 0) return res.json([]);
+        const scopeConditions = assignments.map(a => {
+          const conds: any[] = [eq(chatChannels.gameId, a.gameId)];
+          if (a.rosterId) conds.push(or(isNull(chatChannels.rosterId), eq(chatChannels.rosterId, a.rosterId)));
+          return and(...conds);
+        });
+        channels = await db.select().from(chatChannels).where(and(eq(chatChannels.teamId, teamId), or(...scopeConditions)));
+      }
+
+      const perms = await db.select().from(chatChannelPermissions).where(eq(chatChannelPermissions.teamId, teamId));
       const filteredChannels = channels.filter(ch => {
         if (!currentUser?.roleId) return true;
         const channelPerms = perms.filter(p => p.channelId === ch.id && p.roleId === currentUser.roleId);
@@ -1477,12 +1551,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teamId = getTeamId();
       const { name } = req.body;
       if (!name || !name.trim()) return res.status(400).json({ message: "Channel name is required" });
+      const [existing] = await db.select().from(chatChannels).where(and(eq(chatChannels.id, id), eq(chatChannels.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ message: "Channel not found" });
+      if (!await verifyChatChannelScope(id, req, res)) return;
       const [updated] = await db.update(chatChannels)
         .set({ name: name.trim() })
         .where(and(eq(chatChannels.id, id), eq(chatChannels.teamId, teamId)))
         .returning();
       if (!updated) return res.status(404).json({ message: "Channel not found" });
-      logActivity(req.session.userId!, "edit_channel", `Updated chat channel`, "team", undefined, getGameId(req));
+      logActivity(req.session.userId!, "edit_channel", `Updated chat channel`, "team", undefined, existing.gameId);
       res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1493,8 +1570,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const teamId = getTeamId();
+      const [existing] = await db.select().from(chatChannels).where(and(eq(chatChannels.id, id), eq(chatChannels.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ message: "Channel not found" });
+      if (!await verifyChatChannelScope(id, req, res)) return;
       await db.delete(chatChannels).where(and(eq(chatChannels.id, id), eq(chatChannels.teamId, teamId)));
-      logActivity(req.session.userId!, "delete_channel", `Deleted chat channel`, "team", undefined, getGameId(req));
+      logActivity(req.session.userId!, "delete_channel", `Deleted chat channel`, "team", undefined, existing.gameId);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1505,6 +1585,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { channelId } = req.params;
       const teamId = getTeamId();
+      if (!await verifyChatChannelScope(channelId, req, res)) return;
       const messages = await db.select().from(chatMessages)
         .where(and(eq(chatMessages.channelId, channelId), eq(chatMessages.teamId, teamId)));
       const allUsers = await db.select().from(users).where(eq(users.teamId, teamId));
@@ -1529,6 +1610,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { channelId } = req.params;
       const teamId = getTeamId();
+      if (!await verifyChatChannelScope(channelId, req, res)) return;
       const userId = req.session.userId!;
       const { message, attachmentUrl: rawAttachmentUrl, attachmentType, attachmentName, attachmentSize, mentions } = req.body;
       const SAFE_UPLOAD_PATTERN = /^\/uploads\/(chat|general)\/[a-f0-9-]+\.[a-zA-Z0-9]+$/;
@@ -1564,6 +1646,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(and(eq(chatMessages.id, id), eq(chatMessages.teamId, teamId)))
         .limit(1);
       if (!msg) return res.status(404).json({ message: "Message not found" });
+      if (!await verifyChatChannelScope(msg.channelId, req, res)) return;
 
       const [currentUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
       const [userRole] = currentUser?.roleId
@@ -1596,6 +1679,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { channelId } = req.params;
       const teamId = getTeamId();
+      if (!await verifyChatChannelScope(channelId, req, res)) return;
       const perms = await db.select().from(chatChannelPermissions)
         .where(and(eq(chatChannelPermissions.channelId, channelId), eq(chatChannelPermissions.teamId, teamId)));
       res.json(perms);
@@ -1608,6 +1692,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { channelId } = req.params;
       const teamId = getTeamId();
+      if (!await verifyChatChannelScope(channelId, req, res)) return;
       const { roleId, canView, canSend } = req.body;
       const existing = await db.select().from(chatChannelPermissions)
         .where(and(
@@ -1635,6 +1720,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const teamId = getTeamId();
+      const [perm] = await db.select().from(chatChannelPermissions).where(and(eq(chatChannelPermissions.id, id), eq(chatChannelPermissions.teamId, teamId))).limit(1);
+      if (!perm) return res.status(404).json({ message: "Permission not found" });
+      if (!await verifyChatChannelScope(perm.channelId, req, res)) return;
       await db.delete(chatChannelPermissions).where(and(eq(chatChannelPermissions.id, id), eq(chatChannelPermissions.teamId, teamId)));
       res.json({ success: true });
     } catch (error: any) {
@@ -1739,15 +1827,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const teamId = getTeamId();
+      const [existing] = await db.select().from(availabilitySlots).where(and(eq(availabilitySlots.id, id), eq(availabilitySlots.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ message: "Slot not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
       const { label, sortOrder } = req.body;
       const updateData: any = {};
       if (label !== undefined) updateData.label = label;
       if (sortOrder !== undefined) updateData.sortOrder = sortOrder;
-      const [updated] = await db.update(availabilitySlots).set(updateData)
-        .where(and(eq(availabilitySlots.id, id), eq(availabilitySlots.teamId, teamId)))
-        .returning();
+      const [updated] = await db.update(availabilitySlots).set(updateData).where(and(eq(availabilitySlots.id, id), eq(availabilitySlots.teamId, teamId))).returning();
       if (!updated) return res.status(404).json({ message: "Slot not found" });
-      logActivity(req.session.userId!, "edit_availability_slot", `Updated availability slot`, "team", undefined, getGameId(req));
+      logActivity(req.session.userId!, "edit_availability_slot", `Updated availability slot`, "team", undefined, existing.gameId);
       res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1758,9 +1847,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const teamId = getTeamId();
-      await db.delete(availabilitySlots)
-        .where(and(eq(availabilitySlots.id, id), eq(availabilitySlots.teamId, teamId)));
-      logActivity(req.session.userId!, "delete_availability_slot", `Deleted availability slot`, "team", undefined, getGameId(req));
+      const [existing] = await db.select().from(availabilitySlots).where(and(eq(availabilitySlots.id, id), eq(availabilitySlots.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ message: "Slot not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      await db.delete(availabilitySlots).where(and(eq(availabilitySlots.id, id), eq(availabilitySlots.teamId, teamId)));
+      logActivity(req.session.userId!, "delete_availability_slot", `Deleted availability slot`, "team", undefined, existing.gameId);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1801,16 +1892,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const teamId = getTeamId();
+      const [existing] = await db.select().from(rosterRoles).where(and(eq(rosterRoles.id, id), eq(rosterRoles.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ message: "Roster role not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
       const { name, type, sortOrder } = req.body;
       const updateData: any = {};
       if (name !== undefined) updateData.name = name;
       if (type !== undefined) updateData.type = type;
       if (sortOrder !== undefined) updateData.sortOrder = sortOrder;
-      const [updated] = await db.update(rosterRoles).set(updateData)
-        .where(and(eq(rosterRoles.id, id), eq(rosterRoles.teamId, teamId)))
-        .returning();
+      const [updated] = await db.update(rosterRoles).set(updateData).where(and(eq(rosterRoles.id, id), eq(rosterRoles.teamId, teamId))).returning();
       if (!updated) return res.status(404).json({ message: "Roster role not found" });
-      logActivity(req.session.userId!, "edit_roster_role", `Updated roster role "${updated.name}"`, "team", undefined, getGameId(req));
+      logActivity(req.session.userId!, "edit_roster_role", `Updated roster role "${updated.name}"`, "team", undefined, existing.gameId);
       res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1821,9 +1913,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const teamId = getTeamId();
-      await db.delete(rosterRoles)
-        .where(and(eq(rosterRoles.id, id), eq(rosterRoles.teamId, teamId)));
-      logActivity(req.session.userId!, "delete_roster_role", `Deleted roster role`, "team", undefined, getGameId(req));
+      const [existing] = await db.select().from(rosterRoles).where(and(eq(rosterRoles.id, id), eq(rosterRoles.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ message: "Roster role not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      await db.delete(rosterRoles).where(and(eq(rosterRoles.id, id), eq(rosterRoles.teamId, teamId)));
+      logActivity(req.session.userId!, "delete_roster_role", `Deleted roster role`, "team", undefined, existing.gameId);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1917,7 +2011,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!staffId || !day || !availability) {
         return res.status(400).json({ message: "staffId, day, and availability required" });
       }
-      const record = await storage.saveStaffAvailability(staffId, day, availability, getGameId(req), getRosterId(req));
+      const teamId = getTeamId();
+      const [staffMember] = await db.select().from(staffTable).where(and(eq(staffTable.id, staffId), eq(staffTable.teamId, teamId))).limit(1);
+      if (!staffMember) return res.status(403).json({ message: "Staff member not found in your authorized scope" });
+      if (!await verifyObjectScope(req, res, staffMember.gameId, staffMember.rosterId)) return;
+      const record = await storage.saveStaffAvailability(staffId, day, availability, staffMember.gameId, staffMember.rosterId);
       res.json(record);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1930,11 +2028,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!Array.isArray(updates)) {
         return res.status(400).json({ message: "updates must be an array" });
       }
-      const gid = getGameId(req);
-      const rid = getRosterId(req);
+      const teamId = getTeamId();
       const results = [];
       for (const { staffId, day, availability } of updates) {
-        const record = await storage.saveStaffAvailability(staffId, day, availability, gid, rid);
+        const [staffMember] = await db.select().from(staffTable).where(and(eq(staffTable.id, staffId), eq(staffTable.teamId, teamId))).limit(1);
+        if (!staffMember) continue;
+        const allowed = await verifyObjectScope(req, res, staffMember.gameId, staffMember.rosterId);
+        if (!allowed) return;
+        const record = await storage.saveStaffAvailability(staffId, day, availability, staffMember.gameId, staffMember.rosterId);
         results.push(record);
       }
       res.json(results);
@@ -2023,6 +2124,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/players/:id", requireAuth, requirePermission("remove_players"), async (req, res) => {
     try {
       const { id } = req.params;
+      const teamId = getTeamId();
+      const [player] = await db.select().from(players).where(and(eq(players.id, id), eq(players.teamId, teamId))).limit(1);
+      if (!player) return res.status(404).json({ error: "Player not found" });
+      if (!await verifyObjectScope(req, res, player.gameId, player.rosterId)) return;
       const success = await storage.removePlayer(id);
       if (success) {
         logActivity(req.session.userId!, "remove_player", `Removed player`, "team", undefined, getGameId(req));
@@ -2049,10 +2154,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/events/:id", requireAuth, async (req, res) => {
     try {
       const teamId = getTeamId();
-      const [event] = await db.select().from(events)
-        .where(and(eq(events.id, req.params.id), eq(events.teamId, teamId)))
-        .limit(1);
+      const [event] = await db.select().from(events).where(and(eq(events.id, req.params.id), eq(events.teamId, teamId))).limit(1);
       if (!event) return res.status(404).json({ message: "Event not found" });
+      if (!await verifyObjectScope(req, res, event.gameId, event.rosterId)) return;
       res.json(event);
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Internal server error" });
@@ -2077,9 +2181,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/events/:id", requireAuth, requirePermission("edit_events"), async (req, res) => {
     try {
       const { id } = req.params;
-      const validatedData = insertEventSchema.partial().parse(req.body);
-      const event = await storage.updateEvent(id, validatedData);
-      logActivity(req.session.userId!, "edit_event", `Updated event "${event.title}"`, "team", undefined, getGameId(req));
+      const teamId = getTeamId();
+      const [existing] = await db.select().from(events).where(and(eq(events.id, id), eq(events.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Event not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      const validatedData = await sanitizeScopeFields(req, insertEventSchema.partial().parse(req.body));
+      const event = await storage.updateEvent(id, validatedData, existing.gameId, existing.rosterId);
+      if (!event) return res.status(404).json({ error: "Event not found" });
+      logActivity(req.session.userId!, "edit_event", `Updated event "${event.title}"`, "team", undefined, existing.gameId);
       res.json(event);
     } catch (error: any) {
       console.error('Error in PUT /api/events:', error);
@@ -2093,9 +2202,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/events/:id", requireAuth, requirePermission("delete_events"), async (req, res) => {
     try {
       const { id } = req.params;
-      const success = await storage.removeEvent(id);
+      const teamId = getTeamId();
+      const [existing] = await db.select().from(events).where(and(eq(events.id, id), eq(events.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Event not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      const success = await storage.removeEvent(id, existing.gameId, existing.rosterId);
       if (success) {
-        logActivity(req.session.userId!, "delete_event", `Deleted event`, "team", undefined, getGameId(req));
+        logActivity(req.session.userId!, "delete_event", `Deleted event`, "team", undefined, existing.gameId);
         res.json({ success: true });
       } else {
         res.status(404).json({ error: "Event not found" });
@@ -2109,7 +2222,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/players/:id", requireAuth, requirePermission("edit_players"), async (req, res) => {
     try {
       const { id } = req.params;
-      const validatedData = insertPlayerSchema.partial().parse(req.body);
+      const teamId = getTeamId();
+      const [existingPlayer] = await db.select().from(players).where(and(eq(players.id, id), eq(players.teamId, teamId))).limit(1);
+      if (!existingPlayer) return res.status(404).json({ error: "Player not found" });
+      if (!await verifyObjectScope(req, res, existingPlayer.gameId, existingPlayer.rosterId)) return;
+      const validatedData = await sanitizeScopeFields(req, insertPlayerSchema.partial().parse(req.body));
       const player = await storage.updatePlayer(id, validatedData);
       logActivity(req.session.userId!, "edit_player", `Updated player "${player.name}"`, "team", undefined, getGameId(req));
       res.json(player);
@@ -2151,9 +2268,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/attendance/:id", requireAuth, requirePermission("edit_events"), async (req, res) => {
     try {
       const { id } = req.params;
-      const validatedData = insertAttendanceSchema.partial().parse(req.body);
-      const attendance = await storage.updateAttendance(id, validatedData);
-      res.json(attendance);
+      const teamId = getTeamId();
+      const [existing] = await db.select().from(attendance).where(and(eq(attendance.id, id), eq(attendance.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Attendance not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      const validatedData = await sanitizeScopeFields(req, insertAttendanceSchema.partial().parse(req.body));
+      const updated = await storage.updateAttendance(id, validatedData);
+      res.json(updated);
     } catch (error: any) {
       console.error('Error in PUT /api/attendance:', error);
       if (error.name === 'ZodError') {
@@ -2166,6 +2287,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/attendance/:id", requireAuth, requirePermission("edit_events"), async (req, res) => {
     try {
       const { id } = req.params;
+      const teamId = getTeamId();
+      const [existing] = await db.select().from(attendance).where(and(eq(attendance.id, id), eq(attendance.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Attendance not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
       const success = await storage.removeAttendance(id);
       if (success) {
         res.json({ success: true });
@@ -2205,6 +2330,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/team-notes/:id", requireAuth, requirePermission("view_chat"), async (req, res) => {
     try {
       const { id } = req.params;
+      const teamId = getTeamId();
+      const [note] = await db.select().from(teamNotes).where(and(eq(teamNotes.id, id), eq(teamNotes.teamId, teamId))).limit(1);
+      if (!note) return res.status(404).json({ error: "Team note not found" });
+      if (!await verifyObjectScope(req, res, note.gameId, note.rosterId)) return;
       const success = await storage.deleteTeamNote(id);
       if (success) {
         res.json({ success: true });
@@ -2220,8 +2349,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/events/:eventId/games", requireAuth, async (req, res) => {
     try {
       const { eventId } = req.params;
-      const games = await storage.getGamesByEventId(eventId);
-      res.json(games);
+      const teamId = getTeamId();
+      const [event] = await db.select().from(events).where(and(eq(events.id, eventId), eq(events.teamId, teamId))).limit(1);
+      if (!event) return res.status(404).json({ error: "Event not found" });
+      if (!await verifyObjectScope(req, res, event.gameId, event.rosterId)) return;
+      const gamesList = await storage.getGamesByEventId(eventId, event.gameId, event.rosterId);
+      res.json(gamesList);
     } catch (error: any) {
       console.error('Error in GET /api/events/:eventId/games:', error);
       res.status(500).json({ error: error.message || "Internal server error" });
@@ -2259,9 +2392,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/games/:id", requireAuth, requirePermission("edit_events"), async (req, res) => {
     try {
       const { id } = req.params;
-      const validatedData = insertGameSchema.partial().parse(req.body);
-      const game = await storage.updateGame(id, validatedData);
-      logActivity(req.session.userId!, "edit_game", `Updated game`, "team", undefined, getGameId(req));
+      const teamId = getTeamId();
+      const [existing] = await db.select().from(games).where(and(eq(games.id, id), eq(games.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Game not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      const validatedData = await sanitizeScopeFields(req, insertGameSchema.partial().parse(req.body));
+      const game = await storage.updateGame(id, validatedData, existing.gameId, existing.rosterId);
+      if (!game) return res.status(404).json({ error: "Game not found" });
+      logActivity(req.session.userId!, "edit_game", `Updated game`, "team", undefined, existing.gameId);
       res.json(game);
     } catch (error: any) {
       console.error('Error in PUT /api/games:', error);
@@ -2275,9 +2413,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/games/:id", requireAuth, requirePermission("edit_events"), async (req, res) => {
     try {
       const { id } = req.params;
-      const success = await storage.removeGame(id);
+      const teamId = getTeamId();
+      const [existing] = await db.select().from(games).where(and(eq(games.id, id), eq(games.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Game not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      const success = await storage.removeGame(id, existing.gameId, existing.rosterId);
       if (success) {
-        logActivity(req.session.userId!, "delete_game", `Deleted game`, "team", undefined, getGameId(req));
+        logActivity(req.session.userId!, "delete_game", `Deleted game`, "team", undefined, existing.gameId);
         res.json({ success: true });
       } else {
         res.status(404).json({ error: "Game not found" });
@@ -2310,9 +2452,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/event-categories/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
+      const teamId = getTeamId();
+      const [existing] = await db.select().from(eventCategories).where(and(eq(eventCategories.id, req.params.id), eq(eventCategories.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Event category not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
       const { name, sortOrder, color } = req.body;
       if (!name || typeof name !== "string") return res.status(400).json({ error: "Name is required" });
-      const cat = await storage.updateEventCategory(req.params.id, { name, sortOrder: sortOrder ?? undefined, color: color ?? undefined });
+      const cat = await storage.updateEventCategory(req.params.id, { name, sortOrder: sortOrder ?? undefined, color: color ?? undefined }, existing.gameId, existing.rosterId);
+      if (!cat) return res.status(404).json({ error: "Event category not found" });
       res.json(cat);
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Internal server error" });
@@ -2321,7 +2468,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/event-categories/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
-      await storage.removeEventCategory(req.params.id);
+      const teamId = getTeamId();
+      const [existing] = await db.select().from(eventCategories).where(and(eq(eventCategories.id, req.params.id), eq(eventCategories.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Event category not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      const success = await storage.removeEventCategory(req.params.id, existing.gameId, existing.rosterId);
+      if (!success) return res.status(404).json({ error: "Event category not found" });
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Internal server error" });
@@ -2359,9 +2511,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/event-sub-types/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
+      const teamId = getTeamId();
+      const [existing] = await db.select().from(eventSubTypes).where(and(eq(eventSubTypes.id, req.params.id), eq(eventSubTypes.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Event sub-type not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
       const { name, sortOrder, color } = req.body;
       if (!name || typeof name !== "string") return res.status(400).json({ error: "Name is required" });
-      const sub = await storage.updateEventSubType(req.params.id, { name, sortOrder: sortOrder ?? undefined, color: color ?? undefined });
+      const sub = await storage.updateEventSubType(req.params.id, { name, sortOrder: sortOrder ?? undefined, color: color ?? undefined }, existing.gameId, existing.rosterId);
+      if (!sub) return res.status(404).json({ error: "Event sub-type not found" });
       res.json(sub);
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Internal server error" });
@@ -2370,7 +2527,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/event-sub-types/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
-      await storage.removeEventSubType(req.params.id);
+      const teamId = getTeamId();
+      const [existing] = await db.select().from(eventSubTypes).where(and(eq(eventSubTypes.id, req.params.id), eq(eventSubTypes.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Event sub-type not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      const success = await storage.removeEventSubType(req.params.id, existing.gameId, existing.rosterId);
+      if (!success) return res.status(404).json({ error: "Event sub-type not found" });
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Internal server error" });
@@ -2379,7 +2541,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/events/:eventId/attendance", requireAuth, requirePermission("view_events"), async (req, res) => {
     try {
-      const records = await storage.getAttendanceByEventId(req.params.eventId);
+      const teamId = getTeamId();
+      const [event] = await db.select().from(events).where(and(eq(events.id, req.params.eventId), eq(events.teamId, teamId))).limit(1);
+      if (!event) return res.status(404).json({ error: "Event not found" });
+      if (!await verifyObjectScope(req, res, event.gameId, event.rosterId)) return;
+      const records = await storage.getAttendanceByEventId(req.params.eventId, event.gameId, event.rosterId);
       res.json(records);
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Internal server error" });
@@ -2465,9 +2631,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/game-modes/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const { id } = req.params;
-      const validatedData = insertGameModeSchema.partial().parse(req.body);
-      const gameMode = await storage.updateGameMode(id, validatedData);
-      logActivity(req.session.userId!, "edit_game_mode", `Updated game mode "${gameMode.name}"`, "team", undefined, getGameId(req));
+      const teamId = getTeamId();
+      const [existing] = await db.select().from(gameModes).where(and(eq(gameModes.id, id), eq(gameModes.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Game mode not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      const validatedData = await sanitizeScopeFields(req, insertGameModeSchema.partial().parse(req.body));
+      const gameMode = await storage.updateGameMode(id, validatedData, existing.gameId, existing.rosterId);
+      if (!gameMode) return res.status(404).json({ error: "Game mode not found" });
+      logActivity(req.session.userId!, "edit_game_mode", `Updated game mode "${gameMode.name}"`, "team", undefined, existing.gameId);
       res.json(gameMode);
     } catch (error: any) {
       console.error('Error in PUT /api/game-modes:', error);
@@ -2481,9 +2652,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/game-modes/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const { id } = req.params;
-      const success = await storage.removeGameMode(id);
+      const teamId = getTeamId();
+      const [existing] = await db.select().from(gameModes).where(and(eq(gameModes.id, id), eq(gameModes.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Game mode not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      const success = await storage.removeGameMode(id, existing.gameId, existing.rosterId);
       if (success) {
-        logActivity(req.session.userId!, "delete_game_mode", `Deleted game mode`, "team", undefined, getGameId(req));
+        logActivity(req.session.userId!, "delete_game_mode", `Deleted game mode`, "team", undefined, existing.gameId);
         res.json({ success: true });
       } else {
         res.status(404).json({ error: "Game mode not found" });
@@ -2533,9 +2708,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/maps/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const { id } = req.params;
-      const validatedData = insertMapSchema.partial().parse(req.body);
-      const map = await storage.updateMap(id, validatedData);
-      logActivity(req.session.userId!, "edit_map", `Updated map "${map.name}"`, "team", undefined, getGameId(req));
+      const teamId = getTeamId();
+      const [existing] = await db.select().from(maps).where(and(eq(maps.id, id), eq(maps.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Map not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      const validatedData = await sanitizeScopeFields(req, insertMapSchema.partial().parse(req.body));
+      const map = await storage.updateMap(id, validatedData, existing.gameId, existing.rosterId);
+      if (!map) return res.status(404).json({ error: "Map not found" });
+      logActivity(req.session.userId!, "edit_map", `Updated map "${map.name}"`, "team", undefined, existing.gameId);
       res.json(map);
     } catch (error: any) {
       console.error('Error in PUT /api/maps:', error);
@@ -2549,9 +2729,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/maps/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const { id } = req.params;
-      const success = await storage.removeMap(id);
+      const teamId = getTeamId();
+      const [existing] = await db.select().from(maps).where(and(eq(maps.id, id), eq(maps.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Map not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      const success = await storage.removeMap(id, existing.gameId, existing.rosterId);
       if (success) {
-        logActivity(req.session.userId!, "delete_map", `Deleted map`, "team", undefined, getGameId(req));
+        logActivity(req.session.userId!, "delete_map", `Deleted map`, "team", undefined, existing.gameId);
         res.json({ success: true });
       } else {
         res.status(404).json({ error: "Map not found" });
@@ -2604,9 +2788,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/seasons/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const { id } = req.params;
-      const validatedData = insertSeasonSchema.partial().parse(req.body);
-      const season = await storage.updateSeason(id, validatedData);
-      logActivity(req.session.userId!, "edit_season", `Updated season "${season.name}"`, "team", undefined, getGameId(req));
+      const teamId = getTeamId();
+      const [existing] = await db.select().from(seasons).where(and(eq(seasons.id, id), eq(seasons.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Season not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      const validatedData = await sanitizeScopeFields(req, insertSeasonSchema.partial().parse(req.body));
+      const season = await storage.updateSeason(id, validatedData, existing.gameId, existing.rosterId);
+      if (!season) return res.status(404).json({ error: "Season not found" });
+      logActivity(req.session.userId!, "edit_season", `Updated season "${season.name}"`, "team", undefined, existing.gameId);
       res.json(season);
     } catch (error: any) {
       console.error('Error in PUT /api/seasons:', error);
@@ -2620,9 +2809,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/seasons/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const { id } = req.params;
-      const success = await storage.removeSeason(id);
+      const teamId = getTeamId();
+      const [existing] = await db.select().from(seasons).where(and(eq(seasons.id, id), eq(seasons.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Season not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      const success = await storage.removeSeason(id, existing.gameId, existing.rosterId);
       if (success) {
-        logActivity(req.session.userId!, "delete_season", `Deleted season`, "team", undefined, getGameId(req));
+        logActivity(req.session.userId!, "delete_season", `Deleted season`, "team", undefined, existing.gameId);
         res.json({ success: true });
       } else {
         res.status(404).json({ error: "Season not found" });
@@ -2661,9 +2854,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/off-days/:id", requireAuth, requirePermission("delete_events"), async (req, res) => {
     try {
       const { id } = req.params;
+      const teamId = getTeamId();
+      const [existing] = await db.select().from(offDays).where(and(eq(offDays.id, id), eq(offDays.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Off day not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
       const success = await storage.removeOffDayById(id);
       if (success) {
-        logActivity(req.session.userId!, "remove_off_day", `Removed off day`, "team", undefined, getGameId(req));
+        logActivity(req.session.userId!, "remove_off_day", `Removed off day`, "team", undefined, existing.gameId);
         res.json({ success: true });
       } else {
         res.status(404).json({ error: "Off day not found" });
@@ -2677,7 +2874,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/off-days/by-date/:date", requireAuth, requirePermission("delete_events"), async (req, res) => {
     try {
       const { date } = req.params;
-      const success = await storage.removeOffDay(date);
+      const success = await storage.removeOffDay(date, getGameId(req), getRosterId(req));
       if (success) {
         logActivity(req.session.userId!, "remove_off_day", `Removed off day on ${date}`, "team", undefined, getGameId(req));
         res.json({ success: true });
@@ -2693,7 +2890,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/events/:id/duplicate", requireAuth, requirePermission("create_events"), async (req, res) => {
     try {
       const { id } = req.params;
-      const duplicatedEvent = await storage.duplicateEvent(id, getGameId(req), getRosterId(req));
+      const teamId = getTeamId();
+      const [sourceEvent] = await db.select().from(events).where(and(eq(events.id, id), eq(events.teamId, teamId))).limit(1);
+      if (!sourceEvent) return res.status(404).json({ error: "Event not found" });
+      if (!await verifyObjectScope(req, res, sourceEvent.gameId, sourceEvent.rosterId)) return;
+      const duplicatedEvent = await storage.duplicateEvent(id, sourceEvent.gameId, sourceEvent.rosterId);
       res.json(duplicatedEvent);
     } catch (error: any) {
       console.error('Error in POST /api/events/:id/duplicate:', error);
@@ -2729,9 +2930,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/stat-fields/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const { id } = req.params;
-      const validatedData = insertStatFieldSchema.partial().parse(req.body);
-      const statField = await storage.updateStatField(id, validatedData);
-      logActivity(req.session.userId!, "edit_stat_field", `Updated stat field`, "team", undefined, getGameId(req));
+      const teamId = getTeamId();
+      const [existing] = await db.select().from(statFieldsTable).where(and(eq(statFieldsTable.id, id), eq(statFieldsTable.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Stat field not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      const validatedData = await sanitizeScopeFields(req, insertStatFieldSchema.partial().parse(req.body));
+      const statField = await storage.updateStatField(id, validatedData, existing.gameId, existing.rosterId);
+      if (!statField) return res.status(404).json({ error: "Stat field not found" });
+      logActivity(req.session.userId!, "edit_stat_field", `Updated stat field`, "team", undefined, existing.gameId);
       res.json(statField);
     } catch (error: any) {
       console.error('Error in PUT /api/stat-fields/:id:', error);
@@ -2745,9 +2951,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/stat-fields/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const { id } = req.params;
-      const success = await storage.removeStatField(id);
+      const teamId = getTeamId();
+      const [existing] = await db.select().from(statFieldsTable).where(and(eq(statFieldsTable.id, id), eq(statFieldsTable.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Stat field not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      const success = await storage.removeStatField(id, existing.gameId, existing.rosterId);
       if (success) {
-        logActivity(req.session.userId!, "delete_stat_field", `Deleted stat field`, "team", undefined, getGameId(req));
+        logActivity(req.session.userId!, "delete_stat_field", `Deleted stat field`, "team", undefined, existing.gameId);
         res.json({ success: true });
       } else {
         res.status(404).json({ error: "Stat field not found" });
@@ -2761,7 +2971,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/games/:id/player-stats", requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
-      const stats = await storage.getPlayerGameStats(id);
+      const teamId = getTeamId();
+      const [matchGame] = await db.select().from(games).where(and(eq(games.id, id), eq(games.teamId, teamId))).limit(1);
+      if (!matchGame) return res.status(404).json({ error: "Game not found" });
+      if (!await verifyObjectScope(req, res, matchGame.gameId, matchGame.rosterId)) return;
+      const stats = await storage.getPlayerGameStats(id, matchGame.gameId, matchGame.rosterId);
       res.json(stats);
     } catch (error: any) {
       console.error('Error in GET /api/games/:id/player-stats:', error);
@@ -2776,7 +2990,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!Array.isArray(stats)) {
         return res.status(400).json({ error: "stats must be an array" });
       }
-      const saved = await storage.savePlayerGameStats(id, stats, getGameId(req), getRosterId(req));
+      const teamId = getTeamId();
+      const [matchGame] = await db.select().from(games).where(and(eq(games.id, id), eq(games.teamId, teamId))).limit(1);
+      if (!matchGame) return res.status(404).json({ error: "Game not found" });
+      if (!await verifyObjectScope(req, res, matchGame.gameId, matchGame.rosterId)) return;
+      const saved = await storage.savePlayerGameStats(id, stats, matchGame.gameId, matchGame.rosterId);
       res.json(saved);
     } catch (error: any) {
       console.error('Error in POST /api/games/:id/player-stats:', error);
@@ -3201,7 +3419,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/game-assignments/pending", requireAuth, requirePermission("view_dashboard"), async (req, res) => {
+  app.get("/api/game-assignments/pending", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
     try {
       const gameId = req.query.gameId as string | undefined;
       const rosterId = req.query.rosterId as string | undefined;
@@ -3385,15 +3603,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/all-rosters", requireAuth, async (req, res) => {
     try {
       const teamId = getTeamId();
+      const userId = req.session.userId!;
+      const [currentUser] = await db.select().from(users).where(and(eq(users.id, userId), eq(users.teamId, teamId))).limit(1);
+      const isAdmin = currentUser && (currentUser.orgRole === "super_admin" || currentUser.orgRole === "org_admin");
+
+      type AssignmentScope = { gameId: string; rosterId: string | null };
+      let scopedAssignments: AssignmentScope[] | null = null;
+      if (!isAdmin) {
+        const assignments = await db.select().from(userGameAssignments)
+          .where(and(eq(userGameAssignments.userId, userId), eq(userGameAssignments.status, "approved"), eq(userGameAssignments.teamId, teamId)));
+        scopedAssignments = assignments.map(a => ({ gameId: a.gameId, rosterId: a.rosterId }));
+      }
+
       const allGamesList = await db.select().from(supportedGames);
       const result: Record<string, any[]> = {};
 
       for (const game of allGamesList) {
-        const gameRosters = await db.select().from(rosters)
-          .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, game.id)))
-          .orderBy(rosters.sortOrder);
-
-        result[game.id] = gameRosters;
+        if (scopedAssignments !== null) {
+          const gameAssignments = scopedAssignments.filter(a => a.gameId === game.id);
+          if (gameAssignments.length === 0) continue;
+          const hasGameWideAccess = gameAssignments.some(a => a.rosterId === null);
+          if (hasGameWideAccess) {
+            const gameRosters = await db.select().from(rosters)
+              .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, game.id)))
+              .orderBy(rosters.sortOrder);
+            result[game.id] = gameRosters;
+          } else {
+            const allowedRosterIds = gameAssignments.map(a => a.rosterId!).filter(Boolean);
+            const gameRosters = await db.select().from(rosters)
+              .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, game.id)))
+              .orderBy(rosters.sortOrder);
+            result[game.id] = gameRosters.filter(r => allowedRosterIds.includes(r.id));
+          }
+        } else {
+          const gameRosters = await db.select().from(rosters)
+            .where(and(eq(rosters.teamId, teamId), eq(rosters.gameId, game.id)))
+            .orderBy(rosters.sortOrder);
+          result[game.id] = gameRosters;
+        }
       }
 
       res.json(result);
@@ -3405,7 +3652,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/all-event-categories", requireAuth, async (req, res) => {
     try {
       const teamId = getTeamId();
-      const cats = await db.select().from(eventCategories).where(eq(eventCategories.teamId, teamId));
+      const userId = req.session.userId!;
+      const [currentUser] = await db.select().from(users).where(and(eq(users.id, userId), eq(users.teamId, teamId))).limit(1);
+      const isAdmin = currentUser && (currentUser.orgRole === "super_admin" || currentUser.orgRole === "org_admin");
+      if (isAdmin) {
+        const cats = await db.select().from(eventCategories).where(eq(eventCategories.teamId, teamId));
+        return res.json(cats);
+      }
+      const assignments = await db.select().from(userGameAssignments)
+        .where(and(eq(userGameAssignments.userId, userId), eq(userGameAssignments.status, "approved"), eq(userGameAssignments.teamId, teamId)));
+      if (assignments.length === 0) return res.json([]);
+      const conditions = assignments.map(a => {
+        const conds: any[] = [eq(eventCategories.gameId, a.gameId)];
+        if (a.rosterId) conds.push(or(isNull(eventCategories.rosterId), eq(eventCategories.rosterId, a.rosterId)));
+        return and(...conds);
+      });
+      const cats = await db.select().from(eventCategories).where(and(eq(eventCategories.teamId, teamId), or(...conditions)));
       res.json(cats);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -3415,7 +3677,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/all-event-sub-types", requireAuth, async (req, res) => {
     try {
       const teamId = getTeamId();
-      const subs = await db.select().from(eventSubTypes).where(eq(eventSubTypes.teamId, teamId));
+      const userId = req.session.userId!;
+      const [currentUser] = await db.select().from(users).where(and(eq(users.id, userId), eq(users.teamId, teamId))).limit(1);
+      const isAdmin = currentUser && (currentUser.orgRole === "super_admin" || currentUser.orgRole === "org_admin");
+      if (isAdmin) {
+        const subs = await db.select().from(eventSubTypes).where(eq(eventSubTypes.teamId, teamId));
+        return res.json(subs);
+      }
+      const assignments = await db.select().from(userGameAssignments)
+        .where(and(eq(userGameAssignments.userId, userId), eq(userGameAssignments.status, "approved"), eq(userGameAssignments.teamId, teamId)));
+      if (assignments.length === 0) return res.json([]);
+      const conditions = assignments.map(a => {
+        const conds: any[] = [eq(eventSubTypes.gameId, a.gameId)];
+        if (a.rosterId) conds.push(or(isNull(eventSubTypes.rosterId), eq(eventSubTypes.rosterId, a.rosterId)));
+        return and(...conds);
+      });
+      const subs = await db.select().from(eventSubTypes).where(and(eq(eventSubTypes.teamId, teamId), or(...conditions)));
       res.json(subs);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -3425,9 +3702,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/all-events", requireAuth, async (req, res) => {
     try {
       const teamId = getTeamId();
+      const userId = req.session.userId!;
+      const [currentUser] = await db.select().from(users).where(and(eq(users.id, userId), eq(users.teamId, teamId))).limit(1);
+      const isAdmin = currentUser && (currentUser.orgRole === "super_admin" || currentUser.orgRole === "org_admin");
+
+      type AssignmentScope = { gameId: string; rosterId: string | null };
+      let scopedAssignments: AssignmentScope[] | null = null;
+      if (!isAdmin) {
+        const assignments = await db.select().from(userGameAssignments)
+          .where(and(eq(userGameAssignments.userId, userId), eq(userGameAssignments.status, "approved"), eq(userGameAssignments.teamId, teamId)));
+        scopedAssignments = assignments.map(a => ({ gameId: a.gameId, rosterId: a.rosterId }));
+      }
+
       const allGamesList = await db.select().from(supportedGames);
-      const allEvents = await db.select().from(events).where(eq(events.teamId, teamId));
       const allRostersRows = await db.select().from(rosters).where(eq(rosters.teamId, teamId));
+      let allEvents = await db.select().from(events).where(eq(events.teamId, teamId));
+      if (scopedAssignments !== null) {
+        allEvents = allEvents.filter(e => {
+          if (!e.gameId) return false;
+          const gameAssignments = scopedAssignments!.filter(a => a.gameId === e.gameId);
+          if (gameAssignments.length === 0) return false;
+          const hasGameWideAccess = gameAssignments.some(a => a.rosterId === null);
+          if (hasGameWideAccess) return true;
+          if (!e.rosterId) return false;
+          return gameAssignments.some(a => a.rosterId === e.rosterId);
+        });
+      }
       const enriched = allEvents.map(e => {
         const game = allGamesList.find(g => g.id === e.gameId);
         const roster = allRostersRows.find(r => r.id === e.rosterId);
@@ -3527,7 +3827,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==================== ORG DASHBOARD ====================
-  app.get("/api/org-dashboard", requireAuth, requirePermission("view_dashboard"), async (req, res) => {
+  app.get("/api/org-dashboard", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
     try {
       const teamId = getTeamId();
       const allSupportedGames = await storage.getSupportedGames();
@@ -3816,12 +4116,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const { userId } = req.body;
       const teamId = getTeamId();
-      await db
+      const [existing] = await db.select().from(staffTable).where(and(eq(staffTable.id, id), eq(staffTable.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ message: "Staff not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      const [updated] = await db
         .update(staffTable)
         .set({ userId: userId || null })
-        .where(and(eq(staffTable.id, id), eq(staffTable.teamId, teamId)));
-      const updated = await db.select().from(staffTable).where(eq(staffTable.id, id));
-      res.json(updated[0]);
+        .where(and(eq(staffTable.id, id), eq(staffTable.teamId, teamId)))
+        .returning();
+      if (!updated) return res.status(404).json({ message: "Staff not found" });
+      res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -4118,7 +4422,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==================== ALL USERS (admin) ====================
-  app.get("/api/all-users", requireAuth, requirePermission("view_users_tab"), async (req, res) => {
+  app.get("/api/all-users", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
     try {
       const teamId = getTeamId();
       const allUsers = await db.select().from(users).where(eq(users.teamId, teamId));
