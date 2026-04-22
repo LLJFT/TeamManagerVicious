@@ -415,7 +415,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   // ==================== STATIC FILE SERVING ====================
-  // Branding assets (logos, game icons) are public – needed on login/public pages
+  // Branding assets (logos, game icons) are public – needed on login/public pages.
+  // Local-disk fallback (kept for any pre-existing /uploads/logos/* URLs that
+  // still happen to exist on disk after a redeploy). New uploads go to object
+  // storage and are served via /public-objects/* below.
   app.use("/uploads/logos", express.static(path.join(UPLOAD_DIR, "logos")));
   app.use("/uploads/game-icons", express.static(path.join(UPLOAD_DIR, "game-icons")));
 
@@ -545,13 +548,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/upload/logo", requireAuth, requireOrgRole("org_admin"), uploadLogo.single("file"), async (req, res) => {
+  // Logos go to object storage (persistent across redeploys/restarts).
+  // We use multer.memoryStorage so the file never lands on the ephemeral
+  // local disk; we forward the buffer straight to the bucket.
+  const logoMemoryUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      const ok = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".ico"]);
+      if (!ok.has(ext)) return cb(new Error(`File type ${ext} is not allowed`));
+      cb(null, true);
+    },
+  });
+
+  app.post("/api/upload/logo", requireAuth, requireOrgRole("org_admin"), logoMemoryUpload.single("file"), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
       }
-      const filePath = `/uploads/logos/${req.file.filename}`;
-      res.json({ url: filePath, path: filePath });
+      // Persist the logo as a data URL. This stores it directly in the
+      // org_settings DB row (which IS persistent), so it survives redeploys,
+      // container restarts, and the upload-folder quarantine sweep — none of
+      // which touch the database. Logos are small (10 MB hard cap above) and
+      // base64 inflates by ~33%, so this is well within Postgres text limits.
+      const mime = req.file.mimetype || "application/octet-stream";
+      const allowedMimes = new Set(["image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp", "image/bmp", "image/x-icon", "image/vnd.microsoft.icon"]);
+      if (!allowedMimes.has(mime)) {
+        return res.status(400).json({ message: `Image type ${mime} is not allowed` });
+      }
+      const dataUrl = `data:${mime};base64,${req.file.buffer.toString("base64")}`;
+      res.json({ url: dataUrl, path: dataUrl });
     } catch (error: any) {
       console.error("Logo upload error:", error);
       res.status(500).json({ message: error.message });
