@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { EventsSkeleton } from "@/components/PageSkeleton";
 import { useGame } from "@/hooks/use-game";
-import type { Event, EventResult, Game, InsertGame, GameMode, Map as MapType, Player, StatField, PlayerGameStat, Attendance, Staff } from "@shared/schema";
+import type { Event, EventResult, Game, InsertGame, GameMode, Map as MapType, Player, StatField, PlayerGameStat, Attendance, Staff, Side, GameRound } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -154,6 +154,13 @@ export default function EventDetails() {
   const [newGameLink, setNewGameLink] = useState("");
   const [uploadingImageForNewGame, setUploadingImageForNewGame] = useState(false);
 
+  type RoundDraft = { sideId: string | null; teamScore: number; opponentScore: number };
+  const [newGameRounds, setNewGameRounds] = useState<RoundDraft[]>([
+    { sideId: null, teamScore: 0, opponentScore: 0 },
+  ]);
+  const [editingRoundsForGame, setEditingRoundsForGame] = useState<string | null>(null);
+  const [editingRounds, setEditingRounds] = useState<RoundDraft[]>([]);
+
   const [editingGame, setEditingGame] = useState<Game | null>(null);
   const [uploadingImageForGame, setUploadingImageForGame] = useState<string | null>(null);
   const [viewingImage, setViewingImage] = useState<string | null>(null);
@@ -188,9 +195,43 @@ export default function EventDetails() {
     queryKey: ["/api/game-modes"],
   });
 
+  const { data: sidesList = [] } = useQuery<Side[]>({
+    queryKey: ["/api/sides"],
+  });
+
   const { data: allMaps = [] } = useQuery<MapType[]>({
     queryKey: ["/api/maps"],
   });
+
+  const { data: editingRoundsData, isSuccess: editingRoundsLoaded } = useQuery<GameRound[]>({
+    queryKey: ["/api/games", editingRoundsForGame, "rounds"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/games/${editingRoundsForGame}/rounds`);
+      return res.json();
+    },
+    enabled: !!editingRoundsForGame,
+  });
+
+  const [roundsInitializedFor, setRoundsInitializedFor] = useState<string | null>(null);
+  useEffect(() => {
+    if (!editingRoundsForGame) {
+      setRoundsInitializedFor(null);
+      return;
+    }
+    if (roundsInitializedFor === editingRoundsForGame) return;
+    if (!editingRoundsLoaded) return;
+    const data = editingRoundsData ?? [];
+    if (data.length > 0) {
+      setEditingRounds(data.map(r => ({
+        sideId: r.sideId,
+        teamScore: r.teamScore,
+        opponentScore: r.opponentScore,
+      })));
+    } else {
+      setEditingRounds([{ sideId: null, teamScore: 0, opponentScore: 0 }]);
+    }
+    setRoundsInitializedFor(editingRoundsForGame);
+  }, [editingRoundsData, editingRoundsLoaded, editingRoundsForGame, roundsInitializedFor]);
 
   const { data: allPlayers = [] } = useQuery<Player[]>({
     queryKey: ["/api/players"],
@@ -324,6 +365,26 @@ export default function EventDetails() {
           await savePlayerStatsMutation.mutateAsync({ gameId: newGame.id, stats });
         }
       }
+      // Save rounds if any have been configured
+      const roundsToSave = newGameRounds.filter(r =>
+        r.sideId !== null || r.teamScore !== 0 || r.opponentScore !== 0
+      );
+      if (roundsToSave.length > 0) {
+        const payload = roundsToSave.map((r, i) => ({
+          rosterId: newGame.rosterId,
+          matchId: newGame.id,
+          roundNumber: i + 1,
+          sideId: r.sideId,
+          teamScore: r.teamScore,
+          opponentScore: r.opponentScore,
+        }));
+        try {
+          await apiRequest("PUT", `/api/games/${newGame.id}/rounds`, payload);
+        } catch (err) {
+          // non-fatal; user can edit rounds afterwards
+          console.error("Failed to save rounds for new game:", err);
+        }
+      }
       queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "games"] });
       resetNewGameForm();
       setToastMessage("Game added successfully");
@@ -440,6 +501,156 @@ export default function EventDetails() {
     setNewGameResult("");
     setNewGameLink("");
     setNewGamePlayerStats({});
+    setNewGameRounds([{ sideId: null, teamScore: 0, opponentScore: 0 }]);
+  };
+
+  const saveRoundsMutation = useMutation({
+    mutationFn: async (data: { gameId: string; rounds: RoundDraft[]; rosterId: string | null }) => {
+      const payload = data.rounds.map((r, i) => ({
+        rosterId: data.rosterId,
+        matchId: data.gameId,
+        roundNumber: i + 1,
+        sideId: r.sideId,
+        teamScore: r.teamScore,
+        opponentScore: r.opponentScore,
+      }));
+      const res = await apiRequest("PUT", `/api/games/${data.gameId}/rounds`, payload);
+      return res.json();
+    },
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/games", vars.gameId, "rounds"] });
+      setEditingRoundsForGame(null);
+      setEditingRounds([]);
+      setToastMessage("Rounds saved");
+      setToastType("success");
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+    },
+    onError: (error: any) => {
+      setToastMessage(error.message || "Failed to save rounds");
+      setToastType("error");
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+    },
+  });
+
+  const getModeForGame = (gameModeId: string | null): GameMode | undefined => {
+    if (!gameModeId) return undefined;
+    return gameModes.find(m => m.id === gameModeId);
+  };
+
+  const renderRoundEditor = (
+    rounds: RoundDraft[],
+    setRounds: (r: RoundDraft[]) => void,
+    modeId: string,
+    keyPrefix: string
+  ) => {
+    const mode = getModeForGame(modeId);
+    const scoreType = (mode as any)?.scoreType || "numeric";
+    const maxScore = (mode as any)?.maxScore ?? 13;
+    const maxRoundWins = (mode as any)?.maxRoundWins ?? 7;
+    const maxAllowed = scoreType === "rounds" ? maxRoundWins : maxScore;
+
+    const updateRound = (idx: number, patch: Partial<RoundDraft>) => {
+      const next = rounds.map((r, i) => (i === idx ? { ...r, ...patch } : r));
+      setRounds(next);
+    };
+    const addRound = () => {
+      if (rounds.length >= 15) return;
+      setRounds([...rounds, { sideId: null, teamScore: 0, opponentScore: 0 }]);
+    };
+    const removeRound = (idx: number) => {
+      if (rounds.length <= 1) return;
+      setRounds(rounds.filter((_, i) => i !== idx));
+    };
+
+    const clamp = (n: number) => Math.max(0, Math.min(maxAllowed, isNaN(n) ? 0 : n));
+
+    return (
+      <div className="space-y-3 border border-border rounded-md p-3 bg-muted/30" data-testid={`rounds-editor-${keyPrefix}`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <BarChart3 className="h-4 w-4 text-primary" />
+            <span>Rounds ({rounds.length}/15)</span>
+            {mode && (
+              <Badge variant="outline" className="text-xs">
+                {scoreType === "rounds" ? `Max ${maxRoundWins} round wins` : `Max ${maxScore} per side`}
+              </Badge>
+            )}
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={addRound}
+            disabled={rounds.length >= 15}
+            data-testid={`button-add-round-${keyPrefix}`}
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Round
+          </Button>
+        </div>
+        <div className="space-y-2">
+          {rounds.map((round, idx) => (
+            <div key={idx} className="grid grid-cols-12 items-center gap-2" data-testid={`row-round-${keyPrefix}-${idx}`}>
+              <div className="col-span-1 text-xs text-muted-foreground text-center">#{idx + 1}</div>
+              <div className="col-span-4">
+                <Select
+                  value={round.sideId || "none"}
+                  onValueChange={(v) => updateRound(idx, { sideId: v === "none" ? null : v })}
+                >
+                  <SelectTrigger className="h-9 text-sm" data-testid={`select-round-side-${keyPrefix}-${idx}`}>
+                    <SelectValue placeholder="Side" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">— No side —</SelectItem>
+                    {sidesList.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="col-span-3">
+                <Input
+                  type="number"
+                  min={0}
+                  max={maxAllowed}
+                  value={round.teamScore}
+                  onChange={(e) => updateRound(idx, { teamScore: clamp(parseInt(e.target.value || "0", 10)) })}
+                  placeholder="Us"
+                  className="h-9 text-sm text-center"
+                  data-testid={`input-round-team-${keyPrefix}-${idx}`}
+                />
+              </div>
+              <div className="col-span-3">
+                <Input
+                  type="number"
+                  min={0}
+                  max={maxAllowed}
+                  value={round.opponentScore}
+                  onChange={(e) => updateRound(idx, { opponentScore: clamp(parseInt(e.target.value || "0", 10)) })}
+                  placeholder="Them"
+                  className="h-9 text-sm text-center"
+                  data-testid={`input-round-opp-${keyPrefix}-${idx}`}
+                />
+              </div>
+              <div className="col-span-1 flex justify-end">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => removeRound(idx)}
+                  disabled={rounds.length <= 1}
+                  data-testid={`button-remove-round-${keyPrefix}-${idx}`}
+                >
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   const handleUpdateGame = (game: Game) => {
@@ -788,6 +999,7 @@ export default function EventDetails() {
                 setNewGamePlayerStats,
                 "new-game"
               )}
+              {renderRoundEditor(newGameRounds, setNewGameRounds, newGameModeId, "new-game")}
               <div className="flex gap-2 flex-wrap">
                 <ObjectUploader
                   accept="image/*"
@@ -1024,6 +1236,22 @@ export default function EventDetails() {
                                 )}
                                 <Button
                                   size="sm"
+                                  variant={editingRoundsForGame === game.id ? "default" : "outline"}
+                                  onClick={() => {
+                                    if (editingRoundsForGame === game.id) {
+                                      setEditingRoundsForGame(null);
+                                      setEditingRounds([]);
+                                    } else {
+                                      setEditingRoundsForGame(game.id);
+                                    }
+                                  }}
+                                  data-testid={`button-rounds-game-${game.id}`}
+                                  title="Rounds"
+                                >
+                                  Rounds
+                                </Button>
+                                <Button
+                                  size="sm"
                                   variant="ghost"
                                   onClick={() => handleDeleteGame(game.id)}
                                   disabled={deleteGameMutation.isPending}
@@ -1052,6 +1280,45 @@ export default function EventDetails() {
                       onSave={(stats) => savePlayerStatsMutation.mutate({ gameId: game.id, stats })}
                       isSaving={savePlayerStatsMutation.isPending}
                     />
+                  );
+                })()}
+
+                {editingRoundsForGame && (() => {
+                  const game = games.find(g => g.id === editingRoundsForGame);
+                  if (!game) return null;
+                  return (
+                    <Card className="mt-3">
+                      <CardHeader className="py-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <BarChart3 className="h-4 w-4 text-primary" />
+                            <CardTitle className="text-base">Rounds — {game.gameCode}</CardTitle>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => { setEditingRoundsForGame(null); setEditingRounds([]); }}
+                              data-testid={`button-cancel-rounds-${game.id}`}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => saveRoundsMutation.mutate({ gameId: game.id, rounds: editingRounds, rosterId: game.rosterId })}
+                              disabled={saveRoundsMutation.isPending}
+                              data-testid={`button-save-rounds-${game.id}`}
+                            >
+                              <Save className="h-4 w-4 mr-2" />
+                              {saveRoundsMutation.isPending ? "Saving..." : "Save Rounds"}
+                            </Button>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="pt-0">
+                        {renderRoundEditor(editingRounds, setEditingRounds, game.gameModeId || "", `edit-${game.id}`)}
+                      </CardContent>
+                    </Card>
                   );
                 })()}
               </div>

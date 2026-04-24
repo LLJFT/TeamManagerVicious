@@ -10,16 +10,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   ArrowLeft, Plus, Pencil, Trash2, Gamepad2, Map as MapIcon,
   ChevronRight, Calendar, BarChart3, Settings, Users, Shield,
-  Clock, UserCog, Check, Ban, UserCheck, Search,
-  AlertTriangle, Database, Loader2
+  Clock, UserCog, Check, Ban, UserCheck, Search, ArrowUp, ArrowDown,
+  AlertTriangle, Database, Loader2, Swords, Target
 } from "lucide-react";
 import type {
   GameMode, Map as MapType, Season, StatField, Role, Player,
-  AvailabilitySlot, RosterRole, Permission, EventCategory, EventSubType
+  AvailabilitySlot, RosterRole, Permission, EventCategory, EventSubType,
+  Side
 } from "@shared/schema";
 import { allPermissions, permissionCategories } from "@shared/schema";
 import { queryClient, apiRequest, getCurrentGameId, getCurrentRosterId } from "@/lib/queryClient";
@@ -80,6 +82,10 @@ const roleFormSchema = z.object({
   permissions: z.array(z.string()),
 });
 
+const sideFormSchema = z.object({
+  name: z.string().min(1, "Side name is required"),
+});
+
 type GameModeFormData = z.infer<typeof gameModeFormSchema>;
 type MapFormData = z.infer<typeof mapFormSchema>;
 type SeasonFormData = z.infer<typeof seasonFormSchema>;
@@ -87,6 +93,7 @@ type StatFieldFormData = z.infer<typeof statFieldFormSchema>;
 type AvailabilitySlotFormData = z.infer<typeof availabilitySlotFormSchema>;
 type RosterRoleFormData = z.infer<typeof rosterRoleFormSchema>;
 type RoleFormData = z.infer<typeof roleFormSchema>;
+type SideFormData = z.infer<typeof sideFormSchema>;
 
 interface ActivityLogEntry {
   id: string;
@@ -381,6 +388,8 @@ export default function Dashboard() {
 
   const [editingGameMode, setEditingGameMode] = useState<GameMode | undefined>();
   const [editingMap, setEditingMap] = useState<MapType | undefined>();
+  const [showSideDialog, setShowSideDialog] = useState(false);
+  const [editingSide, setEditingSide] = useState<Side | undefined>();
   const [editingSeason, setEditingSeason] = useState<Season | undefined>();
   const [editingStatField, setEditingStatField] = useState<StatField | undefined>();
   const [editingSlot, setEditingSlot] = useState<AvailabilitySlot | undefined>();
@@ -443,6 +452,10 @@ export default function Dashboard() {
     queryKey: ["/api/game-modes"],
   });
 
+  const { data: sidesList = [] } = useQuery<Side[]>({
+    queryKey: ["/api/sides"],
+  });
+
   const { data: maps = [], isLoading: mapsLoading } = useQuery<MapType[]>({
     queryKey: ["/api/maps"],
   });
@@ -490,6 +503,11 @@ export default function Dashboard() {
 
   const gameModeForm = useForm<GameModeFormData>({
     resolver: zodResolver(gameModeFormSchema),
+    defaultValues: { name: "" },
+  });
+
+  const sideForm = useForm<SideFormData>({
+    resolver: zodResolver(sideFormSchema),
     defaultValues: { name: "" },
   });
 
@@ -575,6 +593,71 @@ export default function Dashboard() {
       showSuccess("Game mode deleted");
     },
     onError: (e: any) => showError(e.message || "Failed to delete game mode"),
+  });
+
+  const createSideMutation = useMutation({
+    mutationFn: async (data: SideFormData) => {
+      const sortOrder = String(sidesList.length);
+      const rosterId = getCurrentRosterId();
+      const r = await apiRequest("POST", "/api/sides", { ...data, sortOrder, rosterId });
+      return r.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sides"] });
+      setShowSideDialog(false);
+      setEditingSide(undefined);
+      sideForm.reset({ name: "" });
+      showSuccess("Side created");
+    },
+    onError: (e: any) => showError(e.message || "Failed to create side"),
+  });
+
+  const updateSideMutation = useMutation({
+    mutationFn: async (data: { id: string; side: Partial<Side> }) => {
+      const r = await apiRequest("PUT", `/api/sides/${data.id}`, data.side);
+      return r.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sides"] });
+      setShowSideDialog(false);
+      setEditingSide(undefined);
+      sideForm.reset({ name: "" });
+      showSuccess("Side updated");
+    },
+    onError: (e: any) => showError(e.message || "Failed to update side"),
+  });
+
+  const deleteSideMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const r = await apiRequest("DELETE", `/api/sides/${id}`);
+      return r.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sides"] });
+      showSuccess("Side deleted");
+    },
+    onError: (e: any) => showError(e.message || "Failed to delete side"),
+  });
+
+  const reorderSideMutation = useMutation({
+    mutationFn: async (updates: { id: string; sortOrder: string }[]) => {
+      await Promise.all(updates.map(u => apiRequest("PUT", `/api/sides/${u.id}`, { sortOrder: u.sortOrder })));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sides"] });
+    },
+    onError: (e: any) => showError(e.message || "Failed to reorder sides"),
+  });
+
+  const updateScoreConfigMutation = useMutation({
+    mutationFn: async (data: { id: string; patch: Partial<GameMode> }) => {
+      const r = await apiRequest("PUT", `/api/game-modes/${data.id}`, data.patch);
+      return r.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/game-modes"] });
+    },
+    onError: (e: any) => showError(e.message || "Failed to update score config"),
   });
 
   const createMapMutation = useMutation({
@@ -1193,7 +1276,7 @@ export default function Dashboard() {
           </TabsList>
 
           {/* Tab 1: Game Config */}
-          <TabsContent value="game-config">
+          <TabsContent value="game-config" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <Card className="h-fit">
                 <CardHeader className="pb-4 border-b border-border">
@@ -1349,6 +1432,192 @@ export default function Dashboard() {
                           </div>
                         </div>
                       ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card className="h-fit">
+                <CardHeader className="pb-4 border-b border-border">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-blue-500/10">
+                        <Swords className="h-5 w-5 text-blue-500" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-xl">Sides Configuration</CardTitle>
+                        <CardDescription>{sidesList.length} {sidesList.length === 1 ? "side" : "sides"} configured</CardDescription>
+                      </div>
+                    </div>
+                    {hasPermission("manage_game_config") && (
+                      <Button
+                        onClick={() => { setEditingSide(undefined); sideForm.reset({ name: "" }); setShowSideDialog(true); }}
+                        size="sm"
+                        className="gap-2"
+                        data-testid="button-add-side"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Add
+                      </Button>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {sidesList.length === 0 ? (
+                    <div className="p-8 text-center">
+                      <Swords className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
+                      <p className="text-muted-foreground text-sm">No sides configured</p>
+                      <p className="text-muted-foreground text-xs mt-1">Defaults (Attack, Defense) will load on first view</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-border">
+                      {sidesList.map((side, idx) => (
+                        <div key={side.id} className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors" data-testid={`row-side-${side.id}`}>
+                          <div className="flex items-center gap-3">
+                            <Swords className="h-4 w-4 text-blue-500" />
+                            <span className="font-medium text-foreground" data-testid={`text-side-name-${side.id}`}>{side.name}</span>
+                          </div>
+                          {hasPermission("manage_game_config") && (
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                disabled={idx === 0 || reorderSideMutation.isPending}
+                                onClick={() => {
+                                  const a = sidesList[idx - 1];
+                                  const b = sidesList[idx];
+                                  reorderSideMutation.mutate([
+                                    { id: a.id, sortOrder: String(idx) },
+                                    { id: b.id, sortOrder: String(idx - 1) },
+                                  ]);
+                                }}
+                                data-testid={`button-side-up-${side.id}`}
+                              >
+                                <ArrowUp className="h-4 w-4 text-muted-foreground" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                disabled={idx === sidesList.length - 1 || reorderSideMutation.isPending}
+                                onClick={() => {
+                                  const a = sidesList[idx];
+                                  const b = sidesList[idx + 1];
+                                  reorderSideMutation.mutate([
+                                    { id: a.id, sortOrder: String(idx + 1) },
+                                    { id: b.id, sortOrder: String(idx) },
+                                  ]);
+                                }}
+                                data-testid={`button-side-down-${side.id}`}
+                              >
+                                <ArrowDown className="h-4 w-4 text-muted-foreground" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => { setEditingSide(side); sideForm.reset({ name: side.name }); setShowSideDialog(true); }}
+                                data-testid={`button-edit-side-${side.id}`}
+                              >
+                                <Pencil className="h-4 w-4 text-muted-foreground" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => { if (confirm(`Delete side "${side.name}"?`)) deleteSideMutation.mutate(side.id); }}
+                                data-testid={`button-delete-side-${side.id}`}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="h-fit">
+                <CardHeader className="pb-4 border-b border-border">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-green-500/10">
+                      <Target className="h-5 w-5 text-green-500" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-xl">Score Configuration</CardTitle>
+                      <CardDescription>Per-mode score type & limits</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {gameModes.length === 0 ? (
+                    <div className="p-8 text-center">
+                      <Target className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
+                      <p className="text-muted-foreground text-sm">Add a game mode first</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-border">
+                      {gameModes.map((mode) => {
+                        const scoreType = (mode as any).scoreType || "numeric";
+                        const maxScore = (mode as any).maxScore ?? 13;
+                        const maxRoundWins = (mode as any).maxRoundWins ?? 7;
+                        const canEdit = hasPermission("manage_game_config");
+                        return (
+                          <div key={mode.id} className="p-4 space-y-3" data-testid={`row-score-config-${mode.id}`}>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-medium text-foreground">{mode.name}</span>
+                              <Select
+                                value={scoreType}
+                                disabled={!canEdit || updateScoreConfigMutation.isPending}
+                                onValueChange={(v) => updateScoreConfigMutation.mutate({ id: mode.id, patch: { scoreType: v } as any })}
+                              >
+                                <SelectTrigger className="w-[160px]" data-testid={`select-score-type-${mode.id}`}>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="numeric">Numeric</SelectItem>
+                                  <SelectItem value="rounds">Rounds</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            {scoreType === "numeric" ? (
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <Label className="text-xs text-muted-foreground">Max Score</Label>
+                                  <span className="text-sm font-medium" data-testid={`text-max-score-${mode.id}`}>{maxScore}</span>
+                                </div>
+                                <Slider
+                                  value={[maxScore]}
+                                  min={1}
+                                  max={200}
+                                  step={1}
+                                  disabled={!canEdit}
+                                  onValueChange={(v) => updateScoreConfigMutation.mutate({ id: mode.id, patch: { maxScore: v[0] } as any })}
+                                  data-testid={`slider-max-score-${mode.id}`}
+                                />
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-between gap-2">
+                                <Label className="text-xs text-muted-foreground">Max Round Wins</Label>
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  max={50}
+                                  value={maxRoundWins}
+                                  disabled={!canEdit}
+                                  onChange={(e) => {
+                                    const n = Math.max(1, Math.min(50, parseInt(e.target.value || "1", 10)));
+                                    updateScoreConfigMutation.mutate({ id: mode.id, patch: { maxRoundWins: n } as any });
+                                  }}
+                                  className="w-24"
+                                  data-testid={`input-max-round-wins-${mode.id}`}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </CardContent>
@@ -2010,6 +2279,41 @@ export default function Dashboard() {
                   <Button type="button" variant="outline" onClick={() => setShowGameModeDialog(false)}>Cancel</Button>
                   <Button type="submit" disabled={createGameModeMutation.isPending || updateGameModeMutation.isPending} data-testid="button-save-game-mode">
                     {editingGameMode ? "Update" : "Create"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showSideDialog} onOpenChange={setShowSideDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editingSide ? "Edit Side" : "Add Side"}</DialogTitle>
+              <DialogDescription>{editingSide ? "Update the name of this side." : "Add a new side (e.g., Attack, Defense)."}</DialogDescription>
+            </DialogHeader>
+            <Form {...sideForm}>
+              <form
+                onSubmit={sideForm.handleSubmit((data) => {
+                  if (editingSide) {
+                    updateSideMutation.mutate({ id: editingSide.id, side: { name: data.name } });
+                  } else {
+                    createSideMutation.mutate(data);
+                  }
+                })}
+                className="space-y-4"
+              >
+                <FormField control={sideForm.control} name="name" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Side Name</FormLabel>
+                    <FormControl><Input {...field} placeholder="e.g., Attack, Defense" data-testid="input-side-name" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setShowSideDialog(false)}>Cancel</Button>
+                  <Button type="submit" disabled={createSideMutation.isPending || updateSideMutation.isPending} data-testid="button-save-side">
+                    {editingSide ? "Update" : "Create"}
                   </Button>
                 </DialogFooter>
               </form>

@@ -14,13 +14,14 @@ import {
   insertStaffSchema, insertChatChannelSchema, insertChatMessageSchema,
   insertAvailabilitySlotSchema, insertRosterRoleSchema,
   insertChatChannelPermissionSchema, insertEventCategorySchema, insertEventSubTypeSchema,
+  insertSideSchema, insertGameRoundSchema,
   users, roles, chatChannels, chatMessages, availabilitySlots, rosterRoles,
   chatChannelPermissions, activityLogs, playerGameStats, allPermissions,
   players, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays,
   statFields as statFieldsTable,
   staff as staffTable,
   supportedGames, userGameAssignments, notifications, rosters,
-  eventCategories, eventSubTypes,
+  eventCategories, eventSubTypes, sides, gameRounds,
   type UserWithRole,
   GAME_ABBREVIATIONS,
 } from "@shared/schema";
@@ -28,6 +29,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { randomUUID } from "crypto";
+import { z } from "zod";
 
 const UPLOAD_DIR = path.join(process.cwd(), "uploads");
 for (const sub of ["logos", "game-icons", "chat", "general"]) {
@@ -406,6 +408,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "/api/players", "/api/events", "/api/attendance", "/api/schedule",
     "/api/staff", "/api/chat", "/api/availability-slots", "/api/roster-roles",
     "/api/player-availability", "/api/staff-availability", "/api/seasons",
+    "/api/sides",
     "/api/game-modes", "/api/maps", "/api/games", "/api/off-days",
     "/api/stat-fields", "/api/player-stats-summary", "/api/team-notes",
     "/api/activity-logs",
@@ -2774,6 +2777,114 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     } catch (error: any) {
       console.error('Error in DELETE /api/maps:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  // ===== Sides (per-roster Attack/Defense config) =====
+  app.get("/api/sides", requireAuth, async (req, res) => {
+    try {
+      const gameId = getGameId(req);
+      const rosterId = getRosterId(req);
+      let sidesList = await storage.getAllSides(gameId, rosterId);
+      // Auto-seed default sides for the roster if none exist and we have a roster scope
+      if (sidesList.length === 0 && rosterId) {
+        await storage.addSide({ name: "Attack", sortOrder: "0", rosterId }, gameId, rosterId);
+        await storage.addSide({ name: "Defense", sortOrder: "1", rosterId }, gameId, rosterId);
+        sidesList = await storage.getAllSides(gameId, rosterId);
+      }
+      sidesList.sort((a, b) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0));
+      res.json(sidesList);
+    } catch (error: any) {
+      console.error('Error in GET /api/sides:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.post("/api/sides", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+    try {
+      const data = insertSideSchema.parse(req.body);
+      const side = await storage.addSide(data, getGameId(req), getRosterId(req));
+      logActivity(req.session.userId!, "add_side", `Added side "${side.name}"`, "team", undefined, side.gameId, side.rosterId);
+      res.json(side);
+    } catch (error: any) {
+      console.error('Error in POST /api/sides:', error);
+      if (error.name === 'ZodError') return res.status(400).json({ error: "Invalid side data", details: error.errors });
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.put("/api/sides/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = getTeamId();
+      const [existing] = await db.select().from(sides).where(and(eq(sides.id, id), eq(sides.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Side not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      const data = await sanitizeScopeFields(req, insertSideSchema.partial().parse(req.body));
+      const side = await storage.updateSide(id, data, existing.gameId, existing.rosterId);
+      if (!side) return res.status(404).json({ error: "Side not found" });
+      logActivity(req.session.userId!, "edit_side", `Updated side "${side.name}"`, "team", undefined, existing.gameId, existing.rosterId);
+      res.json(side);
+    } catch (error: any) {
+      console.error('Error in PUT /api/sides:', error);
+      if (error.name === 'ZodError') return res.status(400).json({ error: "Invalid side data", details: error.errors });
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.delete("/api/sides/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = getTeamId();
+      const [existing] = await db.select().from(sides).where(and(eq(sides.id, id), eq(sides.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Side not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      const success = await storage.removeSide(id, existing.gameId, existing.rosterId);
+      if (success) {
+        logActivity(req.session.userId!, "delete_side", `Deleted side "${existing.name}"`, "team", undefined, existing.gameId, existing.rosterId);
+        res.json({ success: true });
+      } else {
+        res.status(404).json({ error: "Side not found" });
+      }
+    } catch (error: any) {
+      console.error('Error in DELETE /api/sides:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  // ===== Game Rounds (per-game multi-round score data) =====
+  app.get("/api/games/:matchId/rounds", requireAuth, async (req, res) => {
+    try {
+      const { matchId } = req.params;
+      const teamId = getTeamId();
+      const [game] = await db.select().from(games).where(and(eq(games.id, matchId), eq(games.teamId, teamId))).limit(1);
+      if (!game) return res.status(404).json({ error: "Game not found" });
+      if (!await verifyObjectScope(req, res, game.gameId, game.rosterId)) return;
+      const rounds = await storage.getRoundsForGame(matchId);
+      rounds.sort((a, b) => a.roundNumber - b.roundNumber);
+      res.json(rounds);
+    } catch (error: any) {
+      console.error('Error in GET /api/games/:matchId/rounds:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.put("/api/games/:matchId/rounds", requireAuth, requirePermission("edit_events"), async (req, res) => {
+    try {
+      const { matchId } = req.params;
+      const teamId = getTeamId();
+      const [game] = await db.select().from(games).where(and(eq(games.id, matchId), eq(games.teamId, teamId))).limit(1);
+      if (!game) return res.status(404).json({ error: "Game not found" });
+      if (!await verifyObjectScope(req, res, game.gameId, game.rosterId)) return;
+      const roundSchema = insertGameRoundSchema.omit({ matchId: true } as any);
+      const parsedRounds = z.array(roundSchema).parse(req.body);
+      const saved = await storage.replaceRoundsForGame(matchId, parsedRounds as any, game.gameId, game.rosterId);
+      logActivity(req.session.userId!, "edit_rounds", `Updated rounds for game`, "team", undefined, game.gameId, game.rosterId);
+      res.json(saved);
+    } catch (error: any) {
+      console.error('Error in PUT /api/games/:matchId/rounds:', error);
+      if (error.name === 'ZodError') return res.status(400).json({ error: "Invalid rounds data", details: error.errors });
       res.status(500).json({ error: error.message || "Internal server error" });
     }
   });

@@ -1,0 +1,117 @@
+Add a Sides system and Score Configuration system inside each roster Dashboard, and connect it directly to Add Game.
+
+Goal:
+I want roster admins to configure sides and score rules from the roster Dashboard / Game Config page, and then use that configuration directly inside Add Game when recording games and rounds.
+
+Requirements:
+
+1. Where this should live
+- Add a clear section inside each roster Dashboard / Game Config page
+- This section should be visible to roster admins
+- Suggested section names:
+  - "Sides Configuration"
+  - "Score Configuration"
+
+2. Sides configuration
+- In Dashboard / Game Config, add a Sides Configuration area
+- By default, create:
+  - Attack
+  - Defense
+- Admin can:
+  - rename sides
+  - add sides
+  - delete sides
+  - reorder sides if needed
+- These sides are roster-level config data
+
+3. Score configuration per game mode
+- In the same Dashboard / Game Config page, add a Score Configuration area
+- Show the roster's existing game modes
+- For each game mode, the admin configures how scoring works
+- Do not ask the admin to create a new game mode here if game modes already exist
+
+Each game mode must have:
+- Score Type:
+  - Numeric
+  - Rounds
+
+If Score Type = Numeric:
+- show an input field called "Max Score"
+- example: 250
+- admin manually enters the maximum score for that game mode
+
+If Score Type = Rounds:
+- show an input field called "Max Round Wins"
+- example: 2 or 6 depending on the game mode
+- admin manually enters the round win limit for that game mode
+
+Important:
+- Each game mode must have its own separate score configuration
+- Do not use one shared score rule for all game modes
+
+Example:
+- Hardpoint -> Numeric -> Max Score = 250
+- Search and Destroy -> Rounds -> Max Round Wins = 6
+- Another mode can use a different score type
+
+4. Admin UX inside Dashboard
+- Admin should be able to edit score type for each existing game mode
+- When Numeric is selected, show the Max Score input
+- When Rounds is selected, show the Max Round Wins input
+- Save these settings as roster-level configuration
+
+5. Use this config in Add Game
+- The configured sides and score rules must be used directly inside Add Game
+- When adding a game, the user first selects the existing game mode and existing map
+- Do not ask the user to create or re-add a game mode or map for each round
+- Game mode and map are already selected once for the game
+
+6. Round structure inside one game
+- A single game can contain multiple rounds
+- Rounds are child data inside one game entry
+- Do not treat each round as a separate game
+- A single game may go up to 15 rounds
+
+7. Add Game round UI
+- In Add Game, show one round block by default
+- Add a clear "+" button to add another round block
+- Every time the user clicks "+", create/open one more round block
+- Also allow deleting/removing a round block if it was added by mistake
+- Each round block should contain:
+  - round number
+  - side selection
+  - score input based on the selected game mode config
+
+8. Side selection inside Add Game
+- In each round block, allow selecting the side from the configured sides list
+- This should support quick selection for each round
+- Example:
+  - Round 1 side = Attack
+  - Round 2 side = Defense
+  - Round 3 side = Attack
+- If no custom sides are configured, use default:
+  - Attack
+  - Defense
+
+9. Score input inside Add Game
+- Read the selected game mode's score configuration
+- If the selected game mode uses Numeric:
+  - show a slider from 0 to the configured max score
+  - also allow direct keyboard number input
+- If the selected game mode uses Rounds:
+  - show a rounds-style input / clickable indicators
+  - also allow direct keyboard number input
+
+10. UX goals
+- Keep Add Game fast and clean for mouse-based use
+- The structure should feel like:
+  - game info at the top
+  - then a list of round blocks underneath
+  - with a + button to append more rounds
+- Support up to 15 rounds without breaking layout or usability
+
+11. Foundation only
+- Build this as reusable roster game configuration data
+- We will use this configuration later for other systems, but for now only build:
+  - Dashboard / Game Config setup
+  - Add Game behavior

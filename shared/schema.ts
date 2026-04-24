@@ -377,6 +377,9 @@ export const gameModes = pgTable("game_modes", {
   rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   sortOrder: text("sort_order").default("0"),
+  scoreType: text("score_type").default("numeric").notNull(),
+  maxScore: integer("max_score"),
+  maxRoundWins: integer("max_round_wins"),
 }, (table) => [
   index("game_modes_team_id_idx").on(table.teamId),
   index("game_modes_game_id_idx").on(table.gameId),
@@ -413,6 +416,36 @@ export const games = pgTable("games", {
   index("games_game_id_idx").on(table.gameId),
   index("games_event_id_idx").on(table.eventId),
   index("games_roster_id_idx").on(table.rosterId),
+]);
+
+export const sides = pgTable("sides", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
+  name: text("name").notNull(),
+  sortOrder: text("sort_order").default("0"),
+}, (table) => [
+  index("sides_team_id_idx").on(table.teamId),
+  index("sides_game_id_idx").on(table.gameId),
+  index("sides_roster_id_idx").on(table.rosterId),
+]);
+
+export const gameRounds = pgTable("game_rounds", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
+  matchId: varchar("match_id").notNull().references(() => games.id, { onDelete: "cascade" }),
+  roundNumber: integer("round_number").notNull(),
+  sideId: varchar("side_id").references(() => sides.id, { onDelete: "set null" }),
+  teamScore: integer("team_score").default(0).notNull(),
+  opponentScore: integer("opponent_score").default(0).notNull(),
+}, (table) => [
+  index("game_rounds_team_id_idx").on(table.teamId),
+  index("game_rounds_game_id_idx").on(table.gameId),
+  index("game_rounds_match_id_idx").on(table.matchId),
+  index("game_rounds_roster_id_idx").on(table.rosterId),
 ]);
 
 export const offDays = pgTable("off_days", {
@@ -726,6 +759,18 @@ export const insertOffDaySchema = createInsertSchema(offDays).omit({
   gameId: true,
 });
 
+export const insertSideSchema = createInsertSchema(sides).omit({
+  id: true,
+  teamId: true,
+  gameId: true,
+});
+
+export const insertGameRoundSchema = createInsertSchema(gameRounds).omit({
+  id: true,
+  teamId: true,
+  gameId: true,
+});
+
 export const insertStatFieldSchema = createInsertSchema(statFields).omit({
   id: true,
   teamId: true,
@@ -846,6 +891,12 @@ export type InsertMap = z.infer<typeof insertMapSchema>;
 
 export type OffDay = typeof offDays.$inferSelect;
 export type InsertOffDay = z.infer<typeof insertOffDaySchema>;
+
+export type Side = typeof sides.$inferSelect;
+export type InsertSide = z.infer<typeof insertSideSchema>;
+
+export type GameRound = typeof gameRounds.$inferSelect;
+export type InsertGameRound = z.infer<typeof insertGameRoundSchema>;
 
 export type StatField = typeof statFields.$inferSelect;
 export type InsertStatField = z.infer<typeof insertStatFieldSchema>;

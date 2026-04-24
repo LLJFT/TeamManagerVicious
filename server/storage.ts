@@ -1,5 +1,5 @@
-import type { Player, InsertPlayer, Schedule, InsertSchedule, Setting, InsertSetting, Event, InsertEvent, Attendance, InsertAttendance, TeamNotes, InsertTeamNotes, Game, InsertGame, GameMode, InsertGameMode, Map, InsertMap, Season, InsertSeason, OffDay, InsertOffDay, StatField, InsertStatField, PlayerGameStat, InsertPlayerGameStat, PlayerAvailabilityRecord, InsertPlayerAvailability, StaffAvailabilityRecord, InsertStaffAvailability, Staff, InsertStaff, AvailabilitySlot, RosterRole, SupportedGame, UserGameAssignment, Notification, EventCategory, InsertEventCategory, EventSubType, InsertEventSubType } from "@shared/schema";
-import { players, schedules, settings, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays, statFields, playerGameStats, playerAvailability, staffAvailability, staff as staffTable, availabilitySlots, rosterRoles, supportedGames, userGameAssignments, notifications, users, rosters, eventCategories, eventSubTypes } from "@shared/schema";
+import type { Player, InsertPlayer, Schedule, InsertSchedule, Setting, InsertSetting, Event, InsertEvent, Attendance, InsertAttendance, TeamNotes, InsertTeamNotes, Game, InsertGame, GameMode, InsertGameMode, Map, InsertMap, Season, InsertSeason, OffDay, InsertOffDay, StatField, InsertStatField, PlayerGameStat, InsertPlayerGameStat, PlayerAvailabilityRecord, InsertPlayerAvailability, StaffAvailabilityRecord, InsertStaffAvailability, Staff, InsertStaff, AvailabilitySlot, RosterRole, SupportedGame, UserGameAssignment, Notification, EventCategory, InsertEventCategory, EventSubType, InsertEventSubType, Side, InsertSide, GameRound, InsertGameRound } from "@shared/schema";
+import { players, schedules, settings, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays, statFields, playerGameStats, playerAvailability, staffAvailability, staff as staffTable, availabilitySlots, rosterRoles, supportedGames, userGameAssignments, notifications, users, rosters, eventCategories, eventSubTypes, sides, gameRounds } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, isNull, desc } from "drizzle-orm";
 
@@ -83,6 +83,12 @@ export interface IStorage {
   addOffDay(offDay: InsertOffDay, gameId?: string | null, rosterId?: string | null): Promise<OffDay>;
   removeOffDay(date: string, gameId?: string | null, rosterId?: string | null): Promise<boolean>;
   removeOffDayById(id: string): Promise<boolean>;
+  getAllSides(gameId?: string | null, rosterId?: string | null): Promise<Side[]>;
+  addSide(side: InsertSide, gameId?: string | null, rosterId?: string | null): Promise<Side>;
+  updateSide(id: string, side: Partial<InsertSide>, gameId?: string | null, rosterId?: string | null): Promise<Side>;
+  removeSide(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean>;
+  getRoundsForGame(matchId: string): Promise<GameRound[]>;
+  replaceRoundsForGame(matchId: string, rounds: Omit<InsertGameRound, "matchId">[], gameId?: string | null, rosterId?: string | null): Promise<GameRound[]>;
   duplicateEvent(eventId: string, gameId?: string | null, rosterId?: string | null): Promise<Event>;
   getAllStatFields(gameId?: string | null, rosterId?: string | null): Promise<StatField[]>;
   getStatFieldsByGameModeId(gameModeId: string): Promise<StatField[]>;
@@ -528,6 +534,50 @@ export class DbStorage implements IStorage {
     const teamId = getTeamId();
     const deleted = await db.delete(offDays).where(and(eq(offDays.id, id), eq(offDays.teamId, teamId))).returning();
     return deleted.length > 0;
+  }
+
+  async getAllSides(gameId?: string | null, rosterId?: string | null): Promise<Side[]> {
+    const teamId = getTeamId();
+    return await db.select().from(sides).where(buildWhere(teamId, sides, gameId, rosterId));
+  }
+
+  async addSide(side: InsertSide, gameId?: string | null, rosterId?: string | null): Promise<Side> {
+    const teamId = getTeamId();
+    const inserted = await db.insert(sides).values({ ...side, teamId, gameId, rosterId }).returning();
+    return inserted[0];
+  }
+
+  async updateSide(id: string, side: Partial<InsertSide>, gameId?: string | null, rosterId?: string | null): Promise<Side> {
+    const teamId = getTeamId();
+    const conditions: any[] = [eq(sides.id, id), eq(sides.teamId, teamId)];
+    if (gameId) conditions.push(eq(sides.gameId, gameId));
+    if (rosterId) conditions.push(eq(sides.rosterId, rosterId));
+    const updated = await db.update(sides).set(side).where(and(...conditions)).returning();
+    return updated[0];
+  }
+
+  async removeSide(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean> {
+    const teamId = getTeamId();
+    const conditions: any[] = [eq(sides.id, id), eq(sides.teamId, teamId)];
+    if (gameId) conditions.push(eq(sides.gameId, gameId));
+    if (rosterId) conditions.push(eq(sides.rosterId, rosterId));
+    const deleted = await db.delete(sides).where(and(...conditions)).returning();
+    return deleted.length > 0;
+  }
+
+  async getRoundsForGame(matchId: string): Promise<GameRound[]> {
+    const teamId = getTeamId();
+    return await db.select().from(gameRounds)
+      .where(and(eq(gameRounds.matchId, matchId), eq(gameRounds.teamId, teamId)));
+  }
+
+  async replaceRoundsForGame(matchId: string, rounds: Omit<InsertGameRound, "matchId">[], gameId?: string | null, rosterId?: string | null): Promise<GameRound[]> {
+    const teamId = getTeamId();
+    await db.delete(gameRounds).where(and(eq(gameRounds.matchId, matchId), eq(gameRounds.teamId, teamId)));
+    if (rounds.length === 0) return [];
+    const rows = rounds.map(r => ({ ...r, matchId, teamId, gameId: gameId ?? null, rosterId: rosterId ?? null }));
+    const inserted = await db.insert(gameRounds).values(rows).returning();
+    return inserted;
   }
 
   async duplicateEvent(eventId: string, gameId?: string | null, rosterId?: string | null): Promise<Event> {
