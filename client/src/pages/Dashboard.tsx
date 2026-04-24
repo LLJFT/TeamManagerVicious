@@ -106,12 +106,19 @@ function ActivityLogPanel({ logType, title }: { logType: string; title: string }
   const [userFilter, setUserFilter] = useState("all");
   const [searchText, setSearchText] = useState("");
 
+  const gameIdForKey = logType === "team" ? getCurrentGameId() : null;
+  const rosterIdForKey = logType === "team" ? getCurrentRosterId() : null;
+
   const { data: logs = [], isLoading } = useQuery<ActivityLogEntry[]>({
-    queryKey: ["/api/activity-logs", logType],
+    queryKey: ["/api/activity-logs", logType, { gameId: gameIdForKey, rosterId: rosterIdForKey }],
     queryFn: async () => {
-      const gameId = getCurrentGameId();
       let url = `/api/activity-logs?logType=${logType}`;
-      if (gameId) url += `&gameId=${gameId}`;
+      if (logType === "team") {
+        const gameId = getCurrentGameId();
+        const rosterId = getCurrentRosterId();
+        if (gameId) url += `&gameId=${gameId}`;
+        if (rosterId) url += `&rosterId=${rosterId}`;
+      }
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch logs");
       return res.json();

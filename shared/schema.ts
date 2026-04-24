@@ -612,6 +612,7 @@ export const activityLogs = pgTable("activity_logs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
   gameId: varchar("game_id"),
+  rosterId: varchar("roster_id"),
   userId: varchar("user_id"),
   action: text("action").notNull(),
   details: text("details"),
@@ -622,6 +623,7 @@ export const activityLogs = pgTable("activity_logs", {
 }, (table) => [
   index("activity_logs_team_id_idx").on(table.teamId),
   index("activity_logs_game_id_idx").on(table.gameId),
+  index("activity_logs_roster_id_idx").on(table.rosterId),
 ]);
 
 export const playerAvailability = pgTable("player_availability", {
