@@ -111,23 +111,39 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const prevGameIdRef = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
-    if (prevGameIdRef.current !== undefined && prevGameIdRef.current !== gameId) {
+    const prev = prevGameIdRef.current;
+    prevGameIdRef.current = gameId;
+    if (prev === undefined) return;
+    if (prev === gameId) return;
+    if (prev && gameId && prev !== gameId) {
       setSelectedRosterId(null);
       queryClient.removeQueries({
         predicate: (query) => {
           const key = query.queryKey[0];
           if (typeof key !== "string") return false;
-          return GAME_SCOPED_PREFIXES.some(prefix => key.startsWith(prefix));
+          if (!GAME_SCOPED_PREFIXES.some(prefix => key.startsWith(prefix))) return false;
+          for (const seg of query.queryKey.slice(1)) {
+            if (seg && typeof seg === "object" && !Array.isArray(seg)) {
+              const s = seg as Record<string, unknown>;
+              if (typeof s.gameId === "string") return s.gameId === prev;
+            }
+          }
+          return true;
         },
       });
+    } else if (prev && !gameId) {
+      setSelectedRosterId(null);
     }
-    prevGameIdRef.current = gameId;
   }, [gameId]);
 
   const prevRosterIdRef = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
-    if (prevRosterIdRef.current !== undefined && prevRosterIdRef.current !== rosterId) {
+    const prev = prevRosterIdRef.current;
+    prevRosterIdRef.current = rosterId;
+    if (prev === undefined) return;
+    if (prev === rosterId) return;
+    if (prev && rosterId && prev !== rosterId) {
       const rosterScopedPrefixes = [
         "/api/players", "/api/schedule", "/api/player-availability",
         "/api/staff-availability", "/api/staff", "/api/attendance",
@@ -138,11 +154,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
         predicate: (query) => {
           const key = query.queryKey[0];
           if (typeof key !== "string") return false;
-          return rosterScopedPrefixes.some(prefix => key.startsWith(prefix));
+          if (!rosterScopedPrefixes.some(prefix => key.startsWith(prefix))) return false;
+          for (const seg of query.queryKey.slice(1)) {
+            if (seg && typeof seg === "object" && !Array.isArray(seg)) {
+              const s = seg as Record<string, unknown>;
+              if (typeof s.rosterId === "string") return s.rosterId === prev;
+            }
+          }
+          return true;
         },
       });
     }
-    prevRosterIdRef.current = rosterId;
   }, [rosterId]);
 
   return (

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   Select,
   SelectContent,
@@ -82,20 +82,29 @@ export function ScheduleTable({
     });
   };
 
+  const availabilityIndex = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const record of playerAvailabilities) {
+      map.set(`${record.playerId}|${record.day}`, record.availability || "unknown");
+    }
+    return map;
+  }, [playerAvailabilities]);
+
   const getPlayerAvailability = (playerId: string, day: string): string => {
-    const record = playerAvailabilities.find(pa => pa.playerId === playerId && pa.day === day);
-    return record?.availability || "unknown";
+    return availabilityIndex.get(`${playerId}|${day}`) || "unknown";
   };
 
-  const groupedByRole: Record<string, Player[]> = {};
-  for (const player of players) {
-    const role = player.role || "Unassigned";
-    if (!groupedByRole[role]) groupedByRole[role] = [];
-    groupedByRole[role].push(player);
-  }
-
-  const roleOrder = roleOptions.length > 0 ? roleOptions : Object.keys(groupedByRole);
-  const allRolesForColor = Array.from(new Set([...roleOptions, ...Object.keys(groupedByRole)]));
+  const { groupedByRole, roleOrder, allRolesForColor } = useMemo(() => {
+    const grouped: Record<string, Player[]> = {};
+    for (const player of players) {
+      const role = player.role || "Unassigned";
+      if (!grouped[role]) grouped[role] = [];
+      grouped[role].push(player);
+    }
+    const order = roleOptions.length > 0 ? roleOptions : Object.keys(grouped);
+    const colors = Array.from(new Set([...roleOptions, ...Object.keys(grouped)]));
+    return { groupedByRole: grouped, roleOrder: order, allRolesForColor: colors };
+  }, [players, roleOptions]);
 
   const visibleDays = dayOfWeek.filter(d => !isCollapsed(d));
   const visibleStaffDays = dayOfWeek.filter(d => !isCollapsed(`staff_${d}`));

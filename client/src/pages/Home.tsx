@@ -77,33 +77,48 @@ export default function Home() {
     enabled: rosterReady,
   });
 
-  const scheduleData: PlayerAvailability[] = players.map(player => {
-    const playerAvails = playerAvailabilities.filter(pa => pa.playerId === player.id);
-    const availability = dayOfWeek.reduce((acc, day) => {
-      const record = playerAvails.find(pa => pa.day === day);
-      acc[day] = (record?.availability || "unknown") as AvailabilityOption;
-      return acc;
-    }, {} as { [key in DayOfWeek]: AvailabilityOption });
-    return {
-      playerId: player.id,
-      playerName: player.name,
-      role: player.role as any,
-      availability,
-    };
-  });
+  const playerAvailIndex = useMemo(() => {
+    const map = new Map<string, PlayerAvailabilityRecord>();
+    for (const record of playerAvailabilities) {
+      map.set(`${record.playerId}|${record.day}`, record);
+    }
+    return map;
+  }, [playerAvailabilities]);
 
-  const slotLabels = availabilitySlots.length > 0
-    ? availabilitySlots.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).map(s => s.label)
-    : ["Unknown", "18:00-20:00", "20:00-22:00", "All Blocks", "Can't"];
+  const scheduleData: PlayerAvailability[] = useMemo(() => {
+    return players.map(player => {
+      const availability = dayOfWeek.reduce((acc, day) => {
+        const record = playerAvailIndex.get(`${player.id}|${day}`);
+        acc[day] = (record?.availability || "unknown") as AvailabilityOption;
+        return acc;
+      }, {} as { [key in DayOfWeek]: AvailabilityOption });
+      return {
+        playerId: player.id,
+        playerName: player.name,
+        role: player.role as any,
+        availability,
+      };
+    });
+  }, [players, playerAvailIndex]);
 
-  const playerRoleNames = rosterRoles
-    .filter(r => r.type === "player")
-    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
-    .map(r => r.name);
+  const slotLabels = useMemo(() => {
+    return availabilitySlots.length > 0
+      ? [...availabilitySlots].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).map(s => s.label)
+      : ["Unknown", "18:00-20:00", "20:00-22:00", "All Blocks", "Can't"];
+  }, [availabilitySlots]);
 
-  const allRoleNames = rosterRoles
-    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
-    .map(r => r.name);
+  const playerRoleNames = useMemo(() => {
+    return rosterRoles
+      .filter(r => r.type === "player")
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+      .map(r => r.name);
+  }, [rosterRoles]);
+
+  const allRoleNames = useMemo(() => {
+    return [...rosterRoles]
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+      .map(r => r.name);
+  }, [rosterRoles]);
 
   const savePlayerAvailMutation = useMutation({
     mutationFn: async ({ playerId, day, availability }: { playerId: string; day: string; availability: string }) => {
@@ -200,15 +215,24 @@ export default function Home() {
     updatePlayerMutation.mutate({ id: playerId, name, role });
   };
 
-  const staffScheduleData = staffMembers.map(s => {
-    const staffAvails = staffAvailabilities.filter(sa => sa.staffId === s.id);
-    const availability = dayOfWeek.reduce((acc, day) => {
-      const record = staffAvails.find(sa => sa.day === day);
-      acc[day] = record?.availability || "unknown";
-      return acc;
-    }, {} as Record<string, string>);
-    return { id: s.id, name: s.name, role: s.role, availability };
-  });
+  const staffAvailIndex = useMemo(() => {
+    const map = new Map<string, StaffAvailabilityRecord>();
+    for (const record of staffAvailabilities) {
+      map.set(`${record.staffId}|${record.day}`, record);
+    }
+    return map;
+  }, [staffAvailabilities]);
+
+  const staffScheduleData = useMemo(() => {
+    return staffMembers.map(s => {
+      const availability = dayOfWeek.reduce((acc, day) => {
+        const record = staffAvailIndex.get(`${s.id}|${day}`);
+        acc[day] = record?.availability || "unknown";
+        return acc;
+      }, {} as Record<string, string>);
+      return { id: s.id, name: s.name, role: s.role, availability };
+    });
+  }, [staffMembers, staffAvailIndex]);
 
   if (!gameId || rostersLoading || (!rosterId && rosters.length > 0)) {
     return <ScheduleSkeleton />;

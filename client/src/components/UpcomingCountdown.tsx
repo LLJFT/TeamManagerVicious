@@ -25,14 +25,26 @@ function formatCountdown(target: Date, now: Date): string {
   return `${seconds}s`;
 }
 
-export function UpcomingCountdown({ gameId, rosterId, enabled }: Props) {
-  const [now, setNow] = useState(new Date());
+function CountdownText({ target, eventId }: { target: Date; eventId: string }) {
+  const targetMs = target.getTime();
+  const [, force] = useState(0);
 
   useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 1000);
+    const id = setInterval(() => force(n => n + 1), 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [targetMs]);
 
+  return (
+    <div
+      className="text-lg font-mono font-bold tabular-nums text-primary"
+      data-testid={`text-countdown-${eventId}`}
+    >
+      {formatCountdown(target, new Date())}
+    </div>
+  );
+}
+
+export function UpcomingCountdown({ gameId, rosterId, enabled }: Props) {
   const { data: events = [] } = useQuery<Event[]>({
     queryKey: ["/api/events", { gameId, rosterId }],
     enabled,
@@ -46,8 +58,33 @@ export function UpcomingCountdown({ gameId, rosterId, enabled }: Props) {
     enabled,
   });
 
+  const subTypeIndex = useMemo(() => {
+    const byId = new Map<string, EventSubType>();
+    const byName = new Map<string, EventSubType>();
+    for (const st of subTypes) {
+      byId.set(st.id, st);
+      if (st.name) byName.set(st.name.toLowerCase().trim(), st);
+    }
+    return { byId, byName };
+  }, [subTypes]);
+
+  const categoryIndex = useMemo(() => {
+    const map = new Map<string, EventCategory>();
+    for (const c of categories) map.set(c.id, c);
+    return map;
+  }, [categories]);
+
+  const [minuteBucket, setMinuteBucket] = useState(() => Math.floor(Date.now() / 60_000));
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setMinuteBucket(Math.floor(Date.now() / 60_000));
+    }, 30_000);
+    return () => clearInterval(id);
+  }, []);
+
   const upcoming = useMemo(() => {
-    const cutoff = Date.now() - 60_000;
+    const cutoff = minuteBucket * 60_000 - 60_000;
     return events
       .map(e => {
         if (!e.date) return null;
@@ -65,24 +102,22 @@ export function UpcomingCountdown({ gameId, rosterId, enabled }: Props) {
       .filter((x): x is { event: Event; when: Date } => !!x && x.when.getTime() > cutoff)
       .sort((a, b) => a.when.getTime() - b.when.getTime())
       .slice(0, 3);
-  }, [events]);
+  }, [events, minuteBucket]);
 
   if (upcoming.length === 0) return null;
 
-  // Resolve event_sub_type (UUID or legacy name) to the actual sub-type record
   const resolveSubType = (value?: string | null): EventSubType | null => {
     if (!value) return null;
-    const byId = subTypes.find(s => s.id === value);
+    const byId = subTypeIndex.byId.get(value);
     if (byId) return byId;
-    const lower = value.toLowerCase().trim();
-    return subTypes.find(s => (s.name || "").toLowerCase().trim() === lower) || null;
+    return subTypeIndex.byName.get(value.toLowerCase().trim()) || null;
   };
 
   const colorFor = (value?: string | null): string | undefined => {
     const st = resolveSubType(value);
     if (!st) return undefined;
     if (st.color) return st.color;
-    if (st.categoryId) return categories.find(c => c.id === st.categoryId)?.color || undefined;
+    if (st.categoryId) return categoryIndex.get(st.categoryId)?.color || undefined;
     return undefined;
   };
 
@@ -120,9 +155,7 @@ export function UpcomingCountdown({ gameId, rosterId, enabled }: Props) {
                   </span>
                 )}
               </div>
-              <div className="text-lg font-mono font-bold tabular-nums text-primary" data-testid={`text-countdown-${event.id}`}>
-                {formatCountdown(when, now)}
-              </div>
+              <CountdownText target={when} eventId={event.id} />
             </CardContent>
           </Card>
         );
