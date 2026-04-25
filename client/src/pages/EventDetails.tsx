@@ -17,7 +17,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Plus, Trash2, Save, Upload, Eye, ExternalLink, Gamepad2, Map as MapIcon, BarChart3, UserCheck, Clock as ClockIcon, UserX, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Save, Upload, Eye, ExternalLink, Gamepad2, Map as MapIcon, BarChart3, UserCheck, Clock as ClockIcon, UserX, ChevronDown, ChevronUp, Ban } from "lucide-react";
+import { GameHeroBanPanel } from "@/components/GameHeroBanPanel";
+import { GameMapVetoPanel } from "@/components/GameMapVetoPanel";
 import { ShareButton } from "@/components/ShareButton";
 import { useState, useEffect, Fragment } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -60,6 +62,18 @@ export default function EventDetails() {
   const [newGameMatchStats, setNewGameMatchStats] = useState<MatchSidesDraft>({ our: {}, opp: {} });
   const [matchStatsDraftInitFor, setMatchStatsDraftInitFor] = useState<string | null>(null);
   const [expandedMatchStats, setExpandedMatchStats] = useState<Record<string, boolean>>({});
+  const [expandedHeroBan, setExpandedHeroBan] = useState<Record<string, boolean>>({});
+  const [expandedMapVeto, setExpandedMapVeto] = useState<Record<string, boolean>>({});
+
+  const toggleHeroBanExpanded = (id: string) => setExpandedHeroBan(s => ({ ...s, [id]: !s[id] }));
+  const toggleMapVetoExpanded = (id: string) => setExpandedMapVeto(s => ({ ...s, [id]: !s[id] }));
+
+  const onPanelSavedToast = (msg: string, type: "success" | "error") => {
+    setToastMessage(msg);
+    setToastType(type);
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 3000);
+  };
 
   const { data: event, isLoading: eventLoading } = useQuery<Event>({
     queryKey: ["/api/events", eventId],
@@ -1200,6 +1214,80 @@ export default function EventDetails() {
                           </div>
                         </td>
                       </tr>
+                      {(() => {
+                        const isHbsExpanded = !!expandedHeroBan[game.id];
+                        return (
+                          <tr className="border-t border-border bg-muted/10" data-testid={`row-hero-ban-${game.id}`}>
+                            <td colSpan={6} className="p-3">
+                              <button
+                                type="button"
+                                onClick={() => toggleHeroBanExpanded(game.id)}
+                                aria-expanded={isHbsExpanded}
+                                className="w-full flex items-center justify-between gap-2 p-2 rounded-md hover-elevate text-left"
+                                data-testid={`button-toggle-hero-ban-${game.id}`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Ban className="h-4 w-4 text-primary" />
+                                  <h3 className="text-sm font-semibold">Hero Ban — {game.gameCode}</h3>
+                                </div>
+                                {isHbsExpanded ? (
+                                  <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" data-testid={`icon-chevron-up-hbs-${game.id}`} />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" data-testid={`icon-chevron-down-hbs-${game.id}`} />
+                                )}
+                              </button>
+                              {isHbsExpanded && (
+                                <div className="mt-2" data-testid={`content-hero-ban-${game.id}`}>
+                                  <GameHeroBanPanel
+                                    game={game}
+                                    heroes={allHeroes}
+                                    canEdit={true}
+                                    onSaved={onPanelSavedToast}
+                                  />
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })()}
+                      {(() => {
+                        const isMvsExpanded = !!expandedMapVeto[game.id];
+                        return (
+                          <tr className="border-t border-border bg-muted/10" data-testid={`row-map-veto-${game.id}`}>
+                            <td colSpan={6} className="p-3">
+                              <button
+                                type="button"
+                                onClick={() => toggleMapVetoExpanded(game.id)}
+                                aria-expanded={isMvsExpanded}
+                                className="w-full flex items-center justify-between gap-2 p-2 rounded-md hover-elevate text-left"
+                                data-testid={`button-toggle-map-veto-${game.id}`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <MapIcon className="h-4 w-4 text-primary" />
+                                  <h3 className="text-sm font-semibold">Map Veto — {game.gameCode}</h3>
+                                </div>
+                                {isMvsExpanded ? (
+                                  <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" data-testid={`icon-chevron-up-mvs-${game.id}`} />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" data-testid={`icon-chevron-down-mvs-${game.id}`} />
+                                )}
+                              </button>
+                              {isMvsExpanded && (
+                                <div className="mt-2" data-testid={`content-map-veto-${game.id}`}>
+                                  <GameMapVetoPanel
+                                    game={game}
+                                    maps={allMaps}
+                                    gameModes={gameModes}
+                                    sides={sidesList}
+                                    canEdit={true}
+                                    onSaved={onPanelSavedToast}
+                                  />
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })()}
                       {game.gameModeId && (() => {
                         const isExpanded = !!expandedMatchStats[game.id];
                         return (

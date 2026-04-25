@@ -1,0 +1,276 @@
+Add a configurable Hero Ban System and Map Veto System inside Games & Scoreboard, using reusable configuration data from Dashboard.
+
+Important:
+This must be built carefully and clearly.
+I want two separate systems:
+1. Hero Ban System
+2. Map Veto System
+
+Do not mix them into one feature.
+They are related, but each one needs its own configuration and its own match-level usage.
+
+Do not change unrelated parts of the app.
+
+==================================================
+A) HERO BAN SYSTEM
+==================================================
+
+1. Dashboard configuration for Hero Ban Systems
+In Dashboard, add a reusable admin-managed list called:
+- Hero Ban Systems
+
+This must be roster-scoped, not global.
+
+For each Hero Ban System, allow the admin to define:
+- system name
+- enabled / disabled
+- whether it is a simple on/off system or a multi-option selectable system
+- whether it supports bans only, or bans + locks/protects
+- number of bans per team
+- number of locks/protects per team
+- action order / sequence if the format needs a strict order
+- whether bans target the enemy team pool
+- whether locks/protects secure heroes for your own team
+- optional notes / description
+
+2. Hero Ban System examples to support
+The system must support multiple styles because different games use different formats.
+
+Examples:
+
+Marvel Rivals MRC:
+- 3 bans + 2 locks per team
+- strict sequence:
+  1. Team A bans
+  2. Team B bans
+  3. Team B locks
+  4. Team A locks
+  5. Team A bans
+  6. Team B bans
+  7. Team B locks
+  8. Team A locks
+  9. Team A bans
+  10. Team B bans
+
+Marvel Rivals Ignite:
+- 4 bans + 2 locks per team
+- bans target what the enemy gets to play
+- locks/protects are used so the enemy cannot ban the heroes you want to play
+- no need to force a strict sequence here unless added later
+
+OWCS:
+- 1 hero ban per team per map
+- heroes from the same role cannot both be banned on the same map
+- if Team A bans a Tank on a map, Team B must ban a Damage or Support hero on that map
+- if a hero has already been banned once by each team in a series, that hero cannot be banned again later in that same series
+
+Rainbow Six:
+- support this as configurable/custom styles from Dashboard
+- do not hardcode one single Rainbow format
+- allow admin-side editing of the Rainbow ban behavior so it can match the current tournament rules
+
+3. Games & Scoreboard behavior for Hero Ban Systems
+Inside Games & Scoreboard, use the Hero Ban Systems configured in Dashboard.
+
+Behavior:
+- if the game/roster has only one Hero Ban System, show a simple ON/OFF option
+- if the game/roster has multiple Hero Ban Systems, show a multiple-option selector so the user can choose which system applies to this match/game
+
+Important:
+- if only one system exists, do not force a dropdown unnecessarily
+- if multiple systems exist, allow selecting the correct one for the current match
+- save the selected Hero Ban System with the match/game
+
+4. Hero Ban UI in Games & Scoreboard
+Once the Hero Ban System is selected for a match/game:
+- show the relevant action flow clearly
+- show which team performed each ban or lock/protect
+- show current banned heroes
+- show protected / locked heroes if supported
+- show remaining available heroes
+- use the roster-scoped hero list already configured in Dashboard
+
+Do not create a separate hero list.
+
+==================================================
+B) MAP VETO SYSTEM
+==================================================
+
+5. Dashboard configuration for Map Veto Systems
+In Dashboard, add a reusable admin-managed list called:
+- Map Veto Systems
+
+This is separate from Hero Ban Systems.
+This must also be roster-scoped.
+
+For each Map Veto System, allow the admin to define:
+- system name
+- enabled / disabled
+- description / notes
+- whether it supports ban / pick / decider rows
+- whether it supports side choice after a map is picked
+- optional default row count
+- optional custom row structure later
+
+6. Dashboard maps linkage
+Map Veto must be linked to the maps already configured in Dashboard.
+
+Important:
+- do not hardcode maps in Map Veto
+- use the existing roster-scoped maps from Dashboard
+- in the selector UI, each map should display like:
+  Game Mode Name -- Map Name
+
+Examples:
+- Bomb -- Nighthaven Labs
+- Hardpoint -- Hacienda
+
+7. Map selection UI
+The map selector in Map Veto must support:
+- searchable selection
+- multiple selection where relevant
+- easy filtering because the map list may become large
+
+Important:
+- the user must be able to search maps quickly
+- the user must be able to select from the actual Dashboard map list
+- keep this roster-scoped
+
+8. Games & Scoreboard behavior for Map Veto Systems
+Inside Games & Scoreboard, use the Map Veto Systems configured in Dashboard.
+
+Behavior:
+- if only one Map Veto System exists, allow using it directly without unnecessary extra selection
+- if multiple Map Veto Systems exist, allow choosing the correct Map Veto System for the current match/game
+
+9. Number of Map Veto rows
+Inside Games & Scoreboard, let the user control the number of Map Veto rows/steps using numeric input behavior similar to score input.
+
+Requirements:
+- user can increase/decrease the number with keyboard input
+- user can type the number directly
+- example: type 7 to create 7 veto rows
+- max allowed number = 40
+- user must be able to reduce or clear rows if they added too many by mistake
+
+Important:
+- I want the ability to delete/remove extra Map Veto rows if someone entered the wrong number
+- do not lock the user into a wrong row count
+
+10. Map Veto rows table
+After the user chooses the Map Veto System and row count, show a table for the veto flow.
+
+Each row should let the user configure:
+- step number
+- action type:
+  - ban
+  - pick
+  - decider
+- acting team:
+  - Team A
+  - Team B
+  - Auto / Final / System if relevant
+- selected map
+- side choice after the map action, if relevant
+
+Side choice examples:
+- Attack
+- Defense
+- or the configured side names for that game if custom sides exist
+
+Example:
+- Team A picks Nighthaven Labs
+- Team B chooses Attack side
+
+Important:
+- some rows may only need map action
+- some rows may also need side choice
+- decider rows may not need side choice
+- make the UI flexible enough to support these differences cleanly
+
+11. Map Veto edit behavior
+The Map Veto flow must be editable.
+The user must be able to:
+- change row count
+- delete extra rows
+- edit existing rows
+- fix mistakes without rebuilding everything
+
+==================================================
+C) RAINBOW SIX FLEXIBLE SUPPORT
+==================================================
+
+12. Rainbow Six custom configurability
+For Rainbow Six, do not hardcode one single rule format.
+
+In Dashboard, let the admin configure Rainbow ban behavior such as:
+- bans per round
+- bans every side switch
+- bans every two rounds
+- whether bans reset on halftime / side switch
+- overtime behavior
+- total bans per map
+- whether bans accumulate across rounds before reset
+
+Important:
+- I want to be able to adjust Rainbow ban behavior from the Dashboard later without needing code changes or another prompt
+- build this so the site can handle different Rainbow tournament formats
+
+If no exact official format is available, use a flexible tournament-style setup that matches current competitive usage as closely as possible.
+
+==================================================
+D) DATA MODEL / RELATIONSHIP
+==================================================
+
+13. Match-level connection
+Both systems must connect to the current match/game inside Games & Scoreboard.
+
+That means:
+- the selected Hero Ban System belongs to the current match
+- the selected Map Veto System belongs to the current match
+- the actual hero ban actions belong to the current match
+- the actual map veto rows belong to the current match
+
+This must also stay connected to:
+- current roster
+- current event
+- linked opponent
+
+14. Future reuse
+Store this data in a reusable way so it can later support:
+- opponent analysis
+- hero draft analysis
+- map analysis
+- match history
+- advanced tournament workflows
+
+==================================================
+E) IMPORTANT IMPLEMENTATION RULES
+==================================================
+
+15. Important rules
+- Keep Hero Ban System and Map Veto System as separate concepts
+- Both must be configurable from Dashboard
+- Both must be usable inside Games & Scoreboard
+- If only one Hero Ban System exists, show ON/OFF
+- If multiple Hero Ban Systems exist, show multiple options
+- If only one Map Veto System exists, allow using it directly
+- If multiple Map Veto Systems exist, allow selecting one
+- Map Veto row count must support direct number input and keyboard changes
+- Max Map Veto row count = 40
+- User must be able to delete/fix extra rows
+- Keep everything roster-scoped
+- Do not make these systems global across all rosters
+- Do not break the current Games & Scoreboard flow
+
+16. Reporting
+Stop after implementation and report exactly:
+- what was added in Dashboard for Hero Ban Systems
+- what was added in Dashboard for Map Veto Systems
+- how Hero Ban System selection works in Games & Scoreboard
+- how Map Veto selection and row generation works in Games & Scoreboard
+- how Dashboard maps are linked into Map Veto
+- how map search / multiple selection works
+- how row deletion/editing works
+- how Rainbow configurability works from Dashboard
+- how this connects to roster / event / opponent / match data

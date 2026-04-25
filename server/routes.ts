@@ -15,6 +15,10 @@ import {
   insertAvailabilitySlotSchema, insertRosterRoleSchema,
   insertChatChannelPermissionSchema, insertEventCategorySchema, insertEventSubTypeSchema,
   insertSideSchema, insertGameRoundSchema,
+  heroBanSystems, mapVetoSystems, gameHeroBanActions, gameMapVetoRows,
+  insertHeroBanSystemSchema, insertMapVetoSystemSchema,
+  insertGameHeroBanActionSchema, insertGameMapVetoRowSchema,
+  heroBanActionTypes, mapVetoActionTypes, banVetoTeamSlots,
   users, roles, chatChannels, chatMessages, availabilitySlots, rosterRoles,
   chatChannelPermissions, activityLogs, playerGameStats, allPermissions,
   players, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays,
@@ -2455,6 +2459,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!existing) return res.status(404).json({ error: "Game not found" });
       if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
       const validatedData = await sanitizeScopeFields(req, insertGameSchema.partial().parse(req.body));
+      if (validatedData.heroBanSystemId) {
+        const [hbs] = await db.select().from(heroBanSystems).where(and(
+          eq(heroBanSystems.id, validatedData.heroBanSystemId as string),
+          eq(heroBanSystems.teamId, teamId),
+          eq(heroBanSystems.gameId, existing.gameId!),
+          eq(heroBanSystems.rosterId, existing.rosterId!),
+        )).limit(1);
+        if (!hbs) return res.status(400).json({ error: "Invalid hero ban system for this match scope" });
+      }
+      if (validatedData.mapVetoSystemId) {
+        const [mvs] = await db.select().from(mapVetoSystems).where(and(
+          eq(mapVetoSystems.id, validatedData.mapVetoSystemId as string),
+          eq(mapVetoSystems.teamId, teamId),
+          eq(mapVetoSystems.gameId, existing.gameId!),
+          eq(mapVetoSystems.rosterId, existing.rosterId!),
+        )).limit(1);
+        if (!mvs) return res.status(400).json({ error: "Invalid map veto system for this match scope" });
+      }
       const game = await storage.updateGame(id, validatedData, existing.gameId, existing.rosterId);
       if (!game) return res.status(404).json({ error: "Game not found" });
       logActivity(req.session.userId!, "edit_game", `Updated game`, "team", undefined, existing.gameId, existing.rosterId);
@@ -3055,6 +3077,239 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error('Error in POST /api/games/:id/opponent-player-stats:', error);
       if (error.name === 'ZodError') return res.status(400).json({ error: "Invalid opponent stats data", details: error.errors });
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  // ===== Hero Ban Systems (roster-scoped config) =====
+  app.get("/api/hero-ban-systems", requireAuth, async (req, res) => {
+    try {
+      const list = await storage.getAllHeroBanSystems(getGameId(req), getRosterId(req));
+      res.json(list);
+    } catch (error: any) {
+      console.error('Error in GET /api/hero-ban-systems:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.post("/api/hero-ban-systems", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+    try {
+      const validated = insertHeroBanSystemSchema.parse(req.body);
+      const row = await storage.addHeroBanSystem(validated, getGameId(req), getRosterId(req));
+      logActivity(req.session.userId!, "add_hero_ban_system", `Added Hero Ban System "${row.name}"`, "team", undefined, row.gameId, row.rosterId);
+      res.json(row);
+    } catch (error: any) {
+      console.error('Error in POST /api/hero-ban-systems:', error);
+      if (error.name === 'ZodError') return res.status(400).json({ error: "Invalid data", details: error.errors });
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.put("/api/hero-ban-systems/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = getTeamId();
+      const [existing] = await db.select().from(heroBanSystems).where(and(eq(heroBanSystems.id, id), eq(heroBanSystems.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Hero Ban System not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      const validated = await sanitizeScopeFields(req, insertHeroBanSystemSchema.partial().parse(req.body));
+      const row = await storage.updateHeroBanSystem(id, validated, existing.gameId, existing.rosterId);
+      if (!row) return res.status(404).json({ error: "Hero Ban System not found" });
+      logActivity(req.session.userId!, "edit_hero_ban_system", `Updated Hero Ban System "${row.name}"`, "team", undefined, existing.gameId, existing.rosterId);
+      res.json(row);
+    } catch (error: any) {
+      console.error('Error in PUT /api/hero-ban-systems:', error);
+      if (error.name === 'ZodError') return res.status(400).json({ error: "Invalid data", details: error.errors });
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.delete("/api/hero-ban-systems/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = getTeamId();
+      const [existing] = await db.select().from(heroBanSystems).where(and(eq(heroBanSystems.id, id), eq(heroBanSystems.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Hero Ban System not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      const ok = await storage.removeHeroBanSystem(id, existing.gameId, existing.rosterId);
+      if (ok) {
+        logActivity(req.session.userId!, "delete_hero_ban_system", `Deleted Hero Ban System "${existing.name}"`, "team", undefined, existing.gameId, existing.rosterId);
+        return res.json({ success: true });
+      }
+      res.status(404).json({ error: "Hero Ban System not found" });
+    } catch (error: any) {
+      console.error('Error in DELETE /api/hero-ban-systems:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  // ===== Map Veto Systems (roster-scoped config) =====
+  app.get("/api/map-veto-systems", requireAuth, async (req, res) => {
+    try {
+      const list = await storage.getAllMapVetoSystems(getGameId(req), getRosterId(req));
+      res.json(list);
+    } catch (error: any) {
+      console.error('Error in GET /api/map-veto-systems:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.post("/api/map-veto-systems", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+    try {
+      const validated = insertMapVetoSystemSchema.parse(req.body);
+      const row = await storage.addMapVetoSystem(validated, getGameId(req), getRosterId(req));
+      logActivity(req.session.userId!, "add_map_veto_system", `Added Map Veto System "${row.name}"`, "team", undefined, row.gameId, row.rosterId);
+      res.json(row);
+    } catch (error: any) {
+      console.error('Error in POST /api/map-veto-systems:', error);
+      if (error.name === 'ZodError') return res.status(400).json({ error: "Invalid data", details: error.errors });
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.put("/api/map-veto-systems/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = getTeamId();
+      const [existing] = await db.select().from(mapVetoSystems).where(and(eq(mapVetoSystems.id, id), eq(mapVetoSystems.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Map Veto System not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      const validated = await sanitizeScopeFields(req, insertMapVetoSystemSchema.partial().parse(req.body));
+      const row = await storage.updateMapVetoSystem(id, validated, existing.gameId, existing.rosterId);
+      if (!row) return res.status(404).json({ error: "Map Veto System not found" });
+      logActivity(req.session.userId!, "edit_map_veto_system", `Updated Map Veto System "${row.name}"`, "team", undefined, existing.gameId, existing.rosterId);
+      res.json(row);
+    } catch (error: any) {
+      console.error('Error in PUT /api/map-veto-systems:', error);
+      if (error.name === 'ZodError') return res.status(400).json({ error: "Invalid data", details: error.errors });
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.delete("/api/map-veto-systems/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = getTeamId();
+      const [existing] = await db.select().from(mapVetoSystems).where(and(eq(mapVetoSystems.id, id), eq(mapVetoSystems.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Map Veto System not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      const ok = await storage.removeMapVetoSystem(id, existing.gameId, existing.rosterId);
+      if (ok) {
+        logActivity(req.session.userId!, "delete_map_veto_system", `Deleted Map Veto System "${existing.name}"`, "team", undefined, existing.gameId, existing.rosterId);
+        return res.json({ success: true });
+      }
+      res.status(404).json({ error: "Map Veto System not found" });
+    } catch (error: any) {
+      console.error('Error in DELETE /api/map-veto-systems:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  // ===== Per-game hero ban actions =====
+  app.get("/api/games/:id/hero-ban-actions", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = getTeamId();
+      const [game] = await db.select().from(games).where(and(eq(games.id, id), eq(games.teamId, teamId))).limit(1);
+      if (!game) return res.status(404).json({ error: "Game not found" });
+      if (!await verifyObjectScope(req, res, game.gameId, game.rosterId)) return;
+      const rows = await storage.getHeroBanActionsByMatchId(id);
+      res.json(rows);
+    } catch (error: any) {
+      console.error('Error in GET /api/games/:id/hero-ban-actions:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.put("/api/games/:id/hero-ban-actions", requireAuth, requirePermission("edit_events"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = getTeamId();
+      const [game] = await db.select().from(games).where(and(eq(games.id, id), eq(games.teamId, teamId))).limit(1);
+      if (!game) return res.status(404).json({ error: "Game not found" });
+      if (!await verifyObjectScope(req, res, game.gameId, game.rosterId)) return;
+      const rowsSchema = z.array(insertGameHeroBanActionSchema.omit({ matchId: true }).extend({
+        actionType: z.enum(heroBanActionTypes),
+        actingTeam: z.enum(banVetoTeamSlots),
+      }));
+      const rows = rowsSchema.parse(req.body);
+      const heroIds = Array.from(new Set(rows.map(r => r.heroId).filter((x): x is string => !!x)));
+      if (heroIds.length > 0) {
+        const valid = await db.select({ id: heroes.id }).from(heroes).where(and(
+          inArray(heroes.id, heroIds),
+          eq(heroes.teamId, teamId),
+          eq(heroes.gameId, game.gameId!),
+          eq(heroes.rosterId, game.rosterId!),
+        ));
+        if (valid.length !== heroIds.length) {
+          return res.status(400).json({ error: "One or more heroes are out of scope for this match" });
+        }
+      }
+      const saved = await storage.replaceHeroBanActions(id, rows, game.gameId, game.rosterId);
+      res.json(saved);
+    } catch (error: any) {
+      console.error('Error in PUT /api/games/:id/hero-ban-actions:', error);
+      if (error.name === 'ZodError') return res.status(400).json({ error: "Invalid hero ban data", details: error.errors });
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  // ===== Per-game map veto rows =====
+  app.get("/api/games/:id/map-veto-rows", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = getTeamId();
+      const [game] = await db.select().from(games).where(and(eq(games.id, id), eq(games.teamId, teamId))).limit(1);
+      if (!game) return res.status(404).json({ error: "Game not found" });
+      if (!await verifyObjectScope(req, res, game.gameId, game.rosterId)) return;
+      const rows = await storage.getMapVetoRowsByMatchId(id);
+      res.json(rows);
+    } catch (error: any) {
+      console.error('Error in GET /api/games/:id/map-veto-rows:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.put("/api/games/:id/map-veto-rows", requireAuth, requirePermission("edit_events"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = getTeamId();
+      const [game] = await db.select().from(games).where(and(eq(games.id, id), eq(games.teamId, teamId))).limit(1);
+      if (!game) return res.status(404).json({ error: "Game not found" });
+      if (!await verifyObjectScope(req, res, game.gameId, game.rosterId)) return;
+      const rowsSchema = z.array(insertGameMapVetoRowSchema.omit({ matchId: true }).extend({
+        actionType: z.enum(mapVetoActionTypes),
+        actingTeam: z.enum(banVetoTeamSlots),
+      }));
+      const rows = rowsSchema.parse(req.body);
+      if (rows.length > 40) return res.status(400).json({ error: "Map veto cannot exceed 40 rows" });
+      const mapIds = Array.from(new Set(rows.map(r => r.mapId).filter((x): x is string => !!x)));
+      if (mapIds.length > 0) {
+        const valid = await db.select({ id: maps.id }).from(maps).where(and(
+          inArray(maps.id, mapIds),
+          eq(maps.teamId, teamId),
+          eq(maps.gameId, game.gameId!),
+        ));
+        if (valid.length !== mapIds.length) {
+          return res.status(400).json({ error: "One or more maps are out of scope for this match" });
+        }
+      }
+      const sideIds = Array.from(new Set(rows.map(r => r.sideId).filter((x): x is string => !!x)));
+      if (sideIds.length > 0) {
+        const valid = await db.select({ id: sides.id }).from(sides).where(and(
+          inArray(sides.id, sideIds),
+          eq(sides.teamId, teamId),
+          eq(sides.gameId, game.gameId!),
+        ));
+        if (valid.length !== sideIds.length) {
+          return res.status(400).json({ error: "One or more sides are out of scope for this match" });
+        }
+      }
+      const saved = await storage.replaceMapVetoRows(id, rows, game.gameId, game.rosterId);
+      res.json(saved);
+    } catch (error: any) {
+      console.error('Error in PUT /api/games/:id/map-veto-rows:', error);
+      if (error.name === 'ZodError') return res.status(400).json({ error: "Invalid map veto data", details: error.errors });
       res.status(500).json({ error: error.message || "Internal server error" });
     }
   });

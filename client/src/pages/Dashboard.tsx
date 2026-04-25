@@ -36,6 +36,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { HeroesConfiguration } from "@/components/HeroesConfiguration";
 import { OpponentsConfiguration } from "@/components/OpponentsConfiguration";
+import { HeroBanSystemsConfiguration } from "@/components/HeroBanSystemsConfiguration";
+import { MapVetoSystemsConfiguration } from "@/components/MapVetoSystemsConfiguration";
 
 interface UserWithRole {
   id: string;
@@ -1185,6 +1187,8 @@ export default function Dashboard() {
   const availableTabs: { value: string; label: string; icon: any; show: boolean }[] = [
     { value: "game-config", label: "Game Config", icon: Gamepad2, show: canManageGameConfig },
     { value: "opponents", label: "Opponents", icon: Users, show: canManageGameConfig },
+    { value: "hero-ban", label: "Hero Ban", icon: Ban, show: canManageGameConfig },
+    { value: "map-veto", label: "Map Veto", icon: MapIcon, show: canManageGameConfig },
     { value: "team", label: "Team", icon: UserCog, show: canViewDashboard },
     { value: "users", label: "Users", icon: Users, show: canManageUsers },
     { value: "roles", label: "Roles", icon: Shield, show: canManageRoles },
@@ -1652,6 +1656,16 @@ export default function Dashboard() {
           {/* Tab: Opponents */}
           <TabsContent value="opponents" className="space-y-6">
             <OpponentsConfiguration canEdit={canManageGameConfig} />
+          </TabsContent>
+
+          {/* Tab: Hero Ban */}
+          <TabsContent value="hero-ban" className="space-y-6">
+            <HeroBanSystemsConfiguration canEdit={canManageGameConfig} />
+          </TabsContent>
+
+          {/* Tab: Map Veto */}
+          <TabsContent value="map-veto" className="space-y-6">
+            <MapVetoSystemsConfiguration canEdit={canManageGameConfig} />
           </TabsContent>
 
           {/* Tab 2: Team */}

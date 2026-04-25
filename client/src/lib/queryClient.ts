@@ -35,6 +35,7 @@ export const GAME_SCOPED_PREFIXES = [
   "/api/all-games", "/api/all-games-stats", "/api/player-stats-summary",
   "/api/event-categories", "/api/event-sub-types",
   "/api/sides", "/api/heroes", "/api/opponents",
+  "/api/hero-ban-systems", "/api/map-veto-systems",
   "/api/settings", "/api/rosters",
   "/api/users", "/api/roles", "/api/activity-logs",
   "/api/game-assignments/pending",

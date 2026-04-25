@@ -434,6 +434,8 @@ export const games = pgTable("games", {
   result: text("result"),
   link: text("link"),
   opponentId: varchar("opponent_id").references(() => opponents.id, { onDelete: "set null" }),
+  heroBanSystemId: varchar("hero_ban_system_id"),
+  mapVetoSystemId: varchar("map_veto_system_id"),
 }, (table) => [
   index("games_team_id_idx").on(table.teamId),
   index("games_game_id_idx").on(table.gameId),
@@ -540,6 +542,103 @@ export const gameRounds = pgTable("game_rounds", {
   index("game_rounds_game_id_idx").on(table.gameId),
   index("game_rounds_match_id_idx").on(table.matchId),
   index("game_rounds_roster_id_idx").on(table.rosterId),
+]);
+
+export const heroBanActionTypes = ["ban", "lock", "protect"] as const;
+export type HeroBanActionType = typeof heroBanActionTypes[number];
+
+export const mapVetoActionTypes = ["ban", "pick", "decider"] as const;
+export type MapVetoActionType = typeof mapVetoActionTypes[number];
+
+export const banVetoTeamSlots = ["a", "b", "auto"] as const;
+export type BanVetoTeamSlot = typeof banVetoTeamSlots[number];
+
+// Hero Ban System (roster-scoped reusable config)
+export const heroBanSystems = pgTable("hero_ban_systems", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
+  name: text("name").notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  mode: text("mode").notNull().default("simple"),
+  supportsLocks: boolean("supports_locks").notNull().default(false),
+  bansPerTeam: integer("bans_per_team").notNull().default(0),
+  locksPerTeam: integer("locks_per_team").notNull().default(0),
+  bansTargetEnemy: boolean("bans_target_enemy").notNull().default(true),
+  locksSecureOwn: boolean("locks_secure_own").notNull().default(false),
+  actionSequence: jsonb("action_sequence"),
+  bansPerRound: integer("bans_per_round"),
+  bansEverySideSwitch: boolean("bans_every_side_switch").notNull().default(false),
+  bansEveryTwoRounds: boolean("bans_every_two_rounds").notNull().default(false),
+  bansResetOnHalftime: boolean("bans_reset_on_halftime").notNull().default(false),
+  overtimeBehavior: text("overtime_behavior"),
+  totalBansPerMap: integer("total_bans_per_map"),
+  bansAccumulate: boolean("bans_accumulate").notNull().default(false),
+  notes: text("notes"),
+  sortOrder: integer("sort_order").notNull().default(0),
+}, (table) => [
+  index("hero_ban_systems_team_id_idx").on(table.teamId),
+  index("hero_ban_systems_game_id_idx").on(table.gameId),
+  index("hero_ban_systems_roster_id_idx").on(table.rosterId),
+]);
+
+// Map Veto System (roster-scoped reusable config)
+export const mapVetoSystems = pgTable("map_veto_systems", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
+  name: text("name").notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  supportsBan: boolean("supports_ban").notNull().default(true),
+  supportsPick: boolean("supports_pick").notNull().default(true),
+  supportsDecider: boolean("supports_decider").notNull().default(true),
+  supportsSideChoice: boolean("supports_side_choice").notNull().default(true),
+  defaultRowCount: integer("default_row_count").notNull().default(7),
+  notes: text("notes"),
+  sortOrder: integer("sort_order").notNull().default(0),
+}, (table) => [
+  index("map_veto_systems_team_id_idx").on(table.teamId),
+  index("map_veto_systems_game_id_idx").on(table.gameId),
+  index("map_veto_systems_roster_id_idx").on(table.rosterId),
+]);
+
+// Per-match hero ban actions (replace-all)
+export const gameHeroBanActions = pgTable("game_hero_ban_actions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
+  matchId: varchar("match_id").notNull().references(() => games.id, { onDelete: "cascade" }),
+  stepNumber: integer("step_number").notNull(),
+  actionType: text("action_type").notNull(),
+  actingTeam: text("acting_team").notNull(),
+  heroId: varchar("hero_id").references(() => heroes.id, { onDelete: "set null" }),
+  notes: text("notes"),
+}, (table) => [
+  index("game_hero_ban_actions_team_id_idx").on(table.teamId),
+  index("game_hero_ban_actions_match_id_idx").on(table.matchId),
+  index("game_hero_ban_actions_roster_id_idx").on(table.rosterId),
+]);
+
+// Per-match map veto rows (replace-all)
+export const gameMapVetoRows = pgTable("game_map_veto_rows", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
+  matchId: varchar("match_id").notNull().references(() => games.id, { onDelete: "cascade" }),
+  stepNumber: integer("step_number").notNull(),
+  actionType: text("action_type").notNull(),
+  actingTeam: text("acting_team").notNull(),
+  mapId: varchar("map_id").references(() => maps.id, { onDelete: "set null" }),
+  sideId: varchar("side_id").references(() => sides.id, { onDelete: "set null" }),
+  notes: text("notes"),
+}, (table) => [
+  index("game_map_veto_rows_team_id_idx").on(table.teamId),
+  index("game_map_veto_rows_match_id_idx").on(table.matchId),
+  index("game_map_veto_rows_roster_id_idx").on(table.rosterId),
 ]);
 
 export const gameHeroes = pgTable("game_heroes", {
@@ -922,6 +1021,30 @@ export const insertGameRoundSchema = createInsertSchema(gameRounds).omit({
   gameId: true,
 });
 
+export const insertHeroBanSystemSchema = createInsertSchema(heroBanSystems).omit({
+  id: true,
+  teamId: true,
+  gameId: true,
+});
+
+export const insertMapVetoSystemSchema = createInsertSchema(mapVetoSystems).omit({
+  id: true,
+  teamId: true,
+  gameId: true,
+});
+
+export const insertGameHeroBanActionSchema = createInsertSchema(gameHeroBanActions).omit({
+  id: true,
+  teamId: true,
+  gameId: true,
+});
+
+export const insertGameMapVetoRowSchema = createInsertSchema(gameMapVetoRows).omit({
+  id: true,
+  teamId: true,
+  gameId: true,
+});
+
 export const insertStatFieldSchema = createInsertSchema(statFields).omit({
   id: true,
   teamId: true,
@@ -1048,6 +1171,18 @@ export type InsertSide = z.infer<typeof insertSideSchema>;
 
 export type GameRound = typeof gameRounds.$inferSelect;
 export type InsertGameRound = z.infer<typeof insertGameRoundSchema>;
+
+export type HeroBanSystem = typeof heroBanSystems.$inferSelect;
+export type InsertHeroBanSystem = z.infer<typeof insertHeroBanSystemSchema>;
+
+export type MapVetoSystem = typeof mapVetoSystems.$inferSelect;
+export type InsertMapVetoSystem = z.infer<typeof insertMapVetoSystemSchema>;
+
+export type GameHeroBanAction = typeof gameHeroBanActions.$inferSelect;
+export type InsertGameHeroBanAction = z.infer<typeof insertGameHeroBanActionSchema>;
+
+export type GameMapVetoRow = typeof gameMapVetoRows.$inferSelect;
+export type InsertGameMapVetoRow = z.infer<typeof insertGameMapVetoRowSchema>;
 
 export type Hero = typeof heroes.$inferSelect;
 export type InsertHero = z.infer<typeof insertHeroSchema>;

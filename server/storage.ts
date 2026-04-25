@@ -1,5 +1,5 @@
-import type { Player, InsertPlayer, Schedule, InsertSchedule, Setting, InsertSetting, Event, InsertEvent, Attendance, InsertAttendance, TeamNotes, InsertTeamNotes, Game, InsertGame, GameMode, InsertGameMode, Map, InsertMap, Season, InsertSeason, OffDay, InsertOffDay, StatField, InsertStatField, PlayerGameStat, InsertPlayerGameStat, PlayerAvailabilityRecord, InsertPlayerAvailability, StaffAvailabilityRecord, InsertStaffAvailability, Staff, InsertStaff, AvailabilitySlot, RosterRole, SupportedGame, UserGameAssignment, Notification, EventCategory, InsertEventCategory, EventSubType, InsertEventSubType, Side, InsertSide, GameRound, InsertGameRound, Hero, InsertHero, GameHero, InsertGameHero, Opponent, InsertOpponent, OpponentPlayer, InsertOpponentPlayer, MatchParticipant, InsertMatchParticipant, OpponentPlayerGameStat, InsertOpponentPlayerGameStat } from "@shared/schema";
-import { players, schedules, settings, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays, statFields, playerGameStats, playerAvailability, staffAvailability, staff as staffTable, availabilitySlots, rosterRoles, supportedGames, userGameAssignments, notifications, users, rosters, eventCategories, eventSubTypes, sides, gameRounds, heroes, gameHeroes, opponents, opponentPlayers, matchParticipants, opponentPlayerGameStats } from "@shared/schema";
+import type { Player, InsertPlayer, Schedule, InsertSchedule, Setting, InsertSetting, Event, InsertEvent, Attendance, InsertAttendance, TeamNotes, InsertTeamNotes, Game, InsertGame, GameMode, InsertGameMode, Map, InsertMap, Season, InsertSeason, OffDay, InsertOffDay, StatField, InsertStatField, PlayerGameStat, InsertPlayerGameStat, PlayerAvailabilityRecord, InsertPlayerAvailability, StaffAvailabilityRecord, InsertStaffAvailability, Staff, InsertStaff, AvailabilitySlot, RosterRole, SupportedGame, UserGameAssignment, Notification, EventCategory, InsertEventCategory, EventSubType, InsertEventSubType, Side, InsertSide, GameRound, InsertGameRound, Hero, InsertHero, GameHero, InsertGameHero, Opponent, InsertOpponent, OpponentPlayer, InsertOpponentPlayer, MatchParticipant, InsertMatchParticipant, OpponentPlayerGameStat, InsertOpponentPlayerGameStat, HeroBanSystem, InsertHeroBanSystem, MapVetoSystem, InsertMapVetoSystem, GameHeroBanAction, InsertGameHeroBanAction, GameMapVetoRow, InsertGameMapVetoRow } from "@shared/schema";
+import { players, schedules, settings, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays, statFields, playerGameStats, playerAvailability, staffAvailability, staff as staffTable, availabilitySlots, rosterRoles, supportedGames, userGameAssignments, notifications, users, rosters, eventCategories, eventSubTypes, sides, gameRounds, heroes, gameHeroes, opponents, opponentPlayers, matchParticipants, opponentPlayerGameStats, heroBanSystems, mapVetoSystems, gameHeroBanActions, gameMapVetoRows } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, isNull, desc } from "drizzle-orm";
 
@@ -65,6 +65,20 @@ export interface IStorage {
   updateHero(id: string, hero: Partial<InsertHero>, gameId?: string | null, rosterId?: string | null): Promise<Hero | undefined>;
   removeHero(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean>;
   bulkInsertHeroes(rows: InsertHero[], gameId?: string | null, rosterId?: string | null): Promise<Hero[]>;
+  getAllHeroBanSystems(gameId?: string | null, rosterId?: string | null): Promise<HeroBanSystem[]>;
+  getHeroBanSystem(id: string): Promise<HeroBanSystem | undefined>;
+  addHeroBanSystem(s: InsertHeroBanSystem, gameId?: string | null, rosterId?: string | null): Promise<HeroBanSystem>;
+  updateHeroBanSystem(id: string, s: Partial<InsertHeroBanSystem>, gameId?: string | null, rosterId?: string | null): Promise<HeroBanSystem | undefined>;
+  removeHeroBanSystem(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean>;
+  getAllMapVetoSystems(gameId?: string | null, rosterId?: string | null): Promise<MapVetoSystem[]>;
+  getMapVetoSystem(id: string): Promise<MapVetoSystem | undefined>;
+  addMapVetoSystem(s: InsertMapVetoSystem, gameId?: string | null, rosterId?: string | null): Promise<MapVetoSystem>;
+  updateMapVetoSystem(id: string, s: Partial<InsertMapVetoSystem>, gameId?: string | null, rosterId?: string | null): Promise<MapVetoSystem | undefined>;
+  removeMapVetoSystem(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean>;
+  getHeroBanActionsByMatchId(matchId: string): Promise<GameHeroBanAction[]>;
+  replaceHeroBanActions(matchId: string, rows: Omit<InsertGameHeroBanAction, "matchId">[], gameId?: string | null, rosterId?: string | null): Promise<GameHeroBanAction[]>;
+  getMapVetoRowsByMatchId(matchId: string): Promise<GameMapVetoRow[]>;
+  replaceMapVetoRows(matchId: string, rows: Omit<InsertGameMapVetoRow, "matchId">[], gameId?: string | null, rosterId?: string | null): Promise<GameMapVetoRow[]>;
   getGameHeroesByMatchId(matchId: string): Promise<GameHero[]>;
   addGameHero(gameHero: InsertGameHero, gameId?: string | null, rosterId?: string | null): Promise<GameHero>;
   removeGameHero(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean>;
@@ -332,6 +346,8 @@ export class DbStorage implements IStorage {
         result: games.result,
         link: games.link,
         opponentId: games.opponentId,
+        heroBanSystemId: games.heroBanSystemId,
+        mapVetoSystemId: games.mapVetoSystemId,
         eventType: events.eventType,
       })
       .from(games)
@@ -430,6 +446,106 @@ export class DbStorage implements IStorage {
     const teamId = getTeamId();
     const inserted = await db.insert(heroes).values(rows.map(r => ({ ...r, teamId, gameId, rosterId }))).returning();
     return inserted;
+  }
+
+  async getAllHeroBanSystems(gameId?: string | null, rosterId?: string | null): Promise<HeroBanSystem[]> {
+    const teamId = getTeamId();
+    return await db.select().from(heroBanSystems).where(buildWhere(teamId, heroBanSystems, gameId, rosterId));
+  }
+
+  async getHeroBanSystem(id: string): Promise<HeroBanSystem | undefined> {
+    const teamId = getTeamId();
+    const rows = await db.select().from(heroBanSystems).where(and(eq(heroBanSystems.id, id), eq(heroBanSystems.teamId, teamId)));
+    return rows[0];
+  }
+
+  async addHeroBanSystem(s: InsertHeroBanSystem, gameId?: string | null, rosterId?: string | null): Promise<HeroBanSystem> {
+    const teamId = getTeamId();
+    const inserted = await db.insert(heroBanSystems).values({ ...s, teamId, gameId, rosterId }).returning();
+    return inserted[0];
+  }
+
+  async updateHeroBanSystem(id: string, s: Partial<InsertHeroBanSystem>, gameId?: string | null, rosterId?: string | null): Promise<HeroBanSystem | undefined> {
+    const teamId = getTeamId();
+    const conditions: any[] = [eq(heroBanSystems.id, id), eq(heroBanSystems.teamId, teamId)];
+    if (gameId) conditions.push(eq(heroBanSystems.gameId, gameId));
+    if (rosterId) conditions.push(eq(heroBanSystems.rosterId, rosterId));
+    const updated = await db.update(heroBanSystems).set(s).where(and(...conditions)).returning();
+    return updated[0];
+  }
+
+  async removeHeroBanSystem(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean> {
+    const teamId = getTeamId();
+    const conditions: any[] = [eq(heroBanSystems.id, id), eq(heroBanSystems.teamId, teamId)];
+    if (gameId) conditions.push(eq(heroBanSystems.gameId, gameId));
+    if (rosterId) conditions.push(eq(heroBanSystems.rosterId, rosterId));
+    const deleted = await db.delete(heroBanSystems).where(and(...conditions)).returning();
+    return deleted.length > 0;
+  }
+
+  async getAllMapVetoSystems(gameId?: string | null, rosterId?: string | null): Promise<MapVetoSystem[]> {
+    const teamId = getTeamId();
+    return await db.select().from(mapVetoSystems).where(buildWhere(teamId, mapVetoSystems, gameId, rosterId));
+  }
+
+  async getMapVetoSystem(id: string): Promise<MapVetoSystem | undefined> {
+    const teamId = getTeamId();
+    const rows = await db.select().from(mapVetoSystems).where(and(eq(mapVetoSystems.id, id), eq(mapVetoSystems.teamId, teamId)));
+    return rows[0];
+  }
+
+  async addMapVetoSystem(s: InsertMapVetoSystem, gameId?: string | null, rosterId?: string | null): Promise<MapVetoSystem> {
+    const teamId = getTeamId();
+    const inserted = await db.insert(mapVetoSystems).values({ ...s, teamId, gameId, rosterId }).returning();
+    return inserted[0];
+  }
+
+  async updateMapVetoSystem(id: string, s: Partial<InsertMapVetoSystem>, gameId?: string | null, rosterId?: string | null): Promise<MapVetoSystem | undefined> {
+    const teamId = getTeamId();
+    const conditions: any[] = [eq(mapVetoSystems.id, id), eq(mapVetoSystems.teamId, teamId)];
+    if (gameId) conditions.push(eq(mapVetoSystems.gameId, gameId));
+    if (rosterId) conditions.push(eq(mapVetoSystems.rosterId, rosterId));
+    const updated = await db.update(mapVetoSystems).set(s).where(and(...conditions)).returning();
+    return updated[0];
+  }
+
+  async removeMapVetoSystem(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean> {
+    const teamId = getTeamId();
+    const conditions: any[] = [eq(mapVetoSystems.id, id), eq(mapVetoSystems.teamId, teamId)];
+    if (gameId) conditions.push(eq(mapVetoSystems.gameId, gameId));
+    if (rosterId) conditions.push(eq(mapVetoSystems.rosterId, rosterId));
+    const deleted = await db.delete(mapVetoSystems).where(and(...conditions)).returning();
+    return deleted.length > 0;
+  }
+
+  async getHeroBanActionsByMatchId(matchId: string): Promise<GameHeroBanAction[]> {
+    const teamId = getTeamId();
+    return await db.select().from(gameHeroBanActions).where(and(eq(gameHeroBanActions.matchId, matchId), eq(gameHeroBanActions.teamId, teamId)));
+  }
+
+  async replaceHeroBanActions(matchId: string, rows: Omit<InsertGameHeroBanAction, "matchId">[], gameId?: string | null, rosterId?: string | null): Promise<GameHeroBanAction[]> {
+    const teamId = getTeamId();
+    return await db.transaction(async (tx) => {
+      await tx.delete(gameHeroBanActions).where(and(eq(gameHeroBanActions.matchId, matchId), eq(gameHeroBanActions.teamId, teamId)));
+      if (rows.length === 0) return [];
+      const inserted = await tx.insert(gameHeroBanActions).values(rows.map(r => ({ ...r, matchId, teamId, gameId, rosterId }))).returning();
+      return inserted;
+    });
+  }
+
+  async getMapVetoRowsByMatchId(matchId: string): Promise<GameMapVetoRow[]> {
+    const teamId = getTeamId();
+    return await db.select().from(gameMapVetoRows).where(and(eq(gameMapVetoRows.matchId, matchId), eq(gameMapVetoRows.teamId, teamId)));
+  }
+
+  async replaceMapVetoRows(matchId: string, rows: Omit<InsertGameMapVetoRow, "matchId">[], gameId?: string | null, rosterId?: string | null): Promise<GameMapVetoRow[]> {
+    const teamId = getTeamId();
+    return await db.transaction(async (tx) => {
+      await tx.delete(gameMapVetoRows).where(and(eq(gameMapVetoRows.matchId, matchId), eq(gameMapVetoRows.teamId, teamId)));
+      if (rows.length === 0) return [];
+      const inserted = await tx.insert(gameMapVetoRows).values(rows.map(r => ({ ...r, matchId, teamId, gameId, rosterId }))).returning();
+      return inserted;
+    });
   }
 
   async getGameHeroesByMatchId(matchId: string): Promise<GameHero[]> {
