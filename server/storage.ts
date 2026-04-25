@@ -1,5 +1,5 @@
-import type { Player, InsertPlayer, Schedule, InsertSchedule, Setting, InsertSetting, Event, InsertEvent, Attendance, InsertAttendance, TeamNotes, InsertTeamNotes, Game, InsertGame, GameMode, InsertGameMode, Map, InsertMap, Season, InsertSeason, OffDay, InsertOffDay, StatField, InsertStatField, PlayerGameStat, InsertPlayerGameStat, PlayerAvailabilityRecord, InsertPlayerAvailability, StaffAvailabilityRecord, InsertStaffAvailability, Staff, InsertStaff, AvailabilitySlot, RosterRole, SupportedGame, UserGameAssignment, Notification, EventCategory, InsertEventCategory, EventSubType, InsertEventSubType, Side, InsertSide, GameRound, InsertGameRound } from "@shared/schema";
-import { players, schedules, settings, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays, statFields, playerGameStats, playerAvailability, staffAvailability, staff as staffTable, availabilitySlots, rosterRoles, supportedGames, userGameAssignments, notifications, users, rosters, eventCategories, eventSubTypes, sides, gameRounds } from "@shared/schema";
+import type { Player, InsertPlayer, Schedule, InsertSchedule, Setting, InsertSetting, Event, InsertEvent, Attendance, InsertAttendance, TeamNotes, InsertTeamNotes, Game, InsertGame, GameMode, InsertGameMode, Map, InsertMap, Season, InsertSeason, OffDay, InsertOffDay, StatField, InsertStatField, PlayerGameStat, InsertPlayerGameStat, PlayerAvailabilityRecord, InsertPlayerAvailability, StaffAvailabilityRecord, InsertStaffAvailability, Staff, InsertStaff, AvailabilitySlot, RosterRole, SupportedGame, UserGameAssignment, Notification, EventCategory, InsertEventCategory, EventSubType, InsertEventSubType, Side, InsertSide, GameRound, InsertGameRound, Hero, InsertHero, GameHero, InsertGameHero } from "@shared/schema";
+import { players, schedules, settings, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays, statFields, playerGameStats, playerAvailability, staffAvailability, staff as staffTable, availabilitySlots, rosterRoles, supportedGames, userGameAssignments, notifications, users, rosters, eventCategories, eventSubTypes, sides, gameRounds, heroes, gameHeroes } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, isNull, desc } from "drizzle-orm";
 
@@ -60,6 +60,14 @@ export interface IStorage {
   addGameMode(gameMode: InsertGameMode, gameId?: string | null, rosterId?: string | null): Promise<GameMode>;
   updateGameMode(id: string, gameMode: Partial<InsertGameMode>, gameId?: string | null, rosterId?: string | null): Promise<GameMode>;
   removeGameMode(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean>;
+  getAllHeroes(gameId?: string | null, rosterId?: string | null): Promise<Hero[]>;
+  addHero(hero: InsertHero, gameId?: string | null, rosterId?: string | null): Promise<Hero>;
+  updateHero(id: string, hero: Partial<InsertHero>, gameId?: string | null, rosterId?: string | null): Promise<Hero | undefined>;
+  removeHero(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean>;
+  bulkInsertHeroes(rows: InsertHero[], gameId?: string | null, rosterId?: string | null): Promise<Hero[]>;
+  getGameHeroesByMatchId(matchId: string): Promise<GameHero[]>;
+  addGameHero(gameHero: InsertGameHero, gameId?: string | null, rosterId?: string | null): Promise<GameHero>;
+  removeGameHero(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean>;
   getAllMaps(gameId?: string | null, rosterId?: string | null): Promise<Map[]>;
   getMapsByGameModeId(gameModeId: string): Promise<Map[]>;
   addMap(map: InsertMap, gameId?: string | null, rosterId?: string | null): Promise<Map>;
@@ -368,6 +376,62 @@ export class DbStorage implements IStorage {
     if (gameId) conditions.push(eq(gameModes.gameId, gameId));
     if (rosterId) conditions.push(eq(gameModes.rosterId, rosterId));
     const deleted = await db.delete(gameModes).where(and(...conditions)).returning();
+    return deleted.length > 0;
+  }
+
+  async getAllHeroes(gameId?: string | null, rosterId?: string | null): Promise<Hero[]> {
+    const teamId = getTeamId();
+    return await db.select().from(heroes).where(buildWhere(teamId, heroes, gameId, rosterId));
+  }
+
+  async addHero(insertHero: InsertHero, gameId?: string | null, rosterId?: string | null): Promise<Hero> {
+    const teamId = getTeamId();
+    const inserted = await db.insert(heroes).values({ ...insertHero, teamId, gameId, rosterId }).returning();
+    return inserted[0];
+  }
+
+  async updateHero(id: string, updateData: Partial<InsertHero>, gameId?: string | null, rosterId?: string | null): Promise<Hero | undefined> {
+    const teamId = getTeamId();
+    const conditions: any[] = [eq(heroes.id, id), eq(heroes.teamId, teamId)];
+    if (gameId) conditions.push(eq(heroes.gameId, gameId));
+    if (rosterId) conditions.push(eq(heroes.rosterId, rosterId));
+    const updated = await db.update(heroes).set(updateData).where(and(...conditions)).returning();
+    return updated[0];
+  }
+
+  async removeHero(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean> {
+    const teamId = getTeamId();
+    const conditions: any[] = [eq(heroes.id, id), eq(heroes.teamId, teamId)];
+    if (gameId) conditions.push(eq(heroes.gameId, gameId));
+    if (rosterId) conditions.push(eq(heroes.rosterId, rosterId));
+    const deleted = await db.delete(heroes).where(and(...conditions)).returning();
+    return deleted.length > 0;
+  }
+
+  async bulkInsertHeroes(rows: InsertHero[], gameId?: string | null, rosterId?: string | null): Promise<Hero[]> {
+    if (rows.length === 0) return [];
+    const teamId = getTeamId();
+    const inserted = await db.insert(heroes).values(rows.map(r => ({ ...r, teamId, gameId, rosterId }))).returning();
+    return inserted;
+  }
+
+  async getGameHeroesByMatchId(matchId: string): Promise<GameHero[]> {
+    const teamId = getTeamId();
+    return await db.select().from(gameHeroes).where(and(eq(gameHeroes.matchId, matchId), eq(gameHeroes.teamId, teamId)));
+  }
+
+  async addGameHero(insertGameHero: InsertGameHero, gameId?: string | null, rosterId?: string | null): Promise<GameHero> {
+    const teamId = getTeamId();
+    const inserted = await db.insert(gameHeroes).values({ ...insertGameHero, teamId, gameId, rosterId }).returning();
+    return inserted[0];
+  }
+
+  async removeGameHero(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean> {
+    const teamId = getTeamId();
+    const conditions: any[] = [eq(gameHeroes.id, id), eq(gameHeroes.teamId, teamId)];
+    if (gameId) conditions.push(eq(gameHeroes.gameId, gameId));
+    if (rosterId) conditions.push(eq(gameHeroes.rosterId, rosterId));
+    const deleted = await db.delete(gameHeroes).where(and(...conditions)).returning();
     return deleted.length > 0;
   }
 

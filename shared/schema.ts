@@ -398,6 +398,26 @@ export const maps = pgTable("maps", {
   index("maps_game_id_idx").on(table.gameId),
 ]);
 
+export const heroRoles = ["Duelist", "Vanguard", "Strategist"] as const;
+export type HeroRole = typeof heroRoles[number];
+
+export const heroes = pgTable("heroes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
+  name: text("name").notNull(),
+  role: text("role").notNull(),
+  imageUrl: text("image_url"),
+  isActive: boolean("is_active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+}, (table) => [
+  index("heroes_team_id_idx").on(table.teamId),
+  index("heroes_game_id_idx").on(table.gameId),
+  index("heroes_roster_id_idx").on(table.rosterId),
+  index("heroes_role_idx").on(table.role),
+]);
+
 export const games = pgTable("games", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
@@ -446,6 +466,24 @@ export const gameRounds = pgTable("game_rounds", {
   index("game_rounds_game_id_idx").on(table.gameId),
   index("game_rounds_match_id_idx").on(table.matchId),
   index("game_rounds_roster_id_idx").on(table.rosterId),
+]);
+
+export const gameHeroes = pgTable("game_heroes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
+  matchId: varchar("match_id").notNull().references(() => games.id, { onDelete: "cascade" }),
+  playerId: varchar("player_id").references(() => players.id, { onDelete: "set null" }),
+  heroId: varchar("hero_id").notNull().references(() => heroes.id, { onDelete: "restrict" }),
+  roundNumber: integer("round_number"),
+  sortOrder: integer("sort_order").notNull().default(0),
+}, (table) => [
+  index("game_heroes_team_id_idx").on(table.teamId),
+  index("game_heroes_match_id_idx").on(table.matchId),
+  index("game_heroes_player_id_idx").on(table.playerId),
+  index("game_heroes_hero_id_idx").on(table.heroId),
+  index("game_heroes_roster_id_idx").on(table.rosterId),
 ]);
 
 export const offDays = pgTable("off_days", {
@@ -765,6 +803,18 @@ export const insertSideSchema = createInsertSchema(sides).omit({
   gameId: true,
 });
 
+export const insertHeroSchema = createInsertSchema(heroes).omit({
+  id: true,
+  teamId: true,
+  gameId: true,
+});
+
+export const insertGameHeroSchema = createInsertSchema(gameHeroes).omit({
+  id: true,
+  teamId: true,
+  gameId: true,
+});
+
 export const insertGameRoundSchema = createInsertSchema(gameRounds).omit({
   id: true,
   teamId: true,
@@ -897,6 +947,12 @@ export type InsertSide = z.infer<typeof insertSideSchema>;
 
 export type GameRound = typeof gameRounds.$inferSelect;
 export type InsertGameRound = z.infer<typeof insertGameRoundSchema>;
+
+export type Hero = typeof heroes.$inferSelect;
+export type InsertHero = z.infer<typeof insertHeroSchema>;
+
+export type GameHero = typeof gameHeroes.$inferSelect;
+export type InsertGameHero = z.infer<typeof insertGameHeroSchema>;
 
 export type StatField = typeof statFields.$inferSelect;
 export type InsertStatField = z.infer<typeof insertStatFieldSchema>;

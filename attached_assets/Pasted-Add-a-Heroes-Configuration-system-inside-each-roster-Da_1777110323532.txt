@@ -1,0 +1,132 @@
+Add a Heroes Configuration system inside each roster Dashboard / Game Config.
+
+Goal:
+I want roster admins to manage the game's hero pool from Dashboard / Game Config, with default Marvel Rivals hero data grouped by role, while still allowing full editing per roster. This hero system must also be structured so it can be used later across all games, game records, and analytics.
+
+Requirements:
+
+1. Where this should live
+- Add a clear "Heroes Configuration" section inside each roster Dashboard / Game Config page
+- This section should be visible to roster admins only
+
+2. Data structure
+Each hero should support:
+- hero name
+- role / class
+- image field
+- active / inactive toggle
+- sort order
+
+3. Default Marvel Rivals data
+Preload default Marvel Rivals heroes grouped by role.
+
+Roles:
+- Duelist
+- Vanguard
+- Strategist
+
+The roster admin should start with these default heroes already available, but still be able to edit them for that roster.
+
+4. Default hero list to preload
+
+Duelist
+Black Panther
+Black Widow
+Blade
+Daredevil
+Elsa Bloodstone
+Hawkeye
+Hela
+Human Torch
+Iron Fist
+Iron Man
+Magik
+Mister Fantastic
+Moon Knight
+Namor
+Phoenix
+Psylocke
+Scarlet Witch
+Spider-Man
+Squirrel Girl
+Star-Lord
+Storm
+The Punisher
+Winter Soldier
+Wolverine
+Deadpool
+
+Vanguard
+Angela
+Captain America
+Doctor Strange
+Emma Frost
+Groot
+Hulk
+Magneto
+Peni Parker
+Rogue
+The Thing
+Thor
+Venom
+Deadpool
+
+Strategist
+Adam Warlock
+Cloak & Dagger
+Gambit
+Invisible Woman
+Jeff the Land Shark
+Loki
+Luna Snow
+Mantis
+Rocket Raccoon
+Ultron
+White Fox
+Deadpool
+
+5. Admin actions
+Inside Heroes Configuration, admin can:
+- add a new hero
+- edit a hero name
+- change a hero role
+- upload or set a hero image
+- change or replace the hero image later
+- activate / deactivate a hero
+- delete a hero
+- reorder heroes
+- filter or group heroes by role
+
+6. Roster-level behavior
+- Heroes must be stored as roster-level configuration
+- Changes in one roster must not affect other rosters
+- The default Marvel Rivals hero list should be used as the starting point only
+
+7. Important future usage behavior
+- This is not only a config list
+- Heroes must be structured so they can be used later with every game, game record, and player performance flow
+- I want this heroes system to be reusable across all games recorded in the roster
+- A player can use more than one hero in one single game
+- Do not design this as one player = one hero only
+- The future data model must support one or more heroes per player within the same game
+- Build this in a way that supports future hero usage tracking inside games
+
+8. UI behavior
+- Show heroes grouped by role inside the Dashboard section
+- Keep the UI fast and clean for admin management
+- Make it easy to scan and edit many heroes quickly
+
+9. Foundation for later
+Build this as reusable roster game configuration data.
+We will use it later for:
+- game records
+- hero usage tracking
+- Ban & Protect
+- Opponents analysis
+- compositions
+- future hero analytics
+- multi-hero usage per player in a single game
+
+Important:
+Please keep the implementation flexible and future-proof.
+Do not lock the system into a single-hero-per-player design.

@@ -18,6 +18,7 @@ import {
   users, roles, chatChannels, chatMessages, availabilitySlots, rosterRoles,
   chatChannelPermissions, activityLogs, playerGameStats, allPermissions,
   players, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays,
+  heroes, gameHeroes, insertHeroSchema, insertGameHeroSchema,
   statFields as statFieldsTable,
   staff as staffTable,
   supportedGames, userGameAssignments, notifications, rosters,
@@ -30,6 +31,7 @@ import path from "path";
 import fs from "fs";
 import { randomUUID } from "crypto";
 import { z } from "zod";
+import { MARVEL_RIVALS_DEFAULT_HEROES, MARVEL_RIVALS_GAME_SLUG, HEROES_SEEDED_SETTING_KEY } from "./defaults/marvelRivalsHeroes";
 
 const UPLOAD_DIR = path.join(process.cwd(), "uploads");
 for (const sub of ["logos", "game-icons", "chat", "general"]) {
@@ -408,7 +410,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "/api/players", "/api/events", "/api/attendance", "/api/schedule",
     "/api/staff", "/api/chat", "/api/availability-slots", "/api/roster-roles",
     "/api/player-availability", "/api/staff-availability", "/api/seasons",
-    "/api/sides",
+    "/api/sides", "/api/heroes",
     "/api/game-modes", "/api/maps", "/api/games", "/api/off-days",
     "/api/stat-fields", "/api/player-stats-summary", "/api/team-notes",
     "/api/activity-logs",
@@ -2700,6 +2702,111 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     } catch (error: any) {
       console.error('Error in DELETE /api/game-modes:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.get("/api/heroes", requireAuth, async (req, res) => {
+    try {
+      const gameId = getGameId(req);
+      const rosterId = getRosterId(req);
+      let existing = await storage.getAllHeroes(gameId, rosterId);
+
+      if (existing.length === 0 && rosterId && gameId) {
+        const seededFlag = await storage.getSetting(HEROES_SEEDED_SETTING_KEY, gameId, rosterId);
+        if (!seededFlag) {
+          const [game] = await db.select().from(supportedGames).where(eq(supportedGames.id, gameId)).limit(1);
+          if (game?.slug === MARVEL_RIVALS_GAME_SLUG) {
+            const defaults = MARVEL_RIVALS_DEFAULT_HEROES.map(h => ({
+              name: h.name,
+              role: h.role,
+              imageUrl: null,
+              isActive: true,
+              sortOrder: h.sortOrder,
+              rosterId,
+            }));
+            await storage.setSetting(HEROES_SEEDED_SETTING_KEY, "true", gameId, rosterId);
+            await storage.bulkInsertHeroes(defaults as any, gameId, rosterId);
+            existing = await storage.getAllHeroes(gameId, rosterId);
+          }
+        }
+      }
+
+      res.json(existing);
+    } catch (error: any) {
+      console.error('Error in GET /api/heroes:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.post("/api/heroes", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+    try {
+      const validatedData = insertHeroSchema.parse(req.body);
+      const hero = await storage.addHero(validatedData, getGameId(req), getRosterId(req));
+      logActivity(req.session.userId!, "add_hero", `Added hero "${hero.name}"`, "team", undefined, hero.gameId, hero.rosterId);
+      res.json(hero);
+    } catch (error: any) {
+      console.error('Error in POST /api/heroes:', error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ error: "Invalid hero data", details: error.errors });
+      }
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.put("/api/heroes/reorder", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+    try {
+      const reorderSchema = z.array(z.object({ id: z.string(), sortOrder: z.number().int() }));
+      const items = reorderSchema.parse(req.body);
+      const teamId = getTeamId();
+      for (const item of items) {
+        await db.update(heroes).set({ sortOrder: item.sortOrder }).where(and(eq(heroes.id, item.id), eq(heroes.teamId, teamId)));
+      }
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('Error in PUT /api/heroes/reorder:', error);
+      if (error.name === 'ZodError') return res.status(400).json({ error: "Invalid reorder data", details: error.errors });
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.put("/api/heroes/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = getTeamId();
+      const [existing] = await db.select().from(heroes).where(and(eq(heroes.id, id), eq(heroes.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Hero not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      const validatedData = await sanitizeScopeFields(req, insertHeroSchema.partial().parse(req.body));
+      const hero = await storage.updateHero(id, validatedData, existing.gameId, existing.rosterId);
+      if (!hero) return res.status(404).json({ error: "Hero not found" });
+      logActivity(req.session.userId!, "edit_hero", `Updated hero "${hero.name}"`, "team", undefined, existing.gameId, existing.rosterId);
+      res.json(hero);
+    } catch (error: any) {
+      console.error('Error in PUT /api/heroes:', error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ error: "Invalid hero data", details: error.errors });
+      }
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.delete("/api/heroes/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = getTeamId();
+      const [existing] = await db.select().from(heroes).where(and(eq(heroes.id, id), eq(heroes.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Hero not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      const success = await storage.removeHero(id, existing.gameId, existing.rosterId);
+      if (success) {
+        logActivity(req.session.userId!, "delete_hero", `Deleted hero "${existing.name}"`, "team", undefined, existing.gameId, existing.rosterId);
+        res.json({ success: true });
+      } else {
+        res.status(404).json({ error: "Hero not found" });
+      }
+    } catch (error: any) {
+      console.error('Error in DELETE /api/heroes:', error);
       res.status(500).json({ error: error.message || "Internal server error" });
     }
   });

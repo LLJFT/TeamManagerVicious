@@ -34,6 +34,7 @@ import { AccessDenied } from "@/components/AccessDenied";
 import { format } from "date-fns";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { HeroesConfiguration } from "@/components/HeroesConfiguration";
 
 interface UserWithRole {
   id: string;
@@ -1642,6 +1643,8 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
             </div>
+
+            <HeroesConfiguration canEdit={canManageGameConfig} />
           </TabsContent>
 
           {/* Tab 2: Team */}
