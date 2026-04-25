@@ -16,6 +16,7 @@ import type { Opponent, OpponentPlayer } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { ObjectUploader } from "@/components/ObjectUploader";
+import { useGame } from "@/hooks/use-game";
 
 interface OpponentForm {
   name: string;
@@ -49,6 +50,7 @@ const emptyOppPlayer: OpponentPlayerForm = {
 
 export function OpponentsConfiguration({ canEdit }: { canEdit: boolean }) {
   const { toast } = useToast();
+  const { gameId, rosterId } = useGame();
   const [search, setSearch] = useState("");
   const [showOppDialog, setShowOppDialog] = useState(false);
   const [editingOpp, setEditingOpp] = useState<Opponent | undefined>();
@@ -56,7 +58,12 @@ export function OpponentsConfiguration({ canEdit }: { canEdit: boolean }) {
   const [rosterDialogOpp, setRosterDialogOpp] = useState<Opponent | undefined>();
 
   const { data: opponents = [], isLoading } = useQuery<Opponent[]>({
-    queryKey: ["/api/opponents"],
+    queryKey: ["/api/opponents", { gameId, rosterId }],
+    enabled: !!gameId && !!rosterId,
+  });
+
+  const invalidateOpps = () => queryClient.invalidateQueries({
+    predicate: (q) => q.queryKey[0] === "/api/opponents",
   });
 
   const createMutation = useMutation({
@@ -65,7 +72,7 @@ export function OpponentsConfiguration({ canEdit }: { canEdit: boolean }) {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/opponents"] });
+      invalidateOpps();
       toast({ title: "Opponent added" });
       setShowOppDialog(false);
     },
@@ -78,7 +85,7 @@ export function OpponentsConfiguration({ canEdit }: { canEdit: boolean }) {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/opponents"] });
+      invalidateOpps();
     },
     onError: (e: any) => toast({ title: "Failed to update opponent", description: e.message, variant: "destructive" }),
   });
@@ -89,7 +96,7 @@ export function OpponentsConfiguration({ canEdit }: { canEdit: boolean }) {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/opponents"] });
+      invalidateOpps();
       toast({ title: "Opponent deleted" });
     },
     onError: (e: any) => toast({ title: "Failed to delete opponent", description: e.message, variant: "destructive" }),

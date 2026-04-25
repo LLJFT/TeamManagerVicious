@@ -1,0 +1,54 @@
+Fix these three issues only. One by one.
+
+FIX 1 — Countdown timer shows wrong time (timezone mismatch):
+On the Schedule page, upcoming events show a countdown timer.
+The countdown is wrong. For example, an event set at 18:00 CEST should show the correct remaining time relative to that event time, not a UTC-based mismatch.
+
+Important rule for the fix:
+- Prefer using the user’s device timezone for the countdown if that is the cleanest and most reliable approach.
+- If device timezone is not the correct source for this app flow, then use the timezone the user selected in the Events calendar timezone setting.
+- In all cases, the countdown must match the event time the user sees in the calendar.
+- Events are still stored in UTC in the database, but the countdown must be calculated from the event’s actual displayed timezone context, not a wrong UTC-based difference.
+
+So the correct behavior is:
+- If possible, countdown should respect the user device timezone.
+- Otherwise, countdown should respect the timezone selected in the Events calendar.
+- Do not show a countdown that disagrees with the displayed event time.
+
+FIX 2 — Match Stats shows wrong scoping and blocks opponent data flow:
+In the event Results page → Games & Scoreboard → clicking the stats button on a game opens Match Stats.
+There are three problems here:
+
+A) The Match Stats panel shows players from ALL rosters on the platform instead of only the current roster’s players.
+- Scope the player list strictly to the current roster only.
+- Filter by the current gameId AND rosterId.
+- No player from any other roster should ever appear here.
+
+B) I cannot properly add opponent heroes / opponent stats in a clean flow.
+- Right now the opponent side data is awkwardly hidden behind the current stats/edit flow.
+- I have to add stats first, then after Add Game I click the stats chart/edit control to edit them.
+- That flow is not good and it does not match the stat fields setup of the game mode.
+
+Please fix this so that:
+- opponent stats and opponent heroes are available in the expected game entry flow
+- the edit UI is accessible without awkward extra steps
+- the behavior matches the current game mode stat field structure
+- the stats editor and the game mode fields stay consistent
+- I should be able to manage opponent-side data cleanly, not only after extra clicking
+
+C) The current Match Stats flow is not fully aligned with the stat fields model for the game mode.
+- Make the opponent side and our side stat entry follow the configured stat fields structure more cleanly.
+- Keep the UI aligned with the game mode’s current stat fields rather than a separate mismatched pattern.
+
+FIX 3 — Opponents, heroes, and hero images must be roster-scoped, not shared globally:
+If I add an opponent in one roster, it is getting added to all four game rosters.
+The same issue happens with heroes and hero images.
+
+Please fix this so that:
+- each roster has its own isolated opponents data
+- each roster has its own isolated heroes data
+- each roster has its own isolated hero image data
+- nothing bleeds across the four rosters unless explicitly intended
+- adding or editing something in one roster must not affect the others
+
+Please stop after these three fixes only, and report exactly what changed for each one.

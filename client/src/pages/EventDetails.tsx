@@ -26,7 +26,7 @@ import { ObjectUploader } from "@/components/ObjectUploader";
 export default function EventDetails() {
   const [, params] = useRoute("/:gameSlug/:rosterCode/events/:id");
   const eventId = params?.id || "";
-  const { fullSlug, currentGame, currentRoster } = useGame();
+  const { fullSlug, currentGame, currentRoster, gameId, rosterId } = useGame();
 
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
@@ -83,15 +83,18 @@ export default function EventDetails() {
   });
 
   const { data: gameModes = [] } = useQuery<GameMode[]>({
-    queryKey: ["/api/game-modes"],
+    queryKey: ["/api/game-modes", { gameId, rosterId }],
+    enabled: !!gameId && !!rosterId,
   });
 
   const { data: sidesList = [] } = useQuery<Side[]>({
-    queryKey: ["/api/sides"],
+    queryKey: ["/api/sides", { gameId, rosterId }],
+    enabled: !!gameId && !!rosterId,
   });
 
   const { data: allMaps = [] } = useQuery<MapType[]>({
-    queryKey: ["/api/maps"],
+    queryKey: ["/api/maps", { gameId, rosterId }],
+    enabled: !!gameId && !!rosterId,
   });
 
   const { data: editingRoundsData, isSuccess: editingRoundsLoaded } = useQuery<GameRound[]>({
@@ -125,23 +128,28 @@ export default function EventDetails() {
   }, [editingRoundsData, editingRoundsLoaded, editingRoundsForGame, roundsInitializedFor]);
 
   const { data: allPlayers = [] } = useQuery<Player[]>({
-    queryKey: ["/api/players"],
+    queryKey: ["/api/players", { gameId, rosterId }],
+    enabled: !!gameId && !!rosterId,
   });
 
   const { data: allStatFields = [] } = useQuery<StatField[]>({
-    queryKey: ["/api/stat-fields"],
+    queryKey: ["/api/stat-fields", { gameId, rosterId }],
+    enabled: !!gameId && !!rosterId,
   });
 
   const { data: allStaff = [] } = useQuery<Staff[]>({
-    queryKey: ["/api/staff"],
+    queryKey: ["/api/staff", { gameId, rosterId }],
+    enabled: !!gameId && !!rosterId,
   });
 
   const { data: allHeroes = [] } = useQuery<Hero[]>({
-    queryKey: ["/api/heroes"],
+    queryKey: ["/api/heroes", { gameId, rosterId }],
+    enabled: !!gameId && !!rosterId,
   });
 
   const { data: allOpponents = [] } = useQuery<Opponent[]>({
-    queryKey: ["/api/opponents"],
+    queryKey: ["/api/opponents", { gameId, rosterId }],
+    enabled: !!gameId && !!rosterId,
   });
   const linkedOpponent = allOpponents.find(o => o.id === (event?.opponentId || ""));
 
@@ -183,7 +191,6 @@ export default function EventDetails() {
 
   const [newGamePlayerStats, setNewGamePlayerStats] = useState<Record<string, Record<string, string>>>({});
   const [editGamePlayerStats, setEditGamePlayerStats] = useState<Record<string, Record<string, string>>>({});
-  const [expandedGameStats, setExpandedGameStats] = useState<string | null>(null);
 
   const getStatFieldsByMode = (modeId: string) => {
     return allStatFields.filter(sf => sf.gameModeId === modeId);
@@ -1168,16 +1175,6 @@ export default function EventDetails() {
                                 >
                                   Edit
                                 </Button>
-                                {game.gameModeId && getStatFieldsByMode(game.gameModeId).length > 0 && (
-                                  <Button
-                                    size="sm"
-                                    variant={expandedGameStats === game.id ? "default" : "outline"}
-                                    onClick={() => setExpandedGameStats(expandedGameStats === game.id ? null : game.id)}
-                                    data-testid={`button-stats-game-${game.id}`}
-                                  >
-                                    <BarChart3 className="h-4 w-4" />
-                                  </Button>
-                                )}
                                 <Button
                                   size="sm"
                                   variant={editingRoundsForGame === game.id ? "default" : "outline"}
@@ -1213,26 +1210,35 @@ export default function EventDetails() {
                 </table>
               </div>
 
-                {expandedGameStats && (() => {
-                  const game = games.find(g => g.id === expandedGameStats);
-                  if (!game || !game.gameModeId) return null;
-                  return (
-                    <MatchSidesEditor
-                      game={game}
-                      opponentId={game.opponentId || event?.opponentId || null}
-                      ourPlayers={allPlayers}
-                      statFields={getStatFieldsByMode(game.gameModeId)}
-                      heroes={allHeroes}
-                      isSaving={savePlayerStatsMutation.isPending}
-                      onSavedToast={(msg, type) => {
-                        setToastMessage(msg);
-                        setToastType(type);
-                        setShowToast(true);
-                        setTimeout(() => setShowToast(false), 3000);
-                      }}
-                    />
-                  );
-                })()}
+                {games
+                  .filter(g => !!g.gameModeId && getStatFieldsByMode(g.gameModeId).length > 0)
+                  .map(game => (
+                    <div key={`stats-${game.id}`} className="mt-3" data-testid={`section-match-stats-${game.id}`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <BarChart3 className="h-4 w-4 text-primary" />
+                        <h3 className="text-sm font-semibold">
+                          Match Stats — {game.gameCode}
+                          {getModeName(game.gameModeId) && (
+                            <span className="text-xs text-muted-foreground ml-2">({getModeName(game.gameModeId)})</span>
+                          )}
+                        </h3>
+                      </div>
+                      <MatchSidesEditor
+                        game={game}
+                        opponentId={game.opponentId || event?.opponentId || null}
+                        ourPlayers={allPlayers}
+                        statFields={getStatFieldsByMode(game.gameModeId!)}
+                        heroes={allHeroes}
+                        isSaving={savePlayerStatsMutation.isPending}
+                        onSavedToast={(msg, type) => {
+                          setToastMessage(msg);
+                          setToastType(type);
+                          setShowToast(true);
+                          setTimeout(() => setShowToast(false), 3000);
+                        }}
+                      />
+                    </div>
+                  ))}
 
                 {editingRoundsForGame && (() => {
                   const game = games.find(g => g.id === editingRoundsForGame);

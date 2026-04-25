@@ -3,8 +3,17 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Clock } from "lucide-react";
-import { format, parseISO, differenceInSeconds } from "date-fns";
+import { differenceInSeconds } from "date-fns";
 import type { Event, EventCategory, EventSubType } from "@shared/schema";
+import { getTzOffset, utcToLocal } from "@/lib/eventTimezones";
+
+function getDeviceTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
+}
 
 interface Props {
   gameId: string | null;
@@ -83,26 +92,35 @@ export function UpcomingCountdown({ gameId, rosterId, enabled }: Props) {
     return () => clearInterval(id);
   }, []);
 
+  const deviceTz = useMemo(() => getDeviceTimeZone(), []);
+
   const upcoming = useMemo(() => {
     const cutoff = minuteBucket * 60_000 - 60_000;
     return events
       .map(e => {
         if (!e.date) return null;
         try {
-          const dt = parseISO(e.date);
-          if (e.time) {
-            const [h, m] = e.time.split(":").map(Number);
-            dt.setHours(h || 0, m || 0, 0, 0);
-          }
-          return { event: e, when: dt };
+          const [yStr, mStr, dStr] = e.date.split("-");
+          const year = Number(yStr);
+          const month = Number(mStr);
+          const day = Number(dStr);
+          if (!year || !month || !day) return null;
+          const [hStr, miStr] = (e.time || "00:00").split(":");
+          const hour = Number(hStr) || 0;
+          const minute = Number(miStr) || 0;
+          // event.date / event.time are stored as UTC by EventDialog (via localToUtc).
+          // The actual instant is therefore the direct UTC parse of those fields.
+          const when = new Date(Date.UTC(year, month - 1, day, hour, minute));
+          const tz = (e.timezone && e.timezone.trim()) || deviceTz;
+          return { event: e, when, tz };
         } catch {
           return null;
         }
       })
-      .filter((x): x is { event: Event; when: Date } => !!x && x.when.getTime() > cutoff)
+      .filter((x): x is { event: Event; when: Date; tz: string } => !!x && x.when.getTime() > cutoff)
       .sort((a, b) => a.when.getTime() - b.when.getTime())
       .slice(0, 3);
-  }, [events, minuteBucket]);
+  }, [events, minuteBucket, deviceTz]);
 
   if (upcoming.length === 0) return null;
 
@@ -123,9 +141,22 @@ export function UpcomingCountdown({ gameId, rosterId, enabled }: Props) {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-3" data-testid="section-upcoming-countdown">
-      {upcoming.map(({ event, when }) => {
+      {upcoming.map(({ event, when, tz }) => {
         const color = colorFor(event.eventSubType);
         const subTypeName = resolveSubType(event.eventSubType)?.name;
+        // Convert UTC stored date/time back to event-tz wall-clock for display.
+        const local = utcToLocal(event.date, event.time || "", getTzOffset(event.timezone));
+        const [yStr, mStr, dStr] = (local.date || event.date).split("-");
+        const dateLabel = (() => {
+          try {
+            const d = new Date(Date.UTC(Number(yStr), Number(mStr) - 1, Number(dStr)));
+            return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", timeZone: "UTC" }).format(d);
+          } catch {
+            return event.date;
+          }
+        })();
+        const localTimeLabel = local.time || event.time || "";
+        const tzLabel = event.timezone && event.timezone !== deviceTz ? event.timezone : null;
         return (
           <Card key={event.id} className="hover-elevate" data-testid={`card-countdown-${event.id}`}>
             <CardContent className="p-4 space-y-2">
@@ -143,15 +174,16 @@ export function UpcomingCountdown({ gameId, rosterId, enabled }: Props) {
               <div className="font-semibold text-sm truncate" data-testid={`text-event-title-${event.id}`}>
                 {event.title || "Untitled Event"}
               </div>
-              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
                 <span className="flex items-center gap-1">
                   <Calendar className="h-3 w-3" />
-                  {format(when, "MMM d")}
+                  {dateLabel}
                 </span>
-                {event.time && (
+                {localTimeLabel && (
                   <span className="flex items-center gap-1">
                     <Clock className="h-3 w-3" />
-                    {event.time}
+                    {localTimeLabel}
+                    {tzLabel && <span className="text-[10px] opacity-70">({tzLabel})</span>}
                   </span>
                 )}
               </div>

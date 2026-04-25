@@ -18,6 +18,7 @@ import { heroRoles } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { ObjectUploader } from "@/components/ObjectUploader";
+import { useGame } from "@/hooks/use-game";
 
 interface HeroFormState {
   name: string;
@@ -41,6 +42,7 @@ const ROLE_COLORS: Record<string, string> = {
 
 export function HeroesConfiguration({ canEdit }: { canEdit: boolean }) {
   const { toast } = useToast();
+  const { gameId, rosterId } = useGame();
   const [showDialog, setShowDialog] = useState(false);
   const [editingHero, setEditingHero] = useState<Hero | undefined>(undefined);
   const [form, setForm] = useState<HeroFormState>(emptyForm);
@@ -48,8 +50,12 @@ export function HeroesConfiguration({ canEdit }: { canEdit: boolean }) {
   const [activeRoleTab, setActiveRoleTab] = useState<string>("all");
 
   const { data: heroes = [], isLoading } = useQuery<Hero[]>({
-    queryKey: ["/api/heroes"],
+    queryKey: ["/api/heroes", { gameId, rosterId }],
+    enabled: !!gameId && !!rosterId,
   });
+
+  const invalidateHeroes = () =>
+    queryClient.invalidateQueries({ predicate: (q) => q.queryKey[0] === "/api/heroes" });
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -57,7 +63,7 @@ export function HeroesConfiguration({ canEdit }: { canEdit: boolean }) {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/heroes"] });
+      invalidateHeroes();
       toast({ title: "Hero added" });
       setShowDialog(false);
     },
@@ -70,7 +76,7 @@ export function HeroesConfiguration({ canEdit }: { canEdit: boolean }) {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/heroes"] });
+      invalidateHeroes();
     },
     onError: (e: any) => toast({ title: "Failed to update hero", description: e.message, variant: "destructive" }),
   });
@@ -81,7 +87,7 @@ export function HeroesConfiguration({ canEdit }: { canEdit: boolean }) {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/heroes"] });
+      invalidateHeroes();
       toast({ title: "Hero deleted" });
     },
     onError: (e: any) => toast({ title: "Failed to delete hero", description: e.message, variant: "destructive" }),
@@ -93,7 +99,7 @@ export function HeroesConfiguration({ canEdit }: { canEdit: boolean }) {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/heroes"] });
+      invalidateHeroes();
     },
   });
 

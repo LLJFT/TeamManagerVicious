@@ -35,6 +35,7 @@ import { cn } from "@/lib/utils";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { TIMEZONE_OPTIONS, getTzOffset, localToUtc, utcToLocal } from "@/lib/eventTimezones";
 import { eventTypes, insertEventSchema, type Event, type Season, type EventCategory, type EventSubType, type Opponent } from "@shared/schema";
+import { useGame } from "@/hooks/use-game";
 
 const formSchema = insertEventSchema.extend({
   time: z.string().optional(),
@@ -63,6 +64,7 @@ export function EventDialog({
   onSuccess,
 }: EventDialogProps) {
   const isEditMode = !!eventToEdit;
+  const { gameId, rosterId } = useGame();
 
   const { data: seasons = [] } = useQuery<Season[]>({
     queryKey: ["/api/seasons"],
@@ -77,7 +79,8 @@ export function EventDialog({
   });
 
   const { data: opponents = [] } = useQuery<Opponent[]>({
-    queryKey: ["/api/opponents"],
+    queryKey: ["/api/opponents", { gameId, rosterId }],
+    enabled: !!gameId && !!rosterId,
   });
   const activeOpponents = opponents.filter(o => o.isActive);
 

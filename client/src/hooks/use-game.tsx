@@ -149,6 +149,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
         "/api/staff-availability", "/api/staff", "/api/attendance",
         "/api/events", "/api/roster-roles", "/api/availability-slots",
         "/api/users", "/api/game-assignments/pending",
+        "/api/opponents", "/api/heroes", "/api/sides",
+        "/api/game-modes", "/api/maps", "/api/seasons", "/api/stat-fields",
+        "/api/all-games", "/api/all-games-stats", "/api/player-stats-summary",
+        "/api/player-game-stats", "/api/games",
       ];
       queryClient.removeQueries({
         predicate: (query) => {
