@@ -4,7 +4,8 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { EventsSkeleton } from "@/components/PageSkeleton";
 import { useGame } from "@/hooks/use-game";
 import type { Event, EventResult, Game, InsertGame, GameMode, Map as MapType, Player, StatField, PlayerGameStat, Attendance, Staff, Side, GameRound, Hero, Opponent } from "@shared/schema";
-import { MatchSidesEditor } from "@/components/MatchSidesEditor";
+import { MatchSidesEditor, saveMatchSidesDraft, type MatchSidesDraft } from "@/components/MatchSidesEditor";
+import type { OpponentPlayer } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,7 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Plus, Trash2, Save, Upload, Eye, ExternalLink, Gamepad2, Map as MapIcon, BarChart3, UserCheck, Clock as ClockIcon, UserX } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Save, Upload, Eye, ExternalLink, Gamepad2, Map as MapIcon, BarChart3, UserCheck, Clock as ClockIcon, UserX, ChevronDown, ChevronUp } from "lucide-react";
 import { ShareButton } from "@/components/ShareButton";
 import { useState, useEffect, Fragment } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +56,10 @@ export default function EventDetails() {
   const [editingGame, setEditingGame] = useState<Game | null>(null);
   const [uploadingImageForGame, setUploadingImageForGame] = useState<string | null>(null);
   const [viewingImage, setViewingImage] = useState<string | null>(null);
+
+  const [newGameMatchStats, setNewGameMatchStats] = useState<MatchSidesDraft>({ our: {}, opp: {} });
+  const [matchStatsDraftInitFor, setMatchStatsDraftInitFor] = useState<string | null>(null);
+  const [expandedMatchStats, setExpandedMatchStats] = useState<Record<string, boolean>>({});
 
   const { data: event, isLoading: eventLoading } = useQuery<Event>({
     queryKey: ["/api/events", eventId],
@@ -152,6 +157,17 @@ export default function EventDetails() {
     enabled: !!gameId && !!rosterId,
   });
   const linkedOpponent = allOpponents.find(o => o.id === (event?.opponentId || ""));
+
+  const draftOpponentId = event?.opponentId || null;
+  const { data: draftOpponentPlayers = [] } = useQuery<OpponentPlayer[]>({
+    queryKey: ["/api/opponents", draftOpponentId, "players"],
+    enabled: !!draftOpponentId,
+    queryFn: async () => {
+      const r = await fetch(`/api/opponents/${draftOpponentId}/players`, { credentials: "include" });
+      if (!r.ok) throw new Error("Failed to load opponent players");
+      return r.json();
+    },
+  });
 
   const { data: attendanceRecords = [], isLoading: attendanceLoading } = useQuery<Attendance[]>({
     queryKey: ["/api/events", eventId, "attendance"],
@@ -252,6 +268,29 @@ export default function EventDetails() {
         } catch (err) {
           // non-fatal; user can edit rounds afterwards
           console.error("Failed to save rounds for new game:", err);
+        }
+      }
+      // Save the inline Match Stats draft (participation, heroes, our stats, opponent stats)
+      const hasDraftData =
+        Object.keys(newGameMatchStats.our).length > 0 ||
+        Object.keys(newGameMatchStats.opp).length > 0;
+      if (hasDraftData) {
+        try {
+          await saveMatchSidesDraft({
+            matchId: newGame.id,
+            opponentId: newGame.opponentId || event?.opponentId || null,
+            draft: newGameMatchStats,
+          });
+          queryClient.invalidateQueries({ queryKey: ["/api/games", newGame.id, "participation"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/games", newGame.id, "player-stats"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/games", newGame.id, "opponent-player-stats"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/games", newGame.id, "heroes"] });
+        } catch (err: any) {
+          console.error("Failed to save match stats for new game:", err);
+          setToastMessage(err.message || "Game saved but match stats failed");
+          setToastType("error");
+          setShowToast(true);
+          setTimeout(() => setShowToast(false), 3000);
         }
       }
       queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "games"] });
@@ -370,6 +409,33 @@ export default function EventDetails() {
     setNewGameResult("");
     setNewGameLink("");
     setNewGameRounds([{ sideId: null, teamScore: 0, opponentScore: 0 }]);
+    setNewGameMatchStats({ our: {}, opp: {} });
+    setMatchStatsDraftInitFor(null);
+  };
+
+  // Initialize the inline Match Stats draft with default rows for our roster + opponent players
+  // whenever a Game Mode is selected (and re-initialize when the mode changes).
+  useEffect(() => {
+    if (!newGameModeId) {
+      setMatchStatsDraftInitFor(null);
+      return;
+    }
+    const initKey = `${newGameModeId}|${draftOpponentId || ""}|${allPlayers.length}|${draftOpponentPlayers.length}`;
+    if (matchStatsDraftInitFor === initKey) return;
+    const our: MatchSidesDraft["our"] = {};
+    for (const p of allPlayers) {
+      our[p.id] = { played: true, heroIds: [], stats: {} };
+    }
+    const opp: MatchSidesDraft["opp"] = {};
+    for (const op of draftOpponentPlayers) {
+      opp[op.id] = { played: true, heroIds: [], stats: {} };
+    }
+    setNewGameMatchStats({ our, opp });
+    setMatchStatsDraftInitFor(initKey);
+  }, [newGameModeId, draftOpponentId, allPlayers, draftOpponentPlayers, matchStatsDraftInitFor]);
+
+  const toggleMatchStatsExpanded = (gameId: string) => {
+    setExpandedMatchStats(prev => ({ ...prev, [gameId]: !prev[gameId] }));
   };
 
   const saveRoundsMutation = useMutation({
@@ -873,6 +939,36 @@ export default function EventDetails() {
                   Add Game
                 </Button>
               </div>
+
+              {newGameModeId && (
+                <div className="mt-2 border-t border-border pt-3" data-testid="section-match-stats-new-game">
+                  <div className="flex items-center gap-2 mb-2">
+                    <BarChart3 className="h-4 w-4 text-primary" />
+                    <h3 className="text-sm font-semibold">
+                      Match Stats — New Game
+                      {getModeName(newGameModeId) && (
+                        <span className="text-xs text-muted-foreground ml-2">({getModeName(newGameModeId)})</span>
+                      )}
+                    </h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Fill in match stats now — they'll be saved together when you click Add Game.
+                  </p>
+                  <MatchSidesEditor
+                    game={null}
+                    opponentId={draftOpponentId}
+                    ourPlayers={allPlayers}
+                    statFields={getStatFieldsByMode(newGameModeId)}
+                    heroes={allHeroes}
+                    isSaving={addGameMutation.isPending}
+                    draft={newGameMatchStats}
+                    onDraftChange={setNewGameMatchStats}
+                    hideHeader
+                    hideSaveButton
+                    testIdSuffix="new-game"
+                  />
+                </div>
+              )}
             </div>
 
             {games.length === 0 ? (
@@ -1104,37 +1200,58 @@ export default function EventDetails() {
                           </div>
                         </td>
                       </tr>
-                      {game.gameModeId && (
-                        <tr className="border-t border-border bg-muted/20" data-testid={`row-match-stats-${game.id}`}>
-                          <td colSpan={6} className="p-3">
-                            <div data-testid={`section-match-stats-${game.id}`}>
-                              <div className="flex items-center gap-2 mb-2">
-                                <BarChart3 className="h-4 w-4 text-primary" />
-                                <h3 className="text-sm font-semibold">
-                                  Match Stats — {game.gameCode}
-                                  {getModeName(game.gameModeId) && (
-                                    <span className="text-xs text-muted-foreground ml-2">({getModeName(game.gameModeId)})</span>
+                      {game.gameModeId && (() => {
+                        const isExpanded = !!expandedMatchStats[game.id];
+                        return (
+                          <tr className="border-t border-border bg-muted/20" data-testid={`row-match-stats-${game.id}`}>
+                            <td colSpan={6} className="p-3">
+                              <div data-testid={`section-match-stats-${game.id}`}>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleMatchStatsExpanded(game.id)}
+                                  aria-expanded={isExpanded}
+                                  className="w-full flex items-center justify-between gap-2 p-2 rounded-md hover-elevate text-left"
+                                  data-testid={`button-toggle-match-stats-${game.id}`}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <BarChart3 className="h-4 w-4 text-primary" />
+                                    <h3 className="text-sm font-semibold">
+                                      Match Stats — {game.gameCode}
+                                      {getModeName(game.gameModeId) && (
+                                        <span className="text-xs text-muted-foreground ml-2">({getModeName(game.gameModeId)})</span>
+                                      )}
+                                    </h3>
+                                  </div>
+                                  {isExpanded ? (
+                                    <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" data-testid={`icon-chevron-up-${game.id}`} />
+                                  ) : (
+                                    <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" data-testid={`icon-chevron-down-${game.id}`} />
                                   )}
-                                </h3>
+                                </button>
+                                {isExpanded && (
+                                  <div className="mt-2" data-testid={`content-match-stats-${game.id}`}>
+                                    <MatchSidesEditor
+                                      game={game}
+                                      opponentId={game.opponentId || event?.opponentId || null}
+                                      ourPlayers={allPlayers}
+                                      statFields={getStatFieldsByMode(game.gameModeId)}
+                                      heroes={allHeroes}
+                                      isSaving={false}
+                                      hideHeader
+                                      onSavedToast={(msg, type) => {
+                                        setToastMessage(msg);
+                                        setToastType(type);
+                                        setShowToast(true);
+                                        setTimeout(() => setShowToast(false), 3000);
+                                      }}
+                                    />
+                                  </div>
+                                )}
                               </div>
-                              <MatchSidesEditor
-                                game={game}
-                                opponentId={game.opponentId || event?.opponentId || null}
-                                ourPlayers={allPlayers}
-                                statFields={getStatFieldsByMode(game.gameModeId)}
-                                heroes={allHeroes}
-                                isSaving={false}
-                                onSavedToast={(msg, type) => {
-                                  setToastMessage(msg);
-                                  setToastType(type);
-                                  setShowToast(true);
-                                  setTimeout(() => setShowToast(false), 3000);
-                                }}
-                              />
-                            </div>
-                          </td>
-                        </tr>
-                      )}
+                            </td>
+                          </tr>
+                        );
+                      })()}
                       </Fragment>
                     ))}
                   </tbody>

@@ -52,22 +52,83 @@ function HeroAvatar({ hero, size = "sm" }: { hero: Hero; size?: "xs" | "sm" }) {
   );
 }
 
-interface Props {
-  game: Game;
-  opponentId: string | null;
-  ourPlayers: Player[];
-  statFields: StatField[];
-  heroes: Hero[];
-  isSaving: boolean;
-  onSavedToast: (msg: string, type: "success" | "error") => void;
-}
-
-type RowKey = string;
-type RowState = {
+export type MatchSidesRowState = {
   played: boolean;
   heroIds: string[];
   stats: Record<string, string>;
 };
+
+export type MatchSidesDraft = {
+  our: Record<string, MatchSidesRowState>;
+  opp: Record<string, MatchSidesRowState>;
+};
+
+export async function saveMatchSidesDraft({
+  matchId,
+  opponentId,
+  draft,
+}: {
+  matchId: string;
+  opponentId: string | null;
+  draft: MatchSidesDraft;
+}) {
+  const partRows: any[] = [];
+  const heroRows: any[] = [];
+  const ourStatRows: any[] = [];
+  const oppStatRows: any[] = [];
+
+  for (const playerId of Object.keys(draft.our)) {
+    const r = draft.our[playerId];
+    partRows.push({ side: "us", playerId, opponentPlayerId: null, played: r.played });
+    for (const hid of r.heroIds) {
+      heroRows.push({ playerId, opponentPlayerId: null, heroId: hid });
+    }
+    for (const fId of Object.keys(r.stats)) {
+      const v = r.stats[fId];
+      if (v && v.trim() !== "") {
+        ourStatRows.push({ gameId: matchId, playerId, statFieldId: fId, value: v });
+      }
+    }
+  }
+  for (const oppPlayerId of Object.keys(draft.opp)) {
+    const r = draft.opp[oppPlayerId];
+    partRows.push({ side: "opponent", playerId: null, opponentPlayerId: oppPlayerId, played: r.played });
+    for (const hid of r.heroIds) {
+      heroRows.push({ playerId: null, opponentPlayerId: oppPlayerId, heroId: hid });
+    }
+    for (const fId of Object.keys(r.stats)) {
+      const v = r.stats[fId];
+      if (v && v.trim() !== "") {
+        oppStatRows.push({ opponentPlayerId: oppPlayerId, statFieldId: fId, value: v });
+      }
+    }
+  }
+
+  await apiRequest("PUT", `/api/games/${matchId}/participation`, partRows);
+  await apiRequest("PUT", `/api/games/${matchId}/heroes`, heroRows);
+  await apiRequest("POST", `/api/games/${matchId}/player-stats`, { stats: ourStatRows });
+  if (opponentId) {
+    await apiRequest("POST", `/api/games/${matchId}/opponent-player-stats`, oppStatRows);
+  }
+}
+
+interface Props {
+  game: Game | null;
+  opponentId: string | null;
+  ourPlayers: Player[];
+  statFields: StatField[];
+  heroes: Hero[];
+  isSaving?: boolean;
+  onSavedToast?: (msg: string, type: "success" | "error") => void;
+  draft?: MatchSidesDraft;
+  onDraftChange?: (next: MatchSidesDraft) => void;
+  hideSaveButton?: boolean;
+  hideHeader?: boolean;
+  testIdSuffix?: string;
+}
+
+type RowKey = string;
+type RowState = MatchSidesRowState;
 
 function HeroMultiSelect({
   heroes,
@@ -142,8 +203,15 @@ export function MatchSidesEditor({
   heroes,
   isSaving,
   onSavedToast,
+  draft,
+  onDraftChange,
+  hideSaveButton,
+  hideHeader,
+  testIdSuffix,
 }: Props) {
-  const matchId = game.id;
+  const isDraftMode = !game;
+  const matchId = game?.id || "";
+  const idSuffix = testIdSuffix || matchId || "draft";
 
   const { data: opponentPlayers = [] } = useQuery<OpponentPlayer[]>({
     queryKey: ["/api/opponents", opponentId, "players"],
@@ -157,6 +225,7 @@ export function MatchSidesEditor({
 
   const { data: participants = [], isSuccess: participantsLoaded } = useQuery<MatchParticipant[]>({
     queryKey: ["/api/games", matchId, "participation"],
+    enabled: !isDraftMode,
     queryFn: async () => {
       const r = await fetch(`/api/games/${matchId}/participation`, { credentials: "include" });
       if (!r.ok) throw new Error("Failed to load participation");
@@ -166,6 +235,7 @@ export function MatchSidesEditor({
 
   const { data: ourStats = [], isSuccess: ourStatsLoaded } = useQuery<PlayerGameStat[]>({
     queryKey: ["/api/games", matchId, "player-stats"],
+    enabled: !isDraftMode,
     queryFn: async () => {
       const r = await fetch(`/api/games/${matchId}/player-stats`, { credentials: "include" });
       if (!r.ok) throw new Error("Failed");
@@ -175,7 +245,7 @@ export function MatchSidesEditor({
 
   const { data: oppStats = [], isSuccess: oppStatsLoaded } = useQuery<OpponentPlayerGameStat[]>({
     queryKey: ["/api/games", matchId, "opponent-player-stats"],
-    enabled: !!opponentId,
+    enabled: !isDraftMode && !!opponentId,
     queryFn: async () => {
       const r = await fetch(`/api/games/${matchId}/opponent-player-stats`, { credentials: "include" });
       if (!r.ok) throw new Error("Failed to load opponent stats");
@@ -185,6 +255,7 @@ export function MatchSidesEditor({
 
   const { data: gameHeroes = [], isSuccess: heroesLoaded } = useQuery<GameHero[]>({
     queryKey: ["/api/games", matchId, "heroes"],
+    enabled: !isDraftMode,
     queryFn: async () => {
       const r = await fetch(`/api/games/${matchId}/heroes`, { credentials: "include" });
       if (!r.ok) throw new Error("Failed to load game heroes");
@@ -192,13 +263,17 @@ export function MatchSidesEditor({
     },
   });
 
-  const [ourRows, setOurRows] = useState<Record<RowKey, RowState>>({});
-  const [oppRows, setOppRows] = useState<Record<RowKey, RowState>>({});
+  const [internalOurRows, setInternalOurRows] = useState<Record<RowKey, RowState>>({});
+  const [internalOppRows, setInternalOppRows] = useState<Record<RowKey, RowState>>({});
   const [initializedFor, setInitializedFor] = useState<string | null>(null);
+
+  const ourRows = isDraftMode ? (draft?.our || {}) : internalOurRows;
+  const oppRows = isDraftMode ? (draft?.opp || {}) : internalOppRows;
 
   const initKey = `${matchId}|${opponentId || ""}|${opponentPlayers.length}|${ourPlayers.length}`;
 
   useEffect(() => {
+    if (isDraftMode) return;
     if (!participantsLoaded || !ourStatsLoaded || !heroesLoaded) return;
     if (opponentId && !oppStatsLoaded) return;
     if (initializedFor === initKey) return;
@@ -217,7 +292,7 @@ export function MatchSidesEditor({
       if (!our[s.playerId]) our[s.playerId] = { played: true, heroIds: [], stats: {} };
       our[s.playerId].stats[s.statFieldId] = s.value;
     }
-    setOurRows(our);
+    setInternalOurRows(our);
 
     const opp: Record<RowKey, RowState> = {};
     for (const op of opponentPlayers) {
@@ -233,16 +308,28 @@ export function MatchSidesEditor({
       if (!opp[s.opponentPlayerId]) opp[s.opponentPlayerId] = { played: true, heroIds: [], stats: {} };
       if (s.statFieldId) opp[s.opponentPlayerId].stats[s.statFieldId] = s.value;
     }
-    setOppRows(opp);
+    setInternalOppRows(opp);
 
     setInitializedFor(initKey);
-  }, [participants, participantsLoaded, ourStats, ourStatsLoaded, oppStats, oppStatsLoaded, gameHeroes, heroesLoaded, ourPlayers, opponentPlayers, opponentId, initKey, initializedFor]);
+  }, [isDraftMode, participants, participantsLoaded, ourStats, ourStatsLoaded, oppStats, oppStatsLoaded, gameHeroes, heroesLoaded, ourPlayers, opponentPlayers, opponentId, initKey, initializedFor]);
 
   const updateOur = (playerId: string, patch: Partial<RowState>) => {
-    setOurRows(prev => ({ ...prev, [playerId]: { ...(prev[playerId] || { played: true, heroIds: [], stats: {} }), ...patch } }));
+    if (isDraftMode) {
+      const prev = draft || { our: {}, opp: {} };
+      const prevRow = prev.our[playerId] || { played: true, heroIds: [], stats: {} };
+      onDraftChange?.({ ...prev, our: { ...prev.our, [playerId]: { ...prevRow, ...patch } } });
+    } else {
+      setInternalOurRows(prev => ({ ...prev, [playerId]: { ...(prev[playerId] || { played: true, heroIds: [], stats: {} }), ...patch } }));
+    }
   };
   const updateOpp = (oppPlayerId: string, patch: Partial<RowState>) => {
-    setOppRows(prev => ({ ...prev, [oppPlayerId]: { ...(prev[oppPlayerId] || { played: true, heroIds: [], stats: {} }), ...patch } }));
+    if (isDraftMode) {
+      const prev = draft || { our: {}, opp: {} };
+      const prevRow = prev.opp[oppPlayerId] || { played: true, heroIds: [], stats: {} };
+      onDraftChange?.({ ...prev, opp: { ...prev.opp, [oppPlayerId]: { ...prevRow, ...patch } } });
+    } else {
+      setInternalOppRows(prev => ({ ...prev, [oppPlayerId]: { ...(prev[oppPlayerId] || { played: true, heroIds: [], stats: {} }), ...patch } }));
+    }
   };
 
   const saveAll = useMutation({
@@ -294,10 +381,10 @@ export function MatchSidesEditor({
       queryClient.invalidateQueries({ queryKey: ["/api/games", matchId, "player-stats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/games", matchId, "opponent-player-stats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/games", matchId, "heroes"] });
-      onSavedToast("Match stats saved", "success");
+      onSavedToast?.("Match stats saved", "success");
     },
     onError: (err: any) => {
-      onSavedToast(err.message || "Failed to save match stats", "error");
+      onSavedToast?.(err.message || "Failed to save match stats", "error");
     },
   });
 
@@ -409,25 +496,42 @@ export function MatchSidesEditor({
   };
 
   return (
-    <Card className="mt-3" data-testid={`match-sides-editor-${matchId}`}>
-      <CardHeader className="py-3">
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4 text-primary" />
-            <CardTitle className="text-base">Match Stats — {game.gameCode}</CardTitle>
+    <Card className="mt-3" data-testid={`match-sides-editor-${idSuffix}`}>
+      {!hideHeader && (
+        <CardHeader className="py-3">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-primary" />
+              <CardTitle className="text-base">Match Stats{game ? ` — ${game.gameCode}` : ""}</CardTitle>
+            </div>
+            {!hideSaveButton && !isDraftMode && (
+              <Button
+                size="sm"
+                onClick={() => saveAll.mutate()}
+                disabled={saveAll.isPending || isSaving}
+                data-testid={`button-save-match-${idSuffix}`}
+              >
+                <Save className="h-4 w-4 mr-2" />
+                {saveAll.isPending ? "Saving..." : "Save Match"}
+              </Button>
+            )}
           </div>
-          <Button
-            size="sm"
-            onClick={() => saveAll.mutate()}
-            disabled={saveAll.isPending || isSaving}
-            data-testid={`button-save-match-${matchId}`}
-          >
-            <Save className="h-4 w-4 mr-2" />
-            {saveAll.isPending ? "Saving..." : "Save Match"}
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="pt-0 space-y-4">
+        </CardHeader>
+      )}
+      <CardContent className={hideHeader ? "p-3 space-y-4" : "pt-0 space-y-4"}>
+        {hideHeader && !hideSaveButton && !isDraftMode && (
+          <div className="flex justify-end">
+            <Button
+              size="sm"
+              onClick={() => saveAll.mutate()}
+              disabled={saveAll.isPending || isSaving}
+              data-testid={`button-save-match-${idSuffix}`}
+            >
+              <Save className="h-4 w-4 mr-2" />
+              {saveAll.isPending ? "Saving..." : "Save Match"}
+            </Button>
+          </div>
+        )}
         <div className="border border-border rounded-md">
           <div className="flex items-center gap-2 p-2 border-b border-border bg-muted/50">
             <Users className="h-4 w-4 text-primary" />
