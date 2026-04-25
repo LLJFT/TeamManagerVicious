@@ -18,7 +18,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Plus, Trash2, Save, Upload, Eye, ExternalLink, Gamepad2, Map as MapIcon, BarChart3, UserCheck, Clock as ClockIcon, UserX } from "lucide-react";
 import { ShareButton } from "@/components/ShareButton";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { ObjectUploader } from "@/components/ObjectUploader";
@@ -189,32 +189,9 @@ export default function EventDetails() {
     return record?.status || null;
   };
 
-  const [newGamePlayerStats, setNewGamePlayerStats] = useState<Record<string, Record<string, string>>>({});
-  const [editGamePlayerStats, setEditGamePlayerStats] = useState<Record<string, Record<string, string>>>({});
-
   const getStatFieldsByMode = (modeId: string) => {
     return allStatFields.filter(sf => sf.gameModeId === modeId);
   };
-
-  const savePlayerStatsMutation = useMutation({
-    mutationFn: async (data: { gameId: string; stats: { gameId: string; playerId: string; statFieldId: string; value: string }[] }) => {
-      const response = await apiRequest("POST", `/api/games/${data.gameId}/player-stats`, { stats: data.stats });
-      return response.json();
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/games", variables.gameId, "player-stats"] });
-      setToastMessage("Player stats saved");
-      setToastType("success");
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 3000);
-    },
-    onError: (error: any) => {
-      setToastMessage(error.message || "Failed to save player stats");
-      setToastType("error");
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 3000);
-    },
-  });
 
   const getMapsByMode = (modeId: string) => {
     return allMaps.filter(map => map.gameModeId === modeId);
@@ -257,21 +234,6 @@ export default function EventDetails() {
       return response.json();
     },
     onSuccess: async (newGame: Game) => {
-      const modeStatFields = newGameModeId ? getStatFieldsByMode(newGameModeId) : [];
-      if (modeStatFields.length > 0 && Object.keys(newGamePlayerStats).length > 0) {
-        const stats: { gameId: string; playerId: string; statFieldId: string; value: string }[] = [];
-        for (const playerId of Object.keys(newGamePlayerStats)) {
-          for (const fieldId of Object.keys(newGamePlayerStats[playerId])) {
-            const val = newGamePlayerStats[playerId][fieldId];
-            if (val && val.trim() !== "") {
-              stats.push({ gameId: newGame.id, playerId, statFieldId: fieldId, value: val });
-            }
-          }
-        }
-        if (stats.length > 0) {
-          await savePlayerStatsMutation.mutateAsync({ gameId: newGame.id, stats });
-        }
-      }
       // Save rounds if any have been configured
       const roundsToSave = newGameRounds.filter(r =>
         r.sideId !== null || r.teamScore !== 0 || r.opponentScore !== 0
@@ -407,7 +369,6 @@ export default function EventDetails() {
     setNewGameMapId("");
     setNewGameResult("");
     setNewGameLink("");
-    setNewGamePlayerStats({});
     setNewGameRounds([{ sideId: null, teamScore: 0, opponentScore: 0 }]);
   };
 
@@ -624,63 +585,6 @@ export default function EventDetails() {
     }
   };
 
-  const renderPlayerStatsTable = (
-    modeId: string,
-    statsState: Record<string, Record<string, string>>,
-    setStatsState: (state: Record<string, Record<string, string>>) => void,
-    testIdPrefix: string
-  ) => {
-    const modeStatFields = getStatFieldsByMode(modeId);
-    if (modeStatFields.length === 0 || allPlayers.length === 0) return null;
-
-    return (
-      <div className="border border-border rounded-lg overflow-x-auto" data-testid={`${testIdPrefix}-stats-table`}>
-        <div className="flex items-center gap-2 p-3 border-b border-border bg-muted/50">
-          <BarChart3 className="h-4 w-4 text-primary" />
-          <span className="text-sm font-medium text-foreground">Player Stats</span>
-          <span className="text-xs text-muted-foreground">({modeStatFields.length} fields)</span>
-        </div>
-        <table className="w-full">
-          <thead className="bg-muted">
-            <tr>
-              <th className="p-2 text-left font-semibold text-sm">Player</th>
-              {modeStatFields.map((field) => (
-                <th key={field.id} className="p-2 text-center font-semibold text-sm" data-testid={`th-stat-${field.id}`}>
-                  {field.name}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {allPlayers.map((player) => (
-              <tr key={player.id} className="border-t border-border">
-                <td className="p-2 text-sm font-medium whitespace-nowrap" data-testid={`${testIdPrefix}-player-name-${player.id}`}>
-                  {player.name}
-                </td>
-                {modeStatFields.map((field) => (
-                  <td key={field.id} className="p-2">
-                    <Input
-                      value={statsState[player.id]?.[field.id] || ""}
-                      onChange={(e) => {
-                        const updated = { ...statsState };
-                        if (!updated[player.id]) updated[player.id] = {};
-                        updated[player.id] = { ...updated[player.id], [field.id]: e.target.value };
-                        setStatsState(updated);
-                      }}
-                      className="w-20 text-center text-sm"
-                      placeholder="0"
-                      data-testid={`${testIdPrefix}-stat-${player.id}-${field.id}`}
-                    />
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  };
-
   if (eventLoading || gamesLoading) {
     return <EventsSkeleton />;
   }
@@ -763,7 +667,7 @@ export default function EventDetails() {
                 const rosterName = `${currentGame?.name || ""} ${currentRoster?.name || ""}`.trim();
                 const gameWins = games.filter(g => g.result === "win").length;
                 const gameLosses = games.filter(g => g.result === "loss").length;
-                const gameScore = games.length > 0 ? `${gameWins}-${gameLosses}` : (event.score || "");
+                const gameScore = games.length > 0 ? `${gameWins}-${gameLosses}` : "";
                 const resultText = getResultText(event.result).toUpperCase();
                 const dateStr = format(new Date(event.date), "MMMM d, yyyy");
                 const eventUrl = `${window.location.origin}/${fullSlug}/events/${event.id}`;
@@ -944,12 +848,6 @@ export default function EventDetails() {
                   data-testid="input-new-game-link"
                 />
               </div>
-              {newGameModeId && renderPlayerStatsTable(
-                newGameModeId,
-                newGamePlayerStats,
-                setNewGamePlayerStats,
-                "new-game"
-              )}
               {renderRoundEditor(newGameRounds, setNewGameRounds, newGameModeId, "new-game")}
               <div className="flex gap-2 flex-wrap">
                 <ObjectUploader
@@ -997,7 +895,8 @@ export default function EventDetails() {
                   </thead>
                   <tbody>
                     {games.map((game) => (
-                      <tr key={game.id} className="border-t hover-elevate" data-testid={`row-game-${game.id}`}>
+                      <Fragment key={game.id}>
+                      <tr className="border-t hover-elevate" data-testid={`row-game-${game.id}`}>
                         <td className="p-3">
                           {editingGame?.id === game.id ? (
                             <Input
@@ -1205,40 +1104,42 @@ export default function EventDetails() {
                           </div>
                         </td>
                       </tr>
+                      {game.gameModeId && (
+                        <tr className="border-t border-border bg-muted/20" data-testid={`row-match-stats-${game.id}`}>
+                          <td colSpan={6} className="p-3">
+                            <div data-testid={`section-match-stats-${game.id}`}>
+                              <div className="flex items-center gap-2 mb-2">
+                                <BarChart3 className="h-4 w-4 text-primary" />
+                                <h3 className="text-sm font-semibold">
+                                  Match Stats — {game.gameCode}
+                                  {getModeName(game.gameModeId) && (
+                                    <span className="text-xs text-muted-foreground ml-2">({getModeName(game.gameModeId)})</span>
+                                  )}
+                                </h3>
+                              </div>
+                              <MatchSidesEditor
+                                game={game}
+                                opponentId={game.opponentId || event?.opponentId || null}
+                                ourPlayers={allPlayers}
+                                statFields={getStatFieldsByMode(game.gameModeId)}
+                                heroes={allHeroes}
+                                isSaving={false}
+                                onSavedToast={(msg, type) => {
+                                  setToastMessage(msg);
+                                  setToastType(type);
+                                  setShowToast(true);
+                                  setTimeout(() => setShowToast(false), 3000);
+                                }}
+                              />
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
               </div>
-
-                {games
-                  .filter(g => !!g.gameModeId && getStatFieldsByMode(g.gameModeId).length > 0)
-                  .map(game => (
-                    <div key={`stats-${game.id}`} className="mt-3" data-testid={`section-match-stats-${game.id}`}>
-                      <div className="flex items-center gap-2 mb-2">
-                        <BarChart3 className="h-4 w-4 text-primary" />
-                        <h3 className="text-sm font-semibold">
-                          Match Stats — {game.gameCode}
-                          {getModeName(game.gameModeId) && (
-                            <span className="text-xs text-muted-foreground ml-2">({getModeName(game.gameModeId)})</span>
-                          )}
-                        </h3>
-                      </div>
-                      <MatchSidesEditor
-                        game={game}
-                        opponentId={game.opponentId || event?.opponentId || null}
-                        ourPlayers={allPlayers}
-                        statFields={getStatFieldsByMode(game.gameModeId!)}
-                        heroes={allHeroes}
-                        isSaving={savePlayerStatsMutation.isPending}
-                        onSavedToast={(msg, type) => {
-                          setToastMessage(msg);
-                          setToastType(type);
-                          setShowToast(true);
-                          setTimeout(() => setShowToast(false), 3000);
-                        }}
-                      />
-                    </div>
-                  ))}
 
                 {editingRoundsForGame && (() => {
                   const game = games.find(g => g.id === editingRoundsForGame);

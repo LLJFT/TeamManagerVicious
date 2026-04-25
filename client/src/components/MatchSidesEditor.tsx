@@ -7,6 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { BarChart3, Save, Check, ChevronsUpDown, X, Users, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -22,6 +23,34 @@ import type {
   MatchParticipant,
   OpponentPlayerGameStat,
 } from "@shared/schema";
+
+const HERO_ROLE_COLORS: Record<string, string> = {
+  Duelist: "bg-red-500/15 text-red-700 dark:text-red-300",
+  Vanguard: "bg-blue-500/15 text-blue-700 dark:text-blue-300",
+  Strategist: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+};
+
+function getHeroInitials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(p => p[0]!.toUpperCase())
+    .join("");
+}
+
+function HeroAvatar({ hero, size = "sm" }: { hero: Hero; size?: "xs" | "sm" }) {
+  const dim = size === "xs" ? "h-5 w-5" : "h-6 w-6";
+  const fallbackBg = (hero.role && HERO_ROLE_COLORS[hero.role]) || "bg-muted text-muted-foreground";
+  return (
+    <Avatar className={`${dim} shrink-0`}>
+      {hero.imageUrl ? <AvatarImage src={hero.imageUrl} alt={hero.name} /> : null}
+      <AvatarFallback className={`text-[10px] font-semibold ${fallbackBg}`}>
+        {getHeroInitials(hero.name)}
+      </AvatarFallback>
+    </Avatar>
+  );
+}
 
 interface Props {
   game: Game;
@@ -90,8 +119,9 @@ function HeroMultiSelect({
                     }}
                     data-testid={`${testIdPrefix}-option-${h.id}`}
                   >
-                    <Check className={cn("mr-2 h-4 w-4", isSelected ? "opacity-100" : "opacity-0")} />
-                    <span className="truncate">{h.name}</span>
+                    <Check className={cn("mr-2 h-4 w-4 shrink-0", isSelected ? "opacity-100" : "opacity-0")} />
+                    <HeroAvatar hero={h} size="sm" />
+                    <span className="truncate ml-2">{h.name}</span>
                     {h.role && <span className="ml-2 text-xs text-muted-foreground">{h.role}</span>}
                   </CommandItem>
                 );
@@ -337,13 +367,14 @@ export function MatchSidesEditor({
                         const h = heroes.find(x => x.id === hid);
                         if (!h) return null;
                         return (
-                          <Badge key={hid} variant="secondary" className="text-xs">
-                            {h.name}
+                          <Badge key={hid} variant="secondary" className="text-xs gap-1.5 pl-1 pr-1.5">
+                            <HeroAvatar hero={h} size="xs" />
+                            <span>{h.name}</span>
                             <span
                               role="button"
                               tabIndex={0}
                               onClick={() => onUpdate(p.id, { heroIds: r.heroIds.filter(id => id !== hid) })}
-                              className="ml-1 cursor-pointer opacity-70 hover:opacity-100"
+                              className="cursor-pointer opacity-70 hover:opacity-100"
                               data-testid={`badge-hero-remove-${side}-${p.id}-${hid}`}
                             >
                               <X className="h-3 w-3" />

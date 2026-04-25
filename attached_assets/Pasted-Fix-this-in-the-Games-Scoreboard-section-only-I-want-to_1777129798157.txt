@@ -1,0 +1,98 @@
+Fix this in the Games & Scoreboard section only.
+
+I want to fully replace Player Stats with Match Stats.
+
+Important:
+Do not keep Player Stats as a separate concept, separate label, or separate UI.
+Remove Player Stats completely from this flow and replace it with Match Stats as the single correct system.
+
+What Match Stats should mean:
+- our team stats
+- opponent team stats
+- our heroes
+- opponent heroes
+- played / did not play state
+- stat fields driven by the selected Game Mode configuration
+
+Requirements:
+
+1. Remove Player Stats completely
+- Remove the "Player Stats" label from this section
+- Remove Player Stats as a separate panel/concept
+- Everywhere in Games & Scoreboard, this should now be called "Match Stats"
+- Match Stats is the replacement, not an additional section
+
+2. Match Stats should be the full two-sided system
+Match Stats must include:
+- our team player rows
+- opponent team player rows
+- our selected heroes
+- opponent selected heroes
+- played / DNP state
+- stat fields for both sides
+
+This is not only our players anymore.
+It is a full match-level stats system for both teams.
+
+3. Match Stats should only appear after selecting a Game Mode
+- Hide Match Stats completely until a Game Mode is selected
+- Do not show empty placeholder columns before Game Mode is selected
+- Once a Game Mode is selected, show Match Stats
+- If the user changes the Game Mode, the Match Stats fields must update immediately
+
+4. Stat Fields must come from Dashboard configuration
+The columns shown inside Match Stats must come from the Stat Fields configured for that specific Game Mode in Dashboard.
+
+Examples:
+- If one Game Mode has Kill / Death / Assist / Time, show those fields
+- If another Game Mode has Kill / Death / Plant / Defuse, show those fields
+
+Important:
+- Do not hardcode the stat columns
+- Match Stats must always read from the selected Game Mode's configured Stat Fields
+- Keep this properly connected to the Dashboard configuration
+
+5. Hero display inside Match Stats
+In the hero selection dropdown:
+- show the hero icon/avatar next to the hero name
+- use the same hero avatar style already used in Heroes Configuration
+
+In the selected hero tags:
+- show the same hero icon/avatar next to the hero name before the remove button
+
+Fallback behavior:
+- if a hero image URL exists, use it
+- if no image URL exists, use the same colored circle with initials fallback used in Heroes Configuration
+- do not use placeholder images
+
+Apply this to:
+- our team hero selection
+- opponent team hero selection
+
+6. Match Stats layout behavior
+Match Stats must open inline, not as a floating overlay.
+It should expand inline below the game row like an accordion-style expansion.
+The rest of the page must remain visible and usable while Match Stats is open.
+
+Do not use an overlapping floating panel that covers the Add New Game form.
+
+7. Keep the current correct data flow
+When replacing Player Stats with Match Stats:
+- do not break the current two-sided match data model
+- keep support for:
+  - our team players
+  - opponent players
+  - hero usage for both sides
+  - played / DNP state
+- keep the system aligned with the current game / opponent / roster data flow
+
+8. Scope
+Only change what is necessary in the Games & Scoreboard section for this replacement.
+Do not change unrelated parts of Dashboard or other pages.
+
+Stop after done and report exactly:
+- where Player Stats was removed
+- where Match Stats replaced it
+- how the Stat Fields are now connected to the selected Game Mode
+- how hero avatars/tags were updated
+- how the inline Match Stats behavior now works
