@@ -935,12 +935,47 @@ export default function EventDetails() {
                   placeholder="Game Code"
                   data-testid="input-new-game-code"
                 />
-                <Input
-                  value={newGameScore}
-                  onChange={(e) => setNewGameScore(e.target.value)}
-                  placeholder="Score (e.g., 2-1)"
-                  data-testid="input-new-game-score"
-                />
+                {newGameModeId ? (() => {
+                  const mode = getModeForGame(newGameModeId);
+                  const scoreType = (mode as any)?.scoreType || "numeric";
+                  const maxScore = (mode as any)?.maxScore ?? 13;
+                  const maxRoundWins = (mode as any)?.maxRoundWins ?? 7;
+                  const maxAllowed = scoreType === "rounds" ? maxRoundWins : maxScore;
+                  const [usStr, themStr] = (newGameScore || "-").split("-");
+                  const us = parseInt(usStr || "0", 10) || 0;
+                  const them = parseInt(themStr || "0", 10) || 0;
+                  const clamp = (n: number) => Math.max(0, Math.min(maxAllowed, isNaN(n) ? 0 : n));
+                  const setScorePair = (u: number, t: number) => setNewGameScore(`${clamp(u)}-${clamp(t)}`);
+                  return (
+                    <div className="flex items-center gap-2" data-testid="group-new-game-score">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={maxAllowed}
+                        value={us}
+                        onChange={(e) => setScorePair(parseInt(e.target.value || "0", 10), them)}
+                        placeholder="Us"
+                        className="text-center"
+                        data-testid="input-new-game-score-us"
+                      />
+                      <span className="text-muted-foreground font-medium">-</span>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={maxAllowed}
+                        value={them}
+                        onChange={(e) => setScorePair(us, parseInt(e.target.value || "0", 10))}
+                        placeholder="Them"
+                        className="text-center"
+                        data-testid="input-new-game-score-them"
+                      />
+                    </div>
+                  );
+                })() : (
+                  <div className="flex items-center px-3 text-xs text-muted-foreground border border-dashed border-border rounded-md" data-testid="text-score-hint">
+                    Select a Game Mode to enter the score
+                  </div>
+                )}
                 <Select
                   value={newGameResult}
                   onValueChange={(v) => setNewGameResult(v as "win" | "loss" | "draw")}

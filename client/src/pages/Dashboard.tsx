@@ -1582,33 +1582,52 @@ export default function Dashboard() {
                               </Select>
                             </div>
                             {scoreType === "numeric" ? (
-                              <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                  <Label className="text-xs text-muted-foreground">Max Score</Label>
-                                  <span className="text-sm font-medium" data-testid={`text-max-score-${mode.id}`}>{maxScore}</span>
-                                </div>
-                                <Slider
-                                  value={[maxScore]}
+                              <div className="flex items-center justify-between gap-2">
+                                <Label className="text-xs text-muted-foreground">Max Score</Label>
+                                <Input
+                                  key={`max-score-${mode.id}-${maxScore}`}
+                                  type="number"
                                   min={1}
-                                  max={200}
-                                  step={1}
+                                  max={999}
+                                  defaultValue={maxScore}
                                   disabled={!canEdit}
-                                  onValueChange={(v) => updateScoreConfigMutation.mutate({ id: mode.id, patch: { maxScore: v[0] } as any })}
-                                  data-testid={`slider-max-score-${mode.id}`}
+                                  onBlur={(e) => {
+                                    const n = Math.max(1, Math.min(999, parseInt(e.target.value || "1", 10) || 1));
+                                    if (n !== maxScore) {
+                                      updateScoreConfigMutation.mutate({ id: mode.id, patch: { maxScore: n } as any });
+                                    }
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      (e.target as HTMLInputElement).blur();
+                                    }
+                                  }}
+                                  className="w-24"
+                                  data-testid={`input-max-score-${mode.id}`}
                                 />
                               </div>
                             ) : (
                               <div className="flex items-center justify-between gap-2">
                                 <Label className="text-xs text-muted-foreground">Max Round Wins</Label>
                                 <Input
+                                  key={`max-round-wins-${mode.id}-${maxRoundWins}`}
                                   type="number"
                                   min={1}
-                                  max={50}
-                                  value={maxRoundWins}
+                                  max={999}
+                                  defaultValue={maxRoundWins}
                                   disabled={!canEdit}
-                                  onChange={(e) => {
-                                    const n = Math.max(1, Math.min(50, parseInt(e.target.value || "1", 10)));
-                                    updateScoreConfigMutation.mutate({ id: mode.id, patch: { maxRoundWins: n } as any });
+                                  onBlur={(e) => {
+                                    const n = Math.max(1, Math.min(999, parseInt(e.target.value || "1", 10) || 1));
+                                    if (n !== maxRoundWins) {
+                                      updateScoreConfigMutation.mutate({ id: mode.id, patch: { maxRoundWins: n } as any });
+                                    }
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      (e.target as HTMLInputElement).blur();
+                                    }
                                   }}
                                   className="w-24"
                                   data-testid={`input-max-round-wins-${mode.id}`}
