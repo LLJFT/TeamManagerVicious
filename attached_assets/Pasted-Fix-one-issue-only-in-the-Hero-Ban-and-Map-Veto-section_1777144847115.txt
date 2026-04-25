@@ -1,0 +1,74 @@
+Fix one issue only in the Hero Ban and Map Veto sections inside Games & Scoreboard.
+
+ISSUE — Hero Ban and Map Veto steps must auto-populate from Dashboard settings, and the UI must be cleaner with hero/map images shown properly:
+Currently the Hero Ban System and Map Veto settings are configured in Dashboard (bans per team, locks per team, BO3 rows, etc.) but when you open a game's Hero Ban or Map Veto section, it starts completely empty with no steps. The user has to manually add every step one by one, which defeats the purpose of having settings in Dashboard.
+
+Also, the current Hero Ban / Map Veto UI looks messy and hard to read. I want it cleaned up visually, and I want hero images / avatars and map images to appear properly in the selectors.
+
+Fix this so that when a game is opened or created:
+
+1. Hero Ban section automatically generates all steps based on the Hero Ban preset configured in Dashboard for this roster.
+- Use the exact preset order and configuration stored in Dashboard when available.
+- Example: if the preset has 3 bans per team and 2 locks per team, auto-generate the correct sequence of steps (ban/lock alternating between Our Team and Opponent Team) with the correct number of rows.
+- The user can still edit individual steps after auto-generation.
+- If no preset is configured in Dashboard, show the section empty as it is now.
+- Do not change the Dashboard settings UI.
+
+2. Map Veto section automatically generates all rows based on the Map Veto settings in Dashboard.
+- Use the preset row count and the configured ban/pick/decider sequence when available.
+- Auto-fill the Action column and Acting Team based on the standard veto sequence for the selected format.
+- The user can still edit individual rows after auto-generation.
+- The map selector must use the maps already configured in Dashboard.
+- Each map should display in the format: Game Mode Name -- Map Name.
+- The map selector must support search.
+- Use multiple selection where relevant if the preset requires selecting multiple maps.
+- If no preset is configured in Dashboard, show the section empty as it is now.
+- Do not change the Dashboard settings UI.
+
+3. Hero Ban UI improvements
+- The current Hero Ban section looks messy and hard to read.
+- Improve spacing, alignment, and visual hierarchy.
+- Keep the same functionality, but make the section look cleaner and easier to use.
+- Do not change the underlying ban logic.
+
+4. Show hero images / avatars in Hero Ban selectors
+- In the hero dropdown, show the hero image/avatar next to the hero name.
+- In the selected hero tag, show the same hero image/avatar before the remove button.
+- If an imageUrl exists, use it.
+- If no imageUrl exists, fall back to the same colored circle with initials already used in Dashboard.
+- Do not use placeholder images.
+
+5. Add map images from Dashboard
+- In Dashboard, add a map image field inside the Game Config / Maps setup so I can upload or assign a map image/thumbnail there.
+- The map image should be attached to the map configuration itself.
+- When a map has an image, show it inside the Map Veto selector next to the map name.
+- The map selector should not be text-only if image data exists.
+- If no image exists, keep it text-only without adding placeholder images.
+- Do not force a separate upload flow outside Dashboard; the image should be managed from the existing Game Config / Maps area.
+
+6. Show map images / thumbnails in Map Veto selectors
+- In the map selector, show the map image/thumbnail next to the map name if available.
+- Keep the search and multiple selection behavior.
+- Keep the existing map veto logic unchanged.
+
+7. Rainbow support
+- Keep Rainbow ban behavior configurable from Dashboard.
+- Support flexible patterns such as per-round bans, every-side-switch bans, or every-two-rounds if needed.
+- Set max rounds to 40.
+- If the exact tournament format is unknown, use the configured preset from Dashboard rather than hardcoding a single ruleset.
+
+8. Scope and safety
+- Do not change anything else in the scoreboard.
+- Do not change unrelated parts of the app.
+- Keep both systems roster-scoped.
+- Keep Hero Ban and Map Veto as separate concepts.
+- Preserve the current ability to edit steps / rows after auto-generation.
+
+9. Reporting
+Stop after done and report what was changed, including:
+- how Hero Ban steps are auto-generated
+- how Map Veto rows are auto-generated
+- how hero avatars are displayed
+- how map images are added from Dashboard and displayed
+- how the UI was cleaned up
+- how Rainbow remains configurable from Dashboard

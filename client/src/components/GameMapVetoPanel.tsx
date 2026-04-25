@@ -5,8 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Plus, Trash2, Save, Search } from "lucide-react";
+import { Plus, Trash2, Save, Search, Wand2, Map as MapImageIcon } from "lucide-react";
 import type {
   Game, GameMapVetoRow, GameMode, Map as MapType, Side,
   MapVetoSystem, MapVetoActionType, BanVetoTeamSlot,
@@ -32,6 +33,74 @@ interface Props {
   onSaved: (msg: string, type: "success" | "error") => void;
 }
 
+function generateFromPreset(system: MapVetoSystem): Row[] {
+  const total = Math.max(0, Math.min(40, system.defaultRowCount || 0));
+  if (total === 0) return [];
+  const rows: Row[] = [];
+  const supportsBan = system.supportsBan;
+  const supportsPick = system.supportsPick;
+  const supportsDecider = system.supportsDecider;
+
+  // Standard veto patterns:
+  //   Only ban → all bans alternating
+  //   Only pick → all picks alternating
+  //   Ban + Pick (+Decider) → first half bans, second half picks, last is decider if supported
+  //   None supported → all "ban" placeholders
+  const usableActions: MapVetoActionType[] = [];
+  if (supportsBan) usableActions.push("ban");
+  if (supportsPick) usableActions.push("pick");
+  if (usableActions.length === 0) usableActions.push("ban");
+
+  const decider = supportsDecider && total >= 1 ? 1 : 0;
+  const remaining = total - decider;
+
+  let banCount = 0;
+  let pickCount = 0;
+  if (supportsBan && supportsPick) {
+    banCount = Math.ceil(remaining / 2);
+    pickCount = remaining - banCount;
+  } else if (supportsBan) {
+    banCount = remaining;
+  } else if (supportsPick) {
+    pickCount = remaining;
+  } else {
+    banCount = remaining;
+  }
+
+  let teamToggle = 0;
+  for (let i = 0; i < banCount; i++) {
+    rows.push({
+      stepNumber: rows.length + 1,
+      actionType: "ban",
+      actingTeam: teamToggle++ % 2 === 0 ? "a" : "b",
+      mapId: null,
+      sideId: null,
+      notes: null,
+    });
+  }
+  for (let i = 0; i < pickCount; i++) {
+    rows.push({
+      stepNumber: rows.length + 1,
+      actionType: "pick",
+      actingTeam: teamToggle++ % 2 === 0 ? "a" : "b",
+      mapId: null,
+      sideId: null,
+      notes: null,
+    });
+  }
+  if (decider) {
+    rows.push({
+      stepNumber: rows.length + 1,
+      actionType: "decider",
+      actingTeam: "auto",
+      mapId: null,
+      sideId: null,
+      notes: null,
+    });
+  }
+  return rows;
+}
+
 export function GameMapVetoPanel({ game, maps, gameModes, sides, canEdit, onSaved }: Props) {
   const { data: systems = [] } = useQuery<MapVetoSystem[]>({
     queryKey: ["/api/map-veto-systems", { gameId: game.gameId, rosterId: game.rosterId }],
@@ -39,7 +108,7 @@ export function GameMapVetoPanel({ game, maps, gameModes, sides, canEdit, onSave
   });
   const enabledSystems = useMemo(() => systems.filter(s => s.enabled), [systems]);
 
-  const { data: serverRows = [] } = useQuery<GameMapVetoRow[]>({
+  const { data: serverRows = [], isFetched: rowsFetched } = useQuery<GameMapVetoRow[]>({
     queryKey: ["/api/games", game.id, "map-veto-rows"],
     queryFn: async () => {
       const r = await apiRequest("GET", `/api/games/${game.id}/map-veto-rows`);
@@ -64,10 +133,38 @@ export function GameMapVetoPanel({ game, maps, gameModes, sides, canEdit, onSave
   ), [serverRows]);
 
   const [rows, setRows] = useState<Row[]>(initialRows);
-  useEffect(() => { setRows(initialRows); }, [initialRows]);
+  const [dirty, setDirty] = useState(false);
+  // Hydrate from server only when local rows are not dirty (no unsaved user edits).
+  useEffect(() => {
+    if (dirty) return;
+    setRows(initialRows);
+  }, [initialRows, dirty]);
 
   const [rowCount, setRowCount] = useState<number>(initialRows.length);
-  useEffect(() => { setRowCount(initialRows.length); }, [initialRows.length]);
+  useEffect(() => {
+    if (dirty) return;
+    setRowCount(initialRows.length);
+  }, [initialRows.length, dirty]);
+
+  // Auto-populate when selected, server returned empty rows, and preset has rows
+  const [autoApplied, setAutoApplied] = useState(false);
+  useEffect(() => {
+    setAutoApplied(false);
+    setDirty(false);
+  }, [selectedSystem?.id, game.id]);
+  useEffect(() => {
+    if (!selectedSystem) return;
+    if (!rowsFetched) return;
+    if (autoApplied) return;
+    if (dirty) return;
+    if (initialRows.length > 0) return;
+    const generated = generateFromPreset(selectedSystem);
+    if (generated.length > 0) {
+      setRows(generated);
+      setRowCount(generated.length);
+      setAutoApplied(true);
+    }
+  }, [selectedSystem, rowsFetched, initialRows.length, autoApplied, dirty]);
 
   const updateGameSystem = useMutation({
     mutationFn: async (mapVetoSystemId: string | null) => {
@@ -77,6 +174,7 @@ export function GameMapVetoPanel({ game, maps, gameModes, sides, canEdit, onSave
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
       queryClient.invalidateQueries({ queryKey: ["/api/games", game.id, "map-veto-rows"] });
+      setAutoApplied(false);
     },
     onError: (e: any) => onSaved(e.message || "Failed to update Map Veto selection", "error"),
   });
@@ -95,6 +193,7 @@ export function GameMapVetoPanel({ game, maps, gameModes, sides, canEdit, onSave
       return r.json();
     },
     onSuccess: () => {
+      setDirty(false);
       queryClient.invalidateQueries({ queryKey: ["/api/games", game.id, "map-veto-rows"] });
       onSaved("Map Veto rows saved", "success");
     },
@@ -103,7 +202,7 @@ export function GameMapVetoPanel({ game, maps, gameModes, sides, canEdit, onSave
 
   if (enabledSystems.length === 0) {
     return (
-      <div className="text-xs text-muted-foreground italic px-2 py-3 border border-dashed border-border rounded-md" data-testid={`text-no-mvs-${game.id}`}>
+      <div className="text-xs text-muted-foreground italic px-3 py-3 border border-dashed border-border rounded-md" data-testid={`text-no-mvs-${game.id}`}>
         No Map Veto Systems configured for this roster. Configure them in Dashboard → Map Veto.
       </div>
     );
@@ -114,6 +213,7 @@ export function GameMapVetoPanel({ game, maps, gameModes, sides, canEdit, onSave
   const applyRowCount = (n: number) => {
     if (!canEdit) return;
     const clamped = Math.max(0, Math.min(40, n));
+    setDirty(true);
     setRowCount(clamped);
     if (clamped > rows.length) {
       const additions: Row[] = [];
@@ -128,6 +228,7 @@ export function GameMapVetoPanel({ game, maps, gameModes, sides, canEdit, onSave
 
   const removeRow = (i: number) => {
     if (!canEdit) return;
+    setDirty(true);
     const next = rows.filter((_, idx) => idx !== i);
     setRows(next);
     setRowCount(next.length);
@@ -135,56 +236,69 @@ export function GameMapVetoPanel({ game, maps, gameModes, sides, canEdit, onSave
 
   const updateRow = (i: number, patch: Partial<Row>) => {
     if (!canEdit) return;
+    setDirty(true);
     setRows(rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
   };
 
-  const mapLabel = (mapId: string | null) => {
-    if (!mapId) return "(unset)";
-    const m = maps.find(x => x.id === mapId);
-    if (!m) return "(unknown)";
-    const mode = gameModes.find(g => g.id === m.gameModeId);
-    return mode ? `${mode.name} -- ${m.name}` : m.name;
+  const resetToPreset = () => {
+    if (!canEdit || !selectedSystem) return;
+    const generated = generateFromPreset(selectedSystem);
+    setRows(generated);
+    setRowCount(generated.length);
+    setAutoApplied(true);
+    setDirty(false);
   };
 
   return (
     <div className="space-y-3" data-testid={`map-veto-panel-${game.id}`}>
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        {isSingle ? (
-          <div className="flex items-center gap-2">
-            <Label htmlFor={`mvs-on-${game.id}`} className="text-sm">Use "{enabledSystems[0].name}"</Label>
-            <Switch
-              id={`mvs-on-${game.id}`}
-              checked={enabled}
-              disabled={!canEdit || updateGameSystem.isPending}
-              onCheckedChange={(v) => {
-                setEnabled(v);
-                updateGameSystem.mutate(v ? enabledSystems[0].id : null);
-              }}
-              data-testid={`switch-mvs-on-${game.id}`}
-            />
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <Label className="text-sm">Map Veto System</Label>
-            <Select
-              value={game.mapVetoSystemId || "__none__"}
-              disabled={!canEdit || updateGameSystem.isPending}
-              onValueChange={(v) => updateGameSystem.mutate(v === "__none__" ? null : v)}
-            >
-              <SelectTrigger className="w-[260px]" data-testid={`select-mvs-${game.id}`}>
-                <SelectValue placeholder="Select system" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__" data-testid={`option-mvs-none-${game.id}`}>None (off)</SelectItem>
-                {enabledSystems.map(s => (
-                  <SelectItem key={s.id} value={s.id} data-testid={`option-mvs-${s.id}-${game.id}`}>{s.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap">
+          {isSingle ? (
+            <div className="flex items-center gap-2">
+              <Switch
+                id={`mvs-on-${game.id}`}
+                checked={enabled}
+                disabled={!canEdit || updateGameSystem.isPending}
+                onCheckedChange={(v) => {
+                  setEnabled(v);
+                  updateGameSystem.mutate(v ? enabledSystems[0].id : null);
+                }}
+                data-testid={`switch-mvs-on-${game.id}`}
+              />
+              <Label htmlFor={`mvs-on-${game.id}`} className="text-sm font-medium">{enabledSystems[0].name}</Label>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Label className="text-sm">System</Label>
+              <Select
+                value={game.mapVetoSystemId || "__none__"}
+                disabled={!canEdit || updateGameSystem.isPending}
+                onValueChange={(v) => updateGameSystem.mutate(v === "__none__" ? null : v)}
+              >
+                <SelectTrigger className="w-[260px]" data-testid={`select-mvs-${game.id}`}>
+                  <SelectValue placeholder="Select system" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__" data-testid={`option-mvs-none-${game.id}`}>None (off)</SelectItem>
+                  {enabledSystems.map(s => (
+                    <SelectItem key={s.id} value={s.id} data-testid={`option-mvs-${s.id}-${game.id}`}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          {selectedSystem && (
+            <div className="flex items-center gap-1">
+              <Badge variant="outline">{selectedSystem.defaultRowCount} preset rows</Badge>
+              {selectedSystem.supportsBan && <Badge variant="outline">ban</Badge>}
+              {selectedSystem.supportsPick && <Badge variant="outline">pick</Badge>}
+              {selectedSystem.supportsDecider && <Badge variant="outline">decider</Badge>}
+              {selectedSystem.supportsSideChoice && <Badge variant="outline">side</Badge>}
+            </div>
+          )}
+        </div>
         {selectedSystem && (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
             <div className="flex items-center gap-2">
               <Label className="text-sm">Rows</Label>
               <Input
@@ -199,46 +313,54 @@ export function GameMapVetoPanel({ game, maps, gameModes, sides, canEdit, onSave
               />
             </div>
             {canEdit && (
-              <Button size="sm" onClick={() => saveRows.mutate(rows)} disabled={saveRows.isPending} data-testid={`button-save-mvs-${game.id}`}>
-                <Save className="h-4 w-4 mr-1" />
-                {saveRows.isPending ? "Saving…" : "Save Rows"}
-              </Button>
+              <>
+                <Button size="sm" variant="outline" onClick={resetToPreset} data-testid={`button-mvs-reset-${game.id}`}>
+                  <Wand2 className="h-4 w-4 mr-1" />
+                  Reset from preset
+                </Button>
+                <Button size="sm" onClick={() => saveRows.mutate(rows)} disabled={saveRows.isPending} data-testid={`button-save-mvs-${game.id}`}>
+                  <Save className="h-4 w-4 mr-1" />
+                  {saveRows.isPending ? "Saving…" : "Save Rows"}
+                </Button>
+              </>
             )}
           </div>
         )}
       </div>
+
+      {selectedSystem && autoApplied && initialRows.length === 0 && rows.length > 0 && (
+        <div className="text-xs text-muted-foreground bg-primary/5 border border-primary/20 rounded-md px-3 py-2" data-testid={`text-mvs-auto-banner-${game.id}`}>
+          Auto-populated from preset "{selectedSystem.name}". Edit any row, then click Save Rows to persist.
+        </div>
+      )}
 
       {selectedSystem && (
         <div className="border border-border rounded-md overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-muted/40">
               <tr>
-                <th className="text-left p-2 w-12">Step</th>
-                <th className="text-left p-2 w-28">Action</th>
-                <th className="text-left p-2 w-28">Acting team</th>
-                <th className="text-left p-2">Map (Mode -- Map)</th>
-                {selectedSystem.supportsSideChoice && <th className="text-left p-2 w-32">Side</th>}
-                <th className="text-left p-2">Notes</th>
+                <th className="text-left px-3 py-2 w-12">#</th>
+                <th className="text-left px-3 py-2 w-28">Action</th>
+                <th className="text-left px-3 py-2 w-32">Team</th>
+                <th className="text-left px-3 py-2">Map (Mode -- Map)</th>
+                {selectedSystem.supportsSideChoice && <th className="text-left px-3 py-2 w-32">Side</th>}
+                <th className="text-left px-3 py-2">Notes</th>
                 <th className="w-10"></th>
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={selectedSystem.supportsSideChoice ? 7 : 6} className="p-3 text-center text-xs text-muted-foreground italic">
-                    No rows yet. Set "Rows" above to add steps.
+                  <td colSpan={selectedSystem.supportsSideChoice ? 7 : 6} className="p-4 text-center text-xs text-muted-foreground italic">
+                    No rows yet. Set "Rows" above or click "Reset from preset" to begin.
                   </td>
                 </tr>
               ) : rows.map((r, i) => (
-                <tr key={i} className="border-t border-border" data-testid={`row-mvs-${game.id}-${i}`}>
-                  <td className="p-2 text-xs text-muted-foreground">{i + 1}</td>
-                  <td className="p-2">
-                    <Select
-                      value={r.actionType}
-                      disabled={!canEdit}
-                      onValueChange={(v) => updateRow(i, { actionType: v as MapVetoActionType })}
-                    >
-                      <SelectTrigger className="h-9" data-testid={`select-mvs-action-${game.id}-${i}`}><SelectValue /></SelectTrigger>
+                <tr key={i} className="border-t border-border align-middle" data-testid={`row-mvs-${game.id}-${i}`}>
+                  <td className="px-3 py-2 text-xs text-muted-foreground">{i + 1}</td>
+                  <td className="px-3 py-2">
+                    <Select value={r.actionType} disabled={!canEdit} onValueChange={(v) => updateRow(i, { actionType: v as MapVetoActionType })}>
+                      <SelectTrigger data-testid={`select-mvs-action-${game.id}-${i}`}><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {mapVetoActionTypes
                           .filter(t => (t === "ban" ? selectedSystem.supportsBan : t === "pick" ? selectedSystem.supportsPick : selectedSystem.supportsDecider))
@@ -248,13 +370,9 @@ export function GameMapVetoPanel({ game, maps, gameModes, sides, canEdit, onSave
                       </SelectContent>
                     </Select>
                   </td>
-                  <td className="p-2">
-                    <Select
-                      value={r.actingTeam}
-                      disabled={!canEdit}
-                      onValueChange={(v) => updateRow(i, { actingTeam: v as BanVetoTeamSlot })}
-                    >
-                      <SelectTrigger className="h-9" data-testid={`select-mvs-team-${game.id}-${i}`}><SelectValue /></SelectTrigger>
+                  <td className="px-3 py-2">
+                    <Select value={r.actingTeam} disabled={!canEdit} onValueChange={(v) => updateRow(i, { actingTeam: v as BanVetoTeamSlot })}>
+                      <SelectTrigger data-testid={`select-mvs-team-${game.id}-${i}`}><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {banVetoTeamSlots.map(t => (
                           <SelectItem key={t} value={t} data-testid={`option-mvs-team-${t}-${game.id}-${i}`}>
@@ -264,25 +382,20 @@ export function GameMapVetoPanel({ game, maps, gameModes, sides, canEdit, onSave
                       </SelectContent>
                     </Select>
                   </td>
-                  <td className="p-2">
+                  <td className="px-3 py-2">
                     <MapCombobox
                       value={r.mapId}
                       onChange={(id) => updateRow(i, { mapId: id })}
                       maps={maps}
                       gameModes={gameModes}
                       disabled={!canEdit}
-                      label={mapLabel(r.mapId)}
                       testId={`combobox-mvs-map-${game.id}-${i}`}
                     />
                   </td>
                   {selectedSystem.supportsSideChoice && (
-                    <td className="p-2">
-                      <Select
-                        value={r.sideId || "__unset__"}
-                        disabled={!canEdit}
-                        onValueChange={(v) => updateRow(i, { sideId: v === "__unset__" ? null : v })}
-                      >
-                        <SelectTrigger className="h-9" data-testid={`select-mvs-side-${game.id}-${i}`}><SelectValue placeholder="Side" /></SelectTrigger>
+                    <td className="px-3 py-2">
+                      <Select value={r.sideId || "__unset__"} disabled={!canEdit} onValueChange={(v) => updateRow(i, { sideId: v === "__unset__" ? null : v })}>
+                        <SelectTrigger data-testid={`select-mvs-side-${game.id}-${i}`}><SelectValue placeholder="Side" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="__unset__">(unset)</SelectItem>
                           {sides.map(s => (
@@ -292,7 +405,7 @@ export function GameMapVetoPanel({ game, maps, gameModes, sides, canEdit, onSave
                       </Select>
                     </td>
                   )}
-                  <td className="p-2">
+                  <td className="px-3 py-2">
                     <Input
                       value={r.notes || ""}
                       onChange={(e) => updateRow(i, { notes: e.target.value || null })}
@@ -301,7 +414,7 @@ export function GameMapVetoPanel({ game, maps, gameModes, sides, canEdit, onSave
                       data-testid={`input-mvs-notes-${game.id}-${i}`}
                     />
                   </td>
-                  <td className="p-2">
+                  <td className="px-3 py-2">
                     {canEdit && (
                       <Button size="icon" variant="ghost" onClick={() => removeRow(i)} data-testid={`button-mvs-remove-${game.id}-${i}`}>
                         <Trash2 className="h-4 w-4 text-destructive" />
@@ -313,7 +426,7 @@ export function GameMapVetoPanel({ game, maps, gameModes, sides, canEdit, onSave
             </tbody>
           </table>
           {canEdit && rows.length < 40 && (
-            <div className="p-2 border-t border-border">
+            <div className="p-2 border-t border-border bg-muted/20">
               <Button size="sm" variant="outline" onClick={() => applyRowCount(rows.length + 1)} data-testid={`button-mvs-add-${game.id}`}>
                 <Plus className="h-4 w-4 mr-1" />
                 Add Row
@@ -332,17 +445,28 @@ interface MapComboboxProps {
   maps: MapType[];
   gameModes: GameMode[];
   disabled?: boolean;
-  label: string;
   testId: string;
 }
 
-function MapCombobox({ value, onChange, maps, gameModes, disabled, label, testId }: MapComboboxProps) {
+function MapThumb({ map, size = "h-6 w-9" }: { map?: MapType; size?: string }) {
+  return (
+    <div className={`${size} shrink-0 rounded-sm border border-border overflow-hidden bg-muted/40 flex items-center justify-center`}>
+      {map?.imageUrl ? (
+        <img src={map.imageUrl} alt={map.name} className="h-full w-full object-cover" />
+      ) : (
+        <MapImageIcon className="h-3 w-3 text-muted-foreground" />
+      )}
+    </div>
+  );
+}
+
+function MapCombobox({ value, onChange, maps, gameModes, disabled, testId }: MapComboboxProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const items = useMemo(() => {
     const list = maps.map(m => {
       const mode = gameModes.find(g => g.id === m.gameModeId);
-      return { id: m.id, label: mode ? `${mode.name} -- ${m.name}` : m.name };
+      return { map: m, label: mode ? `${mode.name} -- ${m.name}` : m.name };
     });
     list.sort((a, b) => a.label.localeCompare(b.label));
     if (!query.trim()) return list;
@@ -350,20 +474,26 @@ function MapCombobox({ value, onChange, maps, gameModes, disabled, label, testId
     return list.filter(x => x.label.toLowerCase().includes(q));
   }, [maps, gameModes, query]);
 
+  const selected = value ? maps.find(m => m.id === value) : null;
+  const selectedMode = selected ? gameModes.find(g => g.id === selected.gameModeId) : undefined;
+  const selectedLabel = selected
+    ? (selectedMode ? `${selectedMode.name} -- ${selected.name}` : selected.name)
+    : "";
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          size="sm"
           disabled={disabled}
-          className="w-full justify-between font-normal"
+          className="w-full justify-start font-normal gap-2"
           data-testid={testId}
         >
-          <span className="truncate">{label}</span>
+          <MapThumb map={selected || undefined} size="h-6 w-9" />
+          <span className="truncate text-left flex-1">{selected ? selectedLabel : <span className="text-muted-foreground">Pick map</span>}</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="p-0 w-[320px]" align="start">
+      <PopoverContent className="p-0 w-[340px]" align="start">
         <div className="p-2 border-b border-border">
           <div className="relative">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -390,13 +520,14 @@ function MapCombobox({ value, onChange, maps, gameModes, disabled, label, testId
             <div className="px-3 py-2 text-xs text-muted-foreground italic">No maps match.</div>
           ) : items.map(it => (
             <button
-              key={it.id}
+              key={it.map.id}
               type="button"
-              className={`w-full text-left px-3 py-1.5 text-sm hover-elevate ${value === it.id ? "font-medium" : ""}`}
-              onClick={() => { onChange(it.id); setOpen(false); setQuery(""); }}
-              data-testid={`${testId}-option-${it.id}`}
+              className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm hover-elevate ${value === it.map.id ? "font-medium" : ""}`}
+              onClick={() => { onChange(it.map.id); setOpen(false); setQuery(""); }}
+              data-testid={`${testId}-option-${it.map.id}`}
             >
-              {it.label}
+              <MapThumb map={it.map} size="h-7 w-10" />
+              <span className="flex-1 text-left truncate">{it.label}</span>
             </button>
           ))}
         </div>

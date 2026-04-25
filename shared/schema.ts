@@ -394,6 +394,7 @@ export const maps = pgTable("maps", {
   rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   gameModeId: varchar("game_mode_id").notNull().references(() => gameModes.id, { onDelete: "restrict" }),
+  imageUrl: text("image_url"),
   sortOrder: text("sort_order").default("0"),
 }, (table) => [
   index("maps_team_id_idx").on(table.teamId),

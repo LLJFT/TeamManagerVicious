@@ -16,7 +16,7 @@ import {
   ArrowLeft, Plus, Pencil, Trash2, Gamepad2, Map as MapIcon,
   ChevronRight, Calendar, BarChart3, Settings, Users, Shield,
   Clock, UserCog, Check, Ban, UserCheck, Search, ArrowUp, ArrowDown,
-  AlertTriangle, Database, Loader2, Swords, Target
+  AlertTriangle, Database, Loader2, Swords, Target, Image as ImageIcon
 } from "lucide-react";
 import type {
   GameMode, Map as MapType, Season, StatField, Role, Player,
@@ -35,6 +35,8 @@ import { format } from "date-fns";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { HeroesConfiguration } from "@/components/HeroesConfiguration";
+import { ObjectUploader } from "@/components/ObjectUploader";
+import { AvatarImage } from "@/components/ui/avatar";
 import { OpponentsConfiguration } from "@/components/OpponentsConfiguration";
 import { HeroBanSystemsConfiguration } from "@/components/HeroBanSystemsConfiguration";
 import { MapVetoSystemsConfiguration } from "@/components/MapVetoSystemsConfiguration";
@@ -58,6 +60,7 @@ const gameModeFormSchema = z.object({
 const mapFormSchema = z.object({
   name: z.string().min(1, "Map name is required"),
   gameModeId: z.string().min(1, "Game mode is required"),
+  imageUrl: z.string().nullable().optional(),
 });
 
 const seasonFormSchema = z.object({
@@ -1375,12 +1378,18 @@ export default function Dashboard() {
                     <div className="divide-y divide-border">
                       {selectedModeMaps.map((map) => (
                         <div key={map.id} className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors" data-testid={`row-map-${map.id}`}>
-                          <div className="flex items-center gap-3">
-                            <MapIcon className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-medium text-foreground" data-testid={`text-map-name-${map.id}`}>{map.name}</span>
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="h-9 w-12 shrink-0 rounded-sm border border-border overflow-hidden bg-muted/40 flex items-center justify-center">
+                              {map.imageUrl ? (
+                                <img src={map.imageUrl} alt={map.name} className="h-full w-full object-cover" data-testid={`img-map-thumb-${map.id}`} />
+                              ) : (
+                                <MapIcon className="h-4 w-4 text-muted-foreground" />
+                              )}
+                            </div>
+                            <span className="font-medium text-foreground truncate" data-testid={`text-map-name-${map.id}`}>{map.name}</span>
                           </div>
                           <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="icon" onClick={() => { setEditingMap(map); mapForm.reset({ name: map.name, gameModeId: map.gameModeId }); setShowMapDialog(true); }} data-testid={`button-edit-map-${map.id}`}>
+                            <Button variant="ghost" size="icon" onClick={() => { setEditingMap(map); mapForm.reset({ name: map.name, gameModeId: map.gameModeId, imageUrl: map.imageUrl ?? null }); setShowMapDialog(true); }} data-testid={`button-edit-map-${map.id}`}>
                               <Pencil className="h-4 w-4 text-muted-foreground" />
                             </Button>
                             <Button variant="ghost" size="icon" onClick={() => { if (confirm("Delete this map?")) deleteMapMutation.mutate(map.id); }} data-testid={`button-delete-map-${map.id}`}>
@@ -2388,6 +2397,42 @@ export default function Dashboard() {
                   <FormItem>
                     <FormLabel>Map Name</FormLabel>
                     <FormControl><Input {...field} placeholder="e.g., Central Park" data-testid="input-map-name" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={mapForm.control} name="imageUrl" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Map Image (optional)</FormLabel>
+                    <div className="flex items-center gap-3">
+                      <div className="h-14 w-20 shrink-0 rounded-md border border-border overflow-hidden bg-muted/40 flex items-center justify-center">
+                        {field.value ? (
+                          <img src={field.value} alt="map preview" className="h-full w-full object-cover" />
+                        ) : (
+                          <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <ObjectUploader
+                          onUploaded={(r) => field.onChange(r.url)}
+                          onError={(msg) => toast({ title: "Upload failed", description: msg, variant: "destructive" })}
+                        >
+                          {field.value ? "Replace Image" : "Upload Image"}
+                        </ObjectUploader>
+                        {field.value && (
+                          <Button type="button" variant="ghost" size="sm" onClick={() => field.onChange(null)} data-testid="button-map-image-remove">
+                            Remove image
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    <FormControl>
+                      <Input
+                        value={field.value || ""}
+                        onChange={(e) => field.onChange(e.target.value || null)}
+                        placeholder="…or paste image URL"
+                        data-testid="input-map-image-url"
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
