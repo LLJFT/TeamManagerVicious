@@ -1,0 +1,383 @@
+I want a full opponent management + event linking + two-sided game stats foundation. 
+
+  
+
+This should be built cleanly and future-proof because we will use it later for opponent analysis, hero analytics, compositions, Ban & Protect context, and OCR scoreboard import. 
+
+  
+
+1. Opponents management inside Dashboard 
+
+Add a dedicated "Opponents" section or tab inside the Dashboard. 
+
+  
+
+This section should be visible to admins only. 
+
+  
+
+From this section, admins should be able to: 
+
+- add a new opponent 
+
+- edit an opponent 
+
+- delete an opponent 
+
+- search/filter opponents 
+
+- manage each opponent's roster / lineup 
+
+  
+
+2. Opponent data model 
+
+Each opponent should support: 
+
+- opponent name 
+
+- optional short name / tag 
+
+- optional logo / image for later 
+
+- notes 
+
+- active / inactive toggle 
+
+  
+
+3. Opponent roster / lineup 
+
+Each opponent should have its own lightweight roster / lineup setup. 
+
+  
+
+For each opponent, I want to store: 
+
+- full player list 
+
+- starters / main players 
+
+- substitutes / reserves 
+
+- optional notes or extra fields later 
+
+  
+
+Important: 
+
+- Do not build this as a full normal roster like our own main rosters with all normal roster features 
+
+- This should be a lighter opponent roster / lineup system used for opponent tracking, game stats, hero usage, and future analysis 
+
+  
+
+4. Linking opponent to event 
+
+When creating or editing an event, I want to link exactly one opponent to the event. 
+
+  
+
+The opponent selector should: 
+
+- be a single select 
+
+- show opponent names 
+
+- support search 
+
+- be easy to use even if the opponent list becomes large 
+
+  
+
+5. Results page behavior 
+
+When I open the Results area for an event, I want the linked opponent name to already appear clearly inside Results / Games & Scoreboard as the Opponent Name for that event. 
+
+  
+
+In other words: 
+
+- if I linked an event to an opponent earlier 
+
+- then inside Results, it should already know which opponent this is 
+
+- and it should display that Opponent Name cleanly in the UI 
+
+  
+
+6. Two-sided game data 
+
+For each recorded game, I want support for both teams: 
+
+- our team player stats 
+
+- opponent team player stats 
+
+- our heroes used 
+
+- opponent heroes used 
+
+  
+
+This must be a proper two-sided game record, not only a roster-only stat system. 
+
+  
+
+7. Current stat fields are enough for now 
+
+For now, the stat entry system does not need to match a full real scoreboard screenshot 1:1. 
+
+Use the current stat fields structure as the example/foundation for player stat entry. 
+
+The important thing right now is: 
+
+- the data model 
+
+- the linking 
+
+- the player entry flow 
+
+- support for both sides 
+
+  
+
+Later we can expand the scoreboard columns and layout if needed. 
+
+  
+
+8. Player stat entry inside each game 
+
+Inside each recorded game, I want a structured player stat entry section for both teams. 
+
+  
+
+That means: 
+
+- one section for our team players 
+
+- one section for opponent team players 
+
+  
+
+Each side should show player rows that can be used for stat entry. 
+
+  
+
+Our side: 
+
+- use our linked roster players 
+
+  
+
+Opponent side: 
+
+- use the linked opponent roster players 
+
+  
+
+9. Player row behavior 
+
+For each player row inside a game, I want support for: 
+
+- player name 
+
+- played / did not play state 
+
+- hero selection 
+
+- stat entry fields 
+
+  
+
+This should work for both our team and the opponent team. 
+
+  
+
+10. DNP / unplayed handling 
+
+If a roster has more players than the ones who actually played: 
+
+- I should not be forced to enter full stats for everyone 
+
+- players who did not play should remain unplayed / DNP 
+
+- do not treat them as active players automatically 
+
+  
+
+Example: 
+
+- opponent roster has 7 players 
+
+- only 5 played in that game 
+
+- I should enter stats for the 5 who played 
+
+- the remaining 2 should stay DNP / unplayed 
+
+  
+
+The same logic should also work for our own roster side if needed. 
+
+  
+
+11. Heroes for both sides 
+
+For each player on both sides, I want to record the heroes used in that game. 
+
+  
+
+Important: 
+
+- this includes our team heroes and opponent team heroes 
+
+- a player can use more than one hero in one single game 
+
+- do not design this as one player = one hero only 
+
+  
+
+Hero entry should support: 
+
+- one or more heroes per player per game 
+
+- future hero usage analysis later 
+
+  
+
+12. Stat fields inside player rows 
+
+For now, use the current stat fields system as the base example for player stat entry. 
+
+Do not block this feature on cloning a final polished scoreboard screen. 
+
+  
+
+What matters now is: 
+
+- each player row can store stats 
+
+- both teams are supported 
+
+- the system is reusable later 
+
+- stat fields can be expanded later 
+
+  
+
+13. Recommended UI flow inside each game 
+
+Inside each game record, the stat entry flow should feel clean and structured. 
+
+  
+
+Game level: 
+
+- game mode 
+
+- map 
+
+- score 
+
+- opponent name already known from the linked event 
+
+  
+
+Then below that: 
+
+- Our Team Player Stats section 
+
+- Opponent Team Player Stats section 
+
+  
+
+Each section should show player rows from the correct roster source. 
+
+  
+
+Each player row should support: 
+
+- player name 
+
+- played toggle or DNP state 
+
+- one or more heroes used 
+
+- current stat fields 
+
+  
+
+14. Data source rules 
+
+Please keep these sources clearly separated. 
+
+  
+
+Our team player rows: 
+
+- come from our roster 
+
+  
+
+Opponent team player rows: 
+
+- come from the opponent linked to the event 
+
+  
+
+Do not mix them together manually if the event already has a linked opponent. 
+
+  
+
+15. Future use 
+
+This foundation will be used later for: 
+
+- opponent analysis 
+
+- player performance analysis 
+
+- hero usage tracking 
+
+- map / mode / opponent breakdowns 
+
+- compositions 
+
+- Ban & Protect context 
+
+- OCR scoreboard import later 
+
+  
+
+Important: 
+
+Please build this cleanly and future-proof. 
+
+  
+
+The key goals are: 
+
+- admins can manage opponents from the Dashboard 
+
+- each opponent has its own roster / lineup 
+
+- one opponent can be linked to one event 
+
+- opponent name is visible in Results 
+
+- searchable single-select opponent picker in event setup 
+
+- player stat rows inside each game 
+
+- hero usage for both teams 
+
+- multi-hero support per player in one game 
+
+- DNP support for players who did not play 
+
+- current stat fields used as the foundation for now 
+
+  
+
+Please stop after implementation and report exactly what was added, where it lives, and how the data flows from Dashboard → Event → Results → Game player stats. 

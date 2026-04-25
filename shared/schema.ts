@@ -347,6 +347,7 @@ export const events = pgTable("events", {
   description: text("description"),
   result: text("result"),
   opponentName: text("opponent_name"),
+  opponentId: varchar("opponent_id").references(() => opponents.id, { onDelete: "set null" }),
   notes: text("notes"),
   seasonId: varchar("season_id"),
 }, (table) => [
@@ -356,6 +357,7 @@ export const events = pgTable("events", {
   index("events_date_idx").on(table.date),
   index("events_event_type_idx").on(table.eventType),
   index("events_season_id_idx").on(table.seasonId),
+  index("events_opponent_id_idx").on(table.opponentId),
 ]);
 
 export const seasons = pgTable("seasons", {
@@ -431,11 +433,83 @@ export const games = pgTable("games", {
   mapId: varchar("map_id").references(() => maps.id, { onDelete: "set null" }),
   result: text("result"),
   link: text("link"),
+  opponentId: varchar("opponent_id").references(() => opponents.id, { onDelete: "set null" }),
 }, (table) => [
   index("games_team_id_idx").on(table.teamId),
   index("games_game_id_idx").on(table.gameId),
   index("games_event_id_idx").on(table.eventId),
   index("games_roster_id_idx").on(table.rosterId),
+  index("games_opponent_id_idx").on(table.opponentId),
+]);
+
+export const opponents = pgTable("opponents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
+  name: text("name").notNull(),
+  shortName: text("short_name"),
+  logoUrl: text("logo_url"),
+  notes: text("notes"),
+  isActive: boolean("is_active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+}, (table) => [
+  index("opponents_team_id_idx").on(table.teamId),
+  index("opponents_game_id_idx").on(table.gameId),
+  index("opponents_roster_id_idx").on(table.rosterId),
+  index("opponents_name_idx").on(table.name),
+]);
+
+export const opponentPlayers = pgTable("opponent_players", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
+  opponentId: varchar("opponent_id").notNull().references(() => opponents.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  role: text("role"),
+  isStarter: boolean("is_starter").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  notes: text("notes"),
+}, (table) => [
+  index("opponent_players_team_id_idx").on(table.teamId),
+  index("opponent_players_opponent_id_idx").on(table.opponentId),
+  index("opponent_players_roster_id_idx").on(table.rosterId),
+]);
+
+export const matchSides = ["us", "opponent"] as const;
+export type MatchSide = typeof matchSides[number];
+
+export const matchParticipants = pgTable("match_participants", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
+  matchId: varchar("match_id").notNull().references(() => games.id, { onDelete: "cascade" }),
+  side: text("side").notNull(),
+  playerId: varchar("player_id").references(() => players.id, { onDelete: "set null" }),
+  opponentPlayerId: varchar("opponent_player_id").references(() => opponentPlayers.id, { onDelete: "cascade" }),
+  played: boolean("played").notNull().default(true),
+}, (table) => [
+  index("match_participants_team_id_idx").on(table.teamId),
+  index("match_participants_match_id_idx").on(table.matchId),
+  index("match_participants_player_id_idx").on(table.playerId),
+  index("match_participants_opp_player_id_idx").on(table.opponentPlayerId),
+]);
+
+export const opponentPlayerGameStats = pgTable("opponent_player_game_stats", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  gameId: varchar("game_id"),
+  matchId: varchar("match_id").notNull().references(() => games.id, { onDelete: "cascade" }),
+  opponentPlayerId: varchar("opponent_player_id").references(() => opponentPlayers.id, { onDelete: "cascade" }),
+  statFieldId: varchar("stat_field_id").references(() => statFields.id, { onDelete: "set null" }),
+  value: text("value").notNull().default("0"),
+  createdAt: text("created_at").default(sql`now()`),
+}, (table) => [
+  index("opp_player_game_stats_team_id_idx").on(table.teamId),
+  index("opp_player_game_stats_match_id_idx").on(table.matchId),
+  index("opp_player_game_stats_opp_player_id_idx").on(table.opponentPlayerId),
 ]);
 
 export const sides = pgTable("sides", {
@@ -475,6 +549,7 @@ export const gameHeroes = pgTable("game_heroes", {
   rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
   matchId: varchar("match_id").notNull().references(() => games.id, { onDelete: "cascade" }),
   playerId: varchar("player_id").references(() => players.id, { onDelete: "set null" }),
+  opponentPlayerId: varchar("opponent_player_id").references(() => opponentPlayers.id, { onDelete: "cascade" }),
   heroId: varchar("hero_id").notNull().references(() => heroes.id, { onDelete: "restrict" }),
   roundNumber: integer("round_number"),
   sortOrder: integer("sort_order").notNull().default(0),
@@ -482,6 +557,7 @@ export const gameHeroes = pgTable("game_heroes", {
   index("game_heroes_team_id_idx").on(table.teamId),
   index("game_heroes_match_id_idx").on(table.matchId),
   index("game_heroes_player_id_idx").on(table.playerId),
+  index("game_heroes_opp_player_id_idx").on(table.opponentPlayerId),
   index("game_heroes_hero_id_idx").on(table.heroId),
   index("game_heroes_roster_id_idx").on(table.rosterId),
 ]);
@@ -815,6 +891,31 @@ export const insertGameHeroSchema = createInsertSchema(gameHeroes).omit({
   gameId: true,
 });
 
+export const insertOpponentSchema = createInsertSchema(opponents).omit({
+  id: true,
+  teamId: true,
+  gameId: true,
+});
+
+export const insertOpponentPlayerSchema = createInsertSchema(opponentPlayers).omit({
+  id: true,
+  teamId: true,
+  gameId: true,
+});
+
+export const insertMatchParticipantSchema = createInsertSchema(matchParticipants).omit({
+  id: true,
+  teamId: true,
+  gameId: true,
+});
+
+export const insertOpponentPlayerGameStatSchema = createInsertSchema(opponentPlayerGameStats).omit({
+  id: true,
+  teamId: true,
+  gameId: true,
+  createdAt: true,
+});
+
 export const insertGameRoundSchema = createInsertSchema(gameRounds).omit({
   id: true,
   teamId: true,
@@ -953,6 +1054,18 @@ export type InsertHero = z.infer<typeof insertHeroSchema>;
 
 export type GameHero = typeof gameHeroes.$inferSelect;
 export type InsertGameHero = z.infer<typeof insertGameHeroSchema>;
+
+export type Opponent = typeof opponents.$inferSelect;
+export type InsertOpponent = z.infer<typeof insertOpponentSchema>;
+
+export type OpponentPlayer = typeof opponentPlayers.$inferSelect;
+export type InsertOpponentPlayer = z.infer<typeof insertOpponentPlayerSchema>;
+
+export type MatchParticipant = typeof matchParticipants.$inferSelect;
+export type InsertMatchParticipant = z.infer<typeof insertMatchParticipantSchema>;
+
+export type OpponentPlayerGameStat = typeof opponentPlayerGameStats.$inferSelect;
+export type InsertOpponentPlayerGameStat = z.infer<typeof insertOpponentPlayerGameStatSchema>;
 
 export type StatField = typeof statFields.$inferSelect;
 export type InsertStatField = z.infer<typeof insertStatFieldSchema>;

@@ -19,6 +19,8 @@ import {
   chatChannelPermissions, activityLogs, playerGameStats, allPermissions,
   players, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays,
   heroes, gameHeroes, insertHeroSchema, insertGameHeroSchema,
+  opponents, opponentPlayers, matchParticipants, opponentPlayerGameStats,
+  insertOpponentSchema, insertOpponentPlayerSchema, insertMatchParticipantSchema, insertOpponentPlayerGameStatSchema,
   statFields as statFieldsTable,
   staff as staffTable,
   supportedGames, userGameAssignments, notifications, rosters,
@@ -410,7 +412,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "/api/players", "/api/events", "/api/attendance", "/api/schedule",
     "/api/staff", "/api/chat", "/api/availability-slots", "/api/roster-roles",
     "/api/player-availability", "/api/staff-availability", "/api/seasons",
-    "/api/sides", "/api/heroes",
+    "/api/sides", "/api/heroes", "/api/opponents",
     "/api/game-modes", "/api/maps", "/api/games", "/api/off-days",
     "/api/stat-fields", "/api/player-stats-summary", "/api/team-notes",
     "/api/activity-logs",
@@ -2225,6 +2227,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = await sanitizeScopeFields(req, insertEventSchema.partial().parse(req.body));
       const event = await storage.updateEvent(id, validatedData, existing.gameId, existing.rosterId);
       if (!event) return res.status(404).json({ error: "Event not found" });
+      // Cascade opponentId change to child games whose opponentId is null OR matches the prior event opponentId
+      if ("opponentId" in validatedData && validatedData.opponentId !== existing.opponentId) {
+        const conds: any[] = [eq(games.eventId, id), eq(games.teamId, teamId)];
+        if (existing.opponentId) {
+          conds.push(or(isNull(games.opponentId), eq(games.opponentId, existing.opponentId)));
+        } else {
+          conds.push(isNull(games.opponentId));
+        }
+        await db.update(games).set({ opponentId: validatedData.opponentId ?? null }).where(and(...conds));
+      }
       logActivity(req.session.userId!, "edit_event", `Updated event "${event.title}"`, "team", undefined, existing.gameId, existing.rosterId);
       res.json(event);
     } catch (error: any) {
@@ -2414,6 +2426,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/games", requireAuth, requirePermission("edit_events"), async (req, res) => {
     try {
       const validatedData = insertGameSchema.parse(req.body);
+      // Cascade: if game has no opponentId but its parent event does, default to event.opponentId
+      if (!validatedData.opponentId && validatedData.eventId) {
+        const teamId = getTeamId();
+        const [parentEvent] = await db.select().from(events)
+          .where(and(eq(events.id, validatedData.eventId), eq(events.teamId, teamId))).limit(1);
+        if (parentEvent && parentEvent.opponentId) {
+          validatedData.opponentId = parentEvent.opponentId;
+        }
+      }
       const game = await storage.addGame(validatedData, getGameId(req), getRosterId(req));
       logActivity(req.session.userId!, "add_game", `Added game to event`, "team", undefined, game.gameId, game.rosterId);
       res.json(game);
@@ -2807,6 +2828,233 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     } catch (error: any) {
       console.error('Error in DELETE /api/heroes:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  // ===== Opponents =====
+  app.get("/api/opponents", requireAuth, async (req, res) => {
+    try {
+      const list = await storage.getAllOpponents(getGameId(req), getRosterId(req));
+      res.json(list);
+    } catch (error: any) {
+      console.error('Error in GET /api/opponents:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.post("/api/opponents", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+    try {
+      const validatedData = insertOpponentSchema.parse(req.body);
+      const opp = await storage.addOpponent(validatedData, getGameId(req), getRosterId(req));
+      logActivity(req.session.userId!, "add_opponent", `Added opponent "${opp.name}"`, "team", undefined, opp.gameId, opp.rosterId);
+      res.json(opp);
+    } catch (error: any) {
+      console.error('Error in POST /api/opponents:', error);
+      if (error.name === 'ZodError') return res.status(400).json({ error: "Invalid opponent data", details: error.errors });
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.put("/api/opponents/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const existing = await storage.getOpponent(id);
+      if (!existing) return res.status(404).json({ error: "Opponent not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      const validatedData = await sanitizeScopeFields(req, insertOpponentSchema.partial().parse(req.body));
+      const updated = await storage.updateOpponent(id, validatedData, existing.gameId, existing.rosterId);
+      if (!updated) return res.status(404).json({ error: "Opponent not found" });
+      logActivity(req.session.userId!, "edit_opponent", `Updated opponent "${updated.name}"`, "team", undefined, existing.gameId, existing.rosterId);
+      res.json(updated);
+    } catch (error: any) {
+      console.error('Error in PUT /api/opponents:', error);
+      if (error.name === 'ZodError') return res.status(400).json({ error: "Invalid opponent data", details: error.errors });
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.delete("/api/opponents/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const existing = await storage.getOpponent(id);
+      if (!existing) return res.status(404).json({ error: "Opponent not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      const success = await storage.removeOpponent(id, existing.gameId, existing.rosterId);
+      if (success) {
+        logActivity(req.session.userId!, "delete_opponent", `Deleted opponent "${existing.name}"`, "team", undefined, existing.gameId, existing.rosterId);
+        res.json({ success: true });
+      } else {
+        res.status(404).json({ error: "Opponent not found" });
+      }
+    } catch (error: any) {
+      console.error('Error in DELETE /api/opponents:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  // ===== Opponent Players =====
+  app.get("/api/opponents/:id/players", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const existing = await storage.getOpponent(id);
+      if (!existing) return res.status(404).json({ error: "Opponent not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      const list = await storage.getOpponentPlayersByOpponentId(id);
+      res.json(list);
+    } catch (error: any) {
+      console.error('Error in GET /api/opponents/:id/players:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.post("/api/opponents/:id/players", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const existing = await storage.getOpponent(id);
+      if (!existing) return res.status(404).json({ error: "Opponent not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      const validatedData = insertOpponentPlayerSchema.parse({ ...req.body, opponentId: id });
+      const player = await storage.addOpponentPlayer(validatedData, existing.gameId, existing.rosterId);
+      logActivity(req.session.userId!, "add_opponent_player", `Added opponent player "${player.name}"`, "team", undefined, existing.gameId, existing.rosterId);
+      res.json(player);
+    } catch (error: any) {
+      console.error('Error in POST /api/opponents/:id/players:', error);
+      if (error.name === 'ZodError') return res.status(400).json({ error: "Invalid opponent player data", details: error.errors });
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.put("/api/opponent-players/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const existing = await storage.getOpponentPlayer(id);
+      if (!existing) return res.status(404).json({ error: "Opponent player not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      const validatedData = await sanitizeScopeFields(req, insertOpponentPlayerSchema.partial().parse(req.body));
+      const updated = await storage.updateOpponentPlayer(id, validatedData);
+      if (!updated) return res.status(404).json({ error: "Opponent player not found" });
+      res.json(updated);
+    } catch (error: any) {
+      console.error('Error in PUT /api/opponent-players:', error);
+      if (error.name === 'ZodError') return res.status(400).json({ error: "Invalid opponent player data", details: error.errors });
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.delete("/api/opponent-players/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const existing = await storage.getOpponentPlayer(id);
+      if (!existing) return res.status(404).json({ error: "Opponent player not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      const success = await storage.removeOpponentPlayer(id);
+      if (success) res.json({ success: true });
+      else res.status(404).json({ error: "Opponent player not found" });
+    } catch (error: any) {
+      console.error('Error in DELETE /api/opponent-players:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  // ===== Game Heroes (replace-all) =====
+  app.get("/api/games/:id/heroes", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = getTeamId();
+      const [game] = await db.select().from(games).where(and(eq(games.id, id), eq(games.teamId, teamId))).limit(1);
+      if (!game) return res.status(404).json({ error: "Game not found" });
+      if (!await verifyObjectScope(req, res, game.gameId, game.rosterId)) return;
+      const rows = await storage.getGameHeroesByMatchId(id);
+      res.json(rows);
+    } catch (error: any) {
+      console.error('Error in GET /api/games/:id/heroes:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.put("/api/games/:id/heroes", requireAuth, requirePermission("edit_events"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = getTeamId();
+      const [game] = await db.select().from(games).where(and(eq(games.id, id), eq(games.teamId, teamId))).limit(1);
+      if (!game) return res.status(404).json({ error: "Game not found" });
+      if (!await verifyObjectScope(req, res, game.gameId, game.rosterId)) return;
+      const rowsSchema = z.array(insertGameHeroSchema.omit({ matchId: true }));
+      const rows = rowsSchema.parse(req.body);
+      const saved = await storage.replaceGameHeroes(id, rows, game.gameId, game.rosterId);
+      res.json(saved);
+    } catch (error: any) {
+      console.error('Error in PUT /api/games/:id/heroes:', error);
+      if (error.name === 'ZodError') return res.status(400).json({ error: "Invalid hero data", details: error.errors });
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  // ===== Game Participation (per-side roster + DNP) =====
+  app.get("/api/games/:id/participation", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = getTeamId();
+      const [game] = await db.select().from(games).where(and(eq(games.id, id), eq(games.teamId, teamId))).limit(1);
+      if (!game) return res.status(404).json({ error: "Game not found" });
+      if (!await verifyObjectScope(req, res, game.gameId, game.rosterId)) return;
+      const participants = await storage.getMatchParticipants(id);
+      res.json(participants);
+    } catch (error: any) {
+      console.error('Error in GET /api/games/:id/participation:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.put("/api/games/:id/participation", requireAuth, requirePermission("edit_events"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = getTeamId();
+      const [game] = await db.select().from(games).where(and(eq(games.id, id), eq(games.teamId, teamId))).limit(1);
+      if (!game) return res.status(404).json({ error: "Game not found" });
+      if (!await verifyObjectScope(req, res, game.gameId, game.rosterId)) return;
+      const rowsSchema = z.array(insertMatchParticipantSchema.omit({ matchId: true }));
+      const rows = rowsSchema.parse(req.body);
+      const saved = await storage.replaceMatchParticipants(id, rows, game.gameId, game.rosterId);
+      res.json(saved);
+    } catch (error: any) {
+      console.error('Error in PUT /api/games/:id/participation:', error);
+      if (error.name === 'ZodError') return res.status(400).json({ error: "Invalid participation data", details: error.errors });
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  // ===== Opponent player stats per game =====
+  app.get("/api/games/:id/opponent-player-stats", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = getTeamId();
+      const [game] = await db.select().from(games).where(and(eq(games.id, id), eq(games.teamId, teamId))).limit(1);
+      if (!game) return res.status(404).json({ error: "Game not found" });
+      if (!await verifyObjectScope(req, res, game.gameId, game.rosterId)) return;
+      const stats = await storage.getOpponentPlayerGameStats(id);
+      res.json(stats);
+    } catch (error: any) {
+      console.error('Error in GET /api/games/:id/opponent-player-stats:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.post("/api/games/:id/opponent-player-stats", requireAuth, requirePermission("edit_events"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = getTeamId();
+      const [game] = await db.select().from(games).where(and(eq(games.id, id), eq(games.teamId, teamId))).limit(1);
+      if (!game) return res.status(404).json({ error: "Game not found" });
+      if (!await verifyObjectScope(req, res, game.gameId, game.rosterId)) return;
+      const rowsSchema = z.array(insertOpponentPlayerGameStatSchema.omit({ matchId: true }));
+      const rows = rowsSchema.parse(req.body);
+      const saved = await storage.saveOpponentPlayerGameStats(id, rows.map(r => ({ ...r, matchId: id })), game.gameId);
+      res.json(saved);
+    } catch (error: any) {
+      console.error('Error in POST /api/games/:id/opponent-player-stats:', error);
+      if (error.name === 'ZodError') return res.status(400).json({ error: "Invalid opponent stats data", details: error.errors });
       res.status(500).json({ error: error.message || "Internal server error" });
     }
   });

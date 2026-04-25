@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -28,9 +28,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Check, ChevronsUpDown, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { TIMEZONE_OPTIONS, getTzOffset, localToUtc, utcToLocal } from "@/lib/eventTimezones";
-import { eventTypes, insertEventSchema, type Event, type Season, type EventCategory, type EventSubType } from "@shared/schema";
+import { eventTypes, insertEventSchema, type Event, type Season, type EventCategory, type EventSubType, type Opponent } from "@shared/schema";
 
 const formSchema = insertEventSchema.extend({
   time: z.string().optional(),
@@ -38,6 +42,7 @@ const formSchema = insertEventSchema.extend({
   description: z.string().optional(),
   seasonId: z.string().optional(),
   eventSubType: z.string().optional(),
+  opponentId: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -71,8 +76,15 @@ export function EventDialog({
     queryKey: ["/api/event-sub-types"],
   });
 
+  const { data: opponents = [] } = useQuery<Opponent[]>({
+    queryKey: ["/api/opponents"],
+  });
+  const activeOpponents = opponents.filter(o => o.isActive);
+
+  const [opponentPickerOpen, setOpponentPickerOpen] = useState(false);
+
   const allEventTypeOptions = eventCategories.length > 0
-    ? [...new Set(eventCategories.map(c => c.name))]
+    ? Array.from(new Set(eventCategories.map(c => c.name)))
     : [...eventTypes];
 
   const defaultTz = (typeof window !== "undefined" && localStorage.getItem("home_calendar_tz")) || "UTC";
@@ -92,6 +104,7 @@ export function EventDialog({
       timezone: editTz,
       description: eventToEdit?.description || "",
       seasonId: eventToEdit?.seasonId || "",
+      opponentId: eventToEdit?.opponentId || "",
     },
   });
 
@@ -117,6 +130,7 @@ export function EventDialog({
         timezone: tz,
         description: eventToEdit.description || "",
         seasonId: eventToEdit.seasonId || "",
+        opponentId: eventToEdit.opponentId || "",
       });
     } else if (selectedDate) {
       form.setValue("date", format(selectedDate, "yyyy-MM-dd"));
@@ -141,6 +155,7 @@ export function EventDialog({
         timezone: tz,
         seasonId: data.seasonId === "" || data.seasonId === "none" ? null : data.seasonId,
         eventSubType: data.eventSubType === "" || data.eventSubType === "none" ? null : data.eventSubType,
+        opponentId: data.opponentId === "" || data.opponentId === "none" ? null : data.opponentId,
       };
       if (isEditMode && eventToEdit) {
         const response = await apiRequest("PUT", `/api/events/${eventToEdit.id}`, payload);
@@ -254,6 +269,72 @@ export function EventDialog({
                   <FormMessage />
                 </FormItem>
               )}
+            />
+
+            <FormField
+              control={form.control}
+              name="opponentId"
+              render={({ field }) => {
+                const selected = activeOpponents.find(o => o.id === field.value);
+                return (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Opponent (optional)</FormLabel>
+                    <Popover open={opponentPickerOpen} onOpenChange={setOpponentPickerOpen}>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            role="combobox"
+                            className={cn("justify-between font-normal", !selected && "text-muted-foreground")}
+                            data-testid="button-opponent-picker"
+                          >
+                            <span className="truncate">{selected ? selected.name : "Select opponent..."}</span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {selected && (
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={(e) => { e.stopPropagation(); field.onChange(""); }}
+                                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); field.onChange(""); } }}
+                                  className="rounded-sm hover:bg-accent p-0.5"
+                                  data-testid="button-clear-opponent"
+                                >
+                                  <X className="h-3.5 w-3.5 text-muted-foreground" />
+                                </span>
+                              )}
+                              <ChevronsUpDown className="h-4 w-4 opacity-50" />
+                            </div>
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                        <Command>
+                          <CommandInput placeholder="Search opponents..." data-testid="input-opponent-search" />
+                          <CommandList>
+                            <CommandEmpty>No opponents found.</CommandEmpty>
+                            <CommandGroup>
+                              {activeOpponents.map((opp) => (
+                                <CommandItem
+                                  key={opp.id}
+                                  value={opp.name + " " + (opp.shortName || "")}
+                                  onSelect={() => { field.onChange(opp.id); setOpponentPickerOpen(false); }}
+                                  data-testid={`option-opponent-${opp.id}`}
+                                >
+                                  <Check className={cn("mr-2 h-4 w-4", field.value === opp.id ? "opacity-100" : "opacity-0")} />
+                                  <span className="truncate">{opp.name}</span>
+                                  {opp.shortName && <span className="ml-2 text-xs text-muted-foreground">[{opp.shortName}]</span>}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                );
+              }}
             />
 
             <div className="grid grid-cols-2 gap-4">

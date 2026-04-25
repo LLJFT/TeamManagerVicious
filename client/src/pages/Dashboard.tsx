@@ -35,6 +35,7 @@ import { format } from "date-fns";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { HeroesConfiguration } from "@/components/HeroesConfiguration";
+import { OpponentsConfiguration } from "@/components/OpponentsConfiguration";
 
 interface UserWithRole {
   id: string;
@@ -1183,6 +1184,7 @@ export default function Dashboard() {
 
   const availableTabs: { value: string; label: string; icon: any; show: boolean }[] = [
     { value: "game-config", label: "Game Config", icon: Gamepad2, show: canManageGameConfig },
+    { value: "opponents", label: "Opponents", icon: Users, show: canManageGameConfig },
     { value: "team", label: "Team", icon: UserCog, show: canViewDashboard },
     { value: "users", label: "Users", icon: Users, show: canManageUsers },
     { value: "roles", label: "Roles", icon: Shield, show: canManageRoles },
@@ -1645,6 +1647,11 @@ export default function Dashboard() {
             </div>
 
             <HeroesConfiguration canEdit={canManageGameConfig} />
+          </TabsContent>
+
+          {/* Tab: Opponents */}
+          <TabsContent value="opponents" className="space-y-6">
+            <OpponentsConfiguration canEdit={canManageGameConfig} />
           </TabsContent>
 
           {/* Tab 2: Team */}

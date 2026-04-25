@@ -3,7 +3,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { EventsSkeleton } from "@/components/PageSkeleton";
 import { useGame } from "@/hooks/use-game";
-import type { Event, EventResult, Game, InsertGame, GameMode, Map as MapType, Player, StatField, PlayerGameStat, Attendance, Staff, Side, GameRound } from "@shared/schema";
+import type { Event, EventResult, Game, InsertGame, GameMode, Map as MapType, Player, StatField, PlayerGameStat, Attendance, Staff, Side, GameRound, Hero, Opponent } from "@shared/schema";
+import { MatchSidesEditor } from "@/components/MatchSidesEditor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,116 +22,6 @@ import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { ObjectUploader } from "@/components/ObjectUploader";
-
-function GameStatsEditor({ game, players, statFields, onSave, isSaving }: {
-  game: Game;
-  players: Player[];
-  statFields: StatField[];
-  onSave: (stats: { gameId: string; playerId: string; statFieldId: string; value: string }[]) => void;
-  isSaving: boolean;
-}) {
-  const [localStats, setLocalStats] = useState<Record<string, Record<string, string>>>({});
-  const [initializedForGameId, setInitializedForGameId] = useState<string | null>(null);
-
-  const { data: existingStats = [], isSuccess } = useQuery<PlayerGameStat[]>({
-    queryKey: ["/api/games", game.id, "player-stats"],
-    queryFn: async () => {
-      const response = await fetch(`/api/games/${game.id}/player-stats`);
-      if (!response.ok) throw new Error("Failed to fetch player stats");
-      return response.json();
-    },
-  });
-
-  useEffect(() => {
-    if (isSuccess && initializedForGameId !== game.id) {
-      const statsMap: Record<string, Record<string, string>> = {};
-      for (const stat of existingStats) {
-        if (!statsMap[stat.playerId]) statsMap[stat.playerId] = {};
-        statsMap[stat.playerId][stat.statFieldId] = stat.value;
-      }
-      setLocalStats(statsMap);
-      setInitializedForGameId(game.id);
-    }
-  }, [existingStats, isSuccess, game.id, initializedForGameId]);
-
-  const handleSave = () => {
-    const stats: { gameId: string; playerId: string; statFieldId: string; value: string }[] = [];
-    for (const playerId of Object.keys(localStats)) {
-      for (const fieldId of Object.keys(localStats[playerId])) {
-        const val = localStats[playerId][fieldId];
-        if (val && val.trim() !== "") {
-          stats.push({ gameId: game.id, playerId, statFieldId: fieldId, value: val });
-        }
-      }
-    }
-    onSave(stats);
-  };
-
-  if (statFields.length === 0 || players.length === 0) return null;
-
-  return (
-    <Card className="mt-3">
-      <CardHeader className="py-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4 text-primary" />
-            <CardTitle className="text-base">Player Stats - {game.gameCode}</CardTitle>
-          </div>
-          <Button
-            size="sm"
-            onClick={handleSave}
-            disabled={isSaving}
-            data-testid={`button-save-stats-${game.id}`}
-          >
-            <Save className="h-4 w-4 mr-2" />
-            {isSaving ? "Saving..." : "Save Stats"}
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="pt-0">
-        <div className="border border-border rounded-lg overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-muted">
-              <tr>
-                <th className="p-2 text-left font-semibold text-sm">Player</th>
-                {statFields.map((field) => (
-                  <th key={field.id} className="p-2 text-center font-semibold text-sm">
-                    {field.name}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {players.map((player) => (
-                <tr key={player.id} className="border-t border-border">
-                  <td className="p-2 text-sm font-medium whitespace-nowrap">
-                    {player.name}
-                  </td>
-                  {statFields.map((field) => (
-                    <td key={field.id} className="p-2">
-                      <Input
-                        value={localStats[player.id]?.[field.id] || ""}
-                        onChange={(e) => {
-                          const updated = { ...localStats };
-                          if (!updated[player.id]) updated[player.id] = {};
-                          updated[player.id] = { ...updated[player.id], [field.id]: e.target.value };
-                          setLocalStats(updated);
-                        }}
-                        className="w-20 text-center text-sm"
-                        placeholder="0"
-                        data-testid={`edit-stat-${game.id}-${player.id}-${field.id}`}
-                      />
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
 
 export default function EventDetails() {
   const [, params] = useRoute("/:gameSlug/:rosterCode/events/:id");
@@ -244,6 +135,15 @@ export default function EventDetails() {
   const { data: allStaff = [] } = useQuery<Staff[]>({
     queryKey: ["/api/staff"],
   });
+
+  const { data: allHeroes = [] } = useQuery<Hero[]>({
+    queryKey: ["/api/heroes"],
+  });
+
+  const { data: allOpponents = [] } = useQuery<Opponent[]>({
+    queryKey: ["/api/opponents"],
+  });
+  const linkedOpponent = allOpponents.find(o => o.id === (event?.opponentId || ""));
 
   const { data: attendanceRecords = [], isLoading: attendanceLoading } = useQuery<Attendance[]>({
     queryKey: ["/api/events", eventId, "attendance"],
@@ -890,13 +790,22 @@ export default function EventDetails() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Opponent Name</label>
-              <Input
-                value={opponentName}
-                onChange={(e) => setOpponentName(e.target.value)}
-                placeholder="Enter opponent team name"
-                data-testid="input-opponent"
-              />
+              <label className="block text-sm font-medium mb-2">Opponent</label>
+              {linkedOpponent ? (
+                <div className="flex items-center gap-2 p-2 border border-border rounded-md bg-muted/40" data-testid="display-linked-opponent">
+                  <Badge variant="secondary">Linked</Badge>
+                  <span className="text-sm font-medium">{linkedOpponent.name}</span>
+                  {linkedOpponent.shortName && <span className="text-xs text-muted-foreground">[{linkedOpponent.shortName}]</span>}
+                  <span className="text-xs text-muted-foreground ml-2">Edit on the event itself to change.</span>
+                </div>
+              ) : (
+                <Input
+                  value={opponentName}
+                  onChange={(e) => setOpponentName(e.target.value)}
+                  placeholder="Enter opponent team name (or link an opponent via Edit Event)"
+                  data-testid="input-opponent"
+                />
+              )}
             </div>
 
             <div>
@@ -1308,12 +1217,19 @@ export default function EventDetails() {
                   const game = games.find(g => g.id === expandedGameStats);
                   if (!game || !game.gameModeId) return null;
                   return (
-                    <GameStatsEditor
+                    <MatchSidesEditor
                       game={game}
-                      players={allPlayers}
+                      opponentId={game.opponentId || event?.opponentId || null}
+                      ourPlayers={allPlayers}
                       statFields={getStatFieldsByMode(game.gameModeId)}
-                      onSave={(stats) => savePlayerStatsMutation.mutate({ gameId: game.id, stats })}
+                      heroes={allHeroes}
                       isSaving={savePlayerStatsMutation.isPending}
+                      onSavedToast={(msg, type) => {
+                        setToastMessage(msg);
+                        setToastType(type);
+                        setShowToast(true);
+                        setTimeout(() => setShowToast(false), 3000);
+                      }}
                     />
                   );
                 })()}
