@@ -3084,7 +3084,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== Hero Ban Systems (roster-scoped config) =====
   app.get("/api/hero-ban-systems", requireAuth, async (req, res) => {
     try {
-      const list = await storage.getAllHeroBanSystems(getGameId(req), getRosterId(req));
+      const gameId = getGameId(req);
+      const rosterId = getRosterId(req);
+      const teamId = getTeamId();
+      const [user] = await db.select().from(users).where(and(eq(users.id, req.session.userId!), eq(users.teamId, teamId))).limit(1);
+      const isAdmin = user && (user.orgRole === "super_admin" || user.orgRole === "org_admin");
+      if (!isAdmin && !gameId) {
+        return res.status(403).json({ error: "Game context required" });
+      }
+      if (gameId && !await verifyObjectScope(req, res, gameId, rosterId)) return;
+      let list = await storage.getAllHeroBanSystems(gameId, rosterId);
+      if (!isAdmin && gameId && !rosterId) {
+        const assigns = await db.select().from(userGameAssignments).where(and(
+          eq(userGameAssignments.userId, req.session.userId!),
+          eq(userGameAssignments.gameId, gameId),
+          eq(userGameAssignments.status, "approved"),
+          eq(userGameAssignments.teamId, teamId),
+        ));
+        const hasGameWide = assigns.some(a => a.rosterId === null);
+        if (!hasGameWide) {
+          const allowedRosters = new Set(assigns.map(a => a.rosterId).filter((r): r is string => !!r));
+          list = list.filter(s => s.rosterId === null || (s.rosterId && allowedRosters.has(s.rosterId)));
+        }
+      }
       res.json(list);
     } catch (error: any) {
       console.error('Error in GET /api/hero-ban-systems:', error);
@@ -3094,8 +3116,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/hero-ban-systems", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
+      const gameId = getGameId(req);
+      const rosterId = getRosterId(req);
+      if (!await verifyObjectScope(req, res, gameId, rosterId)) return;
       const validated = insertHeroBanSystemSchema.parse(req.body);
-      const row = await storage.addHeroBanSystem(validated, getGameId(req), getRosterId(req));
+      const row = await storage.addHeroBanSystem(validated, gameId, rosterId);
       logActivity(req.session.userId!, "add_hero_ban_system", `Added Hero Ban System "${row.name}"`, "team", undefined, row.gameId, row.rosterId);
       res.json(row);
     } catch (error: any) {
@@ -3146,7 +3171,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== Map Veto Systems (roster-scoped config) =====
   app.get("/api/map-veto-systems", requireAuth, async (req, res) => {
     try {
-      const list = await storage.getAllMapVetoSystems(getGameId(req), getRosterId(req));
+      const gameId = getGameId(req);
+      const rosterId = getRosterId(req);
+      const teamId = getTeamId();
+      const [user] = await db.select().from(users).where(and(eq(users.id, req.session.userId!), eq(users.teamId, teamId))).limit(1);
+      const isAdmin = user && (user.orgRole === "super_admin" || user.orgRole === "org_admin");
+      if (!isAdmin && !gameId) {
+        return res.status(403).json({ error: "Game context required" });
+      }
+      if (gameId && !await verifyObjectScope(req, res, gameId, rosterId)) return;
+      let list = await storage.getAllMapVetoSystems(gameId, rosterId);
+      if (!isAdmin && gameId && !rosterId) {
+        const assigns = await db.select().from(userGameAssignments).where(and(
+          eq(userGameAssignments.userId, req.session.userId!),
+          eq(userGameAssignments.gameId, gameId),
+          eq(userGameAssignments.status, "approved"),
+          eq(userGameAssignments.teamId, teamId),
+        ));
+        const hasGameWide = assigns.some(a => a.rosterId === null);
+        if (!hasGameWide) {
+          const allowedRosters = new Set(assigns.map(a => a.rosterId).filter((r): r is string => !!r));
+          list = list.filter(s => s.rosterId === null || (s.rosterId && allowedRosters.has(s.rosterId)));
+        }
+      }
       res.json(list);
     } catch (error: any) {
       console.error('Error in GET /api/map-veto-systems:', error);
@@ -3156,8 +3203,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/map-veto-systems", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
+      const gameId = getGameId(req);
+      const rosterId = getRosterId(req);
+      if (!await verifyObjectScope(req, res, gameId, rosterId)) return;
       const validated = insertMapVetoSystemSchema.parse(req.body);
-      const row = await storage.addMapVetoSystem(validated, getGameId(req), getRosterId(req));
+      const row = await storage.addMapVetoSystem(validated, gameId, rosterId);
       logActivity(req.session.userId!, "add_map_veto_system", `Added Map Veto System "${row.name}"`, "team", undefined, row.gameId, row.rosterId);
       res.json(row);
     } catch (error: any) {
@@ -3285,22 +3335,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (rows.length > 40) return res.status(400).json({ error: "Map veto cannot exceed 40 rows" });
       const mapIds = Array.from(new Set(rows.map(r => r.mapId).filter((x): x is string => !!x)));
       if (mapIds.length > 0) {
-        const valid = await db.select({ id: maps.id }).from(maps).where(and(
+        const mapConditions = [
           inArray(maps.id, mapIds),
           eq(maps.teamId, teamId),
           eq(maps.gameId, game.gameId!),
-        ));
+        ];
+        if (game.rosterId) {
+          mapConditions.push(or(isNull(maps.rosterId), eq(maps.rosterId, game.rosterId))!);
+        }
+        const valid = await db.select({ id: maps.id }).from(maps).where(and(...mapConditions));
         if (valid.length !== mapIds.length) {
           return res.status(400).json({ error: "One or more maps are out of scope for this match" });
         }
       }
       const sideIds = Array.from(new Set(rows.map(r => r.sideId).filter((x): x is string => !!x)));
       if (sideIds.length > 0) {
-        const valid = await db.select({ id: sides.id }).from(sides).where(and(
+        const sideConditions = [
           inArray(sides.id, sideIds),
           eq(sides.teamId, teamId),
           eq(sides.gameId, game.gameId!),
-        ));
+        ];
+        if (game.rosterId) {
+          sideConditions.push(or(isNull(sides.rosterId), eq(sides.rosterId, game.rosterId))!);
+        }
+        const valid = await db.select({ id: sides.id }).from(sides).where(and(...sideConditions));
         if (valid.length !== sideIds.length) {
           return res.status(400).json({ error: "One or more sides are out of scope for this match" });
         }
