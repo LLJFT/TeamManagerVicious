@@ -1,0 +1,345 @@
+This is a major implementation and stabilization task. Execute it in phases, in order. Do not skip validation. Do not change unrelated systems. Preserve all currently working functionality unless a change is explicitly requested below.
+
+PRIMARY RULES
+- Do not break existing working features.
+- Do not mass-delete and recreate records if a safe update/upsert path exists.
+- Do not break relationships between games, game modes, maps, heroes, teams, rosters, bans, veto, analytics, and media.
+- Use stable IDs and safe migrations where needed.
+- If reliable real data is not available for a field, leave it safely empty rather than inventing fake data.
+- Finish each phase, validate it, and report what changed before moving to the next phase.
+
+PHASE 1 — Super Admin recovery and access fix
+There is a critical access issue with the super admin account.
+
+Requirements:
+1. Restore the single super admin account so it works reliably again.
+2. The final super admin credentials must be exactly:
+- username: Boss
+- password: TheBootcamp&2!@90A94
+
+3. Make sure this account has full super admin access, including:
+- login access
+- dashboard/admin access
+- any preview/build/admin permissions tied to super admin privileges
+
+4. If there is an old conflicting admin/super-admin record, fix it safely without breaking unrelated users.
+5. Do not redesign the full auth system.
+6. Do not break or remove normal user accounts.
+7. Confirm at the end of this phase that the Boss account works correctly.
+
+PHASE 2 — Audit and fix all image persistence and map/media integrity
+Before seeding or expanding data, audit and fix all image/media behavior across the site.
+
+Requirements:
+1. Audit image/media handling in:
+- Dashboard → Game Config → Maps
+- Map Veto UI
+- Heroes Configuration
+- Opponents / teams
+- all other uploaded image/media areas
+
+2. Confirm uploaded images do NOT disappear after:
+- save
+- edit
+- refresh
+- page reload
+- roster switch
+- game switch
+- deploy
+- production/runtime usage
+
+3. Fix any issue where an image:
+- disappears
+- becomes broken
+- shows as a black square
+- gets overwritten
+- clears itself unexpectedly
+- causes unrelated records to be deleted
+- fails to persist after save/deploy
+
+4. Re-check the critical map image bug:
+Uploading or replacing the image for one map must update ONLY that specific map record.
+It must never delete, replace, overwrite, or affect any other map records.
+
+5. Add safe image fallbacks everywhere:
+- hero placeholder if hero image is missing/broken
+- map placeholder icon if map image is missing/broken
+- team/opponent placeholder if logo/image is missing/broken
+- no broken image icons
+- no black squares
+
+6. If an image URL fails or becomes unavailable, preserve the record and show fallback UI instead of clearing the saved image field.
+
+7. Report exactly what was audited and fixed before moving on.
+
+PHASE 3 — Add proper per-game Hero Roles Configuration
+The system must support different hero roles per game and must not assume one hardcoded role model.
+
+Requirements:
+1. Add a Hero Roles Configuration section in Dashboard / Game Config.
+2. Hero roles must be game-scoped, not one global fixed list.
+3. Admin must be able to:
+- add role
+- edit role
+- delete role
+- reorder role
+- enable/disable role if needed
+
+4. “All” may remain as a generic UI filter tab, but actual roles must come from the currently selected game’s role configuration.
+
+5. Everywhere hero roles are used, they must read from this configuration:
+- Heroes Configuration filter tabs
+- Add Hero / Edit Hero forms
+- hero role labels/badges
+- hero selectors
+- any hero-related filters or displays
+
+6. If a role is deleted, require safe reassignment or safe fallback for heroes assigned to that role.
+7. Do not break existing hero data.
+
+PHASE 4 — Seed Overwatch as the first complete real-data example
+Use Overwatch as the first fully seeded competitive example.
+
+4A. Configure Overwatch hero roles
+Overwatch roles must be:
+- Damage
+- Tank
+- Support
+
+4B. Add Overwatch heroes
+Add these heroes with the correct role, active status, ordering, and image.
+
+Damage:
+- Anran
+- Ashe
+- Bastion
+- Cassidy
+- Echo
+- Emre
+- Freja
+- Genji
+- Hanzo
+- Junkrat
+- Mei
+- Pharah
+- Reaper
+- Sierra
+- Sojourn
+- Soldier: 76
+- Sombra
+- Symmetra
+- Torbjörn
+- Tracer
+- Vendetta
+- Venture
+- Widowmaker
+
+Support:
+- Ana
+- Baptiste
+- Brigitte
+- Illari
+- Jetpack Cat
+- Juno
+- Kiriko
+- Lifeweaver
+- Lúcio
+- Mercy
+- Mizuki
+- Moira
+- Wuyang
+- Zenyatta
+
+Tank:
+- D.Va
+- Domina
+- Doomfist
+- Hazard
+- Junker Queen
+- Mauga
+- Orisa
+- Ramattra
+- Reinhardt
+- Roadhog
+- Sigma
+- Winston
+- Wrecking Ball
+- Zarya
+
+Requirements:
+1. Every hero must have:
+- correct name
+- correct role
+- image
+- active status
+- clean ordering
+- no duplicates
+
+2. Do not apply Marvel Rivals role assumptions to Overwatch.
+3. Ensure hero images display correctly in all hero-related UI.
+
+PHASE 5 — Seed real competitive opponents and rosters
+Add at least 16 real high-level competitive Overwatch opponents from this year or last year.
+Priority: OWCS-era / tier-1 or near-tier-1 competitive teams.
+
+Use these as example seed targets, not placeholders:
+- Team Peps
+- Twisted Minds
+- Virtus.pro
+- Geekay Esports
+- Al Qadsiah
+
+You may add other real teams to reach at least 16.
+
+Use these player names as example references where appropriate and reliable:
+- Team Peps: Zorrow, Dip, SoOn, WillyS, FDGoD, Xerion
+- Twisted Minds: Quartz, Youbi, JaeWoo, TVNT, KSAA, FunnyAstro, Simple
+- Virtus.pro: kevster, Seicoe, eisgnom, FiXa, Landon
+- Geekay Esports: LBBD7, AlphaYi, ZIYAD, Haku, FiNN
+- Al Qadsiah: Taejong, Vestola, Galaa, SirMajed
+
+Requirements:
+1. Use current or recent reliable competitive roster data where possible.
+2. Do not fake unsupported roster data.
+3. For each opponent/team, add as much reliable data as possible:
+- team name
+- logo/image
+- region
+- roster players
+- player role if available
+- active status if needed
+
+4. Ensure team/opponent images/logos render correctly with fallback behavior.
+
+PHASE 6 — Add competitive game modes and tournament map pools
+For each supported game, add proper competitive game modes and tournament map pools.
+Do NOT use casual or general public map pools if the esport uses different competitive pools.
+
+Requirements:
+1. Add game modes per game.
+2. Add maps per game mode.
+3. Add map images wherever possible.
+4. Ensure map labels display correctly everywhere.
+5. Map labels in pickers/lists must use this format:
+- Game Mode Name — Map Name
+
+6. If a map has an image, show a thumbnail.
+7. If a map image is missing or broken, show a proper map placeholder icon instead of a broken image or black square.
+
+For Overwatch specifically:
+- add competitive/tournament-relevant game modes
+- add tournament-relevant maps
+- make the pool suitable for esports use
+
+PHASE 7 — Move Hero Ban / Map Veto configuration BEFORE Add Game creation
+This is a critical workflow change.
+
+Right now Hero Ban / Map Veto setup appears only after creating the game.
+That is wrong.
+
+I want Hero Ban / Map Veto and related competitive setup to happen BEFORE final Add Game submission, so I can configure everything first and then create the game once.
+
+Requirements:
+1. In the Add New Game flow, move all relevant pre-match configuration before the final Add Game action, including:
+- Hero Ban settings if supported by the game/system
+- Map Veto settings if supported by the game/system
+- any related competitive setup needed to define the match correctly before creation
+
+2. The workflow should allow me to fill all required information first, review it, and then submit Add Game once at the end.
+
+3. Do not require me to create the game first and then go back to configure bans/veto afterward.
+
+4. This must be implemented safely without breaking existing saved games or edit flows.
+
+5. If some games do not support Hero Ban or Map Veto, hide or disable those sections cleanly rather than showing irrelevant UI.
+
+PHASE 8 — Configure Map Veto / Hero Ban only where competitively appropriate
+Do not force these systems for games that do not use them competitively.
+
+Requirements:
+1. If a game has a real competitive map veto flow, support Map Veto for it.
+2. If a game has a real competitive hero/character ban system, support Hero Ban for it.
+3. If a game does not use one of these systems competitively, do not fake it.
+4. Make sure these systems read the correct seeded data:
+- games
+- game modes
+- maps
+- heroes
+- roles
+- teams/opponents if relevant
+
+PHASE 9 — Build analytics-ready opponent intelligence foundation
+Start building the data structure required for real scouting and analytics.
+
+For seeded opponents/teams, support structured data where possible for:
+- roster
+- hero preferences
+- hero usage
+- map tendencies
+- map veto tendencies
+- ban tendencies where the game supports bans
+- match history structure
+- analytics compatibility with statistics / compare / opponents pages
+
+Important:
+1. Do not fake advanced stats that do not exist.
+2. If exact statistics are not available yet, build the structure cleanly for future support.
+3. The goal is a strong foundation for:
+- opponents
+- statistics
+- compare
+- hero analytics
+- map analytics
+- ban/veto preparation
+
+PHASE 10 — Real testing, not superficial preview-only testing
+I want real testing, not just a quick local preview check.
+
+Requirements:
+1. Test in the actual running environment and real deployment flow, not only local preview.
+2. Verify that the seeded Overwatch data works correctly, including:
+- heroes
+- hero roles
+- hero images
+- opponents
+- opponent/team logos
+- game modes
+- maps
+- map images
+- map labels
+- map veto where supported
+- hero ban where supported
+- add game flow with pre-submit configuration
+- analytics visibility/compatibility
+
+3. Re-test the seeded rosters and image persistence a second time after implementation.
+4. Confirm that media still persists after refresh/reload/deploy.
+5. Report clearly what was tested and what passed/failed.
+
+PHASE 11 — UI/UX design system planning after data stability
+After the data and testing work is stable, create a complete design system plan for the web app.
+
+Deliver:
+- color system
+- typography system
+- spacing / radius / shadow tokens
+- component library (buttons, inputs, selects, comboboxes, cards, modals, tabs, tables, badges, chips, image placeholders, empty states, etc.)
+- screen map / information architecture
+- micro-interactions
+- dark mode behavior
+- practical implementation guidance for the current web app
+
+Important:
+1. This is a web product first, so define the actual web app design system first.
+2. If you also want to provide React Native / Flutter component examples, do that only as an additional optional deliverable after the web app design system is defined.
+3. Do not let mobile framework examples replace the actual web product direction.
+
+FINAL REPORT FORMAT
+After completion, report phase by phase:
+- what was fixed
+- what was added
+- what data was seeded
+- what was partially completed and why
+- what was tested
+- what passed/failed
+- what still needs a separate follow-up task
