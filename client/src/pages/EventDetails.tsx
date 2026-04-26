@@ -18,8 +18,8 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Plus, Trash2, Save, Upload, Eye, ExternalLink, Gamepad2, Map as MapIcon, BarChart3, UserCheck, Clock as ClockIcon, UserX, ChevronDown, ChevronUp, Ban } from "lucide-react";
-import { GameHeroBanPanel } from "@/components/GameHeroBanPanel";
-import { GameMapVetoPanel } from "@/components/GameMapVetoPanel";
+import { GameHeroBanPanel, type HeroBanDraftRow } from "@/components/GameHeroBanPanel";
+import { GameMapVetoPanel, type MapVetoDraftRow } from "@/components/GameMapVetoPanel";
 import { ShareButton } from "@/components/ShareButton";
 import { useState, useEffect, Fragment } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -64,6 +64,14 @@ export default function EventDetails() {
   const [expandedMatchStats, setExpandedMatchStats] = useState<Record<string, boolean>>({});
   const [expandedHeroBan, setExpandedHeroBan] = useState<Record<string, boolean>>({});
   const [expandedMapVeto, setExpandedMapVeto] = useState<Record<string, boolean>>({});
+
+  // Pre-submit Hero Ban / Map Veto draft state for the Add New Game form
+  const [newGameHbsExpanded, setNewGameHbsExpanded] = useState(false);
+  const [newGameMvsExpanded, setNewGameMvsExpanded] = useState(false);
+  const [newGameHbsSystemId, setNewGameHbsSystemId] = useState<string | null>(null);
+  const [newGameHbsRows, setNewGameHbsRows] = useState<HeroBanDraftRow[]>([]);
+  const [newGameMvsSystemId, setNewGameMvsSystemId] = useState<string | null>(null);
+  const [newGameMvsRows, setNewGameMvsRows] = useState<MapVetoDraftRow[]>([]);
 
   const toggleHeroBanExpanded = (id: string) => setExpandedHeroBan(s => ({ ...s, [id]: !s[id] }));
   const toggleMapVetoExpanded = (id: string) => setExpandedMapVeto(s => ({ ...s, [id]: !s[id] }));
@@ -307,6 +315,47 @@ export default function EventDetails() {
           setTimeout(() => setShowToast(false), 3000);
         }
       }
+      // Save the inline Hero Ban draft sequence (if a system was selected)
+      if (newGameHbsSystemId && newGameHbsRows.length > 0) {
+        try {
+          const payload = newGameHbsRows.map((r, i) => ({
+            stepNumber: i + 1,
+            actionType: r.actionType,
+            actingTeam: r.actingTeam,
+            heroId: r.heroId,
+            notes: r.notes,
+          }));
+          await apiRequest("PUT", `/api/games/${newGame.id}/hero-ban-actions`, payload);
+          queryClient.invalidateQueries({ queryKey: ["/api/games", newGame.id, "hero-ban-actions"] });
+        } catch (err: any) {
+          console.error("Failed to save hero ban actions for new game:", err);
+          setToastMessage(err?.message || "Game saved but hero ban sequence failed");
+          setToastType("error");
+          setShowToast(true);
+          setTimeout(() => setShowToast(false), 3000);
+        }
+      }
+      // Save the inline Map Veto draft rows (if a system was selected)
+      if (newGameMvsSystemId && newGameMvsRows.length > 0) {
+        try {
+          const payload = newGameMvsRows.map((r, i) => ({
+            stepNumber: i + 1,
+            actionType: r.actionType,
+            actingTeam: r.actingTeam,
+            mapId: r.mapId,
+            sideId: r.sideId,
+            notes: r.notes,
+          }));
+          await apiRequest("PUT", `/api/games/${newGame.id}/map-veto-rows`, payload);
+          queryClient.invalidateQueries({ queryKey: ["/api/games", newGame.id, "map-veto-rows"] });
+        } catch (err: any) {
+          console.error("Failed to save map veto rows for new game:", err);
+          setToastMessage(err?.message || "Game saved but map veto rows failed");
+          setToastType("error");
+          setShowToast(true);
+          setTimeout(() => setShowToast(false), 3000);
+        }
+      }
       queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "games"] });
       resetNewGameForm();
       setToastMessage("Game added successfully");
@@ -411,6 +460,8 @@ export default function EventDetails() {
       mapId: newGameMapId || undefined,
       result: newGameResult || undefined,
       link: newGameLink.trim() || undefined,
+      heroBanSystemId: newGameHbsSystemId || undefined,
+      mapVetoSystemId: newGameMvsSystemId || undefined,
     });
   };
 
@@ -425,6 +476,12 @@ export default function EventDetails() {
     setNewGameRounds([{ sideId: null, teamScore: 0, opponentScore: 0 }]);
     setNewGameMatchStats({ our: {}, opp: {} });
     setMatchStatsDraftInitFor(null);
+    setNewGameHbsExpanded(false);
+    setNewGameMvsExpanded(false);
+    setNewGameHbsSystemId(null);
+    setNewGameHbsRows([]);
+    setNewGameMvsSystemId(null);
+    setNewGameMvsRows([]);
   };
 
   // Initialize the inline Match Stats draft with default rows for our roster + opponent players
@@ -985,6 +1042,74 @@ export default function EventDetails() {
                   />
                 </div>
               )}
+
+              {/* Hero Ban — New Game (pre-submit draft) */}
+              <div className="mt-2 border-t border-border pt-3" data-testid="section-hero-ban-new-game">
+                <button
+                  type="button"
+                  className="flex items-center gap-2 w-full text-left hover-elevate rounded-md px-2 py-1"
+                  onClick={() => setNewGameHbsExpanded(v => !v)}
+                  data-testid="button-toggle-hero-ban-new-game"
+                >
+                  {newGameHbsExpanded ? <ChevronUp className="h-4 w-4 text-primary" /> : <ChevronDown className="h-4 w-4 text-primary" />}
+                  <Ban className="h-4 w-4 text-primary" />
+                  <h3 className="text-sm font-semibold">Hero Ban — New Game</h3>
+                  <span className="text-xs text-muted-foreground ml-1">(optional, configure before adding)</span>
+                </button>
+                {newGameHbsExpanded && (
+                  <div className="mt-2 pl-2">
+                    <GameHeroBanPanel
+                      game={null}
+                      heroes={allHeroes}
+                      canEdit={true}
+                      onSaved={onPanelSavedToast}
+                      draft={{
+                        gameId: gameId || "",
+                        rosterId: rosterId || "",
+                        systemId: newGameHbsSystemId,
+                        rows: newGameHbsRows,
+                        onSystemChange: setNewGameHbsSystemId,
+                        onRowsChange: setNewGameHbsRows,
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Map Veto — New Game (pre-submit draft) */}
+              <div className="mt-2 border-t border-border pt-3" data-testid="section-map-veto-new-game">
+                <button
+                  type="button"
+                  className="flex items-center gap-2 w-full text-left hover-elevate rounded-md px-2 py-1"
+                  onClick={() => setNewGameMvsExpanded(v => !v)}
+                  data-testid="button-toggle-map-veto-new-game"
+                >
+                  {newGameMvsExpanded ? <ChevronUp className="h-4 w-4 text-primary" /> : <ChevronDown className="h-4 w-4 text-primary" />}
+                  <MapIcon className="h-4 w-4 text-primary" />
+                  <h3 className="text-sm font-semibold">Map Veto — New Game</h3>
+                  <span className="text-xs text-muted-foreground ml-1">(optional, configure before adding)</span>
+                </button>
+                {newGameMvsExpanded && (
+                  <div className="mt-2 pl-2">
+                    <GameMapVetoPanel
+                      game={null}
+                      maps={allMaps}
+                      gameModes={gameModes}
+                      sides={sidesList}
+                      canEdit={true}
+                      onSaved={onPanelSavedToast}
+                      draft={{
+                        gameId: gameId || "",
+                        rosterId: rosterId || "",
+                        systemId: newGameMvsSystemId,
+                        rows: newGameMvsRows,
+                        onSystemChange: setNewGameMvsSystemId,
+                        onRowsChange: setNewGameMvsRows,
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
 
             {games.length === 0 ? (

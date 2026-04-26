@@ -15,7 +15,7 @@ import type {
 import { mapVetoActionTypes, banVetoTeamSlots } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 
-type Row = {
+export type MapVetoDraftRow = {
   stepNumber: number;
   actionType: MapVetoActionType;
   actingTeam: BanVetoTeamSlot;
@@ -24,13 +24,25 @@ type Row = {
   notes: string | null;
 };
 
+type Row = MapVetoDraftRow;
+
+export interface MapVetoDraft {
+  gameId: string;
+  rosterId: string;
+  systemId: string | null;
+  rows: Row[];
+  onSystemChange: (systemId: string | null) => void;
+  onRowsChange: (rows: Row[]) => void;
+}
+
 interface Props {
-  game: Game;
+  game: Game | null;
   maps: MapType[];
   gameModes: GameMode[];
   sides: Side[];
   canEdit: boolean;
   onSaved: (msg: string, type: "success" | "error") => void;
+  draft?: MapVetoDraft;
 }
 
 function generateFromPreset(system: MapVetoSystem): Row[] {
@@ -101,27 +113,34 @@ function generateFromPreset(system: MapVetoSystem): Row[] {
   return rows;
 }
 
-export function GameMapVetoPanel({ game, maps, gameModes, sides, canEdit, onSaved }: Props) {
+export function GameMapVetoPanel({ game, maps, gameModes, sides, canEdit, onSaved, draft }: Props) {
+  const isDraft = !!draft;
+  const ctxGameId = isDraft ? draft!.gameId : game!.gameId;
+  const ctxRosterId = isDraft ? draft!.rosterId : game!.rosterId;
+  const idForKey = isDraft ? "draft" : game!.id;
+
   const { data: systems = [] } = useQuery<MapVetoSystem[]>({
-    queryKey: ["/api/map-veto-systems", { gameId: game.gameId, rosterId: game.rosterId }],
-    enabled: !!game.gameId && !!game.rosterId,
+    queryKey: ["/api/map-veto-systems", { gameId: ctxGameId, rosterId: ctxRosterId }],
+    enabled: !!ctxGameId && !!ctxRosterId,
   });
   const enabledSystems = useMemo(() => systems.filter(s => s.enabled), [systems]);
 
-  const { data: serverRows = [], isFetched: rowsFetched } = useQuery<GameMapVetoRow[]>({
-    queryKey: ["/api/games", game.id, "map-veto-rows"],
+  const { data: serverRows = [], isFetched: rowsFetchedLive } = useQuery<GameMapVetoRow[]>({
+    queryKey: ["/api/games", game?.id, "map-veto-rows"],
     queryFn: async () => {
-      const r = await apiRequest("GET", `/api/games/${game.id}/map-veto-rows`);
+      const r = await apiRequest("GET", `/api/games/${game!.id}/map-veto-rows`);
       return r.json();
     },
+    enabled: !isDraft && !!game?.id,
   });
 
-  const selectedSystem = enabledSystems.find(s => s.id === game.mapVetoSystemId) || null;
-  const isOnFromSelector = !!game.mapVetoSystemId && !!selectedSystem;
+  const currentSystemId = isDraft ? draft!.systemId : (game?.mapVetoSystemId || null);
+  const selectedSystem = enabledSystems.find(s => s.id === currentSystemId) || null;
+  const isOnFromSelector = !!currentSystemId && !!selectedSystem;
   const [enabled, setEnabled] = useState<boolean>(isOnFromSelector);
   useEffect(() => { setEnabled(isOnFromSelector); }, [isOnFromSelector]);
 
-  const initialRows: Row[] = useMemo(() => (
+  const initialRowsLive: Row[] = useMemo(() => (
     [...serverRows].sort((a, b) => a.stepNumber - b.stepNumber).map<Row>(a => ({
       stepNumber: a.stepNumber,
       actionType: a.actionType as MapVetoActionType,
@@ -132,13 +151,26 @@ export function GameMapVetoPanel({ game, maps, gameModes, sides, canEdit, onSave
     }))
   ), [serverRows]);
 
-  const [rows, setRows] = useState<Row[]>(initialRows);
+  const [liveRows, setLiveRows] = useState<Row[]>(initialRowsLive);
   const [dirty, setDirty] = useState(false);
   // Hydrate from server only when local rows are not dirty (no unsaved user edits).
   useEffect(() => {
+    if (isDraft) return;
     if (dirty) return;
-    setRows(initialRows);
-  }, [initialRows, dirty]);
+    setLiveRows(initialRowsLive);
+  }, [initialRowsLive, dirty, isDraft]);
+
+  const rows: Row[] = isDraft ? draft!.rows : liveRows;
+  const setRows = (next: Row[]) => {
+    if (isDraft) {
+      draft!.onRowsChange(next);
+    } else {
+      setLiveRows(next);
+    }
+  };
+
+  const initialRows = isDraft ? draft!.rows : initialRowsLive;
+  const rowsFetched = isDraft ? true : rowsFetchedLive;
 
   const [rowCount, setRowCount] = useState<number>(initialRows.length);
   useEffect(() => {
@@ -151,7 +183,7 @@ export function GameMapVetoPanel({ game, maps, gameModes, sides, canEdit, onSave
   useEffect(() => {
     setAutoApplied(false);
     setDirty(false);
-  }, [selectedSystem?.id, game.id]);
+  }, [selectedSystem?.id, idForKey]);
   useEffect(() => {
     if (!selectedSystem) return;
     if (!rowsFetched) return;
@@ -164,20 +196,31 @@ export function GameMapVetoPanel({ game, maps, gameModes, sides, canEdit, onSave
       setRowCount(generated.length);
       setAutoApplied(true);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSystem, rowsFetched, initialRows.length, autoApplied, dirty]);
 
   const updateGameSystem = useMutation({
     mutationFn: async (mapVetoSystemId: string | null) => {
-      const r = await apiRequest("PUT", `/api/games/${game.id}`, { mapVetoSystemId });
+      const r = await apiRequest("PUT", `/api/games/${game!.id}`, { mapVetoSystemId });
       return r.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/games", game.id, "map-veto-rows"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/games", game!.id, "map-veto-rows"] });
       setAutoApplied(false);
     },
     onError: (e: any) => onSaved(e.message || "Failed to update Map Veto selection", "error"),
   });
+
+  const handleSystemChange = (systemId: string | null) => {
+    if (isDraft) {
+      draft!.onSystemChange(systemId);
+      setAutoApplied(false);
+    } else {
+      updateGameSystem.mutate(systemId);
+    }
+  };
+  const systemChangePending = isDraft ? false : updateGameSystem.isPending;
 
   const saveRows = useMutation({
     mutationFn: async (toSave: Row[]) => {
@@ -189,12 +232,12 @@ export function GameMapVetoPanel({ game, maps, gameModes, sides, canEdit, onSave
         sideId: r.sideId,
         notes: r.notes,
       }));
-      const r = await apiRequest("PUT", `/api/games/${game.id}/map-veto-rows`, payload);
+      const r = await apiRequest("PUT", `/api/games/${game!.id}/map-veto-rows`, payload);
       return r.json();
     },
     onSuccess: () => {
       setDirty(false);
-      queryClient.invalidateQueries({ queryKey: ["/api/games", game.id, "map-veto-rows"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/games", game!.id, "map-veto-rows"] });
       onSaved("Map Veto rows saved", "success");
     },
     onError: (e: any) => onSaved(e.message || "Failed to save Map Veto rows", "error"),
@@ -202,7 +245,7 @@ export function GameMapVetoPanel({ game, maps, gameModes, sides, canEdit, onSave
 
   if (enabledSystems.length === 0) {
     return (
-      <div className="text-xs text-muted-foreground italic px-3 py-3 border border-dashed border-border rounded-md" data-testid={`text-no-mvs-${game.id}`}>
+      <div className="text-xs text-muted-foreground italic px-3 py-3 border border-dashed border-border rounded-md" data-testid={`text-no-mvs-${idForKey}`}>
         No Map Veto Systems configured for this roster. Configure them in Dashboard → Map Veto.
       </div>
     );
@@ -250,38 +293,38 @@ export function GameMapVetoPanel({ game, maps, gameModes, sides, canEdit, onSave
   };
 
   return (
-    <div className="space-y-3" data-testid={`map-veto-panel-${game.id}`}>
+    <div className="space-y-3" data-testid={`map-veto-panel-${idForKey}`}>
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3 flex-wrap">
           {isSingle ? (
             <div className="flex items-center gap-2">
               <Switch
-                id={`mvs-on-${game.id}`}
+                id={`mvs-on-${idForKey}`}
                 checked={enabled}
-                disabled={!canEdit || updateGameSystem.isPending}
+                disabled={!canEdit || systemChangePending}
                 onCheckedChange={(v) => {
                   setEnabled(v);
-                  updateGameSystem.mutate(v ? enabledSystems[0].id : null);
+                  handleSystemChange(v ? enabledSystems[0].id : null);
                 }}
-                data-testid={`switch-mvs-on-${game.id}`}
+                data-testid={`switch-mvs-on-${idForKey}`}
               />
-              <Label htmlFor={`mvs-on-${game.id}`} className="text-sm font-medium">{enabledSystems[0].name}</Label>
+              <Label htmlFor={`mvs-on-${idForKey}`} className="text-sm font-medium">{enabledSystems[0].name}</Label>
             </div>
           ) : (
             <div className="flex items-center gap-2">
               <Label className="text-sm">System</Label>
               <Select
-                value={game.mapVetoSystemId || "__none__"}
-                disabled={!canEdit || updateGameSystem.isPending}
-                onValueChange={(v) => updateGameSystem.mutate(v === "__none__" ? null : v)}
+                value={currentSystemId || "__none__"}
+                disabled={!canEdit || systemChangePending}
+                onValueChange={(v) => handleSystemChange(v === "__none__" ? null : v)}
               >
-                <SelectTrigger className="w-[260px]" data-testid={`select-mvs-${game.id}`}>
+                <SelectTrigger className="w-[260px]" data-testid={`select-mvs-${idForKey}`}>
                   <SelectValue placeholder="Select system" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__" data-testid={`option-mvs-none-${game.id}`}>None (off)</SelectItem>
+                  <SelectItem value="__none__" data-testid={`option-mvs-none-${idForKey}`}>None (off)</SelectItem>
                   {enabledSystems.map(s => (
-                    <SelectItem key={s.id} value={s.id} data-testid={`option-mvs-${s.id}-${game.id}`}>{s.name}</SelectItem>
+                    <SelectItem key={s.id} value={s.id} data-testid={`option-mvs-${s.id}-${idForKey}`}>{s.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -309,27 +352,35 @@ export function GameMapVetoPanel({ game, maps, gameModes, sides, canEdit, onSave
                 value={rowCount}
                 disabled={!canEdit}
                 onChange={(e) => applyRowCount(Number(e.target.value))}
-                data-testid={`input-mvs-row-count-${game.id}`}
+                data-testid={`input-mvs-row-count-${idForKey}`}
               />
             </div>
             {canEdit && (
               <>
-                <Button size="sm" variant="outline" onClick={resetToPreset} data-testid={`button-mvs-reset-${game.id}`}>
+                <Button size="sm" variant="outline" onClick={resetToPreset} data-testid={`button-mvs-reset-${idForKey}`}>
                   <Wand2 className="h-4 w-4 mr-1" />
                   Reset from preset
                 </Button>
-                <Button size="sm" onClick={() => saveRows.mutate(rows)} disabled={saveRows.isPending} data-testid={`button-save-mvs-${game.id}`}>
-                  <Save className="h-4 w-4 mr-1" />
-                  {saveRows.isPending ? "Saving…" : "Save Rows"}
-                </Button>
+                {!isDraft && (
+                  <Button size="sm" onClick={() => saveRows.mutate(rows)} disabled={saveRows.isPending} data-testid={`button-save-mvs-${idForKey}`}>
+                    <Save className="h-4 w-4 mr-1" />
+                    {saveRows.isPending ? "Saving…" : "Save Rows"}
+                  </Button>
+                )}
               </>
             )}
           </div>
         )}
       </div>
 
-      {selectedSystem && autoApplied && initialRows.length === 0 && rows.length > 0 && (
-        <div className="text-xs text-muted-foreground bg-primary/5 border border-primary/20 rounded-md px-3 py-2" data-testid={`text-mvs-auto-banner-${game.id}`}>
+      {isDraft && selectedSystem && (
+        <div className="text-xs text-muted-foreground bg-primary/5 border border-primary/20 rounded-md px-3 py-2" data-testid={`text-mvs-draft-banner-${idForKey}`}>
+          These rows will be saved together when you click "Add Game".
+        </div>
+      )}
+
+      {!isDraft && selectedSystem && autoApplied && initialRows.length === 0 && rows.length > 0 && (
+        <div className="text-xs text-muted-foreground bg-primary/5 border border-primary/20 rounded-md px-3 py-2" data-testid={`text-mvs-auto-banner-${idForKey}`}>
           Auto-populated from preset "{selectedSystem.name}". Edit any row, then click Save Rows to persist.
         </div>
       )}
@@ -356,26 +407,26 @@ export function GameMapVetoPanel({ game, maps, gameModes, sides, canEdit, onSave
                   </td>
                 </tr>
               ) : rows.map((r, i) => (
-                <tr key={i} className="border-t border-border align-middle" data-testid={`row-mvs-${game.id}-${i}`}>
+                <tr key={i} className="border-t border-border align-middle" data-testid={`row-mvs-${idForKey}-${i}`}>
                   <td className="px-3 py-2 text-xs text-muted-foreground">{i + 1}</td>
                   <td className="px-3 py-2">
                     <Select value={r.actionType} disabled={!canEdit} onValueChange={(v) => updateRow(i, { actionType: v as MapVetoActionType })}>
-                      <SelectTrigger data-testid={`select-mvs-action-${game.id}-${i}`}><SelectValue /></SelectTrigger>
+                      <SelectTrigger data-testid={`select-mvs-action-${idForKey}-${i}`}><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {mapVetoActionTypes
                           .filter(t => (t === "ban" ? selectedSystem.supportsBan : t === "pick" ? selectedSystem.supportsPick : selectedSystem.supportsDecider))
                           .map(t => (
-                            <SelectItem key={t} value={t} data-testid={`option-mvs-action-${t}-${game.id}-${i}`}>{t}</SelectItem>
+                            <SelectItem key={t} value={t} data-testid={`option-mvs-action-${t}-${idForKey}-${i}`}>{t}</SelectItem>
                           ))}
                       </SelectContent>
                     </Select>
                   </td>
                   <td className="px-3 py-2">
                     <Select value={r.actingTeam} disabled={!canEdit} onValueChange={(v) => updateRow(i, { actingTeam: v as BanVetoTeamSlot })}>
-                      <SelectTrigger data-testid={`select-mvs-team-${game.id}-${i}`}><SelectValue /></SelectTrigger>
+                      <SelectTrigger data-testid={`select-mvs-team-${idForKey}-${i}`}><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {banVetoTeamSlots.map(t => (
-                          <SelectItem key={t} value={t} data-testid={`option-mvs-team-${t}-${game.id}-${i}`}>
+                          <SelectItem key={t} value={t} data-testid={`option-mvs-team-${t}-${idForKey}-${i}`}>
                             {t === "a" ? "Our team" : t === "b" ? "Opponent" : "Auto"}
                           </SelectItem>
                         ))}
@@ -389,13 +440,13 @@ export function GameMapVetoPanel({ game, maps, gameModes, sides, canEdit, onSave
                       maps={maps}
                       gameModes={gameModes}
                       disabled={!canEdit}
-                      testId={`combobox-mvs-map-${game.id}-${i}`}
+                      testId={`combobox-mvs-map-${idForKey}-${i}`}
                     />
                   </td>
                   {selectedSystem.supportsSideChoice && (
                     <td className="px-3 py-2">
                       <Select value={r.sideId || undefined} disabled={!canEdit} onValueChange={(v) => updateRow(i, { sideId: v })}>
-                        <SelectTrigger data-testid={`select-mvs-side-${game.id}-${i}`}><SelectValue placeholder="Random Side" /></SelectTrigger>
+                        <SelectTrigger data-testid={`select-mvs-side-${idForKey}-${i}`}><SelectValue placeholder="Random Side" /></SelectTrigger>
                         <SelectContent>
                           {sides.map(s => (
                             <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
@@ -410,12 +461,12 @@ export function GameMapVetoPanel({ game, maps, gameModes, sides, canEdit, onSave
                       onChange={(e) => updateRow(i, { notes: e.target.value || null })}
                       disabled={!canEdit}
                       placeholder="optional"
-                      data-testid={`input-mvs-notes-${game.id}-${i}`}
+                      data-testid={`input-mvs-notes-${idForKey}-${i}`}
                     />
                   </td>
                   <td className="px-3 py-2">
                     {canEdit && (
-                      <Button size="icon" variant="ghost" onClick={() => removeRow(i)} data-testid={`button-mvs-remove-${game.id}-${i}`}>
+                      <Button size="icon" variant="ghost" onClick={() => removeRow(i)} data-testid={`button-mvs-remove-${idForKey}-${i}`}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     )}
@@ -426,7 +477,7 @@ export function GameMapVetoPanel({ game, maps, gameModes, sides, canEdit, onSave
           </table>
           {canEdit && rows.length < 40 && (
             <div className="p-2 border-t border-border bg-muted/20">
-              <Button size="sm" variant="outline" onClick={() => applyRowCount(rows.length + 1)} data-testid={`button-mvs-add-${game.id}`}>
+              <Button size="sm" variant="outline" onClick={() => applyRowCount(rows.length + 1)} data-testid={`button-mvs-add-${idForKey}`}>
                 <Plus className="h-4 w-4 mr-1" />
                 Add Row
               </Button>

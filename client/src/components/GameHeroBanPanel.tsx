@@ -13,7 +13,7 @@ import type { Game, GameHeroBanAction, Hero, HeroBanSystem, HeroBanActionType, B
 import { heroBanActionTypes, banVetoTeamSlots } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 
-type Row = {
+export type HeroBanDraftRow = {
   stepNumber: number;
   actionType: HeroBanActionType;
   actingTeam: BanVetoTeamSlot;
@@ -21,11 +21,23 @@ type Row = {
   notes: string | null;
 };
 
+type Row = HeroBanDraftRow;
+
+export interface HeroBanDraft {
+  gameId: string;
+  rosterId: string;
+  systemId: string | null;
+  rows: Row[];
+  onSystemChange: (systemId: string | null) => void;
+  onRowsChange: (rows: Row[]) => void;
+}
+
 interface Props {
-  game: Game;
+  game: Game | null;
   heroes: Hero[];
   canEdit: boolean;
   onSaved: (msg: string, type: "success" | "error") => void;
+  draft?: HeroBanDraft;
 }
 
 const roleColor = (role?: string) => {
@@ -83,27 +95,34 @@ function generateFromPreset(system: HeroBanSystem): Row[] {
   return rows;
 }
 
-export function GameHeroBanPanel({ game, heroes, canEdit, onSaved }: Props) {
+export function GameHeroBanPanel({ game, heroes, canEdit, onSaved, draft }: Props) {
+  const isDraft = !!draft;
+  const ctxGameId = isDraft ? draft!.gameId : game!.gameId;
+  const ctxRosterId = isDraft ? draft!.rosterId : game!.rosterId;
+  const idForKey = isDraft ? "draft" : game!.id;
+
   const { data: systems = [] } = useQuery<HeroBanSystem[]>({
-    queryKey: ["/api/hero-ban-systems", { gameId: game.gameId, rosterId: game.rosterId }],
-    enabled: !!game.gameId && !!game.rosterId,
+    queryKey: ["/api/hero-ban-systems", { gameId: ctxGameId, rosterId: ctxRosterId }],
+    enabled: !!ctxGameId && !!ctxRosterId,
   });
   const enabledSystems = useMemo(() => systems.filter(s => s.enabled), [systems]);
 
-  const { data: serverActions = [], isFetched: actionsFetched } = useQuery<GameHeroBanAction[]>({
-    queryKey: ["/api/games", game.id, "hero-ban-actions"],
+  const { data: serverActions = [], isFetched: actionsFetchedLive } = useQuery<GameHeroBanAction[]>({
+    queryKey: ["/api/games", game?.id, "hero-ban-actions"],
     queryFn: async () => {
-      const r = await apiRequest("GET", `/api/games/${game.id}/hero-ban-actions`);
+      const r = await apiRequest("GET", `/api/games/${game!.id}/hero-ban-actions`);
       return r.json();
     },
+    enabled: !isDraft && !!game?.id,
   });
 
-  const selectedSystem = enabledSystems.find(s => s.id === game.heroBanSystemId) || null;
-  const isOnFromSelector = !!game.heroBanSystemId && !!selectedSystem;
+  const currentSystemId = isDraft ? draft!.systemId : (game?.heroBanSystemId || null);
+  const selectedSystem = enabledSystems.find(s => s.id === currentSystemId) || null;
+  const isOnFromSelector = !!currentSystemId && !!selectedSystem;
   const [enabled, setEnabled] = useState<boolean>(isOnFromSelector);
   useEffect(() => { setEnabled(isOnFromSelector); }, [isOnFromSelector]);
 
-  const initialRows: Row[] = useMemo(() => {
+  const initialRowsLive: Row[] = useMemo(() => {
     return [...serverActions]
       .sort((a, b) => a.stepNumber - b.stepNumber)
       .map<Row>(a => ({
@@ -115,20 +134,33 @@ export function GameHeroBanPanel({ game, heroes, canEdit, onSaved }: Props) {
       }));
   }, [serverActions]);
 
-  const [rows, setRows] = useState<Row[]>(initialRows);
+  const [liveRows, setLiveRows] = useState<Row[]>(initialRowsLive);
   const [dirty, setDirty] = useState(false);
   // Hydrate from server only when local rows are not dirty (no unsaved user edits).
   useEffect(() => {
+    if (isDraft) return;
     if (dirty) return;
-    setRows(initialRows);
-  }, [initialRows, dirty]);
+    setLiveRows(initialRowsLive);
+  }, [initialRowsLive, dirty, isDraft]);
+
+  const rows: Row[] = isDraft ? draft!.rows : liveRows;
+  const setRows = (next: Row[]) => {
+    if (isDraft) {
+      draft!.onRowsChange(next);
+    } else {
+      setLiveRows(next);
+    }
+  };
+
+  const actionsFetched = isDraft ? true : actionsFetchedLive;
+  const initialRows = isDraft ? draft!.rows : initialRowsLive;
 
   // Auto-populate when a system is selected, server returned empty rows, and the preset has steps.
   const [autoApplied, setAutoApplied] = useState(false);
   useEffect(() => {
     setAutoApplied(false);
     setDirty(false);
-  }, [selectedSystem?.id, game.id]);
+  }, [selectedSystem?.id, idForKey]);
   useEffect(() => {
     if (!selectedSystem) return;
     if (!actionsFetched) return;
@@ -140,20 +172,31 @@ export function GameHeroBanPanel({ game, heroes, canEdit, onSaved }: Props) {
       setRows(generated);
       setAutoApplied(true);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSystem, actionsFetched, initialRows.length, autoApplied, dirty]);
 
   const updateGameSystem = useMutation({
     mutationFn: async (heroBanSystemId: string | null) => {
-      const r = await apiRequest("PUT", `/api/games/${game.id}`, { heroBanSystemId });
+      const r = await apiRequest("PUT", `/api/games/${game!.id}`, { heroBanSystemId });
       return r.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/games", game.id, "hero-ban-actions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/games", game!.id, "hero-ban-actions"] });
       setAutoApplied(false);
     },
     onError: (e: any) => onSaved(e.message || "Failed to update Hero Ban selection", "error"),
   });
+
+  const handleSystemChange = (systemId: string | null) => {
+    if (isDraft) {
+      draft!.onSystemChange(systemId);
+      setAutoApplied(false);
+    } else {
+      updateGameSystem.mutate(systemId);
+    }
+  };
+  const systemChangePending = isDraft ? false : updateGameSystem.isPending;
 
   const saveRows = useMutation({
     mutationFn: async (toSave: Row[]) => {
@@ -164,12 +207,12 @@ export function GameHeroBanPanel({ game, heroes, canEdit, onSaved }: Props) {
         heroId: r.heroId,
         notes: r.notes,
       }));
-      const r = await apiRequest("PUT", `/api/games/${game.id}/hero-ban-actions`, payload);
+      const r = await apiRequest("PUT", `/api/games/${game!.id}/hero-ban-actions`, payload);
       return r.json();
     },
     onSuccess: () => {
       setDirty(false);
-      queryClient.invalidateQueries({ queryKey: ["/api/games", game.id, "hero-ban-actions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/games", game!.id, "hero-ban-actions"] });
       onSaved("Hero Ban actions saved", "success");
     },
     onError: (e: any) => onSaved(e.message || "Failed to save Hero Ban actions", "error"),
@@ -177,7 +220,7 @@ export function GameHeroBanPanel({ game, heroes, canEdit, onSaved }: Props) {
 
   if (enabledSystems.length === 0) {
     return (
-      <div className="text-xs text-muted-foreground italic px-3 py-3 border border-dashed border-border rounded-md" data-testid={`text-no-hbs-${game.id}`}>
+      <div className="text-xs text-muted-foreground italic px-3 py-3 border border-dashed border-border rounded-md" data-testid={`text-no-hbs-${idForKey}`}>
         No Hero Ban Systems configured for this roster. Configure them in Dashboard → Hero Ban.
       </div>
     );
@@ -212,38 +255,38 @@ export function GameHeroBanPanel({ game, heroes, canEdit, onSaved }: Props) {
   };
 
   return (
-    <div className="space-y-3" data-testid={`hero-ban-panel-${game.id}`}>
+    <div className="space-y-3" data-testid={`hero-ban-panel-${idForKey}`}>
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3 flex-wrap">
           {isSingle ? (
             <div className="flex items-center gap-2">
               <Switch
-                id={`hbs-on-${game.id}`}
+                id={`hbs-on-${idForKey}`}
                 checked={enabled}
-                disabled={!canEdit || updateGameSystem.isPending}
+                disabled={!canEdit || systemChangePending}
                 onCheckedChange={(v) => {
                   setEnabled(v);
-                  updateGameSystem.mutate(v ? enabledSystems[0].id : null);
+                  handleSystemChange(v ? enabledSystems[0].id : null);
                 }}
-                data-testid={`switch-hbs-on-${game.id}`}
+                data-testid={`switch-hbs-on-${idForKey}`}
               />
-              <Label htmlFor={`hbs-on-${game.id}`} className="text-sm font-medium">{enabledSystems[0].name}</Label>
+              <Label htmlFor={`hbs-on-${idForKey}`} className="text-sm font-medium">{enabledSystems[0].name}</Label>
             </div>
           ) : (
             <div className="flex items-center gap-2">
               <Label className="text-sm">System</Label>
               <Select
-                value={game.heroBanSystemId || "__none__"}
-                disabled={!canEdit || updateGameSystem.isPending}
-                onValueChange={(v) => updateGameSystem.mutate(v === "__none__" ? null : v)}
+                value={currentSystemId || "__none__"}
+                disabled={!canEdit || systemChangePending}
+                onValueChange={(v) => handleSystemChange(v === "__none__" ? null : v)}
               >
-                <SelectTrigger className="w-[260px]" data-testid={`select-hbs-${game.id}`}>
+                <SelectTrigger className="w-[260px]" data-testid={`select-hbs-${idForKey}`}>
                   <SelectValue placeholder="Select system" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__" data-testid={`option-hbs-none-${game.id}`}>None (off)</SelectItem>
+                  <SelectItem value="__none__" data-testid={`option-hbs-none-${idForKey}`}>None (off)</SelectItem>
                   {enabledSystems.map(s => (
-                    <SelectItem key={s.id} value={s.id} data-testid={`option-hbs-${s.id}-${game.id}`}>{s.name}</SelectItem>
+                    <SelectItem key={s.id} value={s.id} data-testid={`option-hbs-${s.id}-${idForKey}`}>{s.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -259,20 +302,28 @@ export function GameHeroBanPanel({ game, heroes, canEdit, onSaved }: Props) {
         </div>
         {selectedSystem && canEdit && (
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={resetToPreset} data-testid={`button-hbs-reset-${game.id}`}>
+            <Button size="sm" variant="outline" onClick={resetToPreset} data-testid={`button-hbs-reset-${idForKey}`}>
               <Wand2 className="h-4 w-4 mr-1" />
               Reset from preset
             </Button>
-            <Button size="sm" onClick={() => saveRows.mutate(rows)} disabled={saveRows.isPending} data-testid={`button-save-hbs-${game.id}`}>
-              <Save className="h-4 w-4 mr-1" />
-              {saveRows.isPending ? "Saving…" : "Save Sequence"}
-            </Button>
+            {!isDraft && (
+              <Button size="sm" onClick={() => saveRows.mutate(rows)} disabled={saveRows.isPending} data-testid={`button-save-hbs-${idForKey}`}>
+                <Save className="h-4 w-4 mr-1" />
+                {saveRows.isPending ? "Saving…" : "Save Sequence"}
+              </Button>
+            )}
           </div>
         )}
       </div>
 
-      {selectedSystem && autoApplied && initialRows.length === 0 && rows.length > 0 && (
-        <div className="text-xs text-muted-foreground bg-primary/5 border border-primary/20 rounded-md px-3 py-2" data-testid={`text-hbs-auto-banner-${game.id}`}>
+      {isDraft && selectedSystem && (
+        <div className="text-xs text-muted-foreground bg-primary/5 border border-primary/20 rounded-md px-3 py-2" data-testid={`text-hbs-draft-banner-${idForKey}`}>
+          These steps will be saved together when you click "Add Game".
+        </div>
+      )}
+
+      {!isDraft && selectedSystem && autoApplied && initialRows.length === 0 && rows.length > 0 && (
+        <div className="text-xs text-muted-foreground bg-primary/5 border border-primary/20 rounded-md px-3 py-2" data-testid={`text-hbs-auto-banner-${idForKey}`}>
           Auto-populated from preset "{selectedSystem.name}". Edit any step, then click Save Sequence to persist.
         </div>
       )}
@@ -298,17 +349,17 @@ export function GameHeroBanPanel({ game, heroes, canEdit, onSaved }: Props) {
                   </td>
                 </tr>
               ) : rows.map((r, i) => (
-                <tr key={i} className="border-t border-border align-middle" data-testid={`row-hbs-action-${game.id}-${i}`}>
+                <tr key={i} className="border-t border-border align-middle" data-testid={`row-hbs-action-${idForKey}-${i}`}>
                   <td className="px-3 py-2 text-xs text-muted-foreground">{i + 1}</td>
                   <td className="px-3 py-2">
                     <Select value={r.actionType} disabled={!canEdit} onValueChange={(v) => updateRow(i, { actionType: v as HeroBanActionType })}>
-                      <SelectTrigger data-testid={`select-hbs-action-${game.id}-${i}`}><SelectValue /></SelectTrigger>
+                      <SelectTrigger data-testid={`select-hbs-action-${idForKey}-${i}`}><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {(() => {
                           const visible = heroBanActionTypes.filter(t => t !== "lock");
                           const opts = visible.includes(r.actionType as any) ? visible : [...visible, r.actionType];
                           return opts.map(t => (
-                            <SelectItem key={t} value={t} data-testid={`option-hbs-action-${t}-${game.id}-${i}`}>{t}</SelectItem>
+                            <SelectItem key={t} value={t} data-testid={`option-hbs-action-${t}-${idForKey}-${i}`}>{t}</SelectItem>
                           ));
                         })()}
                       </SelectContent>
@@ -316,13 +367,13 @@ export function GameHeroBanPanel({ game, heroes, canEdit, onSaved }: Props) {
                   </td>
                   <td className="px-3 py-2">
                     <Select value={r.actingTeam} disabled={!canEdit} onValueChange={(v) => updateRow(i, { actingTeam: v as BanVetoTeamSlot })}>
-                      <SelectTrigger data-testid={`select-hbs-team-${game.id}-${i}`}><SelectValue /></SelectTrigger>
+                      <SelectTrigger data-testid={`select-hbs-team-${idForKey}-${i}`}><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {(() => {
                           const visible = banVetoTeamSlots.filter(t => t !== "auto");
                           const opts = visible.includes(r.actingTeam as any) ? visible : [...visible, r.actingTeam];
                           return opts.map(t => (
-                            <SelectItem key={t} value={t} data-testid={`option-hbs-team-${t}-${game.id}-${i}`}>
+                            <SelectItem key={t} value={t} data-testid={`option-hbs-team-${t}-${idForKey}-${i}`}>
                               {t === "a" ? "Our team" : t === "b" ? "Opponent" : "Auto"}
                             </SelectItem>
                           ));
@@ -336,7 +387,7 @@ export function GameHeroBanPanel({ game, heroes, canEdit, onSaved }: Props) {
                       onChange={(id) => updateRow(i, { heroId: id })}
                       heroes={heroes}
                       disabled={!canEdit}
-                      testId={`combobox-hbs-hero-${game.id}-${i}`}
+                      testId={`combobox-hbs-hero-${idForKey}-${i}`}
                     />
                   </td>
                   <td className="px-3 py-2">
@@ -345,12 +396,12 @@ export function GameHeroBanPanel({ game, heroes, canEdit, onSaved }: Props) {
                       onChange={(e) => updateRow(i, { notes: e.target.value || null })}
                       disabled={!canEdit}
                       placeholder="optional"
-                      data-testid={`input-hbs-notes-${game.id}-${i}`}
+                      data-testid={`input-hbs-notes-${idForKey}-${i}`}
                     />
                   </td>
                   <td className="px-3 py-2">
                     {canEdit && (
-                      <Button size="icon" variant="ghost" onClick={() => removeRow(i)} data-testid={`button-hbs-remove-${game.id}-${i}`}>
+                      <Button size="icon" variant="ghost" onClick={() => removeRow(i)} data-testid={`button-hbs-remove-${idForKey}-${i}`}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     )}
@@ -361,7 +412,7 @@ export function GameHeroBanPanel({ game, heroes, canEdit, onSaved }: Props) {
           </table>
           {canEdit && rows.length < 40 && (
             <div className="p-2 border-t border-border bg-muted/20">
-              <Button size="sm" variant="outline" onClick={addRow} data-testid={`button-hbs-add-${game.id}`}>
+              <Button size="sm" variant="outline" onClick={addRow} data-testid={`button-hbs-add-${idForKey}`}>
                 <Plus className="h-4 w-4 mr-1" />
                 Add Step
               </Button>
