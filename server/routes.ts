@@ -22,7 +22,7 @@ import {
   users, roles, chatChannels, chatMessages, availabilitySlots, rosterRoles,
   chatChannelPermissions, activityLogs, playerGameStats, allPermissions,
   players, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays,
-  heroes, gameHeroes, insertHeroSchema, insertGameHeroSchema,
+  heroes, heroRoleConfigs, gameHeroes, insertHeroSchema, insertHeroRoleConfigSchema, insertGameHeroSchema,
   opponents, opponentPlayers, matchParticipants, opponentPlayerGameStats,
   insertOpponentSchema, insertOpponentPlayerSchema, insertMatchParticipantSchema, insertOpponentPlayerGameStatSchema,
   statFields as statFieldsTable,
@@ -416,7 +416,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "/api/players", "/api/events", "/api/attendance", "/api/schedule",
     "/api/staff", "/api/chat", "/api/availability-slots", "/api/roster-roles",
     "/api/player-availability", "/api/staff-availability", "/api/seasons",
-    "/api/sides", "/api/heroes", "/api/opponents",
+    "/api/sides", "/api/heroes", "/api/hero-role-configs", "/api/opponents",
     "/api/game-modes", "/api/maps", "/api/games", "/api/off-days",
     "/api/stat-fields", "/api/player-stats-summary", "/api/team-notes",
     "/api/activity-logs",
@@ -2850,6 +2850,153 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     } catch (error: any) {
       console.error('Error in DELETE /api/heroes:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  // ===== Hero Role Configs (per-game) =====
+  app.get("/api/hero-role-configs", requireAuth, async (req, res) => {
+    try {
+      const gameId = getGameId(req);
+      if (!gameId) return res.status(400).json({ error: "Game context required" });
+      if (!await verifyObjectScope(req, res, gameId, null)) return;
+      const list = await storage.getAllHeroRoleConfigs(gameId);
+      list.sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+      res.json(list);
+    } catch (error: any) {
+      console.error('Error in GET /api/hero-role-configs:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.post("/api/hero-role-configs", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+    try {
+      const gameId = getGameId(req);
+      if (!gameId) return res.status(400).json({ error: "Game context required" });
+      if (!await verifyObjectScope(req, res, gameId, null)) return;
+      const validated = insertHeroRoleConfigSchema.parse(req.body);
+      const row = await storage.addHeroRoleConfig(validated, gameId);
+      logActivity(req.session.userId!, "add_hero_role_config", `Added hero role "${row.name}"`, "team", undefined, gameId, null);
+      res.json(row);
+    } catch (error: any) {
+      console.error('Error in POST /api/hero-role-configs:', error);
+      if (error.name === 'ZodError') return res.status(400).json({ error: "Invalid data", details: error.errors });
+      if (error.code === '23505') return res.status(409).json({ error: "A role with this name already exists for this game" });
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.put("/api/hero-role-configs/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = getTeamId();
+      const [existing] = await db.select().from(heroRoleConfigs).where(and(eq(heroRoleConfigs.id, id), eq(heroRoleConfigs.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Hero role config not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, null)) return;
+      const validated = insertHeroRoleConfigSchema.partial().parse(req.body);
+      const oldName = existing.name;
+      // Atomic: update the config row, and (if renamed) cascade hero.role in one transaction.
+      const row = await db.transaction(async (tx) => {
+        const [updated] = await tx.update(heroRoleConfigs)
+          .set(validated)
+          .where(and(
+            eq(heroRoleConfigs.id, id),
+            eq(heroRoleConfigs.teamId, teamId),
+            eq(heroRoleConfigs.gameId, existing.gameId),
+          ))
+          .returning();
+        if (updated && validated.name && validated.name !== oldName) {
+          await tx.update(heroes)
+            .set({ role: updated.name })
+            .where(and(
+              eq(heroes.teamId, teamId),
+              eq(heroes.gameId, existing.gameId),
+              eq(heroes.role, oldName),
+            ));
+        }
+        return updated;
+      });
+      if (!row) return res.status(404).json({ error: "Hero role config not found" });
+      logActivity(req.session.userId!, "edit_hero_role_config", `Updated hero role "${oldName}" -> "${row.name}"`, "team", undefined, existing.gameId, null);
+      res.json(row);
+    } catch (error: any) {
+      console.error('Error in PUT /api/hero-role-configs:', error);
+      if (error.name === 'ZodError') return res.status(400).json({ error: "Invalid data", details: error.errors });
+      if (error.code === '23505') return res.status(409).json({ error: "A role with this name already exists for this game" });
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  // Safe delete: requires ?reassignTo=<roleConfigId> when heroes still use this role.
+  app.delete("/api/hero-role-configs/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const reassignTo = typeof req.query.reassignTo === "string" ? req.query.reassignTo : null;
+      const teamId = getTeamId();
+      const [existing] = await db.select().from(heroRoleConfigs).where(and(eq(heroRoleConfigs.id, id), eq(heroRoleConfigs.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Hero role config not found" });
+      if (!await verifyObjectScope(req, res, existing.gameId, null)) return;
+
+      // Count heroes in this (team, game) currently using this role name.
+      const [{ cnt }] = await db.select({ cnt: sql<number>`count(*)::int` })
+        .from(heroes)
+        .where(and(
+          eq(heroes.teamId, teamId),
+          eq(heroes.gameId, existing.gameId),
+          eq(heroes.role, existing.name),
+        ));
+      const usedBy = Number(cnt) || 0;
+
+      let replacementName: string | null = null;
+      if (usedBy > 0) {
+        if (!reassignTo) {
+          return res.status(409).json({
+            error: "Role is in use by heroes. Provide ?reassignTo=<roleConfigId> to migrate them, or rename heroes first.",
+            heroesAffected: usedBy,
+          });
+        }
+        if (reassignTo === id) {
+          return res.status(400).json({ error: "Cannot reassign to the role being deleted" });
+        }
+        const [target] = await db.select().from(heroRoleConfigs).where(and(
+          eq(heroRoleConfigs.id, reassignTo),
+          eq(heroRoleConfigs.teamId, teamId),
+          eq(heroRoleConfigs.gameId, existing.gameId),
+        )).limit(1);
+        if (!target) return res.status(400).json({ error: "Reassignment target role not found in this game" });
+        replacementName = target.name;
+      }
+
+      await db.transaction(async (tx) => {
+        if (replacementName !== null) {
+          await tx.update(heroes)
+            .set({ role: replacementName })
+            .where(and(
+              eq(heroes.teamId, teamId),
+              eq(heroes.gameId, existing.gameId),
+              eq(heroes.role, existing.name),
+            ));
+        }
+        await tx.delete(heroRoleConfigs).where(and(
+          eq(heroRoleConfigs.id, id),
+          eq(heroRoleConfigs.teamId, teamId),
+        ));
+      });
+
+      logActivity(
+        req.session.userId!,
+        "delete_hero_role_config",
+        replacementName
+          ? `Deleted hero role "${existing.name}" (reassigned ${usedBy} hero(es) to "${replacementName}")`
+          : `Deleted hero role "${existing.name}"`,
+        "team",
+        undefined,
+        existing.gameId,
+        null,
+      );
+      res.json({ success: true, heroesReassigned: usedBy, replacement: replacementName });
+    } catch (error: any) {
+      console.error('Error in DELETE /api/hero-role-configs:', error);
       res.status(500).json({ error: error.message || "Internal server error" });
     }
   });

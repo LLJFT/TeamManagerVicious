@@ -1,0 +1,125 @@
+Good. Boss login is confirmed and Add New Game flow is verified.
+
+Now start Phase 4 onward. Work phase by phase. Finish each phase, validate, and report before moving to the next. Do not change unrelated systems. Do not mass-delete records if a safe update path exists. Do not fake data that does not exist.
+
+PHASE 4 — Per-game Hero Roles Configuration
+Add a Hero Roles Configuration section in Dashboard / Game Config.
+
+Requirements:
+- Hero roles must be game-scoped, not one global fixed list
+- Admin can: add, edit, delete, reorder, enable/disable roles
+- "All" stays as UI filter tab only — real roles come from the current game's configuration
+- Everywhere hero roles are used must read from this config:
+  - Heroes Configuration filter tabs
+  - Add Hero / Edit Hero forms
+  - hero role labels/badges
+  - hero selectors and filters
+- If a role is deleted, require safe reassignment for heroes using that role
+- Do not break existing hero data
+
+PHASE 5 — Seed Overwatch heroes with correct roles
+Configure Overwatch roles:
+- Damage
+- Tank
+- Support
+
+Add these heroes with correct role, image, active status, and ordering:
+
+Damage: Anran, Ashe, Bastion, Cassidy, Echo, Emre, Freja, Genji, Hanzo, Junkrat, Mei, Pharah, Reaper, Sierra, Sojourn, Soldier: 76, Sombra, Symmetra, Torbjörn, Tracer, Vendetta, Venture, Widowmaker
+
+Support: Ana, Baptiste, Brigitte, Illari, Jetpack Cat, Juno, Kiriko, Lifeweaver, Lúcio, Mercy, Mizuki, Moira, Wuyang, Zenyatta
+
+Tank: D.Va, Domina, Doomfist, Hazard, Junker Queen, Mauga, Orisa, Ramattra, Reinhardt, Roadhog, Sigma, Winston, Wrecking Ball, Zarya
+
+Rules:
+- Do not apply Marvel Rivals roles to Overwatch
+- If hero images are not available, leave image fields empty and rely on fallback UI
+- Do not generate or invent fake images as official content
+- No duplicates
+
+PHASE 6 — Seed real competitive opponents and rosters for ALL supported games
+
+Do this for every game currently in the system, not just Overwatch.
+
+For each game, add at least 8-16 real tier-1 or near-tier-1 competitive teams with real rosters.
+
+Overwatch seed targets:
+- Team Peps (Zorrow, Dip, SoOn, WillyS, FDGoD, Xerion)
+- Twisted Minds (Quartz, Youbi, JaeWoo, TVNT, KSAA, FunnyAstro, Simple)
+- Virtus.pro (kevster, Seicoe, eisgnom, FiXa, Landon)
+- Geekay Esports (LBBD7, AlphaYi, ZIYAD, Haku, FiNN)
+- Al Qadsiah (Taejong, Vestola, Galaa, SirMajed)
+- Add more real OWCS-era teams to reach at least 16 total
+
+Marvel Rivals seed targets:
+- Use real competitive teams from the MRC / Ignite circuit
+- Add at least 8-16 real tier-1 or near-tier-1 teams with real rosters
+
+Any other supported game in the system:
+- Use real competitive teams from that game's active competitive circuit
+- Add at least 8 real teams per game
+
+For each team across all games:
+- team name
+- logo/image (leave empty with fallback if not available — do not fake images)
+- region
+- player names and roles where reliably available
+- Do not invent or fake roster data that does not exist
+- If a roster changed recently, use the most current reliable information
+
+PHASE 7 — Seed competitive game modes and tournament map pools for ALL games
+For every supported game, add proper competitive game modes and tournament-relevant map pools.
+Do NOT use casual or public map pools if the competitive circuit uses different ones.
+
+For each game:
+- add competitive/tournament game modes
+- add tournament-relevant map pool
+- add map images where reliably available, use fallback placeholder where not
+- map labels in all pickers and lists must follow this format exactly:
+  Game Mode Name — Map Name
+
+PHASE 8 — Image persistence audit across the entire site
+Audit all image handling before finishing:
+- hero images
+- map images
+- team/opponent logos
+- any other media on the site
+
+Confirm:
+- no image disappears after save/edit/refresh/deploy
+- uploading or replacing an image for one map must NEVER affect any other map records
+- safe fallback UI everywhere: no black squares, no broken image icons
+- if an image URL fails, preserve the record and show placeholder only
+
+Fix any issue found during this audit.
+
+PHASE 9 — Full database reset and fresh seed, then live site testing only
+
+1. Reset all existing rosters, test data, and dummy data in the database.
+2. Start from a clean state with no leftover placeholder or test rosters.
+3. Seed everything fresh for all supported games:
+   - heroes
+   - hero roles
+   - opponents and rosters
+   - game modes
+   - maps
+4. After seeding, run a full end-to-end test on the LIVE site only:
+   https://thebootcamp.services/
+   NOT local preview. NOT local API test. The live site only.
+
+5. Verify on the live site for every supported game:
+   - heroes and hero roles display correctly
+   - hero images show or fallback correctly
+   - opponents and teams show with logos or fallback correctly
+   - game modes and maps display correctly
+   - map images show or fallback correctly
+   - map labels show in correct format: Game Mode Name — Map Name
+   - hero ban and map veto sections are visible and functional where applicable
+   - no broken images, no black squares, no missing data
+
+6. Report the final live test results game by game with clear pass/fail for each item.
+
+Important rules for Phase 9:
+- All verification must be done and confirmed on the live website: https://thebootcamp.services/
+- Do not report a pass based on local testing or API responses only
+- If anything fails on the live site, fix it and retest on the live site before reporting done

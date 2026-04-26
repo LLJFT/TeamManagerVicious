@@ -1,5 +1,5 @@
-import type { Player, InsertPlayer, Schedule, InsertSchedule, Setting, InsertSetting, Event, InsertEvent, Attendance, InsertAttendance, TeamNotes, InsertTeamNotes, Game, InsertGame, GameMode, InsertGameMode, Map, InsertMap, Season, InsertSeason, OffDay, InsertOffDay, StatField, InsertStatField, PlayerGameStat, InsertPlayerGameStat, PlayerAvailabilityRecord, InsertPlayerAvailability, StaffAvailabilityRecord, InsertStaffAvailability, Staff, InsertStaff, AvailabilitySlot, RosterRole, SupportedGame, UserGameAssignment, Notification, EventCategory, InsertEventCategory, EventSubType, InsertEventSubType, Side, InsertSide, GameRound, InsertGameRound, Hero, InsertHero, GameHero, InsertGameHero, Opponent, InsertOpponent, OpponentPlayer, InsertOpponentPlayer, MatchParticipant, InsertMatchParticipant, OpponentPlayerGameStat, InsertOpponentPlayerGameStat, HeroBanSystem, InsertHeroBanSystem, MapVetoSystem, InsertMapVetoSystem, GameHeroBanAction, InsertGameHeroBanAction, GameMapVetoRow, InsertGameMapVetoRow } from "@shared/schema";
-import { players, schedules, settings, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays, statFields, playerGameStats, playerAvailability, staffAvailability, staff as staffTable, availabilitySlots, rosterRoles, supportedGames, userGameAssignments, notifications, users, rosters, eventCategories, eventSubTypes, sides, gameRounds, heroes, gameHeroes, opponents, opponentPlayers, matchParticipants, opponentPlayerGameStats, heroBanSystems, mapVetoSystems, gameHeroBanActions, gameMapVetoRows } from "@shared/schema";
+import type { Player, InsertPlayer, Schedule, InsertSchedule, Setting, InsertSetting, Event, InsertEvent, Attendance, InsertAttendance, TeamNotes, InsertTeamNotes, Game, InsertGame, GameMode, InsertGameMode, Map, InsertMap, Season, InsertSeason, OffDay, InsertOffDay, StatField, InsertStatField, PlayerGameStat, InsertPlayerGameStat, PlayerAvailabilityRecord, InsertPlayerAvailability, StaffAvailabilityRecord, InsertStaffAvailability, Staff, InsertStaff, AvailabilitySlot, RosterRole, SupportedGame, UserGameAssignment, Notification, EventCategory, InsertEventCategory, EventSubType, InsertEventSubType, Side, InsertSide, GameRound, InsertGameRound, Hero, InsertHero, HeroRoleConfig, InsertHeroRoleConfig, GameHero, InsertGameHero, Opponent, InsertOpponent, OpponentPlayer, InsertOpponentPlayer, MatchParticipant, InsertMatchParticipant, OpponentPlayerGameStat, InsertOpponentPlayerGameStat, HeroBanSystem, InsertHeroBanSystem, MapVetoSystem, InsertMapVetoSystem, GameHeroBanAction, InsertGameHeroBanAction, GameMapVetoRow, InsertGameMapVetoRow } from "@shared/schema";
+import { players, schedules, settings, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays, statFields, playerGameStats, playerAvailability, staffAvailability, staff as staffTable, availabilitySlots, rosterRoles, supportedGames, userGameAssignments, notifications, users, rosters, eventCategories, eventSubTypes, sides, gameRounds, heroes, heroRoleConfigs, gameHeroes, opponents, opponentPlayers, matchParticipants, opponentPlayerGameStats, heroBanSystems, mapVetoSystems, gameHeroBanActions, gameMapVetoRows } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, isNull, desc } from "drizzle-orm";
 
@@ -65,6 +65,11 @@ export interface IStorage {
   updateHero(id: string, hero: Partial<InsertHero>, gameId?: string | null, rosterId?: string | null): Promise<Hero | undefined>;
   removeHero(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean>;
   bulkInsertHeroes(rows: InsertHero[], gameId?: string | null, rosterId?: string | null): Promise<Hero[]>;
+  getAllHeroRoleConfigs(gameId?: string | null): Promise<HeroRoleConfig[]>;
+  addHeroRoleConfig(row: InsertHeroRoleConfig, gameId?: string | null): Promise<HeroRoleConfig>;
+  updateHeroRoleConfig(id: string, row: Partial<InsertHeroRoleConfig>, gameId?: string | null): Promise<HeroRoleConfig | undefined>;
+  removeHeroRoleConfig(id: string, gameId?: string | null): Promise<boolean>;
+  bulkInsertHeroRoleConfigs(rows: InsertHeroRoleConfig[], gameId?: string | null): Promise<HeroRoleConfig[]>;
   getAllHeroBanSystems(gameId?: string | null, rosterId?: string | null): Promise<HeroBanSystem[]>;
   getHeroBanSystem(id: string): Promise<HeroBanSystem | undefined>;
   addHeroBanSystem(s: InsertHeroBanSystem, gameId?: string | null, rosterId?: string | null): Promise<HeroBanSystem>;
@@ -445,6 +450,44 @@ export class DbStorage implements IStorage {
     if (rows.length === 0) return [];
     const teamId = getTeamId();
     const inserted = await db.insert(heroes).values(rows.map(r => ({ ...r, teamId, gameId, rosterId }))).returning();
+    return inserted;
+  }
+
+  async getAllHeroRoleConfigs(gameId?: string | null): Promise<HeroRoleConfig[]> {
+    const teamId = getTeamId();
+    const conds: any[] = [eq(heroRoleConfigs.teamId, teamId)];
+    if (gameId) conds.push(eq(heroRoleConfigs.gameId, gameId));
+    return await db.select().from(heroRoleConfigs).where(and(...conds));
+  }
+
+  async addHeroRoleConfig(row: InsertHeroRoleConfig, gameId?: string | null): Promise<HeroRoleConfig> {
+    const teamId = getTeamId();
+    if (!gameId) throw new Error("gameId is required for hero role config");
+    const inserted = await db.insert(heroRoleConfigs).values({ ...row, teamId, gameId }).returning();
+    return inserted[0];
+  }
+
+  async updateHeroRoleConfig(id: string, row: Partial<InsertHeroRoleConfig>, gameId?: string | null): Promise<HeroRoleConfig | undefined> {
+    const teamId = getTeamId();
+    const conds: any[] = [eq(heroRoleConfigs.id, id), eq(heroRoleConfigs.teamId, teamId)];
+    if (gameId) conds.push(eq(heroRoleConfigs.gameId, gameId));
+    const updated = await db.update(heroRoleConfigs).set(row).where(and(...conds)).returning();
+    return updated[0];
+  }
+
+  async removeHeroRoleConfig(id: string, gameId?: string | null): Promise<boolean> {
+    const teamId = getTeamId();
+    const conds: any[] = [eq(heroRoleConfigs.id, id), eq(heroRoleConfigs.teamId, teamId)];
+    if (gameId) conds.push(eq(heroRoleConfigs.gameId, gameId));
+    const deleted = await db.delete(heroRoleConfigs).where(and(...conds)).returning();
+    return deleted.length > 0;
+  }
+
+  async bulkInsertHeroRoleConfigs(rows: InsertHeroRoleConfig[], gameId?: string | null): Promise<HeroRoleConfig[]> {
+    if (rows.length === 0) return [];
+    const teamId = getTeamId();
+    if (!gameId) throw new Error("gameId is required for hero role config");
+    const inserted = await db.insert(heroRoleConfigs).values(rows.map(r => ({ ...r, teamId, gameId }))).returning();
     return inserted;
   }
 

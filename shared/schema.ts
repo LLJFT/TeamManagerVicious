@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, jsonb, index, boolean, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, jsonb, index, boolean, integer, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -403,8 +403,22 @@ export const maps = pgTable("maps", {
   index("maps_game_id_idx").on(table.gameId),
 ]);
 
-export const heroRoles = ["Duelist", "Vanguard", "Strategist"] as const;
-export type HeroRole = typeof heroRoles[number];
+export const MARVEL_RIVALS_DEFAULT_ROLES = ["Duelist", "Vanguard", "Strategist"] as const;
+export const heroRoles = MARVEL_RIVALS_DEFAULT_ROLES;
+export type HeroRole = string;
+
+export const heroRoleConfigs = pgTable("hero_role_configs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id").notNull(),
+  gameId: varchar("game_id").notNull(),
+  name: text("name").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+}, (table) => [
+  index("hero_role_configs_team_id_idx").on(table.teamId),
+  index("hero_role_configs_game_id_idx").on(table.gameId),
+  uniqueIndex("hero_role_configs_team_game_name_uniq").on(table.teamId, table.gameId, table.name),
+]);
 
 export const heroes = pgTable("heroes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -987,6 +1001,14 @@ export const insertHeroSchema = createInsertSchema(heroes).omit({
   gameId: true,
 });
 
+export const insertHeroRoleConfigSchema = createInsertSchema(heroRoleConfigs).omit({
+  id: true,
+  teamId: true,
+  gameId: true,
+}).extend({
+  name: z.string().trim().min(1, "Role name is required").max(60, "Role name too long"),
+});
+
 export const insertGameHeroSchema = createInsertSchema(gameHeroes).omit({
   id: true,
   teamId: true,
@@ -1189,6 +1211,9 @@ export type InsertGameMapVetoRow = z.infer<typeof insertGameMapVetoRowSchema>;
 
 export type Hero = typeof heroes.$inferSelect;
 export type InsertHero = z.infer<typeof insertHeroSchema>;
+
+export type HeroRoleConfig = typeof heroRoleConfigs.$inferSelect;
+export type InsertHeroRoleConfig = z.infer<typeof insertHeroRoleConfigSchema>;
 
 export type GameHero = typeof gameHeroes.$inferSelect;
 export type InsertGameHero = z.infer<typeof insertGameHeroSchema>;

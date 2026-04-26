@@ -5,6 +5,7 @@ import { setupAuth, bootstrapDefaultAdmin } from "./auth";
 import { seedComprehensiveTestData } from "./seed-comprehensive";
 import { fixupTestData } from "./seed-fixup";
 import { ensureBossSuperAdmin } from "./ensure-boss-admin";
+import { ensureHeroRoleConfigs } from "./ensure-hero-role-configs";
 import { runHealthCheck } from "./health-check";
 
 const app = express();
@@ -101,6 +102,7 @@ app.use((req, res, next) => {
         .then(() => seedComprehensiveTestData())
         .then(() => fixupTestData())
         .then(() => ensureBossSuperAdmin())
+        .then(() => ensureHeroRoleConfigs())
         .then(() => runHealthCheck())
         .catch(err => {
           const msg = err?.message || String(err);

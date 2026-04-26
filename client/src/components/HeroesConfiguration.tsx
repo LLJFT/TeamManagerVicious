@@ -13,8 +13,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Plus, Pencil, Trash2, Shield, Search, Image as ImageIcon, ArrowUp, ArrowDown,
 } from "lucide-react";
-import type { Hero } from "@shared/schema";
-import { heroRoles } from "@shared/schema";
+import type { Hero, HeroRoleConfig } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { ObjectUploader } from "@/components/ObjectUploader";
@@ -29,7 +28,7 @@ interface HeroFormState {
 
 const emptyForm: HeroFormState = {
   name: "",
-  role: heroRoles[0],
+  role: "",
   imageUrl: null,
   isActive: true,
 };
@@ -53,6 +52,19 @@ export function HeroesConfiguration({ canEdit }: { canEdit: boolean }) {
     queryKey: ["/api/heroes", { gameId, rosterId }],
     enabled: !!gameId && !!rosterId,
   });
+
+  const { data: roleConfigs = [] } = useQuery<HeroRoleConfig[]>({
+    queryKey: ["/api/hero-role-configs", { gameId }],
+    enabled: !!gameId,
+  });
+
+  const heroRoles = useMemo(
+    () => [...roleConfigs]
+      .filter(r => r.isActive)
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+      .map(r => r.name),
+    [roleConfigs]
+  );
 
   const invalidateHeroes = () =>
     queryClient.invalidateQueries({ predicate: (q) => q.queryKey[0] === "/api/heroes" });
@@ -107,8 +119,9 @@ export function HeroesConfiguration({ canEdit }: { canEdit: boolean }) {
     const groups: Record<string, Hero[]> = {};
     for (const role of heroRoles) groups[role] = [];
     const others: Hero[] = [];
+    const roleSet = new Set(heroRoles);
     for (const h of heroes) {
-      if ((heroRoles as readonly string[]).includes(h.role)) {
+      if (roleSet.has(h.role)) {
         groups[h.role].push(h);
       } else {
         others.push(h);
@@ -119,7 +132,7 @@ export function HeroesConfiguration({ canEdit }: { canEdit: boolean }) {
     }
     if (others.length) groups["Other"] = others.sort((a, b) => a.sortOrder - b.sortOrder);
     return groups;
-  }, [heroes]);
+  }, [heroes, heroRoles]);
 
   const filteredGroups = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -136,7 +149,7 @@ export function HeroesConfiguration({ canEdit }: { canEdit: boolean }) {
 
   const openCreate = () => {
     setEditingHero(undefined);
-    setForm(emptyForm);
+    setForm({ ...emptyForm, role: heroRoles[0] || "" });
     setShowDialog(true);
   };
 
