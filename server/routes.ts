@@ -38,6 +38,8 @@ import fs from "fs";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { MARVEL_RIVALS_DEFAULT_HEROES, MARVEL_RIVALS_GAME_SLUG, HEROES_SEEDED_SETTING_KEY } from "./defaults/marvelRivalsHeroes";
+import { OVERWATCH_DEFAULT_HEROES, OVERWATCH_GAME_SLUG } from "./defaults/overwatchHeroes";
+import { HEROES_SEED_LOCK_KEY } from "./ensure-overwatch-heroes";
 
 const UPLOAD_DIR = path.join(process.cwd(), "uploads");
 for (const sub of ["logos", "game-icons", "chat", "general"]) {
@@ -168,6 +170,36 @@ async function verifyObjectScope(req: any, res: any, objectGameId: string | null
   }
   const [assignment] = await db.select().from(userGameAssignments).where(and(...baseConditions)).limit(1);
   if (!assignment) { res.status(403).json({ message: "You do not have access to this record" }); return false; }
+  return true;
+}
+
+/**
+ * Stricter scope check for game-wide config writes: when the target record has rosterId = null
+ * (game-wide), non-admin users must hold a game-wide assignment (rosterId IS NULL).
+ * Roster-scoped writes still require the standard verifyObjectScope check.
+ * Returns true on pass; on fail, has already responded with the appropriate status.
+ */
+async function verifyConfigWriteScope(req: any, res: any, objectGameId: string | null | undefined, objectRosterId: string | null | undefined): Promise<boolean> {
+  if (!await verifyObjectScope(req, res, objectGameId, objectRosterId)) return false;
+  const userId = req.session?.userId;
+  if (!userId) return false;
+  const teamId = getTeamId();
+  const [user] = await db.select().from(users).where(and(eq(users.id, userId), eq(users.teamId, teamId))).limit(1);
+  if (!user) { res.status(403).json({ message: "Forbidden" }); return false; }
+  if (user.orgRole === "super_admin" || user.orgRole === "org_admin") return true;
+  if (objectRosterId) return true; // verifyObjectScope already enforced roster gating
+  if (!objectGameId) { res.status(403).json({ message: "Forbidden" }); return false; }
+  const [gameWide] = await db.select().from(userGameAssignments).where(and(
+    eq(userGameAssignments.userId, userId),
+    eq(userGameAssignments.gameId, objectGameId),
+    eq(userGameAssignments.status, "approved"),
+    eq(userGameAssignments.teamId, teamId),
+    isNull(userGameAssignments.rosterId),
+  )).limit(1);
+  if (!gameWide) {
+    res.status(403).json({ message: "Game-wide config writes require a game-wide assignment" });
+    return false;
+  }
   return true;
 }
 
@@ -2430,16 +2462,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/games", requireAuth, requirePermission("edit_events"), async (req, res) => {
     try {
       const validatedData = insertGameSchema.parse(req.body);
+      const teamId = getTeamId();
+      const ctxGameId = getGameId(req);
+      const ctxRosterId = getRosterId(req);
       // Cascade: if game has no opponentId but its parent event does, default to event.opponentId
       if (!validatedData.opponentId && validatedData.eventId) {
-        const teamId = getTeamId();
         const [parentEvent] = await db.select().from(events)
           .where(and(eq(events.id, validatedData.eventId), eq(events.teamId, teamId))).limit(1);
         if (parentEvent && parentEvent.opponentId) {
           validatedData.opponentId = parentEvent.opponentId;
         }
       }
-      const game = await storage.addGame(validatedData, getGameId(req), getRosterId(req));
+      // Validate selected HBS / MVS belong to the same (team, game, roster) scope as this game
+      if (validatedData.heroBanSystemId && ctxGameId && ctxRosterId) {
+        const [hbs] = await db.select().from(heroBanSystems).where(and(
+          eq(heroBanSystems.id, validatedData.heroBanSystemId as string),
+          eq(heroBanSystems.teamId, teamId),
+          eq(heroBanSystems.gameId, ctxGameId),
+          eq(heroBanSystems.rosterId, ctxRosterId),
+        )).limit(1);
+        if (!hbs) return res.status(400).json({ error: "Invalid hero ban system for this match scope" });
+      } else if (validatedData.heroBanSystemId) {
+        return res.status(400).json({ error: "Game context required to assign a hero ban system" });
+      }
+      if (validatedData.mapVetoSystemId && ctxGameId && ctxRosterId) {
+        const [mvs] = await db.select().from(mapVetoSystems).where(and(
+          eq(mapVetoSystems.id, validatedData.mapVetoSystemId as string),
+          eq(mapVetoSystems.teamId, teamId),
+          eq(mapVetoSystems.gameId, ctxGameId),
+          eq(mapVetoSystems.rosterId, ctxRosterId),
+        )).limit(1);
+        if (!mvs) return res.status(400).json({ error: "Invalid map veto system for this match scope" });
+      } else if (validatedData.mapVetoSystemId) {
+        return res.status(400).json({ error: "Game context required to assign a map veto system" });
+      }
+      const game = await storage.addGame(validatedData, ctxGameId, ctxRosterId);
       logActivity(req.session.userId!, "add_game", `Added game to event`, "team", undefined, game.gameId, game.rosterId);
       res.json(game);
     } catch (error: any) {
@@ -2756,22 +2813,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let existing = await storage.getAllHeroes(gameId, rosterId);
 
       if (existing.length === 0 && rosterId && gameId) {
-        const seededFlag = await storage.getSetting(HEROES_SEEDED_SETTING_KEY, gameId, rosterId);
-        if (!seededFlag) {
-          const [game] = await db.select().from(supportedGames).where(eq(supportedGames.id, gameId)).limit(1);
-          if (game?.slug === MARVEL_RIVALS_GAME_SLUG) {
-            const defaults = MARVEL_RIVALS_DEFAULT_HEROES.map(h => ({
+        // Resolve the game once; only seed if we have a known defaults source.
+        const [game] = await db.select().from(supportedGames).where(eq(supportedGames.id, gameId)).limit(1);
+        let defaultsSource: { name: string; role: string; sortOrder: number }[] | null = null;
+        if (game?.slug === MARVEL_RIVALS_GAME_SLUG) {
+          defaultsSource = MARVEL_RIVALS_DEFAULT_HEROES;
+        } else if (game?.slug === OVERWATCH_GAME_SLUG) {
+          defaultsSource = OVERWATCH_DEFAULT_HEROES;
+        }
+        if (defaultsSource) {
+          // No outer flag gate — heroes count is the authoritative truth. The flag is only
+          // an optimization; a stale flag with empty heroes must still self-heal.
+          const teamId = getTeamId();
+          await db.transaction(async (tx) => {
+            // Serialize against any concurrent seeder (boot or other lazy req) for this exact (game, roster).
+            await tx.execute(sql`SELECT pg_advisory_xact_lock(${HEROES_SEED_LOCK_KEY}::int, hashtext(${rosterId})::int)`);
+            // Re-check inside the lock with full (team, game, roster) scope — another process may have seeded while we waited.
+            const recheck = await tx.execute<{ cnt: number }>(
+              sql`SELECT COUNT(*)::int AS cnt FROM heroes WHERE team_id = ${teamId} AND game_id = ${gameId} AND roster_id = ${rosterId}`
+            );
+            if (Number((recheck.rows as any[])[0]?.cnt || 0) > 0) return;
+
+            const rows = defaultsSource!.map(h => ({
+              teamId,
+              gameId,
+              rosterId,
               name: h.name,
               role: h.role,
               imageUrl: null,
               isActive: true,
               sortOrder: h.sortOrder,
-              rosterId,
             }));
-            await storage.setSetting(HEROES_SEEDED_SETTING_KEY, "true", gameId, rosterId);
-            await storage.bulkInsertHeroes(defaults as any, gameId, rosterId);
-            existing = await storage.getAllHeroes(gameId, rosterId);
-          }
+            await tx.insert(heroes).values(rows).onConflictDoNothing();
+
+            // Set the seeded flag AFTER the insert succeeds — atomic with the insert.
+            const existingFlag = await tx.select().from(settings).where(and(
+              eq(settings.teamId, teamId),
+              eq(settings.gameId, gameId),
+              eq(settings.rosterId, rosterId),
+              eq(settings.key, HEROES_SEEDED_SETTING_KEY),
+            )).limit(1);
+            if (existingFlag.length === 0) {
+              await tx.insert(settings).values({
+                teamId, gameId, rosterId,
+                key: HEROES_SEEDED_SETTING_KEY,
+                value: "true",
+              });
+            } else {
+              await tx.update(settings).set({ value: "true" }).where(and(
+                eq(settings.teamId, teamId),
+                eq(settings.gameId, gameId),
+                eq(settings.rosterId, rosterId),
+                eq(settings.key, HEROES_SEEDED_SETTING_KEY),
+              ));
+            }
+          });
+          existing = await storage.getAllHeroes(gameId, rosterId);
         }
       }
 
@@ -3265,7 +3362,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const gameId = getGameId(req);
       const rosterId = getRosterId(req);
-      if (!await verifyObjectScope(req, res, gameId, rosterId)) return;
+      if (!await verifyConfigWriteScope(req, res, gameId, rosterId)) return;
       const validated = insertHeroBanSystemSchema.parse(req.body);
       const row = await storage.addHeroBanSystem(validated, gameId, rosterId);
       logActivity(req.session.userId!, "add_hero_ban_system", `Added Hero Ban System "${row.name}"`, "team", undefined, row.gameId, row.rosterId);
@@ -3283,7 +3380,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teamId = getTeamId();
       const [existing] = await db.select().from(heroBanSystems).where(and(eq(heroBanSystems.id, id), eq(heroBanSystems.teamId, teamId))).limit(1);
       if (!existing) return res.status(404).json({ error: "Hero Ban System not found" });
-      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      if (!await verifyConfigWriteScope(req, res, existing.gameId, existing.rosterId)) return;
       const validated = await sanitizeScopeFields(req, insertHeroBanSystemSchema.partial().parse(req.body));
       const row = await storage.updateHeroBanSystem(id, validated, existing.gameId, existing.rosterId);
       if (!row) return res.status(404).json({ error: "Hero Ban System not found" });
@@ -3302,7 +3399,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teamId = getTeamId();
       const [existing] = await db.select().from(heroBanSystems).where(and(eq(heroBanSystems.id, id), eq(heroBanSystems.teamId, teamId))).limit(1);
       if (!existing) return res.status(404).json({ error: "Hero Ban System not found" });
-      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      if (!await verifyConfigWriteScope(req, res, existing.gameId, existing.rosterId)) return;
       const ok = await storage.removeHeroBanSystem(id, existing.gameId, existing.rosterId);
       if (ok) {
         logActivity(req.session.userId!, "delete_hero_ban_system", `Deleted Hero Ban System "${existing.name}"`, "team", undefined, existing.gameId, existing.rosterId);
@@ -3352,7 +3449,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const gameId = getGameId(req);
       const rosterId = getRosterId(req);
-      if (!await verifyObjectScope(req, res, gameId, rosterId)) return;
+      if (!await verifyConfigWriteScope(req, res, gameId, rosterId)) return;
       const validated = insertMapVetoSystemSchema.parse(req.body);
       const row = await storage.addMapVetoSystem(validated, gameId, rosterId);
       logActivity(req.session.userId!, "add_map_veto_system", `Added Map Veto System "${row.name}"`, "team", undefined, row.gameId, row.rosterId);
@@ -3370,7 +3467,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teamId = getTeamId();
       const [existing] = await db.select().from(mapVetoSystems).where(and(eq(mapVetoSystems.id, id), eq(mapVetoSystems.teamId, teamId))).limit(1);
       if (!existing) return res.status(404).json({ error: "Map Veto System not found" });
-      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      if (!await verifyConfigWriteScope(req, res, existing.gameId, existing.rosterId)) return;
       const validated = await sanitizeScopeFields(req, insertMapVetoSystemSchema.partial().parse(req.body));
       const row = await storage.updateMapVetoSystem(id, validated, existing.gameId, existing.rosterId);
       if (!row) return res.status(404).json({ error: "Map Veto System not found" });
@@ -3389,7 +3486,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teamId = getTeamId();
       const [existing] = await db.select().from(mapVetoSystems).where(and(eq(mapVetoSystems.id, id), eq(mapVetoSystems.teamId, teamId))).limit(1);
       if (!existing) return res.status(404).json({ error: "Map Veto System not found" });
-      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      if (!await verifyConfigWriteScope(req, res, existing.gameId, existing.rosterId)) return;
       const ok = await storage.removeMapVetoSystem(id, existing.gameId, existing.rosterId);
       if (ok) {
         logActivity(req.session.userId!, "delete_map_veto_system", `Deleted Map Veto System "${existing.name}"`, "team", undefined, existing.gameId, existing.rosterId);

@@ -1,9 +1,11 @@
 import { db, pool } from "./db";
 import { heroes, heroRoleConfigs, supportedGames, MARVEL_RIVALS_DEFAULT_ROLES } from "@shared/schema";
 import { sql, eq, and } from "drizzle-orm";
+import { OVERWATCH_DEFAULT_ROLES, OVERWATCH_GAME_SLUG } from "./defaults/overwatchHeroes";
 
 const DEFAULT_ROLES_BY_SLUG: Record<string, string[]> = {
   "marvel-rivals": [...MARVEL_RIVALS_DEFAULT_ROLES],
+  [OVERWATCH_GAME_SLUG]: [...OVERWATCH_DEFAULT_ROLES],
 };
 
 export async function ensureHeroRoleConfigsTable(): Promise<void> {
