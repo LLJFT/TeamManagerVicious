@@ -1,0 +1,53 @@
+Fix these issues only. One by one. Do not change anything else.
+
+FIX 1 — Hero Ban: remove "lock" action, remove "Auto" from Team:
+In the Hero Ban section, the Action dropdown has three options: ban, lock, protect.
+Remove "lock" entirely. Keep only "ban" and "protect".
+In the Team dropdown, remove "Auto". Keep only "Our team" and "Opponent".
+Apply this to both the dropdown options and any auto-generated steps that use "lock" or "Auto" — replace "lock" with "ban" and "Auto" with "Our team".
+
+FIX 2 — Map Veto: remove "(unset)" from Side dropdown:
+In the Map Veto section, the Side dropdown shows: (unset), Attack, Defense.
+Remove "(unset)" completely.
+The default value when no side is selected should be RANDOM SIDE, not "(unset)" as a selectable option.
+Only show the actual configured sides from Sides Configuration (Attack, Defense, or whatever sides exist for that game).
+
+FIX 3 — CRITICAL: Adding a map image deletes all existing maps:
+When uploading an image for a map in Dashboard → Game Config → Game Mode → Maps, ALL existing maps in that game mode get deleted and only the new one remains.
+This is a critical data loss bug.
+Find the map image upload handler and fix it so uploading an image for one map ONLY updates that specific map's image field.
+It must never delete or affect any other map records.
+
+FIX 4 — Map Veto map picker shows wrong format and broken image:
+In the Map Veto section, the Pick Map dropdown shows entries like "MAP 04.05" with a black square instead of the correct format.
+The format must be "Game Mode Name — Map Name" (e.g. "Game Mode 2 — Map 5").
+If a map has an uploaded image, show a small thumbnail.
+If the image is broken or missing, show a map icon placeholder instead of a black square.
+
+FIX 5 — Add Round Configuration section to Dashboard Game Config:
+The Rounds section in Add New Game shows "Max 15 rounds" but the score per round max is 13 — these are disconnected.
+Add a "Round Configuration" section in Dashboard → Game Config next to Score Configuration.
+
+For each game mode that uses "Rounds" type, allow configuring:
+- Max rounds per game (e.g. 36)
+- Max score per round per side (e.g. 150)
+
+When adding a new game with Rounds type:
+- the Rounds section must read Max Rounds from this configuration and enforce it
+- the score input per round must respect Max Score per Round
+
+FIX 6 — Hero Ban System: link "Supports locks" to "Locks per team":
+In Dashboard → Hero Ban System → Edit Hero Ban System modal, remove the "Supports locks (protects)" toggle entirely.
+Instead, auto-derive it from the "Locks per team" number field:
+- If "Locks per team" is 0 or empty → locks are disabled automatically
+- If "Locks per team" has any number greater than 0 → locks are enabled automatically
+No toggle needed — the number field alone controls whether locks are on or off.
+
+This applies to both:
+- the Dashboard settings modal
+- wherever this value is read in the Hero Ban sequence generator
+
+Important:
+The config can still use the existing "Locks per team" numeric field internally, but the user-facing action label in Games & Scoreboard must be "protect", not "lock".
+
+Stop after all six fixes. Report what was changed for each fix.

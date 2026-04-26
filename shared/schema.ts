@@ -382,6 +382,8 @@ export const gameModes = pgTable("game_modes", {
   scoreType: text("score_type").default("numeric").notNull(),
   maxScore: integer("max_score"),
   maxRoundWins: integer("max_round_wins"),
+  maxRoundsPerGame: integer("max_rounds_per_game"),
+  maxScorePerRoundPerSide: integer("max_score_per_round_per_side"),
 }, (table) => [
   index("game_modes_team_id_idx").on(table.teamId),
   index("game_modes_game_id_idx").on(table.gameId),

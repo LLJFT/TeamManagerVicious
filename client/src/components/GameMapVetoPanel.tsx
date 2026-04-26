@@ -342,7 +342,7 @@ export function GameMapVetoPanel({ game, maps, gameModes, sides, canEdit, onSave
                 <th className="text-left px-3 py-2 w-12">#</th>
                 <th className="text-left px-3 py-2 w-28">Action</th>
                 <th className="text-left px-3 py-2 w-32">Team</th>
-                <th className="text-left px-3 py-2">Map (Mode -- Map)</th>
+                <th className="text-left px-3 py-2">Map (Mode — Map)</th>
                 {selectedSystem.supportsSideChoice && <th className="text-left px-3 py-2 w-32">Side</th>}
                 <th className="text-left px-3 py-2">Notes</th>
                 <th className="w-10"></th>
@@ -394,10 +394,9 @@ export function GameMapVetoPanel({ game, maps, gameModes, sides, canEdit, onSave
                   </td>
                   {selectedSystem.supportsSideChoice && (
                     <td className="px-3 py-2">
-                      <Select value={r.sideId || "__unset__"} disabled={!canEdit} onValueChange={(v) => updateRow(i, { sideId: v === "__unset__" ? null : v })}>
-                        <SelectTrigger data-testid={`select-mvs-side-${game.id}-${i}`}><SelectValue placeholder="Side" /></SelectTrigger>
+                      <Select value={r.sideId || undefined} disabled={!canEdit} onValueChange={(v) => updateRow(i, { sideId: v })}>
+                        <SelectTrigger data-testid={`select-mvs-side-${game.id}-${i}`}><SelectValue placeholder="Random Side" /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="__unset__">(unset)</SelectItem>
                           {sides.map(s => (
                             <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                           ))}
@@ -449,10 +448,18 @@ interface MapComboboxProps {
 }
 
 function MapThumb({ map, size = "h-6 w-9" }: { map?: MapType; size?: string }) {
+  const [broken, setBroken] = useState(false);
+  useEffect(() => { setBroken(false); }, [map?.id, map?.imageUrl]);
+  const showImage = map?.imageUrl && !broken;
   return (
     <div className={`${size} shrink-0 rounded-sm border border-border overflow-hidden bg-muted/40 flex items-center justify-center`}>
-      {map?.imageUrl ? (
-        <img src={map.imageUrl} alt={map.name} className="h-full w-full object-cover" />
+      {showImage ? (
+        <img
+          src={map!.imageUrl!}
+          alt={map!.name}
+          className="h-full w-full object-cover"
+          onError={() => setBroken(true)}
+        />
       ) : (
         <MapImageIcon className="h-3 w-3 text-muted-foreground" />
       )}
@@ -466,7 +473,7 @@ function MapCombobox({ value, onChange, maps, gameModes, disabled, testId }: Map
   const items = useMemo(() => {
     const list = maps.map(m => {
       const mode = gameModes.find(g => g.id === m.gameModeId);
-      return { map: m, label: mode ? `${mode.name} -- ${m.name}` : m.name };
+      return { map: m, label: mode ? `${mode.name} — ${m.name}` : m.name };
     });
     list.sort((a, b) => a.label.localeCompare(b.label));
     if (!query.trim()) return list;
@@ -477,7 +484,7 @@ function MapCombobox({ value, onChange, maps, gameModes, disabled, testId }: Map
   const selected = value ? maps.find(m => m.id === value) : null;
   const selectedMode = selected ? gameModes.find(g => g.id === selected.gameModeId) : undefined;
   const selectedLabel = selected
-    ? (selectedMode ? `${selectedMode.name} -- ${selected.name}` : selected.name)
+    ? (selectedMode ? `${selectedMode.name} — ${selected.name}` : selected.name)
     : "";
 
   return (
@@ -500,7 +507,7 @@ function MapCombobox({ value, onChange, maps, gameModes, disabled, testId }: Map
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search Mode -- Map…"
+              placeholder="Search Mode — Map…"
               className="pl-8 h-8"
               data-testid={`${testId}-search`}
               autoFocus

@@ -19,7 +19,6 @@ interface FormState {
   name: string;
   enabled: boolean;
   mode: string;
-  supportsLocks: boolean;
   bansPerTeam: number;
   locksPerTeam: number;
   bansTargetEnemy: boolean;
@@ -38,7 +37,6 @@ const empty: FormState = {
   name: "",
   enabled: true,
   mode: "simple",
-  supportsLocks: false,
   bansPerTeam: 2,
   locksPerTeam: 0,
   bansTargetEnemy: true,
@@ -107,7 +105,6 @@ export function HeroBanSystemsConfiguration({ canEdit }: { canEdit: boolean }) {
       name: s.name,
       enabled: s.enabled,
       mode: s.mode,
-      supportsLocks: s.supportsLocks,
       bansPerTeam: s.bansPerTeam,
       locksPerTeam: s.locksPerTeam,
       bansTargetEnemy: s.bansTargetEnemy,
@@ -130,13 +127,14 @@ export function HeroBanSystemsConfiguration({ canEdit }: { canEdit: boolean }) {
       toast({ title: "Name is required", variant: "destructive" });
       return;
     }
+    const locksPerTeam = Number(form.locksPerTeam) || 0;
     const payload = {
       name: trimmed,
       enabled: form.enabled,
       mode: form.mode,
-      supportsLocks: form.supportsLocks,
+      supportsLocks: locksPerTeam > 0,
       bansPerTeam: Number(form.bansPerTeam) || 0,
-      locksPerTeam: Number(form.locksPerTeam) || 0,
+      locksPerTeam,
       bansTargetEnemy: form.bansTargetEnemy,
       locksSecureOwn: form.locksSecureOwn,
       bansPerRound: form.bansPerRound === "" ? null : Number(form.bansPerRound),
@@ -198,7 +196,7 @@ export function HeroBanSystemsConfiguration({ canEdit }: { canEdit: boolean }) {
                     <div className="flex items-center gap-1 flex-wrap mt-1">
                       <Badge variant="outline" data-testid={`badge-hbs-mode-${s.id}`}>{s.mode}</Badge>
                       <Badge variant="outline">{s.bansPerTeam} bans/team</Badge>
-                      {s.supportsLocks && <Badge variant="outline">{s.locksPerTeam} locks/team</Badge>}
+                      {s.locksPerTeam > 0 && <Badge variant="outline">{s.locksPerTeam} protects/team</Badge>}
                       {!s.enabled && <Badge variant="outline">disabled</Badge>}
                     </div>
                   </div>
@@ -250,13 +248,9 @@ export function HeroBanSystemsConfiguration({ canEdit }: { canEdit: boolean }) {
                 <Input id="hbs-bpt" type="number" min={0} value={form.bansPerTeam} onChange={(e) => setForm({ ...form, bansPerTeam: Number(e.target.value) })} data-testid="input-hbs-bans-per-team" />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="hbs-lpt">Locks per team</Label>
+                <Label htmlFor="hbs-lpt">Protects per team</Label>
                 <Input id="hbs-lpt" type="number" min={0} value={form.locksPerTeam} onChange={(e) => setForm({ ...form, locksPerTeam: Number(e.target.value) })} data-testid="input-hbs-locks-per-team" />
               </div>
-            </div>
-            <div className="flex items-center justify-between gap-2">
-              <Label htmlFor="hbs-locks">Supports locks (protects)</Label>
-              <Switch id="hbs-locks" checked={form.supportsLocks} onCheckedChange={(v) => setForm({ ...form, supportsLocks: v })} data-testid="switch-hbs-supports-locks" />
             </div>
             <div className="flex items-center justify-between gap-2">
               <Label htmlFor="hbs-target">Bans target enemy heroes</Label>

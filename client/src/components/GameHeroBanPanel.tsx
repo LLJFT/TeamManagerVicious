@@ -73,14 +73,12 @@ function generateFromPreset(system: HeroBanSystem): Row[] {
     if (rows.length >= 40) break;
     rows.push({ stepNumber: step++, actionType: "ban", actingTeam: "b", heroId: null, notes: null });
   }
-  if (system.supportsLocks) {
-    const locksPerTeam = cap(system.locksPerTeam || 0);
-    for (let i = 0; i < locksPerTeam; i++) {
-      if (rows.length >= 40) break;
-      rows.push({ stepNumber: step++, actionType: "lock", actingTeam: "a", heroId: null, notes: null });
-      if (rows.length >= 40) break;
-      rows.push({ stepNumber: step++, actionType: "lock", actingTeam: "b", heroId: null, notes: null });
-    }
+  const locksPerTeam = cap(system.locksPerTeam || 0);
+  for (let i = 0; i < locksPerTeam; i++) {
+    if (rows.length >= 40) break;
+    rows.push({ stepNumber: step++, actionType: "protect", actingTeam: "a", heroId: null, notes: null });
+    if (rows.length >= 40) break;
+    rows.push({ stepNumber: step++, actionType: "protect", actingTeam: "b", heroId: null, notes: null });
   }
   return rows;
 }
@@ -306,9 +304,13 @@ export function GameHeroBanPanel({ game, heroes, canEdit, onSaved }: Props) {
                     <Select value={r.actionType} disabled={!canEdit} onValueChange={(v) => updateRow(i, { actionType: v as HeroBanActionType })}>
                       <SelectTrigger data-testid={`select-hbs-action-${game.id}-${i}`}><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {heroBanActionTypes.map(t => (
-                          <SelectItem key={t} value={t} data-testid={`option-hbs-action-${t}-${game.id}-${i}`}>{t}</SelectItem>
-                        ))}
+                        {(() => {
+                          const visible = heroBanActionTypes.filter(t => t !== "lock");
+                          const opts = visible.includes(r.actionType as any) ? visible : [...visible, r.actionType];
+                          return opts.map(t => (
+                            <SelectItem key={t} value={t} data-testid={`option-hbs-action-${t}-${game.id}-${i}`}>{t}</SelectItem>
+                          ));
+                        })()}
                       </SelectContent>
                     </Select>
                   </td>
@@ -316,11 +318,15 @@ export function GameHeroBanPanel({ game, heroes, canEdit, onSaved }: Props) {
                     <Select value={r.actingTeam} disabled={!canEdit} onValueChange={(v) => updateRow(i, { actingTeam: v as BanVetoTeamSlot })}>
                       <SelectTrigger data-testid={`select-hbs-team-${game.id}-${i}`}><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {banVetoTeamSlots.map(t => (
-                          <SelectItem key={t} value={t} data-testid={`option-hbs-team-${t}-${game.id}-${i}`}>
-                            {t === "a" ? "Our team" : t === "b" ? "Opponent" : "Auto"}
-                          </SelectItem>
-                        ))}
+                        {(() => {
+                          const visible = banVetoTeamSlots.filter(t => t !== "auto");
+                          const opts = visible.includes(r.actingTeam as any) ? visible : [...visible, r.actingTeam];
+                          return opts.map(t => (
+                            <SelectItem key={t} value={t} data-testid={`option-hbs-team-${t}-${game.id}-${i}`}>
+                              {t === "a" ? "Our team" : t === "b" ? "Opponent" : "Auto"}
+                            </SelectItem>
+                          ));
+                        })()}
                       </SelectContent>
                     </Select>
                   </td>

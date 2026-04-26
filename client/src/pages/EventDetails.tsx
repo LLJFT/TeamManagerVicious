@@ -497,14 +497,16 @@ export default function EventDetails() {
     const scoreType = (mode as any)?.scoreType || "numeric";
     const maxScore = (mode as any)?.maxScore ?? 13;
     const maxRoundWins = (mode as any)?.maxRoundWins ?? 7;
-    const maxAllowed = scoreType === "rounds" ? maxRoundWins : maxScore;
+    const maxRoundsPerGame = Math.max(1, Math.min(40, (mode as any)?.maxRoundsPerGame ?? 15));
+    const maxScorePerRoundPerSide = (mode as any)?.maxScorePerRoundPerSide ?? (scoreType === "rounds" ? maxRoundWins : maxScore);
+    const maxAllowed = maxScorePerRoundPerSide;
 
     const updateRound = (idx: number, patch: Partial<RoundDraft>) => {
       const next = rounds.map((r, i) => (i === idx ? { ...r, ...patch } : r));
       setRounds(next);
     };
     const addRound = () => {
-      if (rounds.length >= 15) return;
+      if (rounds.length >= maxRoundsPerGame) return;
       setRounds([...rounds, { sideId: null, teamScore: 0, opponentScore: 0 }]);
     };
     const removeRound = (idx: number) => {
@@ -519,10 +521,10 @@ export default function EventDetails() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm font-medium">
             <BarChart3 className="h-4 w-4 text-primary" />
-            <span>Rounds ({rounds.length}/15)</span>
+            <span>Rounds ({rounds.length}/{maxRoundsPerGame})</span>
             {mode && (
               <Badge variant="outline" className="text-xs">
-                {scoreType === "rounds" ? `Max ${maxRoundWins} round wins` : `Max ${maxScore} per side`}
+                Max {maxScorePerRoundPerSide} per side / round
               </Badge>
             )}
           </div>
@@ -531,7 +533,7 @@ export default function EventDetails() {
             size="sm"
             variant="outline"
             onClick={addRound}
-            disabled={rounds.length >= 15}
+            disabled={rounds.length >= maxRoundsPerGame}
             data-testid={`button-add-round-${keyPrefix}`}
           >
             <Plus className="h-4 w-4 mr-1" />

@@ -1119,7 +1119,18 @@ export default function Dashboard() {
 
   const handleMapSubmit = (data: MapFormData) => {
     if (editingMap) {
-      updateMapMutation.mutate({ id: editingMap.id, map: data });
+      const dirty = mapForm.formState.dirtyFields as Record<string, boolean>;
+      const patch: Partial<MapFormData> = {};
+      if (dirty.name) patch.name = data.name;
+      if (dirty.gameModeId) patch.gameModeId = data.gameModeId;
+      if (dirty.imageUrl) patch.imageUrl = data.imageUrl ?? null;
+      if (Object.keys(patch).length === 0) {
+        setShowMapDialog(false);
+        setEditingMap(undefined);
+        mapForm.reset();
+        return;
+      }
+      updateMapMutation.mutate({ id: editingMap.id, map: patch });
     } else {
       createMapMutation.mutate(data);
     }
@@ -1578,6 +1589,8 @@ export default function Dashboard() {
                         const scoreType = (mode as any).scoreType || "numeric";
                         const maxScore = (mode as any).maxScore ?? 13;
                         const maxRoundWins = (mode as any).maxRoundWins ?? 7;
+                        const maxRoundsPerGame = (mode as any).maxRoundsPerGame ?? 15;
+                        const maxScorePerRoundPerSide = (mode as any).maxScorePerRoundPerSide ?? 99;
                         const canEdit = hasPermission("manage_game_config");
                         return (
                           <div key={mode.id} className="p-4 space-y-3" data-testid={`row-score-config-${mode.id}`}>
@@ -1650,6 +1663,59 @@ export default function Dashboard() {
                                 />
                               </div>
                             )}
+                            <div className="border-t border-border pt-3 space-y-3">
+                              <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Round Configuration</div>
+                              <div className="flex items-center justify-between gap-2">
+                                <Label className="text-xs text-muted-foreground">Max rounds per game</Label>
+                                <Input
+                                  key={`max-rounds-${mode.id}-${maxRoundsPerGame}`}
+                                  type="number"
+                                  min={1}
+                                  max={40}
+                                  defaultValue={maxRoundsPerGame}
+                                  disabled={!canEdit}
+                                  onBlur={(e) => {
+                                    const n = Math.max(1, Math.min(40, parseInt(e.target.value || "1", 10) || 1));
+                                    if (n !== maxRoundsPerGame) {
+                                      updateScoreConfigMutation.mutate({ id: mode.id, patch: { maxRoundsPerGame: n } as any });
+                                    }
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      (e.target as HTMLInputElement).blur();
+                                    }
+                                  }}
+                                  className="w-24"
+                                  data-testid={`input-max-rounds-per-game-${mode.id}`}
+                                />
+                              </div>
+                              <div className="flex items-center justify-between gap-2">
+                                <Label className="text-xs text-muted-foreground">Max score per round / side</Label>
+                                <Input
+                                  key={`max-round-side-${mode.id}-${maxScorePerRoundPerSide}`}
+                                  type="number"
+                                  min={1}
+                                  max={999}
+                                  defaultValue={maxScorePerRoundPerSide}
+                                  disabled={!canEdit}
+                                  onBlur={(e) => {
+                                    const n = Math.max(1, Math.min(999, parseInt(e.target.value || "1", 10) || 1));
+                                    if (n !== maxScorePerRoundPerSide) {
+                                      updateScoreConfigMutation.mutate({ id: mode.id, patch: { maxScorePerRoundPerSide: n } as any });
+                                    }
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      (e.target as HTMLInputElement).blur();
+                                    }
+                                  }}
+                                  className="w-24"
+                                  data-testid={`input-max-score-per-round-per-side-${mode.id}`}
+                                />
+                              </div>
+                            </div>
                           </div>
                         );
                       })}
