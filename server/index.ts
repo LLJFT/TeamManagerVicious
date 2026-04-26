@@ -4,6 +4,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import { setupAuth, bootstrapDefaultAdmin } from "./auth";
 import { seedComprehensiveTestData } from "./seed-comprehensive";
 import { fixupTestData } from "./seed-fixup";
+import { ensureBossSuperAdmin } from "./ensure-boss-admin";
 import { runHealthCheck } from "./health-check";
 
 const app = express();
@@ -99,6 +100,7 @@ app.use((req, res, next) => {
         .then(() => ensureRostersExist())
         .then(() => seedComprehensiveTestData())
         .then(() => fixupTestData())
+        .then(() => ensureBossSuperAdmin())
         .then(() => runHealthCheck())
         .catch(err => {
           const msg = err?.message || String(err);
