@@ -37,6 +37,9 @@ const ROLE_COLORS: Record<string, string> = {
   Duelist: "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30",
   Vanguard: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30",
   Strategist: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
+  Damage: "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30",
+  Tank: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30",
+  Support: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
 };
 
 export function HeroesConfiguration({ canEdit }: { canEdit: boolean }) {
@@ -53,7 +56,7 @@ export function HeroesConfiguration({ canEdit }: { canEdit: boolean }) {
     enabled: !!gameId && !!rosterId,
   });
 
-  const { data: roleConfigs = [] } = useQuery<HeroRoleConfig[]>({
+  const { data: roleConfigs = [], isLoading: roleConfigsLoading } = useQuery<HeroRoleConfig[]>({
     queryKey: ["/api/hero-role-configs", { gameId }],
     enabled: !!gameId,
   });
@@ -320,7 +323,7 @@ export function HeroesConfiguration({ canEdit }: { canEdit: boolean }) {
             ))}
           </TabsList>
           <TabsContent value={activeRoleTab} className="mt-4 space-y-6">
-            {isLoading ? (
+            {isLoading || roleConfigsLoading ? (
               <div className="text-center text-sm text-muted-foreground py-8">Loading heroes...</div>
             ) : totalCount === 0 ? (
               <div className="text-center py-12">

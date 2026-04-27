@@ -22,6 +22,7 @@ interface OpponentForm {
   name: string;
   shortName: string;
   logoUrl: string | null;
+  region: string;
   notes: string;
   isActive: boolean;
 }
@@ -37,6 +38,7 @@ const emptyOpponent: OpponentForm = {
   name: "",
   shortName: "",
   logoUrl: null,
+  region: "",
   notes: "",
   isActive: true,
 };
@@ -125,6 +127,7 @@ export function OpponentsConfiguration({ canEdit }: { canEdit: boolean }) {
     setOppForm({
       name: opp.name,
       shortName: opp.shortName ?? "",
+      region: (opp as any).region ?? "",
       logoUrl: opp.logoUrl,
       notes: opp.notes ?? "",
       isActive: opp.isActive,
@@ -142,6 +145,7 @@ export function OpponentsConfiguration({ canEdit }: { canEdit: boolean }) {
       name: trimmed,
       shortName: oppForm.shortName.trim() || null,
       logoUrl: oppForm.logoUrl,
+      region: oppForm.region.trim() || null,
       notes: oppForm.notes.trim() || null,
       isActive: oppForm.isActive,
       sortOrder: editingOpp?.sortOrder ?? opponents.length,
@@ -234,12 +238,13 @@ export function OpponentsConfiguration({ canEdit }: { canEdit: boolean }) {
                     {opp.name}
                   </div>
                   <div className="text-xs text-muted-foreground truncate">
-                    {opp.shortName ? `${opp.shortName} · ` : ""}{opp.isActive ? "Active" : "Inactive"}
+                    {opp.shortName ? `${opp.shortName} · ` : ""}{(opp as any).region ? `${(opp as any).region} · ` : ""}{opp.isActive ? "Active" : "Inactive"}
                   </div>
                 </div>
                 <div className="flex items-center gap-0.5 shrink-0">
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setRosterDialogOpp(opp)} data-testid={`button-opponent-roster-${opp.id}`} title="Manage roster">
-                    <UserPlus className="h-3.5 w-3.5 text-muted-foreground" />
+                  <Button variant="ghost" size="sm" className="gap-1 px-2" onClick={() => setRosterDialogOpp(opp)} data-testid={`button-opponent-roster-${opp.id}`} title="View roster">
+                    <UserPlus className="h-3.5 w-3.5" />
+                    <span className="text-xs hidden sm:inline">View Roster</span>
                   </Button>
                   {canEdit && (
                     <>
@@ -283,15 +288,27 @@ export function OpponentsConfiguration({ canEdit }: { canEdit: boolean }) {
                 data-testid="input-opponent-name"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="opp-short">Short name (optional)</Label>
-              <Input
-                id="opp-short"
-                value={oppForm.shortName}
-                onChange={(e) => setOppForm({ ...oppForm, shortName: e.target.value })}
-                placeholder="e.g. NRG, T1"
-                data-testid="input-opponent-short-name"
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="opp-short">Short name (optional)</Label>
+                <Input
+                  id="opp-short"
+                  value={oppForm.shortName}
+                  onChange={(e) => setOppForm({ ...oppForm, shortName: e.target.value })}
+                  placeholder="e.g. NRG, T1"
+                  data-testid="input-opponent-short-name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="opp-region">Region (optional)</Label>
+                <Input
+                  id="opp-region"
+                  value={oppForm.region}
+                  onChange={(e) => setOppForm({ ...oppForm, region: e.target.value })}
+                  placeholder="EMEA, NA, APAC..."
+                  data-testid="input-opponent-region"
+                />
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Logo</Label>

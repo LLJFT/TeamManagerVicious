@@ -469,6 +469,7 @@ export const opponents = pgTable("opponents", {
   name: text("name").notNull(),
   shortName: text("short_name"),
   logoUrl: text("logo_url"),
+  region: text("region"),
   notes: text("notes"),
   isActive: boolean("is_active").notNull().default(true),
   sortOrder: integer("sort_order").notNull().default(0),

@@ -1,0 +1,157 @@
+Good. Live deployment is working, but there are still visible live-site product issues that must be fixed as part of the next phase.
+
+Start the next phase now and include ALL of the following.
+
+PHASE 6 — Opponents / Pro Teams / Live consistency fixes
+
+There are still important live issues that are not solved yet.
+
+FIX 1 — Opponents data consistency
+On the live site, teams are appearing in Opponents / Stats by Opponent views, but they do not properly exist as actual opponent records in the Opponents dashboard/data layer.
+
+I need this fixed.
+
+Requirements:
+1. Seed real tier-1 / high-level competitive opponents for supported games, starting with Overwatch.
+2. Every team that appears in opponent-related analytics or opponent views must also exist as a proper opponent/team record in the Dashboard / Opponents system.
+3. Add proper opponent entities with:
+- team name
+- image/logo if available
+- roster players if available
+- region if available
+- safe fallback if image/logo is missing
+4. Add a proper View Roster flow/button where applicable so opponent cards are connected to real opponent records, not just analytics summaries.
+5. Do not leave ghost opponent teams that appear in analytics but do not exist in the actual Opponents data system.
+
+At minimum for Overwatch, seed real teams such as:
+- Team Peps
+- Twisted Minds
+- Virtus.pro
+- Geekay Esports
+- Al Qadsiah
+
+And add more real high-level teams until the Overwatch opponent pool is meaningful.
+
+Then continue the same approach for the other supported games using real competitive teams from their active circuits.
+
+FIX 2 — Overwatch Hero Roles UI is still wrong on live
+The Overwatch Heroes Configuration UI is still incorrect on the live site.
+It is showing the wrong grouping instead of the real Overwatch roles.
+
+The Overwatch role mapping must be exactly this:
+
+Overwatch roles:
+- Damage
+- Support
+- Tank
+
+Use these exact heroes under these exact roles.
+
+Damage heroes:
+- Anran
+- Ashe
+- Bastion
+- Cassidy
+- Echo
+- Emre
+- Freja
+- Genji
+- Hanzo
+- Junkrat
+- Mei
+- Pharah
+- Reaper
+- Sierra
+- Sojourn
+- Soldier: 76
+- Sombra
+- Symmetra
+- Torbjörn
+- Tracer
+- Vendetta
+- Venture
+- Widowmaker
+
+Support heroes:
+- Ana
+- Baptiste
+- Brigitte
+- Illari
+- Jetpack Cat
+- Juno
+- Kiriko
+- Lifeweaver
+- Lúcio
+- Mercy
+- Mizuki
+- Moira
+- Wuyang
+- Zenyatta
+
+Tank heroes:
+- D.Va
+- Domina
+- Doomfist
+- Hazard
+- Junker Queen
+- Mauga
+- Orisa
+- Ramattra
+- Reinhardt
+- Roadhog
+- Sigma
+- Winston
+- Wrecking Ball
+- Zarya
+
+Requirements:
+1. Overwatch must show the role tabs/groups as:
+- Damage
+- Support
+- Tank
+2. Do not group these heroes under "Other".
+3. Do not use Marvel Rivals roles for Overwatch.
+4. "All" can remain only as a filter tab, but the real role groups must be the three roles above.
+5. Every listed hero must appear under the correct role exactly as listed above.
+6. Verify this visually on the live site after fixing it.
+
+FIX 3 — Round Configuration is not respected in Add New Game
+On the live site, the Add New Game form still shows Max 13 per side / round even when Dashboard configuration was changed.
+
+This is still wrong.
+
+Requirements:
+1. Fix Add New Game so round scoring limits come from the actual Round Configuration in Dashboard / Game Config.
+2. The max score per round per side must follow the configured game mode value.
+3. The max rounds per game must also follow the configured value.
+4. This must work on the live site, not just locally.
+5. Verify it visually in the Add New Game form after the fix.
+
+PHASE 6 CORE SEEDING WORK
+In addition to the above fixes, continue the real-data seeding work.
+
+For each supported game:
+1. Add real competitive opponents / teams.
+2. Add roster players where reliably available.
+3. Add team logos/images where reliably available; otherwise leave empty and use fallback UI.
+4. Do not invent fake roster data.
+5. Do not generate fake official logos as if they were real team assets.
+6. Keep the data extensible and safe.
+
+LIVE-SITE VERIFICATION REQUIREMENTS
+After implementation, verify on https://thebootcamp.services/ itself, not just dev and not just API tests.
+
+You must confirm on the live site:
+1. Opponent teams now exist properly in Opponents / Dashboard data.
+2. Opponent analytics do not reference ghost teams.
+3. Overwatch hero role tabs show Damage / Support / Tank correctly.
+4. Add New Game reads Round Configuration correctly.
+5. Images/fallbacks still behave correctly.
+6. No unrelated systems are broken.
+
+IMPORTANT
+- Do not reset or wipe working live data unless absolutely necessary.
+- Do not break Marvel Rivals data.
+- Do not change unrelated auth logic.
+- Do not report done based only on local/dev/API checks.
+- Final report must include live-site verification for each fix.

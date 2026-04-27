@@ -552,11 +552,20 @@ export default function EventDetails() {
   ) => {
     const mode = getModeForGame(modeId);
     const scoreType = (mode as any)?.scoreType || "numeric";
-    const maxScore = (mode as any)?.maxScore ?? 13;
-    const maxRoundWins = (mode as any)?.maxRoundWins ?? 7;
-    const maxRoundsPerGame = Math.max(1, Math.min(40, (mode as any)?.maxRoundsPerGame ?? 15));
-    const maxScorePerRoundPerSide = (mode as any)?.maxScorePerRoundPerSide ?? (scoreType === "rounds" ? maxRoundWins : maxScore);
-    const maxAllowed = maxScorePerRoundPerSide;
+    const maxScoreRaw = (mode as any)?.maxScore;
+    const maxRoundWinsRaw = (mode as any)?.maxRoundWins;
+    const maxRoundsRaw = (mode as any)?.maxRoundsPerGame;
+    const maxRoundsPerGame = Math.max(1, Math.min(40, typeof maxRoundsRaw === "number" && maxRoundsRaw > 0 ? maxRoundsRaw : 40));
+    // If no per-side cap is configured, fall back to the configured score cap;
+    // if neither is configured, treat as uncapped (999) — never the legacy hardcoded 13.
+    const perSideCfg = (mode as any)?.maxScorePerRoundPerSide;
+    const fallbackScoreCap = scoreType === "rounds"
+      ? (typeof maxRoundWinsRaw === "number" && maxRoundWinsRaw > 0 ? maxRoundWinsRaw : null)
+      : (typeof maxScoreRaw === "number" && maxScoreRaw > 0 ? maxScoreRaw : null);
+    const maxScorePerRoundPerSide: number | null =
+      typeof perSideCfg === "number" && perSideCfg > 0 ? perSideCfg : fallbackScoreCap;
+    const maxAllowed = maxScorePerRoundPerSide ?? 999;
+    const hasCap = maxScorePerRoundPerSide !== null;
 
     const updateRound = (idx: number, patch: Partial<RoundDraft>) => {
       const next = rounds.map((r, i) => (i === idx ? { ...r, ...patch } : r));
@@ -579,7 +588,7 @@ export default function EventDetails() {
           <div className="flex items-center gap-2 text-sm font-medium">
             <BarChart3 className="h-4 w-4 text-primary" />
             <span>Rounds ({rounds.length}/{maxRoundsPerGame})</span>
-            {mode && (
+            {mode && hasCap && (
               <Badge variant="outline" className="text-xs">
                 Max {maxScorePerRoundPerSide} per side / round
               </Badge>
