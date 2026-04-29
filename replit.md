@@ -1,74 +1,41 @@
 # Vicious Esports Multi-Game Management Platform
 
 ## Overview
-
-This project is a comprehensive multi-game esports management platform for "The Vicious" organization, supporting 29 games and 4 rosters per game (116 total). It provides features for team scheduling, event management, player/staff administration, role-based access control, a two-step registration approval workflow, team chat, statistics dashboards, and seasonal management. The platform aims to centralize and streamline operations for a multi-game esports entity.
+This project is a comprehensive multi-game esports management platform designed for "The Vicious" organization. It centralizes and streamlines operations for 29 games, each supporting four rosters, totaling 116 teams. Key capabilities include team scheduling, event management, player/staff administration, robust role-based access control with a two-step registration approval, team chat, statistics dashboards, and seasonal management. The platform aims to provide a unified solution for managing a large-scale, multi-game esports entity.
 
 ## User Preferences
-
 Preferred communication style: Simple, everyday language.
 
 ## System Architecture
 
-### Multi-Game and Roster Structure
-The platform displays roster-level cards grouped by game. Each game includes four fixed rosters (Team 1-4). Data is strictly isolated by `gameId` and `rosterId`. Rosters have unique 10-digit numeric codes for URL access (`/<game-slug>/<roster-code>`). A `GameProvider` manages the current game/roster context, scoping API calls. Invalid roster codes or unauthorized access result in "Page Not Found" or "Access Denied" messages with redirection.
-
-### Authentication, Authorization, and Permissions
-Session-based authentication uses `bcrypt` for password hashing. Registration is a two-step approval process. A robust role-based access control system includes `super_admin`, `org_admin`, `game_manager`, `coach_analyst`, and `player` roles. `org_admin` and `super_admin` bypass all permission checks. A hierarchical system prevents lower-ranked users from modifying higher-ranked users. Granular permissions (39 types across 9 categories) are assigned to roles, with support for custom roles. Banning a user at the organization level invalidates all their sessions and game assignments.
+### Core Architecture
+The platform is built to support a multi-game and multi-roster structure, isolating data strictly by `gameId` and `rosterId`. It uses session-based authentication with `bcrypt` for password hashing and a two-step approval process for registration. A hierarchical role-based access control system manages permissions, including `super_admin`, `org_admin`, `game_manager`, `coach_analyst`, and `player` roles, with granular control over 39 permission types.
 
 ### Frontend and UI/UX
-The frontend uses a modern sidebar layout with dark mode and Shadcn UI components. The `AppSidebar` adapts navigation based on context (home or game-specific). The home page (`GamesHome`) shows a grid of roster cards. An `OrgDashboard` provides an overview for `org_admin`. The `CalendarPage` features a monthly grid with color-coded event previews and a right sidebar for event details. The `RolesPage` manages user roles and granular permissions via a CRUD interface. A `SettingsPage` allows for organization-level configuration, including dynamic theming based on the uploaded logo. Pages use loading skeletons for better user experience.
+The frontend features a modern sidebar layout with dark mode and utilizes Shadcn UI components for a consistent user experience. It includes dynamic navigation, a roster card display on the home page, an organization dashboard, and a calendar with color-coded event previews. User role and permission management are handled via a CRUD interface, and a settings page allows for organization-level configurations including dynamic theming. Loading skeletons are used to enhance user experience.
 
-### Core Features
-- **Display Name System**: Automatic generation of unique display names based on game/roster.
-- **Role & Access Management**: Tools for managing roles, permissions, users, and game access.
-- **Chat System**: Channel-based messaging with file uploads, @mentions, and URL detection.
-- **Activity Logging**: Detailed logs for game-scoped and organization-level actions.
-- **Forgot Password Flow**: Secure password reset process managed by administrators.
-- **Manageable Event Type System**: Dynamic event categories and sub-types configurable via the dashboard, influencing calendar display and event creation.
-- **Attendance Tracking**: Per-event attendance for players and staff with statuses (attended/late/absent), managed via Event Details and Players page.
-- **Statistics Filter & Breakdowns**: Stats page features collapsible category groups for filtering, and player statistics include breakdowns by mode, map, and opponent.
-- **Opponent Event History**: Opponents page cards expand to show event history, including W/L/D records and game scores.
-- **Share Functionality**: Clipboard sharing for event results in a standardized format.
-- **In-App Tutorial**: Onboarding guide for new users, re-triggerable via a help button.
-- **Data Safety**: No auto-delete/expire for user data.
-- **Remix-Proofing**: Startup scripts ensure idempotent bootstrapping of default data, migrations, and directory creation.
-- **Roster Configuration**: Rosters are ordered by `sortOrder`. Roster roles are managed, with player roles locked to "player" type.
-- **User-Player Linking**: Secure linking of users to player profiles with team-scoped ownership checks.
-- **Sides Configuration**: Per-roster configurable side definitions (e.g., Attack/Defense) managed via Dashboard Game Config.
-- **Heroes Configuration**: Per-roster hero pool managed via Dashboard Game Config (admin/coach with `manage_game_config`). Heroes have name, role (Duelist/Vanguard/Strategist), optional image upload, active/inactive toggle, and sortOrder. For Marvel Rivals rosters, ~50 default heroes auto-seed on first load (idempotent via a `heroes_defaults_seeded` setting flag set before insert to avoid concurrent double-seed). The `game_heroes` join table (matchId, playerId OR opponentPlayerId, heroId) supports multi-hero per player per game records on both sides, plus ban & protect / analytics.
-- **Opponents Management**: Per-roster opponent teams (`opponents`) and per-opponent rosters (`opponent_players`), managed via Dashboard Opponents tab (`manage_game_config`). Events can link to an opponent via `events.opponentId`; on game creation under that event, the link cascades to `games.opponentId` (default). Updating an event's opponent also updates child games whose opponentId is unset or matches the prior event opponent.
-- **Hero Ban System (HBS)**: Per-roster reusable Hero Ban presets (`hero_ban_systems` table), configured in Dashboard → Hero Ban tab (gated by `manage_game_config`). Modes: `simple`, `rainbow_flexible`, `custom`. Each game can opt-in to one preset via `games.heroBanSystemId`. Per-game execution table (`game_hero_ban_actions`) holds the editable sequence of actions (action type, acting team, hero, notes), capped at 40 steps per match (server-enforced). Replace-all writes happen in a transaction. Deleting a preset transactionally nulls dependent games' `heroBanSystemId`.
-- **Map Veto System (MVS)**: Per-roster reusable Map Veto presets (`map_veto_systems` table), configured in Dashboard → Map Veto tab (gated by `manage_game_config`). Per-system flags: `supportsBan`, `supportsPick`, `supportsDecider`, `supportsSideChoice`. Each game can opt-in via `games.mapVetoSystemId`. Per-game execution table (`game_map_veto_rows`) holds the editable rows (action type, acting team, map, side, notes), capped at 40 rows per match (server-enforced). Map combobox shows "GameMode — Map" labels. Per-game UI lives in Event Details → Games & Scoreboard collapsible game cards (also supports draft-mode bundling for new games). Deleting a preset transactionally nulls dependent games' `mapVetoSystemId`.
-- **Schedule Countdown Timezone**: `UpcomingCountdown` interprets each event's wall-clock date/time in the event's configured timezone (`event.timezone`, with device tz fallback). Short timezone codes (EST/PST/JST/etc.) from `eventTimezones.ts` are resolved to fixed-offset zones via `Intl.DateTimeFormat`, so the countdown is correct regardless of the viewer's location.
-- **Two-Sided Match Stats (replaces Player Stats in Games & Scoreboard)**: For each game, `MatchSidesEditor` shows our team's players AND the linked opponent's players in two sections. The legacy "Player Stats" label/concept and table-in-Add-New-Game form were fully removed from Games & Scoreboard — Match Stats is the single source of truth there. Match Stats panels render INLINE per row: each game's `<tr>` is followed by a sibling `<tr>` (`colSpan={6}`, wrapped in a `Fragment`) containing the Match Stats card, so the panel sits directly under its game row in the table. Render gate is `!!game.gameModeId` (any game with a Game Mode shows Match Stats — even modes with zero stat fields still expose heroes + Played/DNP). Hero dropdowns and selected-hero badges show Avatars (image + initials fallback colored by hero role). Stat field columns are driven by Dashboard mode→fields config via `getStatFieldsByMode(gameModeId)`. Our-team rows are limited to the current roster's players (queries are roster-scoped via `{gameId, rosterId}` queryKey segments). Each row supports a Played/DNP toggle, multi-hero selection, and per-mode stat fields. Persistence uses `match_participants` (per-game roster + DNP), `game_heroes` (multi-hero per player or opponentPlayerId), `player_game_stats` (our side), and `opponent_player_game_stats` (opponent side). All replace-all writes are wrapped in a single DB transaction for safety. Backed by routes: `GET/PUT /api/games/:id/participation`, `GET/PUT /api/games/:id/heroes`, `GET/POST /api/games/:id/opponent-player-stats`, all gated by `edit_events`. Note: the sidebar "Player Stats" Analytics page is a separate read-only analytics view and is unaffected.
-- **Per-Mode Score Configuration**: Game modes can be configured with `scoreType` (numeric/rounds) and score caps, influencing multi-round scoring inputs.
-- **Multi-Round Game Scoring**: Support for detailed scoring across multiple rounds per match, with data stored in `game_rounds` table and integrated into EventDetails UI.
-- **Hero Ban System (HBS)**: Roster-scoped configurable systems managed via Dashboard → "Hero Ban" tab (`HeroBanSystemsConfiguration`, gated by `manage_game_config`). Backed by `hero_ban_systems` table. Each system supports `enabled`, ordering, mode (`simple` / `custom` / `rainbow_flexible`), `bansPerTeam`, optional `locksPerTeam` (UI label: "Protects per team"), and an optional `totalBansPerMap` (used by Rainbow flexible mode, capped at 40). The `supportsLocks` column is auto-derived from `locksPerTeam > 0` on save (no UI toggle). Per-game execution UI in EventDetails (`GameHeroBanPanel`) is a collapsible row directly under each game `<tr>`: shows ON/OFF switch when exactly one enabled system exists, or a dropdown when multiple. The selected system is persisted on `games.heroBanSystemId`. Sequence editor lets users add steps with `actionType` (ban/protect/pick — "lock" is hidden in the editor; legacy "lock" rows are still shown if present), `actingTeam` (a=Our team / b=Opponent — "auto" is hidden in the editor; legacy auto rows are still shown if present), hero (from roster heroes), and notes. Hero pickers use a searchable popover combobox showing each hero's avatar (image with role-colored initial fallback). When a system is selected on a game and no actions exist server-side, the panel auto-populates the sequence in local state from the preset (alternating a/b bans then `protect` rows for `locksPerTeam`; Rainbow uses `totalBansPerMap` or `bansPerTeam*2`, capped at 40); a banner notes "Auto-populated from preset…", and a "Reset from preset" button (Wand icon) regenerates rows. Changes are not saved until the user clicks "Save Sequence". Persistence in `game_hero_ban_actions` via PUT `/api/games/:id/hero-ban-actions` (replace-all in a single transaction; backend validates that all referenced heroIds belong to the same team+game+roster).
-- **Map Veto System (MVS)**: Roster-scoped configurable systems managed via Dashboard → "Map Veto" tab (`MapVetoSystemsConfiguration`, gated by `manage_game_config`). Backed by `map_veto_systems` table with toggles for `supportsBan`, `supportsPick`, `supportsDecider`, and `supportsSideChoice`. Per-game execution UI (`GameMapVetoPanel`) is a collapsible row under each game `<tr>`: ON/OFF switch (one system) or dropdown (multiple), persisted on `games.mapVetoSystemId`. A numeric "Rows" input (max 40) drives the row table; each row has step #, action (ban/pick/decider, filtered by system support), acting team, a searchable "Mode -- Map" combobox, optional side selector (only when system supports it), and notes. The map combobox shows a thumbnail (image when present on the map record, otherwise a map icon fallback) on both the trigger and each option row. When a system is selected on a game and no rows exist server-side, the panel auto-populates rows in local state from the preset (`defaultRowCount` rows split between bans and picks per the system's supported actions, alternating a/b, with a final auto-team `decider` step when `supportsDecider`); a banner notes "Auto-populated from preset…", and a "Reset from preset" button regenerates rows. Changes are not saved until the user clicks "Save Rows". Persistence in `game_map_veto_rows` via PUT `/api/games/:id/map-veto-rows` (replace-all in a single transaction; backend validates all mapId/sideId references belong to the same scope, and rejects requests with > 40 rows). PUT `/api/games/:id` validates `heroBanSystemId`/`mapVetoSystemId` are scoped to the same team+game+roster.
-- **Map images**: The `maps` table has an optional `imageUrl text` column. Dashboard → Maps tab includes an upload field in the Map dialog (preview thumbnail + ObjectUploader + URL input + Remove button). Map row listings show a 9x12 thumbnail next to the map name. The MVS row combobox surfaces these images for both the selected map and each option in the picker.
+### Key Features
+- **Data Management**: Unique display names, activity logging, secure forgot password flow, and a dynamic event type system.
+- **Roster & Player Management**: Roster configuration, user-player linking, and attendance tracking for events.
+- **Game Configuration**: Per-roster configurable side definitions, hero pools (with default seeding for Marvel Rivals), and opponent management.
+- **Hero Role Management**: Per-game role definitions managed via the "Manage Roles" button inside Heroes Configuration (gated by `manage_game_config`). Roles are stored in `hero_role_configs` (teamId + gameId + name unique). Supports CRUD, reorder, enable/disable. Add/Edit Hero dialogs pull options from this list. Renaming a role atomically cascades the new name to all heroes using it. Deleting a role-in-use returns 409 with `heroesAffected` and requires `?reassignTo=<roleConfigId>` to migrate heroes; deletion runs in a transaction. The "All" tab in Heroes Configuration is a filter only; "Other" only appears when heroes truly have unmapped roles.
+- **Competitive Systems**:
+    - **Hero Ban System (HBS)**: Configurable, reusable per-roster presets with support for simple, rainbow_flexible, and custom modes. Each game can opt-in to a preset, with an editable sequence of actions (ban/protect) and server-enforced limits.
+    - **Map Veto System (MVS)**: Configurable, reusable per-roster presets supporting ban, pick, decider, and side choice actions. Each game can opt-in, with an editable sequence of actions and server-enforced limits. Map images are supported for visual representation.
+- **Statistics & Scoring**: Two-sided match stats (replacing legacy player stats) with per-mode score configuration, multi-round scoring, and detailed player statistics breakdowns. Opponent event history and share functionality are also included.
+- **User Experience**: In-app tutorial for onboarding, schedule countdowns that account for event timezones, and robust data safety measures with no auto-deletion.
+- **Deployment & Development**: Designed for autoscale deployment, with startup scripts for idempotent bootstrapping of default data, migrations, and directory creation.
 
-### Database Structure
-The database utilizes PostgreSQL and is structured with core tables for users, games, and rosters, supplemented by extensive game-scoped and roster-scoped tables to ensure data integrity and isolation.
-
-### Startup Pipeline
-Server startup involves:
-1. `bootstrapDefaultAdmin()`: Migrations, supported games, default admin + roles.
-2. `registerRoutes()`: API endpoints; `seedRosterDefaults()` runs per-roster on first access.
-3. `seedComprehensiveTestData()`: Adds player/staff availability, off days, chat if missing.
-4. `fixupTestData()`: Ensures event sub-types, opponents, chat channels/messages.
-5. `runHealthCheck()`: 12-point verification.
-
-### Deployment
-The platform is designed for autoscale deployment, targeting Replit or Vercel/Neon. It uses `npm run build` for Vite frontend and esbuild server bundling, and `npm run start` to run the Node.js production server. Static assets are served from `dist/public/`. The environment uses nodejs-20, web, and postgresql-16. `vercel.json` is included for Vercel deployments.
+### Database and Deployment
+The platform uses PostgreSQL for its database, leveraging extensive game-scoped and roster-scoped tables. It is designed for deployment on platforms like Replit or Vercel/Neon, using `npm run build` for frontend and server bundling, and `npm run start` for the Node.js production server. The environment is Node.js 20 with PostgreSQL 16.
 
 ## External Dependencies
 
-- **PostgreSQL**: Primary database (Neon serverless driver).
-- **bcryptjs**: Password hashing.
-- **express-session**: Session management.
-- **connect-pg-simple**: PostgreSQL session store.
-- **react-icons/si**: Fallback game icons.
-- **Shadcn UI**: Frontend component library.
-- **multer**: File uploads to local filesystem (`./uploads/`).
-- **emoji-picker-react**: Emoji support in chat.
+-   **PostgreSQL**: Primary database (via Neon serverless driver).
+-   **bcryptjs**: For password hashing.
+-   **express-session**: For session management.
+-   **connect-pg-simple**: PostgreSQL session store.
+-   **react-icons/si**: For fallback game icons.
+-   **Shadcn UI**: Frontend component library.
+-   **multer**: For file uploads.
+-   **emoji-picker-react**: For emoji support in the chat system.

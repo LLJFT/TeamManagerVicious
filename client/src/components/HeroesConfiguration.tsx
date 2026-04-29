@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
-  Plus, Pencil, Trash2, Shield, Search, Image as ImageIcon, ArrowUp, ArrowDown,
+  Plus, Pencil, Trash2, Shield, Search, Image as ImageIcon, ArrowUp, ArrowDown, Settings2, Check, X,
 } from "lucide-react";
 import type { Hero, HeroRoleConfig } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -117,6 +117,114 @@ export function HeroesConfiguration({ canEdit }: { canEdit: boolean }) {
       invalidateHeroes();
     },
   });
+
+  // ===== Hero Role Configs (per-game) =====
+  const [showRolesDialog, setShowRolesDialog] = useState(false);
+  const [newRoleName, setNewRoleName] = useState("");
+  const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
+  const [editingRoleName, setEditingRoleName] = useState("");
+  const [deleteConflict, setDeleteConflict] = useState<{ role: HeroRoleConfig; heroesAffected: number; reassignTo: string } | null>(null);
+
+  const sortedRoleConfigs = useMemo(
+    () => [...roleConfigs].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)),
+    [roleConfigs]
+  );
+
+  const invalidateRoleConfigs = () =>
+    queryClient.invalidateQueries({ predicate: (q) => q.queryKey[0] === "/api/hero-role-configs" });
+
+  const createRoleMutation = useMutation({
+    mutationFn: async (data: { name: string; sortOrder: number; isActive: boolean }) => {
+      const res = await apiRequest("POST", "/api/hero-role-configs", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      invalidateRoleConfigs();
+      setNewRoleName("");
+      toast({ title: "Role added" });
+    },
+    onError: (e: any) => toast({ title: "Failed to add role", description: e.message, variant: "destructive" }),
+  });
+
+  const updateRoleMutation = useMutation({
+    mutationFn: async ({ id, patch }: { id: string; patch: Partial<{ name: string; isActive: boolean; sortOrder: number }> }) => {
+      const res = await apiRequest("PUT", `/api/hero-role-configs/${id}`, patch);
+      return res.json();
+    },
+    onSuccess: () => {
+      invalidateRoleConfigs();
+      invalidateHeroes();
+    },
+    onError: (e: any) => toast({ title: "Failed to update role", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteRoleMutation = useMutation({
+    mutationFn: async ({ id, reassignTo }: { id: string; reassignTo?: string }) => {
+      const path = reassignTo ? `/api/hero-role-configs/${id}?reassignTo=${reassignTo}` : `/api/hero-role-configs/${id}`;
+      const res = await fetch(path, { method: "DELETE", credentials: "include" });
+      const body = await res.json().catch(() => ({}));
+      return { status: res.status, body };
+    },
+    onSuccess: (result, vars) => {
+      if (result.status === 409) {
+        const target = roleConfigs.find(r => r.id === vars.id);
+        if (target) setDeleteConflict({ role: target, heroesAffected: result.body?.heroesAffected || 0, reassignTo: "" });
+        return;
+      }
+      if (result.status >= 400) {
+        toast({ title: "Failed to delete role", description: result.body?.error || `HTTP ${result.status}`, variant: "destructive" });
+        return;
+      }
+      invalidateRoleConfigs();
+      invalidateHeroes();
+      setDeleteConflict(null);
+      const reassigned = result.body?.heroesReassigned || 0;
+      toast({ title: "Role deleted", description: reassigned > 0 ? `${reassigned} hero(es) reassigned to "${result.body?.replacement}"` : undefined });
+    },
+    onError: (e: any) => toast({ title: "Failed to delete role", description: e.message, variant: "destructive" }),
+  });
+
+  const moveRole = (index: number, direction: -1 | 1) => {
+    const target = sortedRoleConfigs[index + direction];
+    const current = sortedRoleConfigs[index];
+    if (!target || !current) return;
+    updateRoleMutation.mutate({ id: current.id, patch: { sortOrder: target.sortOrder } });
+    updateRoleMutation.mutate({ id: target.id, patch: { sortOrder: current.sortOrder } });
+  };
+
+  const handleAddRole = () => {
+    const name = newRoleName.trim();
+    if (!name) return;
+    const maxOrder = sortedRoleConfigs.reduce((m, r) => Math.max(m, r.sortOrder), -1);
+    createRoleMutation.mutate({ name, sortOrder: maxOrder + 1, isActive: true });
+  };
+
+  const startEditRole = (r: HeroRoleConfig) => {
+    setEditingRoleId(r.id);
+    setEditingRoleName(r.name);
+  };
+
+  const saveEditRole = () => {
+    const id = editingRoleId;
+    const name = editingRoleName.trim();
+    if (!id || !name) { setEditingRoleId(null); return; }
+    const original = roleConfigs.find(r => r.id === id);
+    if (original && original.name !== name) {
+      updateRoleMutation.mutate({ id, patch: { name } }, { onSuccess: () => { setEditingRoleId(null); } });
+    } else {
+      setEditingRoleId(null);
+    }
+  };
+
+  const requestDeleteRole = (r: HeroRoleConfig) => {
+    if (!confirm(`Delete role "${r.name}"? Heroes using it will need to be reassigned.`)) return;
+    deleteRoleMutation.mutate({ id: r.id });
+  };
+
+  const confirmReassignDelete = () => {
+    if (!deleteConflict || !deleteConflict.reassignTo) return;
+    deleteRoleMutation.mutate({ id: deleteConflict.role.id, reassignTo: deleteConflict.reassignTo });
+  };
 
   const heroesByRole = useMemo(() => {
     const groups: Record<string, Hero[]> = {};
@@ -293,10 +401,16 @@ export function HeroesConfiguration({ canEdit }: { canEdit: boolean }) {
             </div>
           </div>
           {canEdit && (
-            <Button onClick={openCreate} size="sm" className="gap-2" data-testid="button-add-hero">
-              <Plus className="h-4 w-4" />
-              Add Hero
-            </Button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button variant="outline" onClick={() => setShowRolesDialog(true)} size="sm" className="gap-2" data-testid="button-manage-hero-roles">
+                <Settings2 className="h-4 w-4" />
+                Manage Roles
+              </Button>
+              <Button onClick={openCreate} size="sm" className="gap-2" data-testid="button-add-hero">
+                <Plus className="h-4 w-4" />
+                Add Hero
+              </Button>
+            </div>
           )}
         </div>
       </CardHeader>
@@ -425,6 +539,137 @@ export function HeroesConfiguration({ canEdit }: { canEdit: boolean }) {
             </Button>
             <Button onClick={handleSubmit} disabled={createMutation.isPending || updateMutation.isPending} data-testid="button-save-hero">
               {createMutation.isPending || updateMutation.isPending ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showRolesDialog} onOpenChange={(open) => { setShowRolesDialog(open); if (!open) { setEditingRoleId(null); setNewRoleName(""); setDeleteConflict(null); } }}>
+        <DialogContent data-testid="dialog-manage-hero-roles">
+          <DialogHeader>
+            <DialogTitle>Manage Hero Roles</DialogTitle>
+            <DialogDescription>
+              Define the role set used by heroes in this game. Roles are scoped to the current game and used by Add/Edit Hero.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {canEdit && (
+              <div className="flex items-end gap-2">
+                <div className="flex-1 space-y-1">
+                  <Label htmlFor="new-role-name">New role name</Label>
+                  <Input
+                    id="new-role-name"
+                    value={newRoleName}
+                    onChange={(e) => setNewRoleName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddRole(); } }}
+                    placeholder="e.g. Damage, Tank, Support"
+                    data-testid="input-new-role-name"
+                  />
+                </div>
+                <Button onClick={handleAddRole} disabled={!newRoleName.trim() || createRoleMutation.isPending} data-testid="button-add-role">
+                  <Plus className="h-4 w-4 mr-1" /> Add
+                </Button>
+              </div>
+            )}
+            <div className="space-y-1.5">
+              {roleConfigsLoading ? (
+                <div className="text-sm text-muted-foreground py-4 text-center">Loading roles...</div>
+              ) : sortedRoleConfigs.length === 0 ? (
+                <div className="text-sm text-muted-foreground py-6 text-center border border-dashed border-border rounded-md">
+                  No roles configured yet. Add one above to get started.
+                </div>
+              ) : (
+                sortedRoleConfigs.map((r, idx) => (
+                  <div key={r.id} className={`flex items-center gap-2 p-2 border border-border rounded-md ${r.isActive ? "" : "opacity-60"}`} data-testid={`row-role-${r.id}`}>
+                    {editingRoleId === r.id ? (
+                      <Input
+                        value={editingRoleName}
+                        onChange={(e) => setEditingRoleName(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); saveEditRole(); } if (e.key === "Escape") setEditingRoleId(null); }}
+                        autoFocus
+                        className="flex-1"
+                        data-testid={`input-edit-role-name-${r.id}`}
+                      />
+                    ) : (
+                      <Badge variant="outline" className={`${ROLE_COLORS[r.name] || ""} text-sm`} data-testid={`text-role-name-${r.id}`}>{r.name}</Badge>
+                    )}
+                    <span className="flex-1" />
+                    {canEdit && (
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        {editingRoleId === r.id ? (
+                          <>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={saveEditRole} data-testid={`button-save-role-${r.id}`}>
+                              <Check className="h-3.5 w-3.5 text-emerald-600" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingRoleId(null)} data-testid={`button-cancel-edit-role-${r.id}`}>
+                              <X className="h-3.5 w-3.5 text-muted-foreground" />
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" disabled={idx === 0 || updateRoleMutation.isPending} onClick={() => moveRole(idx, -1)} data-testid={`button-role-up-${r.id}`}>
+                              <ArrowUp className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" disabled={idx === sortedRoleConfigs.length - 1 || updateRoleMutation.isPending} onClick={() => moveRole(idx, 1)} data-testid={`button-role-down-${r.id}`}>
+                              <ArrowDown className="h-3.5 w-3.5" />
+                            </Button>
+                            <Switch
+                              checked={r.isActive}
+                              onCheckedChange={(v) => updateRoleMutation.mutate({ id: r.id, patch: { isActive: v } })}
+                              data-testid={`switch-role-active-${r.id}`}
+                            />
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startEditRole(r)} data-testid={`button-edit-role-${r.id}`}>
+                              <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => requestDeleteRole(r)} data-testid={`button-delete-role-${r.id}`}>
+                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setShowRolesDialog(false)} data-testid="button-close-manage-roles">Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deleteConflict} onOpenChange={(open) => { if (!open) setDeleteConflict(null); }}>
+        <DialogContent data-testid="dialog-reassign-role">
+          <DialogHeader>
+            <DialogTitle>Reassign heroes before deleting</DialogTitle>
+            <DialogDescription>
+              {deleteConflict ? `${deleteConflict.heroesAffected} hero(es) currently use the "${deleteConflict.role.name}" role. Pick a replacement role to migrate them to.` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="reassign-target">Replacement role</Label>
+            <Select
+              value={deleteConflict?.reassignTo || ""}
+              onValueChange={(v) => setDeleteConflict(c => c ? { ...c, reassignTo: v } : c)}
+            >
+              <SelectTrigger id="reassign-target" data-testid="select-reassign-target">
+                <SelectValue placeholder="Select replacement role" />
+              </SelectTrigger>
+              <SelectContent>
+                {sortedRoleConfigs
+                  .filter(r => r.id !== deleteConflict?.role.id)
+                  .map(r => (
+                    <SelectItem key={r.id} value={r.id} data-testid={`option-reassign-${r.id}`}>{r.name}</SelectItem>
+                  ))
+                }
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConflict(null)} data-testid="button-cancel-reassign">Cancel</Button>
+            <Button onClick={confirmReassignDelete} disabled={!deleteConflict?.reassignTo || deleteRoleMutation.isPending} data-testid="button-confirm-reassign-delete">
+              {deleteRoleMutation.isPending ? "Deleting..." : "Reassign & Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>
