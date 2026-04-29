@@ -67,15 +67,18 @@ export function EventDialog({
   const { gameId, rosterId } = useGame();
 
   const { data: seasons = [] } = useQuery<Season[]>({
-    queryKey: ["/api/seasons"],
+    queryKey: ["/api/seasons", { gameId, rosterId }],
+    enabled: !!gameId && !!rosterId,
   });
 
   const { data: eventCategories = [] } = useQuery<EventCategory[]>({
-    queryKey: ["/api/event-categories"],
+    queryKey: ["/api/event-categories", { gameId, rosterId }],
+    enabled: !!gameId && !!rosterId,
   });
 
   const { data: eventSubTypesAll = [] } = useQuery<EventSubType[]>({
-    queryKey: ["/api/event-sub-types"],
+    queryKey: ["/api/event-sub-types", { gameId, rosterId }],
+    enabled: !!gameId && !!rosterId,
   });
 
   const { data: opponents = [] } = useQuery<Opponent[]>({

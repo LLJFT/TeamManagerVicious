@@ -2743,7 +2743,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/game-modes", requireAuth, async (req, res) => {
     try {
-      const gameModes = await storage.getAllGameModes(getGameId(req), getRosterId(req));
+      const gameId = getGameId(req);
+      if (!gameId) return res.status(400).json({ error: "Game context required" });
+      const gameModes = await storage.getAllGameModes(gameId, getRosterId(req));
       res.json(gameModes);
     } catch (error: any) {
       console.error('Error in GET /api/game-modes:', error);
@@ -2810,6 +2812,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/heroes", requireAuth, async (req, res) => {
     try {
       const gameId = getGameId(req);
+      if (!gameId) return res.status(400).json({ error: "Game context required" });
       const rosterId = getRosterId(req);
       let existing = await storage.getAllHeroes(gameId, rosterId);
 
@@ -3624,7 +3627,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/maps", requireAuth, async (req, res) => {
     try {
-      const maps = await storage.getAllMaps(getGameId(req), getRosterId(req));
+      const gameId = getGameId(req);
+      if (!gameId) return res.status(400).json({ error: "Game context required" });
+      const maps = await storage.getAllMaps(gameId, getRosterId(req));
       res.json(maps);
     } catch (error: any) {
       console.error('Error in GET /api/maps:', error);
@@ -3823,7 +3828,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Seasons API endpoints
   app.get("/api/seasons", requireAuth, async (req, res) => {
     try {
-      const seasons = await storage.getAllSeasons(getGameId(req), getRosterId(req));
+      const gameId = getGameId(req);
+      if (!gameId) return res.status(400).json({ error: "Game context required" });
+      const seasons = await storage.getAllSeasons(gameId, getRosterId(req));
       res.json(seasons);
     } catch (error: any) {
       console.error('Error in GET /api/seasons:', error);
@@ -3965,7 +3972,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/stat-fields", requireAuth, async (req, res) => {
     try {
-      const statFields = await storage.getAllStatFields(getGameId(req), getRosterId(req));
+      const gameId = getGameId(req);
+      if (!gameId) return res.status(400).json({ error: "Game context required" });
+      const statFields = await storage.getAllStatFields(gameId, getRosterId(req));
       res.json(statFields);
     } catch (error: any) {
       console.error('Error in GET /api/stat-fields:', error);

@@ -30,6 +30,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { useGame } from "@/hooks/use-game";
 import { AccessDenied } from "@/components/AccessDenied";
 import { format } from "date-fns";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -372,6 +373,7 @@ function ActivityLogTab() {
 export default function Dashboard() {
   const { hasPermission, user } = useAuth();
   const { toast } = useToast();
+  const { gameId, rosterId } = useGame();
 
   const [showGameModeDialog, setShowGameModeDialog] = useState(false);
   const [showMapDialog, setShowMapDialog] = useState(false);
@@ -456,31 +458,38 @@ export default function Dashboard() {
   });
 
   const { data: gameModes = [], isLoading: modesLoading } = useQuery<GameMode[]>({
-    queryKey: ["/api/game-modes"],
+    queryKey: ["/api/game-modes", { gameId }],
+    enabled: !!gameId,
   });
 
   const { data: sidesList = [] } = useQuery<Side[]>({
-    queryKey: ["/api/sides"],
+    queryKey: ["/api/sides", { gameId, rosterId }],
+    enabled: !!gameId && !!rosterId,
   });
 
   const { data: maps = [], isLoading: mapsLoading } = useQuery<MapType[]>({
-    queryKey: ["/api/maps"],
+    queryKey: ["/api/maps", { gameId }],
+    enabled: !!gameId,
   });
 
   const { data: seasons = [], isLoading: seasonsLoading } = useQuery<Season[]>({
-    queryKey: ["/api/seasons"],
+    queryKey: ["/api/seasons", { gameId, rosterId }],
+    enabled: !!gameId && !!rosterId,
   });
 
   const { data: statFields = [] } = useQuery<StatField[]>({
-    queryKey: ["/api/stat-fields"],
+    queryKey: ["/api/stat-fields", { gameId, rosterId }],
+    enabled: !!gameId && !!rosterId,
   });
 
   const { data: availabilitySlots = [] } = useQuery<AvailabilitySlot[]>({
-    queryKey: ["/api/availability-slots"],
+    queryKey: ["/api/availability-slots", { gameId, rosterId }],
+    enabled: !!gameId && !!rosterId,
   });
 
   const { data: rosterRoles = [] } = useQuery<RosterRole[]>({
-    queryKey: ["/api/roster-roles"],
+    queryKey: ["/api/roster-roles", { gameId, rosterId }],
+    enabled: !!gameId && !!rosterId,
   });
 
   const { data: allUsers = [] } = useQuery<UserWithRole[]>({
@@ -493,15 +502,18 @@ export default function Dashboard() {
   });
 
   const { data: allPlayers = [] } = useQuery<Player[]>({
-    queryKey: ["/api/players"],
+    queryKey: ["/api/players", { gameId, rosterId }],
+    enabled: !!gameId && !!rosterId,
   });
 
   const { data: eventCategoriesData = [] } = useQuery<EventCategory[]>({
-    queryKey: ["/api/event-categories"],
+    queryKey: ["/api/event-categories", { gameId, rosterId }],
+    enabled: !!gameId && !!rosterId,
   });
 
   const { data: eventSubTypesData = [] } = useQuery<EventSubType[]>({
-    queryKey: ["/api/event-sub-types"],
+    queryKey: ["/api/event-sub-types", { gameId, rosterId }],
+    enabled: !!gameId && !!rosterId,
   });
 
   const getSubTypesByCategory = (catId: string) => eventSubTypesData.filter(s => s.categoryId === catId);
