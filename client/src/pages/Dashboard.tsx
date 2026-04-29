@@ -1355,7 +1355,24 @@ export default function Dashboard() {
                               <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setEditingGameMode(mode); gameModeForm.reset({ name: mode.name }); setShowGameModeDialog(true); }} data-testid={`button-edit-mode-${mode.id}`}>
                                 <Pencil className="h-4 w-4 text-muted-foreground" />
                               </Button>
-                              <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); if (confirm("Delete this game mode and its maps?")) deleteGameModeMutation.mutate(mode.id); }} data-testid={`button-delete-mode-${mode.id}`}>
+                              <Button variant="ghost" size="icon" onClick={async (e) => {
+                                e.stopPropagation();
+                                try {
+                                  const usageRes = await fetch(`/api/game-modes/${mode.id}/usage`, { credentials: "include" });
+                                  if (!usageRes.ok) throw new Error("Could not check usage");
+                                  const usage = await usageRes.json() as { gamesUsing: number; mapsCount: number; statFieldsCount: number };
+                                  const lines: string[] = [];
+                                  if (usage.gamesUsing > 0) {
+                                    lines.push(`${usage.gamesUsing} game${usage.gamesUsing === 1 ? "" : "s"} are recorded using this game mode. Deleting it will set those games to no game mode.`);
+                                  }
+                                  if (usage.mapsCount > 0) lines.push(`${usage.mapsCount} map${usage.mapsCount === 1 ? "" : "s"} will also be deleted.`);
+                                  if (usage.statFieldsCount > 0) lines.push(`${usage.statFieldsCount} stat field${usage.statFieldsCount === 1 ? "" : "s"} will also be deleted.`);
+                                  const message = lines.length > 0 ? `${lines.join("\n")}\n\nContinue?` : "Delete this game mode?";
+                                  if (confirm(message)) deleteGameModeMutation.mutate(mode.id);
+                                } catch {
+                                  if (confirm("Delete this game mode and its maps?")) deleteGameModeMutation.mutate(mode.id);
+                                }
+                              }} data-testid={`button-delete-mode-${mode.id}`}>
                                 <Trash2 className="h-4 w-4 text-destructive" />
                               </Button>
                               <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${isSelected ? "rotate-90" : ""}`} />
@@ -1402,9 +1419,9 @@ export default function Dashboard() {
                       {selectedModeMaps.map((map) => (
                         <div key={map.id} className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors" data-testid={`row-map-${map.id}`}>
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className="h-9 w-12 shrink-0 rounded-sm border border-border overflow-hidden bg-muted/40 flex items-center justify-center">
+                            <div className="h-12 w-12 shrink-0 rounded-md border border-border overflow-hidden bg-muted/40 flex items-center justify-center">
                               {map.imageUrl ? (
-                                <img src={map.imageUrl} alt={map.name} className="h-full w-full object-cover" data-testid={`img-map-thumb-${map.id}`} />
+                                <img src={map.imageUrl} alt={map.name} className="h-full w-full object-contain" data-testid={`img-map-thumb-${map.id}`} />
                               ) : (
                                 <MapIcon className="h-4 w-4 text-muted-foreground" />
                               )}

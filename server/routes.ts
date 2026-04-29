@@ -2789,23 +2789,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/game-modes/:id/usage", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = getTeamId();
+      const [existing] = await db.select().from(gameModes).where(and(eq(gameModes.id, id), eq(gameModes.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Game mode not found" });
+      // Match the destructive endpoint's authority: viewing usage informs a delete decision.
+      if (!await verifyConfigWriteScope(req, res, existing.gameId, existing.rosterId)) return;
+      const [{ count: gamesUsing }] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(games)
+        .where(and(eq(games.teamId, teamId), eq(games.gameModeId, id)));
+      const [{ count: mapsCount }] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(maps)
+        .where(and(eq(maps.teamId, teamId), eq(maps.gameModeId, id)));
+      const [{ count: statFieldsCount }] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(statFieldsTable)
+        .where(and(eq(statFieldsTable.teamId, teamId), eq(statFieldsTable.gameModeId, id)));
+      res.json({ gamesUsing, mapsCount, statFieldsCount });
+    } catch (error: any) {
+      console.error('Error in GET /api/game-modes/:id/usage:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
   app.delete("/api/game-modes/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const { id } = req.params;
       const teamId = getTeamId();
       const [existing] = await db.select().from(gameModes).where(and(eq(gameModes.id, id), eq(gameModes.teamId, teamId))).limit(1);
       if (!existing) return res.status(404).json({ error: "Game mode not found" });
-      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
-      const success = await storage.removeGameMode(id, existing.gameId, existing.rosterId);
-      if (success) {
-        logActivity(req.session.userId!, "delete_game_mode", `Deleted game mode`, "team", undefined, existing.gameId, existing.rosterId);
-        res.json({ success: true });
-      } else {
-        res.status(404).json({ error: "Game mode not found" });
-      }
+      // Use the stricter check: a roster-scoped manager must NOT cascade-delete a game-wide mode
+      // (which would wipe maps/stat fields shared by every roster).
+      if (!await verifyConfigWriteScope(req, res, existing.gameId, existing.rosterId)) return;
+
+      // Cascade in a transaction so the user never sees an FK error.
+      // 1) Detach historical games from this mode (set game_mode_id NULL — preserves the games).
+      // 2) Delete dependent stat_fields (FK is RESTRICT — must remove first).
+      // 3) Delete dependent maps (FK is RESTRICT — must remove first; games.mapId is SET NULL).
+      // 4) Delete the game mode itself.
+      const result = await db.transaction(async (tx) => {
+        const detached = await tx
+          .update(games)
+          .set({ gameModeId: null })
+          .where(and(eq(games.teamId, teamId), eq(games.gameModeId, id)))
+          .returning({ id: games.id });
+        const removedStatFields = await tx
+          .delete(statFieldsTable)
+          .where(and(eq(statFieldsTable.teamId, teamId), eq(statFieldsTable.gameModeId, id)))
+          .returning({ id: statFieldsTable.id });
+        const removedMaps = await tx
+          .delete(maps)
+          .where(and(eq(maps.teamId, teamId), eq(maps.gameModeId, id)))
+          .returning({ id: maps.id });
+        const deletedMode = await tx
+          .delete(gameModes)
+          .where(and(eq(gameModes.id, id), eq(gameModes.teamId, teamId)))
+          .returning({ id: gameModes.id });
+        return {
+          modeDeleted: deletedMode.length > 0,
+          gamesDetached: detached.length,
+          statFieldsDeleted: removedStatFields.length,
+          mapsDeleted: removedMaps.length,
+        };
+      });
+
+      if (!result.modeDeleted) return res.status(404).json({ error: "Game mode not found" });
+      logActivity(
+        req.session.userId!,
+        "delete_game_mode",
+        `Deleted game mode "${existing.name}" (detached ${result.gamesDetached} game(s), removed ${result.mapsDeleted} map(s), ${result.statFieldsDeleted} stat field(s))`,
+        "team",
+        undefined,
+        existing.gameId,
+        existing.rosterId,
+      );
+      res.json({ success: true, ...result });
     } catch (error: any) {
       console.error('Error in DELETE /api/game-modes:', error);
-      res.status(500).json({ error: error.message || "Internal server error" });
+      res.status(500).json({ error: "Could not delete game mode. Please try again." });
     }
   });
 
@@ -3671,6 +3736,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!existing) return res.status(404).json({ error: "Map not found" });
       if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
       const validatedData = await sanitizeScopeFields(req, insertMapSchema.partial().parse(req.body));
+      // Cross-game safety: if a new gameModeId is provided, ensure that mode belongs to the same game.
+      if (validatedData.gameModeId && validatedData.gameModeId !== existing.gameModeId) {
+        const [targetMode] = await db
+          .select()
+          .from(gameModes)
+          .where(and(eq(gameModes.id, validatedData.gameModeId), eq(gameModes.teamId, teamId)))
+          .limit(1);
+        if (!targetMode) return res.status(400).json({ error: "Target game mode not found" });
+        if (targetMode.gameId !== existing.gameId) {
+          return res.status(400).json({ error: "Cannot move a map to a game mode in a different game" });
+        }
+      }
       const map = await storage.updateMap(id, validatedData, existing.gameId, existing.rosterId);
       if (!map) return res.status(404).json({ error: "Map not found" });
       logActivity(req.session.userId!, "edit_map", `Updated map "${map.name}"`, "team", undefined, existing.gameId, existing.rosterId);
