@@ -599,17 +599,30 @@ export default function Dashboard() {
 
   const deleteGameModeMutation = useMutation({
     mutationFn: async (id: string) => {
-      const r = await apiRequest("DELETE", `/api/game-modes/${id}`);
-      return r.json();
+      // Cascade deletes can take 30-50s when a mode is wired into hundreds of historical games.
+      // We use raw fetch so we can treat 404 (already deleted) as a soft success.
+      const res = await fetch(`/api/game-modes/${id}`, { method: "DELETE", credentials: "include" });
+      if (res.status === 404) return { alreadyDeleted: true };
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`${res.status}: ${body || res.statusText}`);
+      }
+      return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: any, deletedId: string) => {
       queryClient.invalidateQueries({ queryKey: ["/api/game-modes"] });
       queryClient.invalidateQueries({ queryKey: ["/api/maps"] });
-      if (selectedModeForMaps) {
-        const remaining = gameModes.filter(m => m.id !== selectedModeForMaps);
+      queryClient.invalidateQueries({ queryKey: ["/api/games"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stat-fields"] });
+      if (selectedModeForMaps === deletedId) {
+        const remaining = gameModes.filter(m => m.id !== deletedId);
         setSelectedModeForMaps(remaining.length > 0 ? remaining[0].id : null);
       }
-      showSuccess("Game mode deleted");
+      if (data?.alreadyDeleted) {
+        showSuccess("Game mode was already removed — list refreshed");
+      } else {
+        showSuccess("Game mode deleted");
+      }
     },
     onError: (e: any) => showError(e.message || "Failed to delete game mode"),
   });
@@ -1355,25 +1368,43 @@ export default function Dashboard() {
                               <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setEditingGameMode(mode); gameModeForm.reset({ name: mode.name }); setShowGameModeDialog(true); }} data-testid={`button-edit-mode-${mode.id}`}>
                                 <Pencil className="h-4 w-4 text-muted-foreground" />
                               </Button>
-                              <Button variant="ghost" size="icon" onClick={async (e) => {
-                                e.stopPropagation();
-                                try {
-                                  const usageRes = await fetch(`/api/game-modes/${mode.id}/usage`, { credentials: "include" });
-                                  if (!usageRes.ok) throw new Error("Could not check usage");
-                                  const usage = await usageRes.json() as { gamesUsing: number; mapsCount: number; statFieldsCount: number };
-                                  const lines: string[] = [];
-                                  if (usage.gamesUsing > 0) {
-                                    lines.push(`${usage.gamesUsing} game${usage.gamesUsing === 1 ? "" : "s"} are recorded using this game mode. Deleting it will set those games to no game mode.`);
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                disabled={deleteGameModeMutation.isPending && deleteGameModeMutation.variables === mode.id}
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  if (!mode.id) return;
+                                  if (deleteGameModeMutation.isPending) return;
+                                  try {
+                                    const usageRes = await fetch(`/api/game-modes/${mode.id}/usage`, { credentials: "include" });
+                                    if (usageRes.status === 404) {
+                                      queryClient.invalidateQueries({ queryKey: ["/api/game-modes"] });
+                                      showSuccess("Game mode was already removed — list refreshed");
+                                      return;
+                                    }
+                                    if (!usageRes.ok) throw new Error("Could not check usage");
+                                    const usage = await usageRes.json() as { gamesUsing: number; mapsCount: number; statFieldsCount: number };
+                                    const lines: string[] = [];
+                                    if (usage.gamesUsing > 0) {
+                                      lines.push(`${usage.gamesUsing} game${usage.gamesUsing === 1 ? "" : "s"} are recorded using this game mode. Deleting it will set those games to no game mode.`);
+                                    }
+                                    if (usage.mapsCount > 0) lines.push(`${usage.mapsCount} map${usage.mapsCount === 1 ? "" : "s"} will also be deleted.`);
+                                    if (usage.statFieldsCount > 0) lines.push(`${usage.statFieldsCount} stat field${usage.statFieldsCount === 1 ? "" : "s"} will also be deleted.`);
+                                    if (usage.gamesUsing > 50) {
+                                      lines.push(`\nThis can take up to a minute to complete. Please don't close the page or click again.`);
+                                    }
+                                    const message = lines.length > 0 ? `${lines.join("\n")}\n\nContinue?` : "Delete this game mode?";
+                                    if (confirm(message)) deleteGameModeMutation.mutate(mode.id);
+                                  } catch {
+                                    if (confirm("Delete this game mode and its maps?")) deleteGameModeMutation.mutate(mode.id);
                                   }
-                                  if (usage.mapsCount > 0) lines.push(`${usage.mapsCount} map${usage.mapsCount === 1 ? "" : "s"} will also be deleted.`);
-                                  if (usage.statFieldsCount > 0) lines.push(`${usage.statFieldsCount} stat field${usage.statFieldsCount === 1 ? "" : "s"} will also be deleted.`);
-                                  const message = lines.length > 0 ? `${lines.join("\n")}\n\nContinue?` : "Delete this game mode?";
-                                  if (confirm(message)) deleteGameModeMutation.mutate(mode.id);
-                                } catch {
-                                  if (confirm("Delete this game mode and its maps?")) deleteGameModeMutation.mutate(mode.id);
-                                }
-                              }} data-testid={`button-delete-mode-${mode.id}`}>
-                                <Trash2 className="h-4 w-4 text-destructive" />
+                                }}
+                                data-testid={`button-delete-mode-${mode.id}`}
+                              >
+                                {deleteGameModeMutation.isPending && deleteGameModeMutation.variables === mode.id
+                                  ? <Loader2 className="h-4 w-4 text-muted-foreground animate-spin" />
+                                  : <Trash2 className="h-4 w-4 text-destructive" />}
                               </Button>
                               <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${isSelected ? "rotate-90" : ""}`} />
                             </div>
