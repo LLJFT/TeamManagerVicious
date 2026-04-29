@@ -107,9 +107,17 @@ app.use((req, res, next) => {
         .then(() => ensureBossSuperAdmin())
         .then(() => ensureOverwatchHeroes())
         .then(() => ensureHeroRoleConfigs())
-        .then(() => dedupeGameScopedEntities())
         .then(() => ensureOpponents())
         .then(() => runHealthCheck())
+        .then(() => {
+          // Dedupe runs LAST (off the critical boot path). If it hangs or
+          // takes a long time on a large prod DB, the rest of the app is
+          // already fully serving traffic. Storage layer ignores rosterId
+          // for these entities, so duplicates are cosmetic until cleaned.
+          dedupeGameScopedEntities().catch(err => {
+            console.error("[boot-bg] dedupe-game-scoped error:", err?.message || err);
+          });
+        })
         .catch(err => {
           const msg = err?.message || String(err);
           console.error("[boot-bg] Error:", msg);

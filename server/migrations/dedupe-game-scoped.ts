@@ -1,7 +1,6 @@
 import { pool } from "../db";
 
 type Scope = { team_id: string; game_id: string };
-type Row = { id: string; name: string; roster_id: string | null; sort_order: number };
 
 async function getScopesWithRosterId(table: string): Promise<Scope[]> {
   const r = await pool.query(
@@ -10,118 +9,158 @@ async function getScopesWithRosterId(table: string): Promise<Scope[]> {
   return r.rows as Scope[];
 }
 
-async function pickCanonicalRoster(
+async function ensureFkIndexes(): Promise<void> {
+  const stmts = [
+    `CREATE INDEX IF NOT EXISTS idx_game_heroes_hero_id ON game_heroes(hero_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_game_hero_ban_actions_hero_id ON game_hero_ban_actions(hero_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_games_map_id ON games(map_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_game_map_veto_rows_map_id ON game_map_veto_rows(map_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_games_game_mode_id ON games(game_mode_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_stat_fields_game_mode_id ON stat_fields(game_mode_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_maps_game_mode_id ON maps(game_mode_id)`,
+  ];
+  for (const s of stmts) {
+    try {
+      await pool.query(s);
+    } catch (e: any) {
+      console.warn(`[dedupe-game-scoped] index create skipped: ${e?.message || e}`);
+    }
+  }
+}
+
+/**
+ * Build a mapping table (old_id -> canonical_id) for a given (table, team, game).
+ * Canonical key is name (lowercased) for maps/game_modes; (name+role) for heroes
+ * because Marvel Rivals intentionally has the same name across multiple roles
+ * (e.g. Deadpool×3) under a unique constraint of (team, game, roster, name, role).
+ */
+async function buildMappingFor(
   table: string,
   teamId: string,
   gameId: string,
-): Promise<string | null> {
+  keyExpr: string,
+): Promise<{ canonicalIds: string[]; remap: Array<{ old: string; canon: string }>; toShare: string[] }> {
+  // canonical row per key: prefer roster_id IS NULL (already shared), then lowest sort_order, then lowest id.
   const r = await pool.query(
     `
-    SELECT t.roster_id, COUNT(*)::int AS cnt, COALESCE(rs.sort_order, 999999)::int AS s_ord
-    FROM ${table} t
-    LEFT JOIN rosters rs ON rs.id = t.roster_id
-    WHERE t.team_id = $1 AND t.game_id = $2 AND t.roster_id IS NOT NULL
-    GROUP BY t.roster_id, rs.sort_order
-    ORDER BY cnt DESC, s_ord ASC, t.roster_id ASC
-    LIMIT 1
+    WITH ranked AS (
+      SELECT id, roster_id, ${keyExpr} AS k,
+             CASE WHEN roster_id IS NULL THEN 0 ELSE 1 END AS null_pri,
+             COALESCE(NULLIF(sort_order::text, '')::int, 999999) AS s_ord
+      FROM ${table}
+      WHERE team_id = $1 AND game_id = $2
+    ),
+    chosen AS (
+      SELECT DISTINCT ON (k) id AS canonical_id, k
+      FROM ranked
+      ORDER BY k, null_pri ASC, s_ord ASC, id ASC
+    )
+    SELECT r.id AS old_id, r.roster_id, c.canonical_id, r.k AS k
+    FROM ranked r
+    JOIN chosen c ON c.k = r.k
     `,
     [teamId, gameId],
   );
-  return (r.rows[0]?.roster_id as string) ?? null;
-}
 
-async function rowsForScope(table: string, teamId: string, gameId: string): Promise<Row[]> {
-  const r = await pool.query(
-    `SELECT id, name, roster_id, sort_order::text AS sort_order FROM ${table} WHERE team_id = $1 AND game_id = $2`,
-    [teamId, gameId],
-  );
-  return r.rows.map((row: any) => ({ ...row, sort_order: Number(row.sort_order) || 0 })) as Row[];
-}
+  const canonicalIds: string[] = [];
+  const remap: Array<{ old: string; canon: string }> = [];
+  const toShare: string[] = [];
+  const seenCanon = new Set<string>();
 
-async function rowsForGame(table: string, teamId: string, gameId: string, rosterIdOrNull: string | null): Promise<Row[]> {
-  const where = rosterIdOrNull === null
-    ? `team_id = $1 AND game_id = $2 AND roster_id IS NULL`
-    : `team_id = $1 AND game_id = $2 AND roster_id = $3`;
-  const params = rosterIdOrNull === null ? [teamId, gameId] : [teamId, gameId, rosterIdOrNull];
-  const r = await pool.query(
-    `SELECT id, name, roster_id, sort_order::text AS sort_order FROM ${table} WHERE ${where}`,
-    params,
-  );
-  return r.rows.map((row: any) => ({ ...row, sort_order: Number(row.sort_order) || 0 })) as Row[];
-}
-
-async function repointHeroFKs(oldId: string, newId: string): Promise<void> {
-  await pool.query(`UPDATE game_heroes SET hero_id = $1 WHERE hero_id = $2`, [newId, oldId]);
-  await pool.query(`UPDATE game_hero_ban_actions SET hero_id = $1 WHERE hero_id = $2`, [newId, oldId]);
-}
-
-async function repointMapFKs(oldId: string, newId: string): Promise<void> {
-  await pool.query(`UPDATE games SET map_id = $1 WHERE map_id = $2`, [newId, oldId]);
-  await pool.query(`UPDATE game_map_veto_rows SET map_id = $1 WHERE map_id = $2`, [newId, oldId]);
-}
-
-async function repointGameModeFKs(oldId: string, newId: string): Promise<void> {
-  await pool.query(`UPDATE games SET game_mode_id = $1 WHERE game_mode_id = $2`, [newId, oldId]);
-  await pool.query(`UPDATE stat_fields SET game_mode_id = $1 WHERE game_mode_id = $2`, [newId, oldId]);
-  await pool.query(`UPDATE maps SET game_mode_id = $1 WHERE game_mode_id = $2`, [newId, oldId]);
-}
-
-type Repointer = (oldId: string, newId: string) => Promise<void>;
-
-async function dedupeOne(table: string, repoint: Repointer): Promise<{ deleted: number; nulled: number }> {
-  let totalDeleted = 0;
-  let totalNulled = 0;
-  const scopes = await getScopesWithRosterId(table);
-  for (const { team_id, game_id } of scopes) {
-    const canonicalRoster = await pickCanonicalRoster(table, team_id, game_id);
-    if (!canonicalRoster) continue;
-    const rows = await rowsForScope(table, team_id, game_id);
-
-    // Build canonical map: prefer existing NULL (already-shared) rows, then canonical-roster rows.
-    const canonicalByName = new Map<string, Row>();
-    for (const row of rows) {
-      if (row.roster_id === null) {
-        canonicalByName.set(row.name.toLowerCase(), row);
-      }
+  for (const row of r.rows as any[]) {
+    if (!seenCanon.has(row.canonical_id)) {
+      canonicalIds.push(row.canonical_id);
+      seenCanon.add(row.canonical_id);
     }
-    for (const row of rows) {
-      if (row.roster_id === canonicalRoster && !canonicalByName.has(row.name.toLowerCase())) {
-        canonicalByName.set(row.name.toLowerCase(), row);
-      }
-    }
-
-    // Process all roster-scoped rows (including canonical roster) — merge into canonical NULL row if one exists.
-    for (const row of rows) {
-      if (row.roster_id === null) continue;
-      const canon = canonicalByName.get(row.name.toLowerCase());
-      if (canon && canon.id !== row.id) {
-        await repoint(row.id, canon.id);
-        await pool.query(`DELETE FROM ${table} WHERE id = $1`, [row.id]);
-        totalDeleted++;
-      } else {
-        await pool.query(`UPDATE ${table} SET roster_id = NULL WHERE id = $1`, [row.id]);
-        canonicalByName.set(row.name.toLowerCase(), { ...row, roster_id: null });
-        totalNulled++;
-      }
+    if (row.old_id === row.canonical_id) {
+      // canonical row itself — schedule for sharing if currently roster-scoped
+      if (row.roster_id !== null) toShare.push(row.old_id);
+    } else {
+      remap.push({ old: row.old_id, canon: row.canonical_id });
     }
   }
-  return { deleted: totalDeleted, nulled: totalNulled };
+  return { canonicalIds, remap, toShare };
+}
+
+async function repointAndDelete(
+  table: string,
+  remap: Array<{ old: string; canon: string }>,
+  fkUpdates: Array<{ table: string; col: string }>,
+): Promise<{ deleted: number }> {
+  if (remap.length === 0) return { deleted: 0 };
+  const oldIds = remap.map(m => m.old);
+  const canonIds = remap.map(m => m.canon);
+
+  // Bulk UPDATE FK tables using unnest of two arrays.
+  for (const fk of fkUpdates) {
+    await pool.query(
+      `
+      UPDATE ${fk.table} t
+      SET ${fk.col} = m.canon_id
+      FROM (SELECT unnest($1::text[]) AS old_id, unnest($2::text[]) AS canon_id) m
+      WHERE t.${fk.col} = m.old_id
+      `,
+      [oldIds, canonIds],
+    );
+  }
+  const del = await pool.query(`DELETE FROM ${table} WHERE id = ANY($1::text[])`, [oldIds]);
+  return { deleted: del.rowCount || 0 };
+}
+
+async function shareCanonicals(table: string, ids: string[]): Promise<number> {
+  if (ids.length === 0) return 0;
+  const r = await pool.query(`UPDATE ${table} SET roster_id = NULL WHERE id = ANY($1::text[])`, [ids]);
+  return r.rowCount || 0;
+}
+
+async function dedupeOne(
+  table: string,
+  keyExpr: string,
+  fkUpdates: Array<{ table: string; col: string }>,
+): Promise<{ deleted: number; shared: number; scopes: number }> {
+  let deleted = 0;
+  let shared = 0;
+  const scopes = await getScopesWithRosterId(table);
+  for (const { team_id, game_id } of scopes) {
+    const { remap, toShare } = await buildMappingFor(table, team_id, game_id, keyExpr);
+    const { deleted: d } = await repointAndDelete(table, remap, fkUpdates);
+    const s = await shareCanonicals(table, toShare);
+    deleted += d;
+    shared += s;
+  }
+  return { deleted, shared, scopes: scopes.length };
 }
 
 export async function dedupeGameScopedEntities(): Promise<void> {
+  const t0 = Date.now();
   try {
-    await pool.query("BEGIN");
-    const heroes = await dedupeOne("heroes", repointHeroFKs);
-    const maps = await dedupeOne("maps", repointMapFKs);
-    const gameModes = await dedupeOne("game_modes", repointGameModeFKs);
-    await pool.query("COMMIT");
-    if (heroes.deleted || heroes.nulled || maps.deleted || maps.nulled || gameModes.deleted || gameModes.nulled) {
-      console.log(
-        `[dedupe-game-scoped] heroes: deleted=${heroes.deleted} shared=${heroes.nulled} | maps: deleted=${maps.deleted} shared=${maps.nulled} | game_modes: deleted=${gameModes.deleted} shared=${gameModes.nulled}`
-      );
-    }
+    await ensureFkIndexes();
+
+    console.log(`[dedupe-game-scoped] heroes: starting...`);
+    const heroes = await dedupeOne("heroes", "lower(name) || '|' || COALESCE(lower(role), '')", [
+      { table: "game_heroes", col: "hero_id" },
+      { table: "game_hero_ban_actions", col: "hero_id" },
+    ]);
+    console.log(`[dedupe-game-scoped] heroes: scopes=${heroes.scopes} deleted=${heroes.deleted} shared=${heroes.shared}`);
+
+    console.log(`[dedupe-game-scoped] maps: starting...`);
+    const maps = await dedupeOne("maps", "lower(name)", [
+      { table: "games", col: "map_id" },
+      { table: "game_map_veto_rows", col: "map_id" },
+    ]);
+    console.log(`[dedupe-game-scoped] maps: scopes=${maps.scopes} deleted=${maps.deleted} shared=${maps.shared}`);
+
+    console.log(`[dedupe-game-scoped] game_modes: starting...`);
+    const gameModes = await dedupeOne("game_modes", "lower(name)", [
+      { table: "games", col: "game_mode_id" },
+      { table: "stat_fields", col: "game_mode_id" },
+      { table: "maps", col: "game_mode_id" },
+    ]);
+    console.log(`[dedupe-game-scoped] game_modes: scopes=${gameModes.scopes} deleted=${gameModes.deleted} shared=${gameModes.shared}`);
+
+    const ms = Date.now() - t0;
+    console.log(`[dedupe-game-scoped] complete in ${ms}ms`);
   } catch (e: any) {
-    await pool.query("ROLLBACK").catch(() => {});
     console.error("[dedupe-game-scoped] Failed:", e?.message || e);
   }
 }
