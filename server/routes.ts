@@ -3527,6 +3527,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         actingTeam: z.enum(banVetoTeamSlots),
       }));
       const rows = rowsSchema.parse(req.body);
+      if (rows.length > 40) return res.status(400).json({ error: "Hero ban sequence cannot exceed 40 steps" });
       const heroIds = Array.from(new Set(rows.map(r => r.heroId).filter((x): x is string => !!x)));
       if (heroIds.length > 0) {
         const valid = await db.select({ id: heroes.id }).from(heroes).where(and(

@@ -522,8 +522,11 @@ export class DbStorage implements IStorage {
     const conditions: any[] = [eq(heroBanSystems.id, id), eq(heroBanSystems.teamId, teamId)];
     if (gameId) conditions.push(eq(heroBanSystems.gameId, gameId));
     if (rosterId) conditions.push(eq(heroBanSystems.rosterId, rosterId));
-    const deleted = await db.delete(heroBanSystems).where(and(...conditions)).returning();
-    return deleted.length > 0;
+    return await db.transaction(async (tx) => {
+      await tx.update(games).set({ heroBanSystemId: null }).where(and(eq(games.heroBanSystemId, id), eq(games.teamId, teamId)));
+      const deleted = await tx.delete(heroBanSystems).where(and(...conditions)).returning();
+      return deleted.length > 0;
+    });
   }
 
   async getAllMapVetoSystems(gameId?: string | null, rosterId?: string | null): Promise<MapVetoSystem[]> {
@@ -557,8 +560,11 @@ export class DbStorage implements IStorage {
     const conditions: any[] = [eq(mapVetoSystems.id, id), eq(mapVetoSystems.teamId, teamId)];
     if (gameId) conditions.push(eq(mapVetoSystems.gameId, gameId));
     if (rosterId) conditions.push(eq(mapVetoSystems.rosterId, rosterId));
-    const deleted = await db.delete(mapVetoSystems).where(and(...conditions)).returning();
-    return deleted.length > 0;
+    return await db.transaction(async (tx) => {
+      await tx.update(games).set({ mapVetoSystemId: null }).where(and(eq(games.mapVetoSystemId, id), eq(games.teamId, teamId)));
+      const deleted = await tx.delete(mapVetoSystems).where(and(...conditions)).returning();
+      return deleted.length > 0;
+    });
   }
 
   async getHeroBanActionsByMatchId(matchId: string): Promise<GameHeroBanAction[]> {
