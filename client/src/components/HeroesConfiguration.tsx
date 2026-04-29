@@ -18,6 +18,13 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { useGame } from "@/hooks/use-game";
+import {
+  defaultColorForSortOrder,
+  normalizeColor,
+  readableTextColor,
+  softBackgroundFromColor,
+  FALLBACK_ROLE_COLOR,
+} from "@shared/role-colors";
 
 interface HeroFormState {
   name: string;
@@ -33,15 +40,6 @@ const emptyForm: HeroFormState = {
   isActive: true,
 };
 
-const ROLE_COLORS: Record<string, string> = {
-  Duelist: "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30",
-  Vanguard: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30",
-  Strategist: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
-  Damage: "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30",
-  Tank: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30",
-  Support: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
-};
-
 export function HeroesConfiguration({ canEdit }: { canEdit: boolean }) {
   const { toast } = useToast();
   const { gameId, rosterId } = useGame();
@@ -52,8 +50,8 @@ export function HeroesConfiguration({ canEdit }: { canEdit: boolean }) {
   const [activeRoleTab, setActiveRoleTab] = useState<string>("all");
 
   const { data: heroes = [], isLoading } = useQuery<Hero[]>({
-    queryKey: ["/api/heroes", { gameId, rosterId }],
-    enabled: !!gameId && !!rosterId,
+    queryKey: ["/api/heroes", { gameId }],
+    enabled: !!gameId,
   });
 
   const { data: roleConfigs = [], isLoading: roleConfigsLoading } = useQuery<HeroRoleConfig[]>({
@@ -68,6 +66,30 @@ export function HeroesConfiguration({ canEdit }: { canEdit: boolean }) {
       .map(r => r.name),
     [roleConfigs]
   );
+
+  const roleColorMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of roleConfigs) {
+      const c = (r as any).color ? normalizeColor((r as any).color) : defaultColorForSortOrder(r.sortOrder ?? 0);
+      m.set(r.name, c);
+    }
+    return m;
+  }, [roleConfigs]);
+
+  const roleBadgeStyle = (role: string): React.CSSProperties => {
+    const color = roleColorMap.get(role);
+    if (!color) return {};
+    return {
+      backgroundColor: softBackgroundFromColor(color, 0.18),
+      color: readableTextColor(softBackgroundFromColor(color, 1) === color ? color : color),
+      borderColor: softBackgroundFromColor(color, 0.45),
+    };
+  };
+
+  const roleSwatchStyle = (color: string): React.CSSProperties => ({
+    backgroundColor: color,
+    borderColor: softBackgroundFromColor(color, 0.5),
+  });
 
   const invalidateHeroes = () =>
     queryClient.invalidateQueries({ predicate: (q) => q.queryKey[0] === "/api/heroes" });
@@ -319,7 +341,7 @@ export function HeroesConfiguration({ canEdit }: { canEdit: boolean }) {
     <div key={role} className="space-y-2" data-testid={`group-heroes-${role.toLowerCase()}`}>
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className={ROLE_COLORS[role] || ""} data-testid={`badge-role-${role.toLowerCase()}`}>
+          <Badge variant="outline" style={roleBadgeStyle(role)} data-testid={`badge-role-${role.toLowerCase()}`}>
             {role}
           </Badge>
           <span className="text-xs text-muted-foreground" data-testid={`text-role-count-${role.toLowerCase()}`}>
@@ -442,7 +464,7 @@ export function HeroesConfiguration({ canEdit }: { canEdit: boolean }) {
             ) : totalCount === 0 ? (
               <div className="text-center py-12">
                 <Shield className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
-                <p className="text-muted-foreground text-sm">No heroes configured for this roster yet.</p>
+                <p className="text-muted-foreground text-sm">No heroes configured for this game yet.</p>
                 {canEdit && (
                   <p className="text-xs text-muted-foreground mt-2">
                     Marvel Rivals rosters are auto-seeded with the default hero pool. For other games, click "Add Hero".
@@ -463,7 +485,7 @@ export function HeroesConfiguration({ canEdit }: { canEdit: boolean }) {
           <DialogHeader>
             <DialogTitle>{editingHero ? "Edit Hero" : "Add Hero"}</DialogTitle>
             <DialogDescription>
-              Configure the hero name, role, and image. Heroes are scoped to this roster only.
+              Configure the hero name, role, and image. Heroes are shared across all rosters of this game.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -581,6 +603,15 @@ export function HeroesConfiguration({ canEdit }: { canEdit: boolean }) {
               ) : (
                 sortedRoleConfigs.map((r, idx) => (
                   <div key={r.id} className={`flex items-center gap-2 p-2 border border-border rounded-md ${r.isActive ? "" : "opacity-60"}`} data-testid={`row-role-${r.id}`}>
+                    <input
+                      type="color"
+                      value={normalizeColor((r as any).color, defaultColorForSortOrder(r.sortOrder ?? 0))}
+                      onChange={(e) => updateRoleMutation.mutate({ id: r.id, patch: { color: e.target.value } as any })}
+                      disabled={!canEdit || updateRoleMutation.isPending}
+                      className="h-7 w-9 cursor-pointer rounded border border-border bg-transparent p-0"
+                      title="Role color"
+                      data-testid={`input-role-color-${r.id}`}
+                    />
                     {editingRoleId === r.id ? (
                       <Input
                         value={editingRoleName}
@@ -591,7 +622,7 @@ export function HeroesConfiguration({ canEdit }: { canEdit: boolean }) {
                         data-testid={`input-edit-role-name-${r.id}`}
                       />
                     ) : (
-                      <Badge variant="outline" className={`${ROLE_COLORS[r.name] || ""} text-sm`} data-testid={`text-role-name-${r.id}`}>{r.name}</Badge>
+                      <Badge variant="outline" style={roleBadgeStyle(r.name)} className="text-sm" data-testid={`text-role-name-${r.id}`}>{r.name}</Badge>
                     )}
                     <span className="flex-1" />
                     {canEdit && (

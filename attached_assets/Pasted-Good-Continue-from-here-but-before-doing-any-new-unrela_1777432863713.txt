@@ -1,0 +1,181 @@
+Good. Continue from here, but before doing any new unrelated work, fix the current data scoping and live behavior exactly as follows.
+
+CURRENT SCOPING RULES I WANT
+
+I want data split into 3 levels clearly:
+
+1. Game-shared data
+This data must be shared across all 4 rosters of the SAME game only:
+- game modes
+- maps
+- map images
+- heroes
+- hero images
+- hero role definitions
+
+Example:
+- All 4 Marvel Rivals rosters should use the same Marvel Rivals game modes
+- All 4 Marvel Rivals rosters should use the same Marvel Rivals maps and map images
+- All 4 Marvel Rivals rosters should use the same Marvel Rivals heroes and hero images
+- All 4 Marvel Rivals rosters should use the same Marvel Rivals hero roles
+- Same idea for Overwatch and any other game
+
+2. Roster-specific data
+This data should stay separate per roster:
+- seasons
+- roster-specific notes
+- roster-specific analytics if any
+- anything intentionally tied to one roster only
+
+Important:
+Seasons must NOT be shared across rosters.
+Each roster should keep its own seasons.
+
+3. Cross-game separation
+Data from one game must NOT leak into other games.
+Example:
+- Marvel Rivals game modes/maps/heroes must NOT appear in Overwatch
+- Overwatch game modes/maps/heroes must NOT appear in Marvel Rivals
+
+CURRENT PROBLEM TO FIX
+
+Right now the scoping is wrong.
+
+The current issue is:
+- game modes and maps are being added globally across all games, not only inside the intended game
+- I need that fixed
+- I want game modes/maps/heroes shared only inside the same game’s 4 rosters, not across all games
+- seasons should remain separate per roster
+
+MARVEL RIVALS LIVE DATA TO USE AS SOURCE
+
+I already added Marvel Rivals data manually in roster 1 on the live site here:
+https://thebootcamp.services/marvel-rivals/8416481231/dashboard
+
+Use this roster 1 live data as the source of truth for Marvel Rivals:
+- heroes
+- hero images
+- maps
+- map images
+- game modes
+- hero role definitions
+
+Now make sure the same Marvel Rivals game-shared data appears in roster 2, roster 3, and roster 4 for Marvel Rivals on the LIVE site.
+
+Important:
+- Do not invent new heroes, maps, images, or roles
+- Do not remove or overwrite my roster 1 Marvel Rivals data
+- Just propagate/copy the same game-shared Marvel Rivals data to the other 3 Marvel Rivals rosters if the current system is still storing them per roster
+- Seasons must remain separate per roster
+
+MANAGE HERO ROLES UI
+
+Also finish and verify the Hero Role Management UI properly.
+
+I want a visible Manage Roles action/button inside Heroes Configuration.
+
+Requirements:
+1. Add a visible Manage Roles button inside Heroes Configuration
+2. I must be able to:
+- add role
+- rename role
+- reorder role
+- enable/disable role
+- delete role
+3. Roles must be game-scoped, not global across all games
+4. Add Hero / Edit Hero must always use the current game’s managed role list
+5. “All” can remain only as a filter tab
+6. Heroes must not fall into “Other” unless they truly have no mapped role
+7. If a role is deleted while heroes use it, require safe reassignment before delete
+8. Verify visually on live that this works
+
+HERO ROLE COLORS
+
+Also add color management for Hero Roles.
+
+Current issue:
+Right now only Marvel Rivals roles have colors.
+Other games' hero roles are not colored properly.
+
+What I want:
+1. In Manage Hero Roles, add a way to set and edit the color of each role
+2. Every role should have a color value that controls how it appears in:
+- Heroes Configuration
+- role badges
+- role tabs/groups
+- Add Hero / Edit Hero role display wherever applicable
+
+Default color behavior:
+1. Add a default color palette for the first 7 role slots
+2. That means:
+- role 1 gets default color 1
+- role 2 gets default color 2
+- role 3 gets default color 3
+- role 4 gets default color 4
+- role 5 gets default color 5
+- role 6 gets default color 6
+- role 7 gets default color 7
+3. These default colors should be prefilled automatically when roles are created or seeded
+4. I must still be able to change any of those colors manually later
+5. Any role after the first 7 should default to black
+6. Roles after the first 7 must also still be editable, so I can change black to any color I want later
+
+Important:
+- The first 7 role colors are only defaults, not locked
+- I must be able to edit all role colors
+- This should work for all games, not just Marvel Rivals
+- Do not hardcode colors only for Marvel Rivals role names
+- The color system must work generically for any game and any custom role names
+- Verify visually on the live site that non-Marvel games can also have colored hero roles
+
+HERO BAN / MAP VETO LIVE VERIFICATION
+
+After publish / deploy verification, confirm on the LIVE site:
+1. Hero Ban tab exists and works in Dashboard
+2. Map Veto tab exists and works in Dashboard
+3. I can create, edit, and delete Hero Ban presets on live
+4. I can create, edit, and delete Map Veto presets on live
+5. In Event Details / Games & Scoreboard, the per-game Hero Ban and Map Veto panels appear correctly
+6. Preset selection works correctly inside the game row
+7. Saving per-game hero ban actions works on live
+8. Saving per-game map veto rows works on live
+9. Deleting a system in use does not break games and correctly clears dependent references
+10. No duplicate or broken data is created on live
+
+OVERWATCH HERO ROLE EXPECTATION
+
+For Overwatch, the role system must remain:
+- Damage
+- Tank
+- Support
+
+And Overwatch heroes must stay grouped correctly under those roles on the live site.
+Do not mix Marvel Rivals roles into Overwatch.
+
+ROUND CONFIGURATION
+
+Also keep the previous round configuration fix intact:
+- Add New Game must not fall back to the old hardcoded Max 13 behavior
+- It must respect the configured round limits for that game mode
+- Verify on live
+
+LIVE-SITE ONLY RULE
+
+Use the LIVE site only for final verification:
+https://thebootcamp.services/
+
+Do not report done based only on dev or API tests.
+I want live-site verification.
+
+FINAL REPORT FORMAT
+
+When done, report clearly:
+1. What data scope was wrong before
+2. What you changed
+3. Whether Marvel Rivals roster 2/3/4 now match roster 1 for shared game data
+4. Whether seasons remain separate per roster
+5. Whether Hero Role Management UI works on live
+6. Whether Hero Role colors work on live
+7. Whether Hero Ban / Map Veto works on live
+8. Whether Add New Game still respects round config on live
+9. Any remaining issue still not fixed

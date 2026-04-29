@@ -32,6 +32,7 @@ import {
   type UserWithRole,
   GAME_ABBREVIATIONS,
 } from "@shared/schema";
+import { defaultColorForSortOrder } from "@shared/role-colors";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -2830,7 +2831,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             await tx.execute(sql`SELECT pg_advisory_xact_lock(${HEROES_SEED_LOCK_KEY}::int, hashtext(${rosterId})::int)`);
             // Re-check inside the lock with full (team, game, roster) scope — another process may have seeded while we waited.
             const recheck = await tx.execute<{ cnt: number }>(
-              sql`SELECT COUNT(*)::int AS cnt FROM heroes WHERE team_id = ${teamId} AND game_id = ${gameId} AND roster_id = ${rosterId}`
+              sql`SELECT COUNT(*)::int AS cnt FROM heroes WHERE team_id = ${teamId} AND game_id = ${gameId} AND (roster_id IS NULL OR roster_id = ${rosterId})`
             );
             if (Number((recheck.rows as any[])[0]?.cnt || 0) > 0) return;
 
@@ -2972,7 +2973,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!gameId) return res.status(400).json({ error: "Game context required" });
       if (!await verifyObjectScope(req, res, gameId, null)) return;
       const validated = insertHeroRoleConfigSchema.parse(req.body);
-      const row = await storage.addHeroRoleConfig(validated, gameId);
+      const valuesWithColor = {
+        ...validated,
+        color: (validated as any).color ?? defaultColorForSortOrder(validated.sortOrder ?? 0),
+      };
+      const row = await storage.addHeroRoleConfig(valuesWithColor as any, gameId);
       logActivity(req.session.userId!, "add_hero_role_config", `Added hero role "${row.name}"`, "team", undefined, gameId, null);
       res.json(row);
     } catch (error: any) {

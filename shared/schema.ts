@@ -412,6 +412,7 @@ export const heroRoleConfigs = pgTable("hero_role_configs", {
   teamId: varchar("team_id").notNull(),
   gameId: varchar("game_id").notNull(),
   name: text("name").notNull(),
+  color: text("color"),
   isActive: boolean("is_active").notNull().default(true),
   sortOrder: integer("sort_order").notNull().default(0),
 }, (table) => [
@@ -1008,6 +1009,7 @@ export const insertHeroRoleConfigSchema = createInsertSchema(heroRoleConfigs).om
   gameId: true,
 }).extend({
   name: z.string().trim().min(1, "Role name is required").max(60, "Role name too long"),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Color must be a 6-digit hex like #aabbcc").optional().nullable(),
 });
 
 export const insertGameHeroSchema = createInsertSchema(gameHeroes).omit({

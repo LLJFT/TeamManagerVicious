@@ -16,6 +16,7 @@ import type {
   Player,
   StatField,
   Hero,
+  HeroRoleConfig,
   PlayerGameStat,
   GameHero,
   Opponent,
@@ -23,12 +24,13 @@ import type {
   MatchParticipant,
   OpponentPlayerGameStat,
 } from "@shared/schema";
-
-const HERO_ROLE_COLORS: Record<string, string> = {
-  Duelist: "bg-red-500/15 text-red-700 dark:text-red-300",
-  Vanguard: "bg-blue-500/15 text-blue-700 dark:text-blue-300",
-  Strategist: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
-};
+import { useGame } from "@/hooks/use-game";
+import {
+  defaultColorForSortOrder,
+  normalizeColor,
+  readableTextColor,
+  softBackgroundFromColor,
+} from "@shared/role-colors";
 
 function getHeroInitials(name: string): string {
   return name
@@ -39,13 +41,18 @@ function getHeroInitials(name: string): string {
     .join("");
 }
 
-function HeroAvatar({ hero, size = "sm" }: { hero: Hero; size?: "xs" | "sm" }) {
+function HeroAvatar({ hero, size = "sm", roleColor }: { hero: Hero; size?: "xs" | "sm"; roleColor?: string }) {
   const dim = size === "xs" ? "h-5 w-5" : "h-6 w-6";
-  const fallbackBg = (hero.role && HERO_ROLE_COLORS[hero.role]) || "bg-muted text-muted-foreground";
+  const fallbackStyle: React.CSSProperties | undefined = roleColor
+    ? { backgroundColor: softBackgroundFromColor(roleColor, 0.22), color: readableTextColor(softBackgroundFromColor(roleColor, 0.22)) }
+    : undefined;
   return (
     <Avatar className={`${dim} shrink-0`}>
       {hero.imageUrl ? <AvatarImage src={hero.imageUrl} alt={hero.name} /> : null}
-      <AvatarFallback className={`text-[10px] font-semibold ${fallbackBg}`}>
+      <AvatarFallback
+        className={`text-[10px] font-semibold ${roleColor ? "" : "bg-muted text-muted-foreground"}`}
+        style={fallbackStyle}
+      >
         {getHeroInitials(hero.name)}
       </AvatarFallback>
     </Avatar>
@@ -136,12 +143,14 @@ function HeroMultiSelect({
   onChange,
   testIdPrefix,
   disabled,
+  roleColorFor,
 }: {
   heroes: Hero[];
   value: string[];
   onChange: (next: string[]) => void;
   testIdPrefix: string;
   disabled?: boolean;
+  roleColorFor?: (role: string | null | undefined) => string | undefined;
 }) {
   const [open, setOpen] = useState(false);
   const selected = heroes.filter(h => value.includes(h.id));
@@ -181,9 +190,16 @@ function HeroMultiSelect({
                     data-testid={`${testIdPrefix}-option-${h.id}`}
                   >
                     <Check className={cn("mr-2 h-4 w-4 shrink-0", isSelected ? "opacity-100" : "opacity-0")} />
-                    <HeroAvatar hero={h} size="sm" />
+                    <HeroAvatar hero={h} size="sm" roleColor={roleColorFor?.(h.role)} />
                     <span className="truncate ml-2">{h.name}</span>
-                    {h.role && <span className="ml-2 text-xs text-muted-foreground">{h.role}</span>}
+                    {h.role && (
+                      <span
+                        className="ml-2 text-xs"
+                        style={{ color: roleColorFor?.(h.role) || undefined }}
+                      >
+                        {h.role}
+                      </span>
+                    )}
                   </CommandItem>
                 );
               })}
@@ -212,6 +228,20 @@ export function MatchSidesEditor({
   const isDraftMode = !game;
   const matchId = game?.id || "";
   const idSuffix = testIdSuffix || matchId || "draft";
+  const { gameId } = useGame();
+
+  const { data: roleConfigs = [] } = useQuery<HeroRoleConfig[]>({
+    queryKey: ["/api/hero-role-configs", { gameId }],
+    enabled: !!gameId,
+  });
+  const roleColorFor = (role: string | null | undefined): string | undefined => {
+    if (!role) return undefined;
+    const cfg = roleConfigs.find(r => r.name === role);
+    if (!cfg) return undefined;
+    return (cfg as any).color
+      ? normalizeColor((cfg as any).color)
+      : defaultColorForSortOrder(cfg.sortOrder ?? 0);
+  };
 
   const { data: opponentPlayers = [] } = useQuery<OpponentPlayer[]>({
     queryKey: ["/api/opponents", opponentId, "players"],
@@ -449,13 +479,14 @@ export function MatchSidesEditor({
                         onChange={(next) => onUpdate(p.id, { heroIds: next })}
                         testIdPrefix={`heroes-${side}-${p.id}`}
                         disabled={dnp}
+                        roleColorFor={roleColorFor}
                       />
                       {r.heroIds.slice(0, 3).map(hid => {
                         const h = heroes.find(x => x.id === hid);
                         if (!h) return null;
                         return (
                           <Badge key={hid} variant="secondary" className="text-xs gap-1.5 pl-1 pr-1.5">
-                            <HeroAvatar hero={h} size="xs" />
+                            <HeroAvatar hero={h} size="xs" roleColor={roleColorFor(h.role)} />
                             <span>{h.name}</span>
                             <span
                               role="button"

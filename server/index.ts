@@ -6,6 +6,7 @@ import { seedComprehensiveTestData } from "./seed-comprehensive";
 import { fixupTestData } from "./seed-fixup";
 import { ensureBossSuperAdmin } from "./ensure-boss-admin";
 import { ensureHeroRoleConfigs } from "./ensure-hero-role-configs";
+import { dedupeGameScopedEntities } from "./migrations/dedupe-game-scoped";
 import { ensureOverwatchHeroes } from "./ensure-overwatch-heroes";
 import { ensureOpponents } from "./ensure-opponents";
 import { runHealthCheck } from "./health-check";
@@ -106,6 +107,7 @@ app.use((req, res, next) => {
         .then(() => ensureBossSuperAdmin())
         .then(() => ensureOverwatchHeroes())
         .then(() => ensureHeroRoleConfigs())
+        .then(() => dedupeGameScopedEntities())
         .then(() => ensureOpponents())
         .then(() => runHealthCheck())
         .catch(err => {

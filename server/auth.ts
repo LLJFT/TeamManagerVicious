@@ -115,6 +115,7 @@ async function runMigrations() {
     await db.execute(sql`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS staff_id VARCHAR REFERENCES staff(id) ON DELETE SET NULL`);
     await db.execute(sql`ALTER TABLE event_categories ADD COLUMN IF NOT EXISTS color TEXT`);
     await db.execute(sql`ALTER TABLE event_sub_types ADD COLUMN IF NOT EXISTS color TEXT`);
+    await db.execute(sql`ALTER TABLE hero_role_configs ADD COLUMN IF NOT EXISTS color TEXT`);
 
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_events_team_game_roster ON events(team_id, game_id, roster_id)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_players_team_game_roster ON players(team_id, game_id, roster_id)`);

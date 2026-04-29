@@ -2,6 +2,7 @@ import { db, pool } from "./db";
 import { heroes, heroRoleConfigs, supportedGames, MARVEL_RIVALS_DEFAULT_ROLES } from "@shared/schema";
 import { sql, eq, and } from "drizzle-orm";
 import { OVERWATCH_DEFAULT_ROLES, OVERWATCH_GAME_SLUG } from "./defaults/overwatchHeroes";
+import { defaultColorForSortOrder } from "@shared/role-colors";
 
 const DEFAULT_ROLES_BY_SLUG: Record<string, string[]> = {
   "marvel-rivals": [...MARVEL_RIVALS_DEFAULT_ROLES],
@@ -19,9 +20,22 @@ export async function ensureHeroRoleConfigsTable(): Promise<void> {
       sort_order integer NOT NULL DEFAULT 0
     );
   `);
+  await pool.query(`ALTER TABLE hero_role_configs ADD COLUMN IF NOT EXISTS color text;`);
   await pool.query(`CREATE INDEX IF NOT EXISTS hero_role_configs_team_id_idx ON hero_role_configs(team_id);`);
   await pool.query(`CREATE INDEX IF NOT EXISTS hero_role_configs_game_id_idx ON hero_role_configs(game_id);`);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS hero_role_configs_team_game_name_uniq ON hero_role_configs(team_id, game_id, name);`);
+}
+
+export async function backfillHeroRoleConfigColors(): Promise<void> {
+  const rows = await db.select().from(heroRoleConfigs);
+  let updated = 0;
+  for (const r of rows) {
+    if ((r as any).color && (r as any).color.length > 0) continue;
+    const color = defaultColorForSortOrder(r.sortOrder ?? 0);
+    await pool.query(`UPDATE hero_role_configs SET color = $1 WHERE id = $2`, [color, r.id]);
+    updated++;
+  }
+  if (updated > 0) console.log(`[hero-role-configs] Backfilled color on ${updated} role(s)`);
 }
 
 export async function backfillHeroRoleConfigs(): Promise<void> {
@@ -80,6 +94,7 @@ export async function ensureHeroRoleConfigs(): Promise<void> {
   try {
     await ensureHeroRoleConfigsTable();
     await backfillHeroRoleConfigs();
+    await backfillHeroRoleConfigColors();
   } catch (e: any) {
     console.error("[hero-role-configs] Failed:", e?.message || e);
   }

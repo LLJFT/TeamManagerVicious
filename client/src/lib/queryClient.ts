@@ -45,10 +45,22 @@ function shouldAppendGameId(url: string): boolean {
   return GAME_SCOPED_PREFIXES.some(prefix => url.startsWith(prefix));
 }
 
+const GAME_SCOPED_ONLY_PREFIXES = [
+  "/api/heroes",
+  "/api/maps",
+  "/api/game-modes",
+  "/api/hero-role-configs",
+];
+
+function isGameScopedOnly(url: string): boolean {
+  return GAME_SCOPED_ONLY_PREFIXES.some(prefix => url.startsWith(prefix));
+}
+
 function appendGameId(url: string, gameId: string, rosterId?: string | null): string {
   if (url.includes("gameId=")) return url;
   const separator = url.includes("?") ? "&" : "?";
   let result = `${url}${separator}gameId=${gameId}`;
+  if (isGameScopedOnly(url)) return result;
   const effectiveRoster = rosterId ?? _currentRosterId;
   if (effectiveRoster && !url.includes("rosterId=")) {
     result += `&rosterId=${effectiveRoster}`;

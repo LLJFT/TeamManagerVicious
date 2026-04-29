@@ -47,7 +47,7 @@ export async function ensureOverwatchHeroes(): Promise<void> {
         await tx.execute(sql`SELECT pg_advisory_xact_lock(${HEROES_SEED_LOCK_KEY}::int, hashtext(${roster.id})::int)`);
 
         const cntRows = await tx.execute<{ cnt: number }>(
-          sql`SELECT COUNT(*)::int AS cnt FROM heroes WHERE team_id = ${teamId} AND game_id = ${gameId} AND roster_id = ${roster.id}`
+          sql`SELECT COUNT(*)::int AS cnt FROM heroes WHERE team_id = ${teamId} AND game_id = ${gameId} AND (roster_id IS NULL OR roster_id = ${roster.id})`
         );
         const cnt = Number((cntRows.rows as any[])[0]?.cnt || 0);
         if (cnt > 0) return; // already seeded by something else; nothing to do

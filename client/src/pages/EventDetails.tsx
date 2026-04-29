@@ -110,8 +110,8 @@ export default function EventDetails() {
   });
 
   const { data: gameModes = [] } = useQuery<GameMode[]>({
-    queryKey: ["/api/game-modes", { gameId, rosterId }],
-    enabled: !!gameId && !!rosterId,
+    queryKey: ["/api/game-modes", { gameId }],
+    enabled: !!gameId,
   });
 
   const { data: sidesList = [] } = useQuery<Side[]>({
@@ -120,8 +120,8 @@ export default function EventDetails() {
   });
 
   const { data: allMaps = [] } = useQuery<MapType[]>({
-    queryKey: ["/api/maps", { gameId, rosterId }],
-    enabled: !!gameId && !!rosterId,
+    queryKey: ["/api/maps", { gameId }],
+    enabled: !!gameId,
   });
 
   const { data: editingRoundsData, isSuccess: editingRoundsLoaded } = useQuery<GameRound[]>({
@@ -170,8 +170,8 @@ export default function EventDetails() {
   });
 
   const { data: allHeroes = [] } = useQuery<Hero[]>({
-    queryKey: ["/api/heroes", { gameId, rosterId }],
-    enabled: !!gameId && !!rosterId,
+    queryKey: ["/api/heroes", { gameId }],
+    enabled: !!gameId,
   });
 
   const { data: allOpponents = [] } = useQuery<Opponent[]>({
@@ -906,8 +906,17 @@ export default function EventDetails() {
                 {newGameModeId ? (() => {
                   const mode = getModeForGame(newGameModeId);
                   const scoreType = (mode as any)?.scoreType || "numeric";
-                  const maxScore = (mode as any)?.maxScore ?? 13;
-                  const maxRoundWins = (mode as any)?.maxRoundWins ?? 7;
+                  const rawMaxScore = (mode as any)?.maxScore;
+                  const rawMaxRoundWins = (mode as any)?.maxRoundWins;
+                  const rawMaxRoundsPerGame = (mode as any)?.maxRoundsPerGame;
+                  const maxScore =
+                    typeof rawMaxScore === "number" && rawMaxScore > 0
+                      ? rawMaxScore
+                      : (typeof rawMaxRoundsPerGame === "number" && rawMaxRoundsPerGame > 0 ? rawMaxRoundsPerGame : 999);
+                  const maxRoundWins =
+                    typeof rawMaxRoundWins === "number" && rawMaxRoundWins > 0
+                      ? rawMaxRoundWins
+                      : (typeof rawMaxRoundsPerGame === "number" && rawMaxRoundsPerGame > 0 ? Math.ceil(rawMaxRoundsPerGame / 2) : 999);
                   const maxAllowed = scoreType === "rounds" ? maxRoundWins : maxScore;
                   const [usStr, themStr] = (newGameScore || "-").split("-");
                   const us = parseInt(usStr || "0", 10) || 0;

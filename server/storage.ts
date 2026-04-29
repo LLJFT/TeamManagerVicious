@@ -388,68 +388,64 @@ export class DbStorage implements IStorage {
     return deleted.length > 0;
   }
 
-  async getAllGameModes(gameId?: string | null, rosterId?: string | null): Promise<GameMode[]> {
+  async getAllGameModes(gameId?: string | null, _rosterId?: string | null): Promise<GameMode[]> {
     const teamId = getTeamId();
-    return await db.select().from(gameModes).where(buildWhere(teamId, gameModes, gameId, rosterId));
+    return await db.select().from(gameModes).where(buildWhere(teamId, gameModes, gameId, null));
   }
 
-  async addGameMode(insertGameMode: InsertGameMode, gameId?: string | null, rosterId?: string | null): Promise<GameMode> {
+  async addGameMode(insertGameMode: InsertGameMode, gameId?: string | null, _rosterId?: string | null): Promise<GameMode> {
     const teamId = getTeamId();
-    const inserted = await db.insert(gameModes).values({ ...insertGameMode, teamId, gameId, rosterId }).returning();
+    const inserted = await db.insert(gameModes).values({ ...insertGameMode, teamId, gameId, rosterId: null }).returning();
     return inserted[0];
   }
 
-  async updateGameMode(id: string, updateData: Partial<InsertGameMode>, gameId?: string | null, rosterId?: string | null): Promise<GameMode> {
+  async updateGameMode(id: string, updateData: Partial<InsertGameMode>, gameId?: string | null, _rosterId?: string | null): Promise<GameMode> {
     const teamId = getTeamId();
     const conditions: any[] = [eq(gameModes.id, id), eq(gameModes.teamId, teamId)];
     if (gameId) conditions.push(eq(gameModes.gameId, gameId));
-    if (rosterId) conditions.push(eq(gameModes.rosterId, rosterId));
     const updated = await db.update(gameModes).set(updateData).where(and(...conditions)).returning();
     return updated[0];
   }
 
-  async removeGameMode(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean> {
+  async removeGameMode(id: string, gameId?: string | null, _rosterId?: string | null): Promise<boolean> {
     const teamId = getTeamId();
     const conditions: any[] = [eq(gameModes.id, id), eq(gameModes.teamId, teamId)];
     if (gameId) conditions.push(eq(gameModes.gameId, gameId));
-    if (rosterId) conditions.push(eq(gameModes.rosterId, rosterId));
     const deleted = await db.delete(gameModes).where(and(...conditions)).returning();
     return deleted.length > 0;
   }
 
-  async getAllHeroes(gameId?: string | null, rosterId?: string | null): Promise<Hero[]> {
+  async getAllHeroes(gameId?: string | null, _rosterId?: string | null): Promise<Hero[]> {
     const teamId = getTeamId();
-    return await db.select().from(heroes).where(buildWhere(teamId, heroes, gameId, rosterId));
+    return await db.select().from(heroes).where(buildWhere(teamId, heroes, gameId, null));
   }
 
-  async addHero(insertHero: InsertHero, gameId?: string | null, rosterId?: string | null): Promise<Hero> {
+  async addHero(insertHero: InsertHero, gameId?: string | null, _rosterId?: string | null): Promise<Hero> {
     const teamId = getTeamId();
-    const inserted = await db.insert(heroes).values({ ...insertHero, teamId, gameId, rosterId }).returning();
+    const inserted = await db.insert(heroes).values({ ...insertHero, teamId, gameId, rosterId: null }).returning();
     return inserted[0];
   }
 
-  async updateHero(id: string, updateData: Partial<InsertHero>, gameId?: string | null, rosterId?: string | null): Promise<Hero | undefined> {
+  async updateHero(id: string, updateData: Partial<InsertHero>, gameId?: string | null, _rosterId?: string | null): Promise<Hero | undefined> {
     const teamId = getTeamId();
     const conditions: any[] = [eq(heroes.id, id), eq(heroes.teamId, teamId)];
     if (gameId) conditions.push(eq(heroes.gameId, gameId));
-    if (rosterId) conditions.push(eq(heroes.rosterId, rosterId));
     const updated = await db.update(heroes).set(updateData).where(and(...conditions)).returning();
     return updated[0];
   }
 
-  async removeHero(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean> {
+  async removeHero(id: string, gameId?: string | null, _rosterId?: string | null): Promise<boolean> {
     const teamId = getTeamId();
     const conditions: any[] = [eq(heroes.id, id), eq(heroes.teamId, teamId)];
     if (gameId) conditions.push(eq(heroes.gameId, gameId));
-    if (rosterId) conditions.push(eq(heroes.rosterId, rosterId));
     const deleted = await db.delete(heroes).where(and(...conditions)).returning();
     return deleted.length > 0;
   }
 
-  async bulkInsertHeroes(rows: InsertHero[], gameId?: string | null, rosterId?: string | null): Promise<Hero[]> {
+  async bulkInsertHeroes(rows: InsertHero[], gameId?: string | null, _rosterId?: string | null): Promise<Hero[]> {
     if (rows.length === 0) return [];
     const teamId = getTeamId();
-    const inserted = await db.insert(heroes).values(rows.map(r => ({ ...r, teamId, gameId, rosterId }))).returning();
+    const inserted = await db.insert(heroes).values(rows.map(r => ({ ...r, teamId, gameId, rosterId: null }))).returning();
     return inserted;
   }
 
@@ -627,9 +623,9 @@ export class DbStorage implements IStorage {
     });
   }
 
-  async getAllMaps(gameId?: string | null, rosterId?: string | null): Promise<Map[]> {
+  async getAllMaps(gameId?: string | null, _rosterId?: string | null): Promise<Map[]> {
     const teamId = getTeamId();
-    return await db.select().from(maps).where(buildWhere(teamId, maps, gameId, rosterId));
+    return await db.select().from(maps).where(buildWhere(teamId, maps, gameId, null));
   }
 
   async getMapsByGameModeId(gameModeId: string): Promise<Map[]> {
@@ -637,26 +633,24 @@ export class DbStorage implements IStorage {
     return await db.select().from(maps).where(and(eq(maps.gameModeId, gameModeId), eq(maps.teamId, teamId)));
   }
 
-  async addMap(insertMap: InsertMap, gameId?: string | null, rosterId?: string | null): Promise<Map> {
+  async addMap(insertMap: InsertMap, gameId?: string | null, _rosterId?: string | null): Promise<Map> {
     const teamId = getTeamId();
-    const inserted = await db.insert(maps).values({ ...insertMap, teamId, gameId, rosterId }).returning();
+    const inserted = await db.insert(maps).values({ ...insertMap, teamId, gameId, rosterId: null }).returning();
     return inserted[0];
   }
 
-  async updateMap(id: string, updateData: Partial<InsertMap>, gameId?: string | null, rosterId?: string | null): Promise<Map> {
+  async updateMap(id: string, updateData: Partial<InsertMap>, gameId?: string | null, _rosterId?: string | null): Promise<Map> {
     const teamId = getTeamId();
     const conditions: any[] = [eq(maps.id, id), eq(maps.teamId, teamId)];
     if (gameId) conditions.push(eq(maps.gameId, gameId));
-    if (rosterId) conditions.push(eq(maps.rosterId, rosterId));
     const updated = await db.update(maps).set(updateData).where(and(...conditions)).returning();
     return updated[0];
   }
 
-  async removeMap(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean> {
+  async removeMap(id: string, gameId?: string | null, _rosterId?: string | null): Promise<boolean> {
     const teamId = getTeamId();
     const conditions: any[] = [eq(maps.id, id), eq(maps.teamId, teamId)];
     if (gameId) conditions.push(eq(maps.gameId, gameId));
-    if (rosterId) conditions.push(eq(maps.rosterId, rosterId));
     const deleted = await db.delete(maps).where(and(...conditions)).returning();
     return deleted.length > 0;
   }
