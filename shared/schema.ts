@@ -786,6 +786,21 @@ export const notifications = pgTable("notifications", {
   index("notifications_user_id_idx").on(table.userId),
 ]);
 
+export const gameTemplates = pgTable("game_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id").notNull(),
+  gameId: varchar("game_id").notNull(),
+  name: text("name").notNull(),
+  code: text("code").notNull().unique(),
+  config: jsonb("config").notNull().default(sql`'{}'::jsonb`),
+  createdAt: text("created_at").default(sql`now()`),
+  updatedAt: text("updated_at").default(sql`now()`),
+}, (table) => [
+  index("game_templates_team_id_idx").on(table.teamId),
+  index("game_templates_game_id_idx").on(table.gameId),
+  uniqueIndex("game_templates_code_uniq").on(table.code),
+]);
+
 export const availabilitySlots = pgTable("availability_slots", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
@@ -1286,6 +1301,69 @@ export type InsertUserGameAssignment = z.infer<typeof insertUserGameAssignmentSc
 
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+
+export const insertGameTemplateSchema = createInsertSchema(gameTemplates).omit({
+  id: true,
+  code: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type GameTemplate = typeof gameTemplates.$inferSelect;
+export type InsertGameTemplate = z.infer<typeof insertGameTemplateSchema>;
+
+export interface GameTemplateConfig {
+  singleModeGame?: boolean;
+  gameModes?: Array<{
+    tempId: string;
+    name: string;
+    sortOrder?: string | null;
+    scoreType?: string;
+    maxScore?: number | null;
+    maxRoundWins?: number | null;
+    maxRoundsPerGame?: number | null;
+    maxScorePerRoundPerSide?: number | null;
+  }>;
+  maps?: Array<{
+    tempId: string;
+    name: string;
+    gameModeTempId: string | null;
+    imageUrl?: string | null;
+    sortOrder?: string | null;
+  }>;
+  heroes?: Array<{
+    tempId: string;
+    name: string;
+    role: string;
+    imageUrl?: string | null;
+    isActive?: boolean;
+    sortOrder?: number;
+  }>;
+  statFields?: Array<{
+    tempId: string;
+    name: string;
+    gameModeTempId: string | null;
+  }>;
+  eventCategories?: Array<{
+    tempId: string;
+    name: string;
+    color?: string | null;
+  }>;
+  availabilitySlots?: Array<{
+    tempId: string;
+    label: string;
+    sortOrder?: number;
+  }>;
+  opponents?: Array<{
+    tempId: string;
+    name: string;
+    shortName?: string | null;
+    logoUrl?: string | null;
+    region?: string | null;
+    notes?: string | null;
+    isActive?: boolean;
+    sortOrder?: number;
+  }>;
+}
 
 export interface PlayerAvailability {
   playerId: string;

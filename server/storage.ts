@@ -1,5 +1,5 @@
-import type { Player, InsertPlayer, Schedule, InsertSchedule, Setting, InsertSetting, Event, InsertEvent, Attendance, InsertAttendance, TeamNotes, InsertTeamNotes, Game, InsertGame, GameMode, InsertGameMode, Map, InsertMap, Season, InsertSeason, OffDay, InsertOffDay, StatField, InsertStatField, PlayerGameStat, InsertPlayerGameStat, PlayerAvailabilityRecord, InsertPlayerAvailability, StaffAvailabilityRecord, InsertStaffAvailability, Staff, InsertStaff, AvailabilitySlot, RosterRole, SupportedGame, UserGameAssignment, Notification, EventCategory, InsertEventCategory, EventSubType, InsertEventSubType, Side, InsertSide, GameRound, InsertGameRound, Hero, InsertHero, HeroRoleConfig, InsertHeroRoleConfig, GameHero, InsertGameHero, Opponent, InsertOpponent, OpponentPlayer, InsertOpponentPlayer, MatchParticipant, InsertMatchParticipant, OpponentPlayerGameStat, InsertOpponentPlayerGameStat, HeroBanSystem, InsertHeroBanSystem, MapVetoSystem, InsertMapVetoSystem, GameHeroBanAction, InsertGameHeroBanAction, GameMapVetoRow, InsertGameMapVetoRow } from "@shared/schema";
-import { players, schedules, settings, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays, statFields, playerGameStats, playerAvailability, staffAvailability, staff as staffTable, availabilitySlots, rosterRoles, supportedGames, userGameAssignments, notifications, users, rosters, eventCategories, eventSubTypes, sides, gameRounds, heroes, heroRoleConfigs, gameHeroes, opponents, opponentPlayers, matchParticipants, opponentPlayerGameStats, heroBanSystems, mapVetoSystems, gameHeroBanActions, gameMapVetoRows } from "@shared/schema";
+import type { Player, InsertPlayer, Schedule, InsertSchedule, Setting, InsertSetting, Event, InsertEvent, Attendance, InsertAttendance, TeamNotes, InsertTeamNotes, Game, InsertGame, GameMode, InsertGameMode, Map, InsertMap, Season, InsertSeason, OffDay, InsertOffDay, StatField, InsertStatField, PlayerGameStat, InsertPlayerGameStat, PlayerAvailabilityRecord, InsertPlayerAvailability, StaffAvailabilityRecord, InsertStaffAvailability, Staff, InsertStaff, AvailabilitySlot, RosterRole, SupportedGame, UserGameAssignment, Notification, EventCategory, InsertEventCategory, EventSubType, InsertEventSubType, Side, InsertSide, GameRound, InsertGameRound, Hero, InsertHero, HeroRoleConfig, InsertHeroRoleConfig, GameHero, InsertGameHero, Opponent, InsertOpponent, OpponentPlayer, InsertOpponentPlayer, MatchParticipant, InsertMatchParticipant, OpponentPlayerGameStat, InsertOpponentPlayerGameStat, HeroBanSystem, InsertHeroBanSystem, MapVetoSystem, InsertMapVetoSystem, GameHeroBanAction, InsertGameHeroBanAction, GameMapVetoRow, InsertGameMapVetoRow, GameTemplate, GameTemplateConfig } from "@shared/schema";
+import { players, schedules, settings, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays, statFields, playerGameStats, playerAvailability, staffAvailability, staff as staffTable, availabilitySlots, rosterRoles, supportedGames, userGameAssignments, notifications, users, rosters, eventCategories, eventSubTypes, sides, gameRounds, heroes, heroRoleConfigs, gameHeroes, opponents, opponentPlayers, matchParticipants, opponentPlayerGameStats, heroBanSystems, mapVetoSystems, gameHeroBanActions, gameMapVetoRows, gameTemplates } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, isNull, desc, sql } from "drizzle-orm";
 
@@ -159,6 +159,13 @@ export interface IStorage {
   createNotification(teamId: string, userId: string, message: string, type: string, relatedId?: string): Promise<Notification>;
   markNotificationRead(id: string, userId: string): Promise<Notification>;
   markAllNotificationsRead(userId: string): Promise<void>;
+  getAllGameTemplates(): Promise<GameTemplate[]>;
+  getGameTemplate(id: string): Promise<GameTemplate | undefined>;
+  getGameTemplateByCode(code: string): Promise<GameTemplate | undefined>;
+  createGameTemplate(name: string, gameId: string, code: string, config: any): Promise<GameTemplate>;
+  updateGameTemplate(id: string, fields: { name?: string; config?: any }): Promise<GameTemplate | undefined>;
+  deleteGameTemplate(id: string): Promise<boolean>;
+  applyGameTemplate(templateId: string, rosterId: string, gameId: string): Promise<{ ok: true }>;
 }
 
 export class DbStorage implements IStorage {
@@ -1200,6 +1207,189 @@ export class DbStorage implements IStorage {
       ).returning();
       return inserted;
     });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Game Templates (super_admin only at route layer; teamId-scoped in storage)
+  // ─────────────────────────────────────────────────────────────────────────
+  async getAllGameTemplates(): Promise<GameTemplate[]> {
+    const teamId = getTeamId();
+    return await db.select().from(gameTemplates)
+      .where(eq(gameTemplates.teamId, teamId))
+      .orderBy(desc(gameTemplates.createdAt));
+  }
+
+  async getGameTemplate(id: string): Promise<GameTemplate | undefined> {
+    const teamId = getTeamId();
+    const r = await db.select().from(gameTemplates)
+      .where(and(eq(gameTemplates.id, id), eq(gameTemplates.teamId, teamId))).limit(1);
+    return r[0];
+  }
+
+  async getGameTemplateByCode(code: string): Promise<GameTemplate | undefined> {
+    const teamId = getTeamId();
+    const r = await db.select().from(gameTemplates)
+      .where(and(eq(gameTemplates.code, code), eq(gameTemplates.teamId, teamId))).limit(1);
+    return r[0];
+  }
+
+  async createGameTemplate(name: string, gameId: string, code: string, config: any): Promise<GameTemplate> {
+    const teamId = getTeamId();
+    const inserted = await db.insert(gameTemplates).values({
+      teamId, gameId, name, code, config: config ?? {},
+    }).returning();
+    return inserted[0];
+  }
+
+  async updateGameTemplate(id: string, fields: { name?: string; config?: any }): Promise<GameTemplate | undefined> {
+    const teamId = getTeamId();
+    const updates: any = { updatedAt: sql`now()` };
+    if (typeof fields.name === "string") updates.name = fields.name;
+    if (fields.config !== undefined) updates.config = fields.config;
+    const updated = await db.update(gameTemplates)
+      .set(updates)
+      .where(and(eq(gameTemplates.id, id), eq(gameTemplates.teamId, teamId)))
+      .returning();
+    return updated[0];
+  }
+
+  async deleteGameTemplate(id: string): Promise<boolean> {
+    const teamId = getTeamId();
+    const r = await db.delete(gameTemplates)
+      .where(and(eq(gameTemplates.id, id), eq(gameTemplates.teamId, teamId)))
+      .returning({ id: gameTemplates.id });
+    return r.length > 0;
+  }
+
+  /**
+   * Apply a template to a roster. SINGLE TRANSACTION:
+   *   1. DELETE existing roster-scoped config rows in: heroes, maps, gameModes,
+   *      statFields, eventCategories, availabilitySlots, opponents.
+   *      (Score config lives on gameModes columns — wiped with gameModes.)
+   *   2. INSERT deep copies from template config with re-mapped tempId → new UUID.
+   *   3. Update settings.single_mode_game flag for this team+game (NOT per-roster:
+   *      single-mode is per-team-per-game in this system; we still write the flag).
+   *   4. NEVER touches: players, games, events, attendance, history, sides, etc.
+   *   ANY failure → full rollback.
+   */
+  async applyGameTemplate(templateId: string, rosterId: string, gameId: string): Promise<{ ok: true }> {
+    const teamId = getTeamId();
+    const tpl = await this.getGameTemplate(templateId);
+    if (!tpl) throw new Error("Template not found");
+    if (tpl.gameId !== gameId) {
+      throw new Error(`Template game does not match roster game.`);
+    }
+    const config = (tpl.config || {}) as GameTemplateConfig;
+
+    await db.transaction(async (tx) => {
+      // 1) DELETE existing config for this roster only.
+      const scoped = (tbl: any) => and(
+        eq(tbl.teamId, teamId),
+        eq(tbl.gameId, gameId),
+        eq(tbl.rosterId, rosterId),
+      );
+      // Order matters: maps & statFields reference gameModes — delete them first.
+      await tx.delete(maps).where(scoped(maps));
+      await tx.delete(statFields).where(scoped(statFields));
+      await tx.delete(gameModes).where(scoped(gameModes));
+      await tx.delete(heroes).where(scoped(heroes));
+      await tx.delete(eventCategories).where(scoped(eventCategories));
+      await tx.delete(availabilitySlots).where(scoped(availabilitySlots));
+      await tx.delete(opponents).where(scoped(opponents));
+
+      // 2) INSERT deep copies. Build tempId → new UUID maps so child rows can re-link.
+      const modeIdMap = new Map<string, string>();
+      const modesIn = (config.gameModes || []).map(m => {
+        const newId = crypto.randomUUID();
+        modeIdMap.set(m.tempId, newId);
+        return {
+          id: newId,
+          teamId, gameId, rosterId,
+          name: m.name,
+          sortOrder: m.sortOrder ?? "0",
+          scoreType: m.scoreType ?? "numeric",
+          maxScore: m.maxScore ?? null,
+          maxRoundWins: m.maxRoundWins ?? null,
+          maxRoundsPerGame: m.maxRoundsPerGame ?? null,
+          maxScorePerRoundPerSide: m.maxScorePerRoundPerSide ?? null,
+        };
+      });
+      if (modesIn.length > 0) await tx.insert(gameModes).values(modesIn);
+
+      const mapsIn = (config.maps || []).map(m => ({
+        id: crypto.randomUUID(),
+        teamId, gameId, rosterId,
+        name: m.name,
+        gameModeId: m.gameModeTempId ? (modeIdMap.get(m.gameModeTempId) ?? null) : null,
+        imageUrl: m.imageUrl ?? null,
+        sortOrder: m.sortOrder ?? "0",
+      }));
+      if (mapsIn.length > 0) await tx.insert(maps).values(mapsIn);
+
+      const statsIn = (config.statFields || []).map(s => ({
+        id: crypto.randomUUID(),
+        teamId, gameId, rosterId,
+        name: s.name,
+        gameModeId: s.gameModeTempId ? (modeIdMap.get(s.gameModeTempId) ?? null) : null,
+      }));
+      if (statsIn.length > 0) await tx.insert(statFields).values(statsIn);
+
+      const heroesIn = (config.heroes || []).map(h => ({
+        id: crypto.randomUUID(),
+        teamId, gameId, rosterId,
+        name: h.name,
+        role: h.role,
+        imageUrl: h.imageUrl ?? null,
+        isActive: h.isActive ?? true,
+        sortOrder: h.sortOrder ?? 0,
+      }));
+      if (heroesIn.length > 0) await tx.insert(heroes).values(heroesIn);
+
+      const catsIn = (config.eventCategories || []).map(c => ({
+        id: crypto.randomUUID(),
+        teamId, gameId, rosterId,
+        name: c.name,
+        color: c.color ?? "#3b82f6",
+      }));
+      if (catsIn.length > 0) await tx.insert(eventCategories).values(catsIn);
+
+      const slotsIn = (config.availabilitySlots || []).map(s => ({
+        id: crypto.randomUUID(),
+        teamId, gameId, rosterId,
+        label: s.label,
+        sortOrder: s.sortOrder ?? 0,
+      }));
+      if (slotsIn.length > 0) await tx.insert(availabilitySlots).values(slotsIn);
+
+      const oppsIn = (config.opponents || []).map(o => ({
+        id: crypto.randomUUID(),
+        teamId, gameId, rosterId,
+        name: o.name,
+        shortName: o.shortName ?? null,
+        logoUrl: o.logoUrl ?? null,
+        region: o.region ?? null,
+        notes: o.notes ?? null,
+        isActive: o.isActive ?? true,
+        sortOrder: o.sortOrder ?? 0,
+      }));
+      if (oppsIn.length > 0) await tx.insert(opponents).values(oppsIn);
+
+      // 3) Single-mode flag (per-team-per-game). Upsert in settings.
+      const flagVal = config.singleModeGame ? "true" : "false";
+      const existing = await tx.select().from(settings).where(and(
+        eq(settings.teamId, teamId),
+        eq(settings.gameId, gameId),
+        eq(settings.key, "single_mode_game"),
+        isNull(settings.rosterId),
+      )).limit(1);
+      if (existing[0]) {
+        await tx.update(settings).set({ value: flagVal }).where(eq(settings.id, existing[0].id));
+      } else {
+        await tx.insert(settings).values({ teamId, gameId, rosterId: null, key: "single_mode_game", value: flagVal });
+      }
+    });
+
+    return { ok: true };
   }
 }
 

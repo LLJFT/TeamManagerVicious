@@ -3502,7 +3502,151 @@ function ResetRosterTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ApplyTemplateCard rosterId={rosterId!} gameId={gameId!} rosterDisplayName={rosterDisplayName} gameDisplayName={gameDisplayName} />
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Apply Game Template — sits inside ResetRosterTab. Wipes roster config and
+// re-seeds it from a template by entering its code (super_admin sees codes on
+// the /game-templates page). Does NOT touch players, games, events, results,
+// attendance, or history.
+// ─────────────────────────────────────────────────────────────────────────────
+function ApplyTemplateCard({ rosterId, gameId, rosterDisplayName, gameDisplayName }: {
+  rosterId: string; gameId: string; rosterDisplayName: string; gameDisplayName: string;
+}) {
+  const { toast } = useToast();
+  const [code, setCode] = useState("");
+  const [previewing, setPreviewing] = useState(false);
+  const [preview, setPreview] = useState<any>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const lookup = async () => {
+    if (!code.trim()) return;
+    setPreviewing(true);
+    try {
+      const r = await apiRequest("GET", `/api/game-templates/by-code/${encodeURIComponent(code.trim().toUpperCase())}`);
+      const tpl = await r.json();
+      if (tpl.gameId !== gameId) {
+        toast({ title: "Wrong game", description: "That template was built for a different game.", variant: "destructive" });
+        setPreview(null);
+        return;
+      }
+      setPreview(tpl);
+    } catch (e: any) {
+      toast({ title: "Code not found", description: e?.message || "No template with that code", variant: "destructive" });
+      setPreview(null);
+    } finally {
+      setPreviewing(false);
+    }
+  };
+
+  const applyMutation = useMutation({
+    mutationFn: async () => {
+      const r = await apiRequest("POST", `/api/game-templates/apply`, { code: code.trim().toUpperCase() });
+      return r.json();
+    },
+    onSuccess: (res: any) => {
+      toast({ title: "Template applied", description: `"${res.templateName}" is now this roster's config.` });
+      setConfirmOpen(false);
+      setCode("");
+      setPreview(null);
+      queryClient.invalidateQueries();
+    },
+    onError: (e: any) => toast({ title: "Apply failed", description: e?.message || "Unknown error", variant: "destructive" }),
+  });
+
+  const counts = preview ? (preview.config || {}) : {};
+  const tally = (key: string) => Array.isArray(counts[key]) ? counts[key].length : 0;
+
+  return (
+    <Card className="lg:col-span-2">
+      <CardHeader className="pb-4 border-b border-border">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-primary/10">
+            <Database className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <CardTitle className="text-xl">Apply Game Template</CardTitle>
+            <CardDescription>
+              Replace this roster's game config with a saved template (modes, maps, heroes, stat fields, score config, event categories, availability times, opponents). Players, games, events, attendance, and history are not touched.
+            </CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-6 space-y-3">
+        <div className="flex items-end gap-2 flex-wrap">
+          <div className="flex-1 min-w-[200px]">
+            <Label htmlFor="tpl-code">Template code</Label>
+            <Input
+              id="tpl-code"
+              value={code}
+              onChange={(e) => { setCode(e.target.value.toUpperCase()); setPreview(null); }}
+              placeholder="e.g. MR-AB12CD"
+              className="font-mono"
+              data-testid="input-template-code"
+            />
+          </div>
+          <Button onClick={lookup} disabled={!code.trim() || previewing} variant="outline" data-testid="button-lookup-template">
+            {previewing ? "Looking up…" : "Look up"}
+          </Button>
+          <Button
+            onClick={() => setConfirmOpen(true)}
+            disabled={!preview}
+            data-testid="button-open-apply"
+          >
+            Apply…
+          </Button>
+        </div>
+        {preview && (
+          <div className="rounded-md border border-border p-3 bg-muted/30 text-sm space-y-1" data-testid="text-template-preview">
+            <div className="font-medium">{preview.name} <span className="font-mono text-muted-foreground ml-1">{preview.code}</span></div>
+            <div className="text-xs text-muted-foreground">
+              {tally("gameModes")} modes · {tally("maps")} maps · {tally("heroes")} heroes · {tally("statFields")} stat fields · {tally("eventCategories")} categories · {tally("availabilitySlots")} slots · {tally("opponents")} opponents
+              {preview.config?.singleModeGame ? " · single-mode" : ""}
+            </div>
+          </div>
+        )}
+      </CardContent>
+
+      <Dialog open={confirmOpen} onOpenChange={(o) => { if (!applyMutation.isPending) setConfirmOpen(o); }}>
+        <DialogContent data-testid="dialog-apply-template">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Confirm Apply Template
+            </DialogTitle>
+            <DialogDescription>
+              This wipes <strong>this roster's</strong> game modes, maps, heroes, stat fields, score config, event categories, availability times, and opponents — then re-seeds them from the template. Players, games, events, attendance, and history are untouched. Done in one transaction (any error rolls back).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-md border border-border p-3 bg-muted/30 space-y-1">
+            <div className="text-xs text-muted-foreground">Game</div>
+            <div className="font-medium">{gameDisplayName}</div>
+            <div className="text-xs text-muted-foreground mt-2">Roster</div>
+            <div className="font-medium">{rosterDisplayName}</div>
+            {preview && (
+              <>
+                <div className="text-xs text-muted-foreground mt-2">Template</div>
+                <div className="font-medium">{preview.name} <span className="font-mono text-muted-foreground">({preview.code})</span></div>
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setConfirmOpen(false)} disabled={applyMutation.isPending}>Cancel</Button>
+            <Button
+              onClick={() => applyMutation.mutate()}
+              disabled={applyMutation.isPending}
+              data-testid="button-confirm-apply"
+            >
+              {applyMutation.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Applying…</> : "Apply Template"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Card>
   );
 }
 

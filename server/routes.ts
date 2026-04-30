@@ -3742,6 +3742,149 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== Game Templates (super_admin only) =====
+  // Reusable per-game configuration packs (modes/maps/heroes/stat-fields/score/
+  // categories/availability/opponents). Stored as JSONB on `game_templates`.
+  // Apply replaces a roster's config in a single transaction. NEVER touches
+  // players, games, events, attendance, or history.
+  app.get("/api/game-templates", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+    try {
+      const list = await storage.getAllGameTemplates();
+      res.json(list);
+    } catch (error: any) {
+      console.error('Error in GET /api/game-templates:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.get("/api/game-templates/:id", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+    try {
+      const tpl = await storage.getGameTemplate(req.params.id);
+      if (!tpl) return res.status(404).json({ error: "Template not found" });
+      res.json(tpl);
+    } catch (error: any) {
+      console.error('Error in GET /api/game-templates/:id:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  // Lookup-by-code is intentionally available to anyone with manage_game_config
+  // so an org_admin can preview/apply a code shared with them. We still enforce
+  // super_admin on create/update/delete.
+  app.get("/api/game-templates/by-code/:code", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+    try {
+      const code = String(req.params.code || "").trim().toUpperCase();
+      if (!code) return res.status(400).json({ error: "Code required" });
+      const tpl = await storage.getGameTemplateByCode(code);
+      if (!tpl) return res.status(404).json({ error: "Template not found" });
+      res.json(tpl);
+    } catch (error: any) {
+      console.error('Error in GET /api/game-templates/by-code:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.post("/api/game-templates", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+    try {
+      const body = z.object({
+        name: z.string().min(1).max(100),
+        gameId: z.string().uuid(),
+        code: z.string().min(3).max(40),
+        config: z.any().optional(),
+      }).parse(req.body);
+      const code = body.code.trim().toUpperCase();
+      const existing = await storage.getGameTemplateByCode(code);
+      if (existing) return res.status(400).json({ error: "Code already in use" });
+      const tpl = await storage.createGameTemplate(body.name, body.gameId, code, body.config ?? {});
+      logActivity(req.session.userId!, "create_game_template",
+        `Created game template "${tpl.name}" (${tpl.code})`, "team", undefined, body.gameId, null);
+      res.json(tpl);
+    } catch (error: any) {
+      console.error('Error in POST /api/game-templates:', error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ error: "Invalid payload", details: error.errors });
+      }
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.put("/api/game-templates/:id", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+    try {
+      const body = z.object({
+        name: z.string().min(1).max(100).optional(),
+        config: z.any().optional(),
+      }).parse(req.body);
+      const tpl = await storage.updateGameTemplate(req.params.id, body);
+      if (!tpl) return res.status(404).json({ error: "Template not found" });
+      logActivity(req.session.userId!, "update_game_template",
+        `Updated game template "${tpl.name}" (${tpl.code})`, "team", undefined, tpl.gameId, null);
+      res.json(tpl);
+    } catch (error: any) {
+      console.error('Error in PUT /api/game-templates/:id:', error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ error: "Invalid payload", details: error.errors });
+      }
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.delete("/api/game-templates/:id", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+    try {
+      const existing = await storage.getGameTemplate(req.params.id);
+      if (!existing) return res.status(404).json({ error: "Template not found" });
+      const ok = await storage.deleteGameTemplate(req.params.id);
+      if (!ok) return res.status(404).json({ error: "Template not found" });
+      logActivity(req.session.userId!, "delete_game_template",
+        `Deleted game template "${existing.name}" (${existing.code})`, "team", undefined, existing.gameId, null);
+      res.json({ ok: true });
+    } catch (error: any) {
+      console.error('Error in DELETE /api/game-templates/:id:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  // Apply a template (by id OR by code) to the CURRENT roster context.
+  // Caller must hold manage_game_config (also required for the regular config tabs).
+  app.post("/api/game-templates/apply", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+    try {
+      const body = z.object({
+        templateId: z.string().uuid().optional(),
+        code: z.string().optional(),
+      }).parse(req.body);
+      const gameId = getGameId(req);
+      const rosterId = getRosterId(req);
+      if (!gameId || !rosterId) {
+        return res.status(400).json({ error: "Game and roster context required" });
+      }
+      // Enforce that the caller actually has access to this game+roster (not just
+      // any roster for which they hold manage_game_config). Mirrors verifyObjectScope
+      // used by the other config write endpoints.
+      if (!await verifyObjectScope(req, res, gameId, rosterId)) return;
+      let tpl;
+      if (body.templateId) {
+        tpl = await storage.getGameTemplate(body.templateId);
+      } else if (body.code) {
+        tpl = await storage.getGameTemplateByCode(body.code.trim().toUpperCase());
+      } else {
+        return res.status(400).json({ error: "templateId or code required" });
+      }
+      if (!tpl) return res.status(404).json({ error: "Template not found" });
+      if (tpl.gameId !== gameId) {
+        return res.status(400).json({ error: "Template is for a different game than the current roster" });
+      }
+      await storage.applyGameTemplate(tpl.id, rosterId, gameId);
+      logActivity(req.session.userId!, "apply_game_template",
+        `Applied template "${tpl.name}" (${tpl.code}) to roster`, "team", undefined, gameId, rosterId);
+      res.json({ ok: true, templateName: tpl.name, code: tpl.code });
+    } catch (error: any) {
+      console.error('Error in POST /api/game-templates/apply:', error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ error: "Invalid payload", details: error.errors });
+      }
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
   app.get("/api/game-modes/:gameModeId/maps", requireAuth, async (req, res) => {
     try {
       const { gameModeId } = req.params;

@@ -20,7 +20,7 @@ import {
   Home, Calendar, Users, BarChart3, Settings, MessageSquare,
   LogOut, Trophy, Clock, GitCompare, Target, Shield,
   UserCog, ClipboardList, ArrowLeft, LayoutDashboard,
-  ShieldCheck, Gamepad2, KeyRound,
+  ShieldCheck, Gamepad2, KeyRound, Layers,
 } from "lucide-react";
 import type { Permission, OrgRole } from "@shared/schema";
 import { orgRoleLabels } from "@shared/schema";
@@ -238,6 +238,20 @@ export function AppSidebar() {
                           <Link href="/game-access">
                             <KeyRound className="h-4 w-4" />
                             <span>Game Access</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    )}
+                    {hasOrgRole("super_admin" as any) && (
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          asChild
+                          isActive={location === "/game-templates" || location.startsWith("/game-templates/")}
+                          data-testid="link-game-templates"
+                        >
+                          <Link href="/game-templates">
+                            <Layers className="h-4 w-4" />
+                            <span>Game Templates</span>
                           </Link>
                         </SidebarMenuButton>
                       </SidebarMenuItem>

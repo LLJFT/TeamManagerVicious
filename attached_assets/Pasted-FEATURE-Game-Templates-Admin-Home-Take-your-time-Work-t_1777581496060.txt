@@ -1,0 +1,173 @@
+FEATURE — Game Templates (Admin Home)
+
+Take your time. Work through ALL steps completely.
+DO NOT stop. DO NOT ask for confirmation at any point.
+If you hit any issue, make the best decision yourself and continue.
+Finish everything, then report.
+
+═══════════════════════════════════════
+OVERVIEW
+═══════════════════════════════════════
+Add a "Game Templates" section in the Admin Home page.
+Templates are NEVER auto-created, auto-applied, or auto-linked.
+Visible and accessible to Super Admin only.
+A template is a full manual copy of a roster Dashboard config.
+Apply it to any roster (same game) using a fixed code.
+
+═══════════════════════════════════════
+STEP 1 — Game Templates page (Super Admin only)
+═══════════════════════════════════════
+Add new top-level page: "Game Templates"
+- Visible ONLY to Super Admin
+- Add to Admin Home navigation, hidden from all other roles
+
+Each template card shows:
+- Template name
+- Game it belongs to
+- Fixed immutable code (e.g. "OW-X7K2P1") with one-click copy
+- Created date
+- Edit → opens template editor
+- Delete → with confirmation
+
+"+ New Template" button:
+- Asks for: Template Name + Game (dropdown of existing games)
+- Auto-generates immutable code on creation
+- Opens template editor immediately after creation
+
+═══════════════════════════════════════
+STEP 2 — Template editor (identical to roster Dashboard)
+═══════════════════════════════════════
+Template editor = exact same UI as roster Dashboard.
+Include ALL these tabs:
+- Game Modes (respects single_mode_game flag)
+- Maps + map images
+- Heroes + hero images + roles
+- Stat Fields
+- Score Configuration
+- Event Categories
+- Availability Times
+- Opponents
+
+REMOVE only:
+- Users tab
+- Roles tab
+
+Everything works identically to the roster Dashboard.
+Images uploadable and stored same way (object storage or base64).
+Templates stored in isolated data scope.
+Editing a template NEVER affects any live roster.
+Templates NEVER auto-populated — admin fills manually.
+
+═══════════════════════════════════════
+STEP 3 — Apply template to a roster
+═══════════════════════════════════════
+In roster Dashboard → Settings (or Reset Roster area),
+add "Apply Game Template" — visible to Super Admin only.
+
+Flow:
+1. Text input: "Enter template code"
+2. Validate code exists AND template game matches roster game.
+   If mismatch → error: "This template is for [Game].
+   This roster uses [Other Game]. Use a template for the correct game."
+3. Confirmation dialog:
+   "This will REPLACE:
+   • Heroes and hero images
+   • Maps and map images
+   • Game Modes
+   • Stat Fields
+   • Score Configuration
+   • Event Categories
+   • Availability Times
+   • Opponents
+
+   Will NOT be touched:
+   • Players
+   • Game records and results
+   • Events and history
+
+   This cannot be undone. Continue?"
+
+4. On confirm — single database transaction:
+   a. DELETE existing config for this roster only:
+      heroes, maps, game_modes, stat_fields, score_config,
+      event_categories, availability_times, opponents
+   b. INSERT deep copies of all template rows into roster
+   c. Re-map ALL internal IDs:
+      - game_mode rows → new IDs
+      - maps → reference new game_mode IDs
+      - stat_fields → reference new game_mode IDs
+      - score_config → reference new game_mode IDs
+   d. Images:
+      - Object storage URL → copy string as-is
+      - base64 → copy string as-is
+      - All images work immediately after apply
+   e. Set roster single_mode_game = template single_mode_game
+   f. ANY failure → full rollback, roster untouched
+
+═══════════════════════════════════════
+STEP 4 — Schema
+═══════════════════════════════════════
+game_templates (
+  id         serial primary key,
+  name       text not null,
+  code       text unique not null,  -- immutable after creation
+  game_id    integer references games(id),
+  team_id    integer references teams(id),
+  config     jsonb not null,
+  created_at timestamp default now()
+)
+
+config JSONB stores:
+heroes, maps, game_modes, stat_fields, score_config,
+event_categories, availability_times, opponents,
+single_mode_game flag, all image data.
+
+Code format: game abbreviation + random alphanumeric (e.g. OW-X7K2P1)
+Generated once on INSERT, never updated.
+
+If JSONB is not feasible → use child tables.
+Make the decision yourself, pick the cleaner approach, implement fully.
+
+═══════════════════════════════════════
+CONSTRAINTS
+═══════════════════════════════════════
+- Templates NEVER auto-created or auto-applied
+- Template codes NEVER change after creation
+- Super Admin eyes only — template page + apply option
+- Apply NEVER deletes players, games, results, events, history
+- Game must match at API level too, not just UI
+- Single transaction + full rollback on any failure
+- Images must work after apply
+- Templates scoped per team
+- Editing template NEVER affects live rosters
+- Do NOT touch MR, OW, Valorant, R6 existing data
+- Do NOT modify any existing Dashboard or roster functionality
+
+═══════════════════════════════════════
+WORK INSTRUCTIONS — READ CAREFULLY
+═══════════════════════════════════════
+- Complete ALL 4 steps without stopping
+- Never pause to ask a question
+- Never wait for user confirmation
+- If you face any issue or ambiguity → make the best decision
+  yourself, document it in your final report, and move on
+- After all steps: run full code review
+- Fix ALL issues found in code review before reporting
+- Run compile check, fix all type errors in your changes
+- Update replit.md when complete
+- Only report when 100% done and verified
+
+═══════════════════════════════════════
+FINAL REPORT (only after everything is done)
+═══════════════════════════════════════
+1. Where Game Templates page is in navigation
+2. How template codes are generated
+3. Full list of tabs in template editor
+4. How Super Admin gating works (UI + API)
+5. How game matching is enforced
+6. How ID re-mapping works in apply transaction
+7. How images are handled
+8. Schema approach chosen and why
+9. Any decisions made independently and why
+10. Confirm players, games, history untouched
+11. Confirm no existing game data touched
