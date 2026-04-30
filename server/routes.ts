@@ -3910,31 +3910,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const ext = path.extname(req.file.originalname).toLowerCase() || "";
       const mime = req.file.mimetype || "application/octet-stream";
-
-      // For images, embed as a data URL so the URL is persisted directly in
-      // the DB column (e.g. opponents.logoUrl, heroes.imageUrl) and survives
-      // every redeploy / container restart / object-storage hiccup. The 10 MB
-      // multer cap (above) keeps these well within Postgres text limits even
-      // after base64 inflation (~33%).
       const allowedImageMimes = new Set([
         "image/png", "image/jpeg", "image/jpg", "image/gif",
         "image/webp", "image/bmp", "image/svg+xml",
         "image/x-icon", "image/vnd.microsoft.icon",
       ]);
-      if (allowedImageMimes.has(mime)) {
-        const dataUrl = `data:${mime};base64,${req.file.buffer.toString("base64")}`;
-        return res.json({ url: dataUrl, path: dataUrl });
-      }
 
-      // For non-images, attempt object storage; fall back to local disk in dev.
+      // Try object storage first for everything — returns a short, stable
+      // /objects/uploads/<id>.<ext> URL that lives in GCS via the Replit
+      // sidecar and survives every redeploy / container restart. Keeps the
+      // DB row tiny (no megabytes of base64 in JSON bodies → no 413s).
       try {
         const { ObjectStorageService } = await import("./objectStorage");
         const svc = new ObjectStorageService();
         const url = await svc.uploadBuffer(req.file.buffer, mime, ext);
         return res.json({ url, path: url });
       } catch (osErr: any) {
-        console.warn('[upload] Object storage unavailable, falling back to local disk. Detail:',
+        console.warn('[upload] Object storage unavailable, falling back. Detail:',
           { name: osErr?.name, message: osErr?.message, code: osErr?.code });
+
+        // Fallback for images: embed as a data URL so the image is still
+        // persisted directly in the DB column and survives any container
+        // restart. Cap raw size at 5 MB so the post-base64 payload (~6.7 MB)
+        // stays comfortably under the 10 MB JSON body limit set in
+        // server/index.ts and never reproduces the 413 we just fixed.
+        if (allowedImageMimes.has(mime)) {
+          const MAX_DATA_URL_BYTES = 5 * 1024 * 1024;
+          if (req.file.buffer.length > MAX_DATA_URL_BYTES) {
+            return res.status(503).json({
+              error: "Image storage temporarily unavailable. Please retry in a moment, or upload an image smaller than 5 MB.",
+            });
+          }
+          const dataUrl = `data:${mime};base64,${req.file.buffer.toString("base64")}`;
+          return res.json({ url: dataUrl, path: dataUrl });
+        }
+
+        // Fallback for non-images: local disk (ephemeral; only for dev).
         const dir = path.join(UPLOAD_DIR, "general");
         fs.mkdirSync(dir, { recursive: true });
         const filename = `${randomUUID()}${ext}`;
@@ -3945,6 +3956,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error('Error in POST /api/objects/upload:', error);
       res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  // Serve files from object storage. URLs returned by the upload endpoint
+  // look like /objects/uploads/<id>.<ext>; this streams them back through
+  // ObjectStorageService.downloadObject (handles content-type, length,
+  // cache headers).
+  app.get("/objects/uploads/:filename", requireAuth, async (req, res) => {
+    try {
+      const { filename } = req.params;
+      if (!filename || filename.includes("/") || filename.includes("..")) {
+        return res.status(400).json({ error: "Invalid object path" });
+      }
+      // Allowlist of MIME types we render inline (images only). Anything
+      // else gets forced to attachment to prevent stored-XSS-style abuse
+      // via crafted content-type metadata. Always set nosniff so the
+      // browser cannot upgrade an arbitrary blob to HTML/JS.
+      const INLINE_OK = new Set([
+        "image/png", "image/jpeg", "image/jpg", "image/gif",
+        "image/webp", "image/bmp", "image/svg+xml",
+        "image/x-icon", "image/vnd.microsoft.icon",
+      ]);
+      const { ObjectStorageService, ObjectNotFoundError } = await import("./objectStorage");
+      const svc = new ObjectStorageService();
+      try {
+        const file = await svc.getObjectEntityFile(`/objects/uploads/${filename}`);
+        const [meta] = await file.getMetadata();
+        const ct = (meta.contentType || "application/octet-stream").toLowerCase();
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        if (!INLINE_OK.has(ct)) {
+          res.setHeader("Content-Disposition", `attachment; filename="${filename.replace(/[^\w.-]/g, "_")}"`);
+        }
+        await svc.downloadObject(file, res, 86400);
+      } catch (e: any) {
+        if (e instanceof ObjectNotFoundError) {
+          return res.status(404).json({ error: "Object not found" });
+        }
+        throw e;
+      }
+    } catch (error: any) {
+      console.error('Error serving /objects/uploads/:filename:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ error: error.message || "Internal server error" });
+      }
     }
   });
 

@@ -1,7 +1,7 @@
 import type { Player, InsertPlayer, Schedule, InsertSchedule, Setting, InsertSetting, Event, InsertEvent, Attendance, InsertAttendance, TeamNotes, InsertTeamNotes, Game, InsertGame, GameMode, InsertGameMode, Map, InsertMap, Season, InsertSeason, OffDay, InsertOffDay, StatField, InsertStatField, PlayerGameStat, InsertPlayerGameStat, PlayerAvailabilityRecord, InsertPlayerAvailability, StaffAvailabilityRecord, InsertStaffAvailability, Staff, InsertStaff, AvailabilitySlot, RosterRole, SupportedGame, UserGameAssignment, Notification, EventCategory, InsertEventCategory, EventSubType, InsertEventSubType, Side, InsertSide, GameRound, InsertGameRound, Hero, InsertHero, HeroRoleConfig, InsertHeroRoleConfig, GameHero, InsertGameHero, Opponent, InsertOpponent, OpponentPlayer, InsertOpponentPlayer, MatchParticipant, InsertMatchParticipant, OpponentPlayerGameStat, InsertOpponentPlayerGameStat, HeroBanSystem, InsertHeroBanSystem, MapVetoSystem, InsertMapVetoSystem, GameHeroBanAction, InsertGameHeroBanAction, GameMapVetoRow, InsertGameMapVetoRow } from "@shared/schema";
 import { players, schedules, settings, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays, statFields, playerGameStats, playerAvailability, staffAvailability, staff as staffTable, availabilitySlots, rosterRoles, supportedGames, userGameAssignments, notifications, users, rosters, eventCategories, eventSubTypes, sides, gameRounds, heroes, heroRoleConfigs, gameHeroes, opponents, opponentPlayers, matchParticipants, opponentPlayerGameStats, heroBanSystems, mapVetoSystems, gameHeroBanActions, gameMapVetoRows } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, isNull, desc } from "drizzle-orm";
+import { eq, and, isNull, desc, sql } from "drizzle-orm";
 
 export function getTeamId(): string {
   const teamId = process.env.TEAM_ID || process.env.REPL_ID;
@@ -1100,7 +1100,18 @@ export class DbStorage implements IStorage {
 
   async addOpponent(opp: InsertOpponent, gameId?: string | null, rosterId?: string | null): Promise<Opponent> {
     const teamId = getTeamId();
-    const [inserted] = await db.insert(opponents).values({ ...opp, teamId, gameId, rosterId }).returning();
+    const trimmedName = (opp.name || "").trim();
+    if (trimmedName) {
+      const conditions: any[] = [
+        eq(opponents.teamId, teamId),
+        sql`lower(${opponents.name}) = lower(${trimmedName})`,
+      ];
+      if (gameId) conditions.push(eq(opponents.gameId, gameId));
+      if (rosterId) conditions.push(eq(opponents.rosterId, rosterId));
+      const [existing] = await db.select().from(opponents).where(and(...conditions)).limit(1);
+      if (existing) return existing;
+    }
+    const [inserted] = await db.insert(opponents).values({ ...opp, name: trimmedName || opp.name, teamId, gameId, rosterId }).returning();
     return inserted;
   }
 

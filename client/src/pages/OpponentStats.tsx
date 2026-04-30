@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,13 +21,17 @@ import {
   ChevronDown,
   ChevronRight,
   ExternalLink,
+  UserPlus,
 } from "lucide-react";
 import { useGame } from "@/hooks/use-game";
 import type { Event, Game, GameMode, Map as MapType, Opponent } from "@shared/schema";
 import { OpponentAvatar, findOpponentByName } from "@/components/OpponentAvatar";
+import { OpponentRosterDialog } from "@/components/OpponentRosterDialog";
 import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied } from "@/components/AccessDenied";
 import { OpponentsSkeleton } from "@/components/PageSkeleton";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface StatsSummary {
   total: number;
@@ -59,11 +63,14 @@ type SortOption = "matches" | "winRate" | "name" | "lastPlayed";
 
 export default function OpponentStats() {
   const { hasPermission } = useAuth();
+  const { toast } = useToast();
   const { fullSlug, gameId, rosterId } = useGame();
+  const canManageOpponents = hasPermission("manage_game_config");
   const rosterReady = !!(gameId && rosterId);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("matches");
   const [expandedOpponents, setExpandedOpponents] = useState<Set<string>>(new Set());
+  const [rosterDialogOpp, setRosterDialogOpp] = useState<Opponent | undefined>();
 
   const toggleExpanded = (name: string) => {
     setExpandedOpponents(prev => {
@@ -98,6 +105,35 @@ export default function OpponentStats() {
     queryKey: ["/api/opponents", { gameId, rosterId }],
     enabled: rosterReady,
   });
+
+  // Lazy-create an opponent record on demand when the user opens View Roster
+  // for an opponent that exists only as text on past events. This NEVER
+  // touches existing event/history rows — it just adds a new opponents row
+  // (so the roster sub-table can hang off it) using the same name/scope.
+  const ensureOpponentMutation = useMutation({
+    mutationFn: async (name: string): Promise<Opponent> => {
+      const res = await apiRequest("POST", "/api/opponents", {
+        name,
+        isActive: true,
+        sortOrder: 0,
+      });
+      return res.json();
+    },
+    onSuccess: (created) => {
+      queryClient.invalidateQueries({ predicate: (q) => q.queryKey[0] === "/api/opponents" });
+      setRosterDialogOpp(created);
+    },
+    onError: (e: any) => toast({ title: "Failed to open roster", description: e.message, variant: "destructive" }),
+  });
+
+  const openRoster = (name: string) => {
+    const existing = findOpponentByName(opponentRoster, name);
+    if (existing) {
+      setRosterDialogOpp(existing);
+    } else {
+      ensureOpponentMutation.mutate(name);
+    }
+  };
 
   const calculateStats = (items: { result?: string | null }[]): StatsSummary => {
     const total = items.length;
@@ -300,8 +336,24 @@ export default function OpponentStats() {
                         opponents={opponentRoster}
                         size="lg"
                       />
-                      <div>
-                        <CardTitle className="text-xl">{opponent.name}</CardTitle>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <CardTitle className="text-xl">{opponent.name}</CardTitle>
+                          {canManageOpponents && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-1 px-2"
+                              onClick={(e) => { e.stopPropagation(); openRoster(opponent.name); }}
+                              disabled={ensureOpponentMutation.isPending}
+                              data-testid={`button-view-roster-${opponent.name}`}
+                              title="View roster"
+                            >
+                              <UserPlus className="h-3.5 w-3.5" />
+                              <span className="text-xs">View Roster</span>
+                            </Button>
+                          )}
+                        </div>
                         <CardDescription>
                           {opponent.eventStats.total} match{opponent.eventStats.total !== 1 ? "es" : ""} played
                           {opponent.lastPlayed && ` • Last: ${new Date(opponent.lastPlayed).toLocaleDateString()}`}
@@ -463,6 +515,12 @@ export default function OpponentStats() {
           </div>
         )}
       </div>
+
+      <OpponentRosterDialog
+        opponent={rosterDialogOpp}
+        canEdit={canManageOpponents}
+        onClose={() => setRosterDialogOpp(undefined)}
+      />
     </ScrollArea>
   );
 }
