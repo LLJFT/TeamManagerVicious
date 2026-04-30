@@ -395,7 +395,7 @@ export const maps = pgTable("maps", {
   gameId: varchar("game_id"),
   rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
   name: text("name").notNull(),
-  gameModeId: varchar("game_mode_id").notNull().references(() => gameModes.id, { onDelete: "restrict" }),
+  gameModeId: varchar("game_mode_id").references(() => gameModes.id, { onDelete: "set null" }),
   imageUrl: text("image_url"),
   sortOrder: text("sort_order").default("0"),
 }, (table) => [
@@ -699,7 +699,7 @@ export const statFields = pgTable("stat_fields", {
   gameId: varchar("game_id"),
   rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
   name: text("name").notNull(),
-  gameModeId: varchar("game_mode_id").notNull().references(() => gameModes.id, { onDelete: "restrict" }),
+  gameModeId: varchar("game_mode_id").references(() => gameModes.id, { onDelete: "set null" }),
   createdAt: text("created_at").default(sql`now()`),
 }, (table) => [
   index("stat_fields_team_id_idx").on(table.teamId),

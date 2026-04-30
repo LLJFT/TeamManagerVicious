@@ -11,8 +11,9 @@ import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
-  Plus, Pencil, Trash2, Shield, Search, Image as ImageIcon, ArrowUp, ArrowDown, Settings2, Check, X,
+  Plus, Pencil, Trash2, Shield, Search, Image as ImageIcon, ArrowUp, ArrowDown, Settings2, Check, X, ChevronDown,
 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { Hero, HeroRoleConfig } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -48,6 +49,8 @@ export function HeroesConfiguration({ canEdit }: { canEdit: boolean }) {
   const [form, setForm] = useState<HeroFormState>(emptyForm);
   const [search, setSearch] = useState("");
   const [activeRoleTab, setActiveRoleTab] = useState<string>("all");
+  // Session-only collapse state for hero role groups. Default: collapsed.
+  const [openRoleGroups, setOpenRoleGroups] = useState<Record<string, boolean>>({});
 
   const { data: heroes = [], isLoading } = useQuery<Hero[]>({
     queryKey: ["/api/heroes", { gameId }],
@@ -337,18 +340,31 @@ export function HeroesConfiguration({ canEdit }: { canEdit: boolean }) {
     updateMutation.mutate({ id: hero.id, patch: { isActive: !hero.isActive } });
   };
 
-  const renderRoleSection = (role: string, list: Hero[]) => (
-    <div key={role} className="space-y-2" data-testid={`group-heroes-${role.toLowerCase()}`}>
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" style={roleBadgeStyle(role)} data-testid={`badge-role-${role.toLowerCase()}`}>
-            {role}
-          </Badge>
-          <span className="text-xs text-muted-foreground" data-testid={`text-role-count-${role.toLowerCase()}`}>
-            {list.length} {list.length === 1 ? "hero" : "heroes"}
-          </span>
+  const renderRoleSection = (role: string, list: Hero[]) => {
+    const isOpen = !!openRoleGroups[role];
+    return (
+    <Collapsible
+      key={role}
+      open={isOpen}
+      onOpenChange={(o) => setOpenRoleGroups(prev => ({ ...prev, [role]: o }))}
+      className="border border-border rounded-md"
+      data-testid={`group-heroes-${role.toLowerCase()}`}
+    >
+      <CollapsibleTrigger asChild>
+        <div className="flex items-center justify-between gap-2 p-3 cursor-pointer hover-elevate" data-testid={`toggle-role-group-${role.toLowerCase()}`}>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" style={roleBadgeStyle(role)} data-testid={`badge-role-${role.toLowerCase()}`}>
+              {role}
+            </Badge>
+            <span className="text-xs text-muted-foreground" data-testid={`text-role-count-${role.toLowerCase()}`}>
+              {list.length} {list.length === 1 ? "hero" : "heroes"}
+            </span>
+          </div>
+          <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`} />
         </div>
-      </div>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+      <div className="px-3 pb-3 space-y-2">
       {list.length === 0 ? (
         <div className="text-xs text-muted-foreground italic px-2 py-3 border border-dashed border-border rounded-md">
           No heroes in this role
@@ -400,8 +416,11 @@ export function HeroesConfiguration({ canEdit }: { canEdit: boolean }) {
           ))}
         </div>
       )}
-    </div>
-  );
+      </div>
+      </CollapsibleContent>
+    </Collapsible>
+    );
+  };
 
   const visibleRoles = activeRoleTab === "all"
     ? Object.keys(filteredGroups)

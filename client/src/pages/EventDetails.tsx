@@ -115,6 +115,21 @@ export default function EventDetails() {
     enabled: !!gameId,
   });
 
+  // Per-team-per-game single-mode flag — when true the game has no mode dimension.
+  const { data: singleModeData } = useQuery<{ singleMode: boolean }>({
+    queryKey: ["/api/game-config/single-mode", { gameId, rosterId }],
+    enabled: !!gameId,
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (gameId) params.set("gameId", gameId);
+      if (rosterId) params.set("rosterId", rosterId);
+      const res = await fetch(`/api/game-config/single-mode?${params.toString()}`, { credentials: "include" });
+      if (!res.ok) return { singleMode: false } as any;
+      return res.json();
+    },
+  });
+  const singleMode = !!singleModeData?.singleMode;
+
   const { data: sidesList = [] } = useQuery<Side[]>({
     queryKey: ["/api/sides", { gameId, rosterId }],
     enabled: !!gameId && !!rosterId,
@@ -228,11 +243,15 @@ export default function EventDetails() {
     return record?.status || null;
   };
 
-  const getStatFieldsByMode = (modeId: string) => {
+  const getStatFieldsByMode = (modeId: string | null | undefined) => {
+    // Treat null/empty mode as "single-mode style" — return all stat fields.
+    // This covers both global single-mode and individual games created with gameModeId=null.
+    if (singleMode || !modeId) return allStatFields;
     return allStatFields.filter(sf => sf.gameModeId === modeId);
   };
 
-  const getMapsByMode = (modeId: string) => {
+  const getMapsByMode = (modeId: string | null | undefined) => {
+    if (singleMode || !modeId) return allMaps;
     return allMaps.filter(map => map.gameModeId === modeId);
   };
 
@@ -457,7 +476,7 @@ export default function EventDetails() {
       gameCode: newGameCode,
       score: newGameScore,
       imageUrl: newGameImageUrl.trim() || undefined,
-      gameModeId: newGameModeId || undefined,
+      gameModeId: singleMode ? undefined : (newGameModeId || undefined),
       mapId: newGameMapId || undefined,
       result: newGameResult || undefined,
       link: newGameLink.trim() || undefined,
@@ -465,6 +484,14 @@ export default function EventDetails() {
       mapVetoSystemId: newGameMvsSystemId || undefined,
     });
   };
+
+  // Auto-select the only mode silently when there's exactly one (and we're not in single-mode).
+  useEffect(() => {
+    if (singleMode) return;
+    if (gameModes.length === 1 && !newGameModeId) {
+      setNewGameModeId(gameModes[0].id);
+    }
+  }, [singleMode, gameModes, newGameModeId]);
 
   const resetNewGameForm = () => {
     setNewGameCode("");
@@ -919,8 +946,8 @@ export default function EventDetails() {
                   placeholder="Game Code"
                   data-testid="input-new-game-code"
                 />
-                {newGameModeId ? (() => {
-                  const mode = getModeForGame(newGameModeId);
+                {(singleMode || newGameModeId) ? (() => {
+                  const mode = newGameModeId ? getModeForGame(newGameModeId) : null;
                   const scoreType = (mode as any)?.scoreType || "numeric";
                   const rawMaxScore = (mode as any)?.maxScore;
                   const rawMaxRoundWins = (mode as any)?.maxRoundWins;
@@ -983,30 +1010,32 @@ export default function EventDetails() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <Select
-                  value={newGameModeId}
-                  onValueChange={(v) => {
-                    setNewGameModeId(v);
-                    setNewGameMapId("");
-                  }}
-                >
-                  <SelectTrigger data-testid="select-new-game-mode">
-                    <SelectValue placeholder="Game Mode" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {gameModes.map((mode) => (
-                      <SelectItem key={mode.id} value={mode.id}>{mode.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className={`grid grid-cols-1 ${singleMode ? "md:grid-cols-2" : "md:grid-cols-3"} gap-3`}>
+                {!singleMode && (
+                  <Select
+                    value={newGameModeId}
+                    onValueChange={(v) => {
+                      setNewGameModeId(v);
+                      setNewGameMapId("");
+                    }}
+                  >
+                    <SelectTrigger data-testid="select-new-game-mode">
+                      <SelectValue placeholder="Game Mode" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {gameModes.map((mode) => (
+                        <SelectItem key={mode.id} value={mode.id}>{mode.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 <Select
                   value={newGameMapId}
                   onValueChange={setNewGameMapId}
-                  disabled={!newGameModeId}
+                  disabled={!singleMode && !newGameModeId}
                 >
                   <SelectTrigger data-testid="select-new-game-map">
-                    <SelectValue placeholder={newGameModeId ? "Select Map" : "Select Mode First"} />
+                    <SelectValue placeholder={singleMode || newGameModeId ? "Select Map" : "Select Mode First"} />
                   </SelectTrigger>
                   <SelectContent>
                     {getMapsByMode(newGameModeId).map((map) => (
@@ -1047,13 +1076,13 @@ export default function EventDetails() {
                 </Button>
               </div>
 
-              {newGameModeId && (
+              {(singleMode || newGameModeId) && (
                 <div className="mt-2 border-t border-border pt-3" data-testid="section-match-stats-new-game">
                   <div className="flex items-center gap-2 mb-2">
                     <BarChart3 className="h-4 w-4 text-primary" />
                     <h3 className="text-sm font-semibold">
                       Match Stats — New Game
-                      {getModeName(newGameModeId) && (
+                      {!singleMode && getModeName(newGameModeId) && (
                         <span className="text-xs text-muted-foreground ml-2">({getModeName(newGameModeId)})</span>
                       )}
                     </h3>
@@ -1185,23 +1214,25 @@ export default function EventDetails() {
                         <td className="p-3">
                           {editingGame?.id === game.id ? (
                             <div className="space-y-2">
-                              <Select
-                                value={editingGame.gameModeId || ""}
-                                onValueChange={(v) => setEditingGame({ ...editingGame, gameModeId: v, mapId: null })}
-                              >
-                                <SelectTrigger className="w-32">
-                                  <SelectValue placeholder="Mode" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {gameModes.map((mode) => (
-                                    <SelectItem key={mode.id} value={mode.id}>{mode.name}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              {!singleMode && (
+                                <Select
+                                  value={editingGame.gameModeId || ""}
+                                  onValueChange={(v) => setEditingGame({ ...editingGame, gameModeId: v, mapId: null })}
+                                >
+                                  <SelectTrigger className="w-32">
+                                    <SelectValue placeholder="Mode" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {gameModes.map((mode) => (
+                                      <SelectItem key={mode.id} value={mode.id}>{mode.name}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
                               <Select
                                 value={editingGame.mapId || ""}
                                 onValueChange={(v) => setEditingGame({ ...editingGame, mapId: v })}
-                                disabled={!editingGame.gameModeId}
+                                disabled={!singleMode && !editingGame.gameModeId}
                               >
                                 <SelectTrigger className="w-32">
                                   <SelectValue placeholder="Map" />
@@ -1215,7 +1246,7 @@ export default function EventDetails() {
                             </div>
                           ) : (
                             <div className="space-y-1">
-                              {getModeName(game.gameModeId) && (
+                              {!singleMode && getModeName(game.gameModeId) && (
                                 <div className="flex items-center gap-1.5 text-sm">
                                   <Gamepad2 className="h-3 w-3 text-muted-foreground" />
                                   <span>{getModeName(game.gameModeId)}</span>
@@ -1227,7 +1258,7 @@ export default function EventDetails() {
                                   <span>{getMapName(game.mapId)}</span>
                                 </div>
                               )}
-                              {!getModeName(game.gameModeId) && !getMapName(game.mapId) && (
+                              {(singleMode ? !getMapName(game.mapId) : (!getModeName(game.gameModeId) && !getMapName(game.mapId))) && (
                                 <span className="text-muted-foreground text-sm">—</span>
                               )}
                             </div>
@@ -1449,7 +1480,8 @@ export default function EventDetails() {
                           </tr>
                         );
                       })()}
-                      {game.gameModeId && (() => {
+                      {(() => {
+                        // Always render match-stats panel — works for any game (with or without mode).
                         const isExpanded = !!expandedMatchStats[game.id];
                         return (
                           <tr className="border-t border-border bg-muted/20" data-testid={`row-match-stats-${game.id}`}>
@@ -1483,7 +1515,7 @@ export default function EventDetails() {
                                       game={game}
                                       opponentId={game.opponentId || event?.opponentId || null}
                                       ourPlayers={allPlayers}
-                                      statFields={getStatFieldsByMode(game.gameModeId)}
+                                      statFields={getStatFieldsByMode(game.gameModeId || "")}
                                       heroes={allHeroes}
                                       isSaving={false}
                                       hideHeader

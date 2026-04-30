@@ -14,10 +14,11 @@ import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   ArrowLeft, Plus, Pencil, Trash2, Gamepad2, Map as MapIcon,
-  ChevronRight, Calendar, BarChart3, Settings, Users, Shield,
+  ChevronRight, ChevronDown, Calendar, BarChart3, Settings, Users, Shield,
   Clock, UserCog, Check, Ban, UserCheck, Search, ArrowUp, ArrowDown,
   AlertTriangle, Database, Loader2, Swords, Target, Image as ImageIcon
 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type {
   GameMode, Map as MapType, Season, StatField, Role, Player,
   AvailabilitySlot, RosterRole, Permission, EventCategory, EventSubType,
@@ -60,7 +61,7 @@ const gameModeFormSchema = z.object({
 
 const mapFormSchema = z.object({
   name: z.string().min(1, "Map name is required"),
-  gameModeId: z.string().min(1, "Game mode is required"),
+  gameModeId: z.string().nullable().optional(),
   imageUrl: z.string().nullable().optional(),
 });
 
@@ -71,7 +72,7 @@ const seasonFormSchema = z.object({
 
 const statFieldFormSchema = z.object({
   name: z.string().min(1, "Stat field name is required"),
-  gameModeId: z.string().min(1, "Game mode is required"),
+  gameModeId: z.string().nullable().optional(),
 });
 
 const availabilitySlotFormSchema = z.object({
@@ -408,6 +409,11 @@ export default function Dashboard() {
   const [selectedModeForMaps, setSelectedModeForMaps] = useState<string | null>(null);
   const [selectedModeForStatFields, setSelectedModeForStatFields] = useState<string | null>(null);
 
+  // Session-only collapse state (not persisted) for the Score Configuration card
+  // and per-mode entries. Both default to collapsed.
+  const [scoreConfigOpen, setScoreConfigOpen] = useState(false);
+  const [openScoreModes, setOpenScoreModes] = useState<Record<string, boolean>>({});
+
   const [showEventCategoryDialog, setShowEventCategoryDialog] = useState(false);
   const [editingEventCategory, setEditingEventCategory] = useState<EventCategory | undefined>();
   const [eventCategoryName, setEventCategoryName] = useState("");
@@ -460,6 +466,34 @@ export default function Dashboard() {
   const { data: gameModes = [], isLoading: modesLoading } = useQuery<GameMode[]>({
     queryKey: ["/api/game-modes", { gameId }],
     enabled: !!gameId,
+  });
+
+  // Single-mode game flag — when true, the Game Modes dimension is hidden in the
+  // UI and maps / stat-fields / games are stored with NULL gameModeId. Existing
+  // game modes (and any maps/fields tied to them) are preserved on flip; nothing
+  // is deleted. Stored in the `settings` table at (team, game).
+  const { data: singleModeData } = useQuery<{ singleMode: boolean }>({
+    queryKey: ["/api/game-config/single-mode", { gameId }],
+    enabled: !!gameId,
+  });
+  const singleMode = !!singleModeData?.singleMode;
+
+  const setSingleModeMutation = useMutation({
+    mutationFn: async (next: boolean) => {
+      const params = new URLSearchParams();
+      if (gameId) params.set("gameId", gameId);
+      const res = await apiRequest("PUT", `/api/game-config/single-mode?${params.toString()}`, { singleMode: next });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      // Optimistically write the new value so the UI flips before the refetch.
+      queryClient.setQueryData(["/api/game-config/single-mode", { gameId }], { singleMode: !!data?.singleMode });
+      // Force refetch (staleTime is Infinity in defaults — invalidate alone may not refetch).
+      queryClient.refetchQueries({ queryKey: ["/api/game-config/single-mode"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/maps"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stat-fields"] });
+    },
+    onError: (e: any) => toast({ title: "Failed to update game mode setting", description: e.message, variant: "destructive" }),
   });
 
   const { data: sidesList = [] } = useQuery<Side[]>({
@@ -1333,17 +1367,62 @@ export default function Dashboard() {
                       </div>
                       <div>
                         <CardTitle className="text-xl">Game Modes</CardTitle>
-                        <CardDescription>{gameModes.length} configured</CardDescription>
+                        <CardDescription>
+                          {singleMode ? "Single-mode game (modes hidden)" : `${gameModes.length} configured`}
+                        </CardDescription>
                       </div>
                     </div>
-                    <Button onClick={() => { setEditingGameMode(undefined); gameModeForm.reset({ name: "" }); setShowGameModeDialog(true); }} size="sm" className="gap-2" data-testid="button-add-game-mode">
-                      <Plus className="h-4 w-4" />
-                      Add
-                    </Button>
+                    {canManageGameConfig && (
+                      singleMode ? (
+                        <Button
+                          onClick={() => {
+                            if (confirm("Add the Game Mode dimension back? You'll be able to organize maps and stat fields by mode again. Existing data is preserved.")) {
+                              setSingleModeMutation.mutate(false);
+                            }
+                          }}
+                          size="sm"
+                          variant="outline"
+                          className="gap-2"
+                          disabled={setSingleModeMutation.isPending}
+                          data-testid="button-add-game-mode-dimension"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Add Game Mode
+                        </Button>
+                      ) : (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Button
+                            onClick={() => {
+                              if (confirm("Remove the Game Mode dimension for this game? Maps and stat fields will be tracked at the game level. Existing modes and their data are preserved — you can re-enable later.")) {
+                                setSingleModeMutation.mutate(true);
+                              }
+                            }}
+                            size="sm"
+                            variant="outline"
+                            className="gap-2"
+                            disabled={setSingleModeMutation.isPending}
+                            data-testid="button-remove-game-mode-dimension"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Remove
+                          </Button>
+                          <Button onClick={() => { setEditingGameMode(undefined); gameModeForm.reset({ name: "" }); setShowGameModeDialog(true); }} size="sm" className="gap-2" data-testid="button-add-game-mode">
+                            <Plus className="h-4 w-4" />
+                            Add
+                          </Button>
+                        </div>
+                      )
+                    )}
                   </div>
                 </CardHeader>
                 <CardContent className="p-0">
-                  {gameModes.length === 0 ? (
+                  {singleMode ? (
+                    <div className="p-8 text-center">
+                      <Gamepad2 className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
+                      <p className="text-muted-foreground text-sm">This game uses a single mode.</p>
+                      <p className="text-muted-foreground text-xs mt-1">Maps and stat fields are tracked at the game level.</p>
+                    </div>
+                  ) : gameModes.length === 0 ? (
                     <div className="p-8 text-center">
                       <Gamepad2 className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
                       <p className="text-muted-foreground text-sm">No game modes configured</p>
@@ -1424,53 +1503,78 @@ export default function Dashboard() {
                         <MapIcon className="h-5 w-5 text-secondary" />
                       </div>
                       <div>
-                        <CardTitle className="text-xl">{selectedMode ? `${selectedMode.name} Maps` : "Maps"}</CardTitle>
-                        <CardDescription>{selectedMode ? `${selectedModeMaps.length} maps in this mode` : "Select a game mode to view maps"}</CardDescription>
+                        <CardTitle className="text-xl">
+                          {singleMode ? "Maps" : (selectedMode ? `${selectedMode.name} Maps` : "Maps")}
+                        </CardTitle>
+                        <CardDescription>
+                          {singleMode
+                            ? `${maps.length} ${maps.length === 1 ? "map" : "maps"} configured`
+                            : (selectedMode ? `${selectedModeMaps.length} maps in this mode` : "Select a game mode to view maps")}
+                        </CardDescription>
                       </div>
                     </div>
-                    <Button onClick={() => { setEditingMap(undefined); mapForm.reset({ name: "", gameModeId: selectedModeForMaps || "" }); setShowMapDialog(true); }} size="sm" className="gap-2" disabled={!selectedModeForMaps} data-testid="button-add-map">
+                    <Button
+                      onClick={() => {
+                        setEditingMap(undefined);
+                        mapForm.reset({ name: "", gameModeId: singleMode ? null : (selectedModeForMaps || "") });
+                        setShowMapDialog(true);
+                      }}
+                      size="sm"
+                      className="gap-2"
+                      disabled={!singleMode && !selectedModeForMaps}
+                      data-testid="button-add-map"
+                    >
                       <Plus className="h-4 w-4" />
                       Add
                     </Button>
                   </div>
                 </CardHeader>
                 <CardContent className="p-0">
-                  {!selectedModeForMaps ? (
-                    <div className="p-8 text-center">
-                      <MapIcon className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
-                      <p className="text-muted-foreground text-sm">Select a game mode</p>
-                    </div>
-                  ) : selectedModeMaps.length === 0 ? (
-                    <div className="p-8 text-center">
-                      <MapIcon className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
-                      <p className="text-muted-foreground text-sm">No maps in this mode</p>
-                    </div>
-                  ) : (
-                    <div className="divide-y divide-border">
-                      {selectedModeMaps.map((map) => (
-                        <div key={map.id} className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors" data-testid={`row-map-${map.id}`}>
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="h-12 w-12 shrink-0 rounded-md border border-border overflow-hidden bg-muted/40 flex items-center justify-center">
-                              {map.imageUrl ? (
-                                <img src={map.imageUrl} alt={map.name} className="h-full w-full object-contain" data-testid={`img-map-thumb-${map.id}`} />
-                              ) : (
-                                <MapIcon className="h-4 w-4 text-muted-foreground" />
-                              )}
-                            </div>
-                            <span className="font-medium text-foreground truncate" data-testid={`text-map-name-${map.id}`}>{map.name}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="icon" onClick={() => { setEditingMap(map); mapForm.reset({ name: map.name, gameModeId: map.gameModeId, imageUrl: map.imageUrl ?? null }); setShowMapDialog(true); }} data-testid={`button-edit-map-${map.id}`}>
-                              <Pencil className="h-4 w-4 text-muted-foreground" />
-                            </Button>
-                            <Button variant="ghost" size="icon" onClick={() => { if (confirm("Delete this map?")) deleteMapMutation.mutate(map.id); }} data-testid={`button-delete-map-${map.id}`}>
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </div>
+                  {(() => {
+                    const list = singleMode ? maps : selectedModeMaps;
+                    if (!singleMode && !selectedModeForMaps) {
+                      return (
+                        <div className="p-8 text-center">
+                          <MapIcon className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
+                          <p className="text-muted-foreground text-sm">Select a game mode</p>
                         </div>
-                      ))}
-                    </div>
-                  )}
+                      );
+                    }
+                    if (list.length === 0) {
+                      return (
+                        <div className="p-8 text-center">
+                          <MapIcon className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
+                          <p className="text-muted-foreground text-sm">{singleMode ? "No maps configured" : "No maps in this mode"}</p>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className="divide-y divide-border">
+                        {list.map((map) => (
+                          <div key={map.id} className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors" data-testid={`row-map-${map.id}`}>
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="h-12 w-12 shrink-0 rounded-md border border-border overflow-hidden bg-muted/40 flex items-center justify-center">
+                                {map.imageUrl ? (
+                                  <img src={map.imageUrl} alt={map.name} className="h-full w-full object-contain" data-testid={`img-map-thumb-${map.id}`} />
+                                ) : (
+                                  <MapIcon className="h-4 w-4 text-muted-foreground" />
+                                )}
+                              </div>
+                              <span className="font-medium text-foreground truncate" data-testid={`text-map-name-${map.id}`}>{map.name}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button variant="ghost" size="icon" onClick={() => { setEditingMap(map); mapForm.reset({ name: map.name, gameModeId: singleMode ? null : map.gameModeId, imageUrl: map.imageUrl ?? null }); setShowMapDialog(true); }} data-testid={`button-edit-map-${map.id}`}>
+                                <Pencil className="h-4 w-4 text-muted-foreground" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={() => { if (confirm("Delete this map?")) deleteMapMutation.mutate(map.id); }} data-testid={`button-delete-map-${map.id}`}>
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </CardContent>
               </Card>
 
@@ -1626,19 +1730,34 @@ export default function Dashboard() {
               </Card>
 
               <Card className="h-fit">
-                <CardHeader className="pb-4 border-b border-border">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-green-500/10">
-                      <Target className="h-5 w-5 text-green-500" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-xl">Score Configuration</CardTitle>
-                      <CardDescription>Per-mode score type & limits</CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
+                <Collapsible open={scoreConfigOpen} onOpenChange={setScoreConfigOpen}>
+                  <CollapsibleTrigger asChild>
+                    <CardHeader className="pb-4 border-b border-border cursor-pointer hover-elevate" data-testid="toggle-score-config-card">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-green-500/10">
+                            <Target className="h-5 w-5 text-green-500" />
+                          </div>
+                          <div>
+                            <CardTitle className="text-xl">Score Configuration</CardTitle>
+                            <CardDescription>
+                              {singleMode ? "Single-mode game (configure in Scoreboard)" : "Per-mode score type & limits"}
+                            </CardDescription>
+                          </div>
+                        </div>
+                        <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform ${scoreConfigOpen ? "rotate-180" : ""}`} />
+                      </div>
+                    </CardHeader>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
                 <CardContent className="p-0">
-                  {gameModes.length === 0 ? (
+                  {singleMode ? (
+                    <div className="p-8 text-center">
+                      <Target className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
+                      <p className="text-muted-foreground text-sm">Score configuration is per game mode.</p>
+                      <p className="text-muted-foreground text-xs mt-1">Re-enable game modes to configure scoring here.</p>
+                    </div>
+                  ) : gameModes.length === 0 ? (
                     <div className="p-8 text-center">
                       <Target className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
                       <p className="text-muted-foreground text-sm">Add a game mode first</p>
@@ -1652,10 +1771,23 @@ export default function Dashboard() {
                         const maxRoundsPerGame = (mode as any).maxRoundsPerGame ?? 15;
                         const maxScorePerRoundPerSide = (mode as any).maxScorePerRoundPerSide ?? 99;
                         const canEdit = hasPermission("manage_game_config");
+                        const isModeOpen = !!openScoreModes[mode.id];
                         return (
-                          <div key={mode.id} className="p-4 space-y-3" data-testid={`row-score-config-${mode.id}`}>
-                            <div className="flex items-center justify-between gap-2">
+                        <Collapsible
+                          key={mode.id}
+                          open={isModeOpen}
+                          onOpenChange={(o) => setOpenScoreModes(prev => ({ ...prev, [mode.id]: o }))}
+                        >
+                          <CollapsibleTrigger asChild>
+                            <div className="flex items-center justify-between gap-2 p-4 cursor-pointer hover-elevate" data-testid={`toggle-score-config-${mode.id}`}>
                               <span className="font-medium text-foreground">{mode.name}</span>
+                              <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isModeOpen ? "rotate-180" : ""}`} />
+                            </div>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent>
+                          <div className="px-4 pb-4 space-y-3" data-testid={`row-score-config-${mode.id}`}>
+                            <div className="flex items-center justify-between gap-2">
+                              <Label className="text-xs text-muted-foreground">Score Type</Label>
                               <Select
                                 value={scoreType}
                                 disabled={!canEdit || updateScoreConfigMutation.isPending}
@@ -1777,11 +1909,15 @@ export default function Dashboard() {
                               </div>
                             </div>
                           </div>
+                          </CollapsibleContent>
+                        </Collapsible>
                         );
                       })}
                     </div>
                   )}
                 </CardContent>
+                  </CollapsibleContent>
+                </Collapsible>
               </Card>
             </div>
 
@@ -2329,101 +2465,146 @@ export default function Dashboard() {
           <TabsContent value="stat-fields">
             <Card>
               <CardHeader className="pb-4 border-b border-border">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-primary/10">
-                    <BarChart3 className="h-5 w-5 text-primary" />
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-primary/10">
+                      <BarChart3 className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-xl">Stat Fields</CardTitle>
+                      <CardDescription>
+                        {singleMode
+                          ? "Custom stat fields tracked per game"
+                          : "Define custom stat fields per game mode for player tracking"}
+                      </CardDescription>
+                    </div>
                   </div>
-                  <div>
-                    <CardTitle className="text-xl">Stat Fields</CardTitle>
-                    <CardDescription>Define custom stat fields per game mode for player tracking</CardDescription>
-                  </div>
+                  {singleMode && canManageGameConfig && (
+                    <Button
+                      onClick={() => { setEditingStatField(undefined); statFieldForm.reset({ name: "", gameModeId: null }); setShowStatFieldDialog(true); }}
+                      size="sm"
+                      className="gap-2"
+                      data-testid="button-add-stat-field"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Field
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="pt-4">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-3">Select Game Mode</label>
-                    {gameModes.length === 0 ? (
-                      <div className="p-6 text-center border border-border rounded-lg">
-                        <BarChart3 className="h-10 w-10 mx-auto mb-2 text-muted-foreground/30" />
-                        <p className="text-muted-foreground text-sm">Create game modes first</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-1">
-                        {gameModes.map((mode) => {
-                          const modeStatFields = getStatFieldsByMode(mode.id);
-                          const isSelected = selectedModeForStatFields === mode.id;
-                          return (
-                            <div
-                              key={mode.id}
-                              className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors ${isSelected ? "bg-primary/5 border border-primary/30" : "hover:bg-muted/50 border border-transparent"}`}
-                              onClick={() => setSelectedModeForStatFields(mode.id)}
-                              data-testid={`row-stat-mode-${mode.id}`}
-                            >
-                              <div className="flex items-center gap-3">
-                                <Gamepad2 className="h-4 w-4 text-muted-foreground" />
-                                <div>
-                                  <span className="font-medium text-foreground">{mode.name}</span>
-                                  <span className="text-xs text-muted-foreground ml-2">
-                                    {modeStatFields.length} {modeStatFields.length === 1 ? "field" : "fields"}
-                                  </span>
-                                </div>
-                              </div>
-                              <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${isSelected ? "rotate-90" : ""}`} />
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <label className="block text-sm font-medium text-foreground">
-                        {selectedStatFieldMode ? `${selectedStatFieldMode.name} Stat Fields` : "Stat Fields"}
-                      </label>
-                      <Button
-                        onClick={() => { setEditingStatField(undefined); statFieldForm.reset({ name: "", gameModeId: selectedModeForStatFields || "" }); setShowStatFieldDialog(true); }}
-                        size="sm"
-                        className="gap-2"
-                        disabled={!selectedModeForStatFields}
-                        data-testid="button-add-stat-field"
-                      >
-                        <Plus className="h-4 w-4" />
-                        Add Field
-                      </Button>
+                {singleMode ? (
+                  statFields.length === 0 ? (
+                    <div className="p-6 text-center border border-border rounded-lg">
+                      <BarChart3 className="h-10 w-10 mx-auto mb-2 text-muted-foreground/30" />
+                      <p className="text-muted-foreground text-sm">No stat fields configured</p>
                     </div>
-                    {!selectedModeForStatFields ? (
-                      <div className="p-6 text-center border border-border rounded-lg">
-                        <BarChart3 className="h-10 w-10 mx-auto mb-2 text-muted-foreground/30" />
-                        <p className="text-muted-foreground text-sm">Select a game mode to manage its stat fields</p>
-                      </div>
-                    ) : selectedModeStatFields.length === 0 ? (
-                      <div className="p-6 text-center border border-border rounded-lg">
-                        <BarChart3 className="h-10 w-10 mx-auto mb-2 text-muted-foreground/30" />
-                        <p className="text-muted-foreground text-sm">No stat fields for this mode</p>
-                      </div>
-                    ) : (
-                      <div className="border border-border rounded-lg divide-y divide-border">
-                        {selectedModeStatFields.map((field) => (
-                          <div key={field.id} className="flex items-center justify-between p-3 hover:bg-muted/50 transition-colors" data-testid={`row-stat-field-${field.id}`}>
-                            <div className="flex items-center gap-3">
-                              <BarChart3 className="h-4 w-4 text-muted-foreground" />
-                              <span className="font-medium text-foreground" data-testid={`text-stat-field-name-${field.id}`}>{field.name}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Button variant="ghost" size="icon" onClick={() => { setEditingStatField(field); statFieldForm.reset({ name: field.name, gameModeId: field.gameModeId }); setShowStatFieldDialog(true); }} data-testid={`button-edit-stat-field-${field.id}`}>
-                                <Pencil className="h-4 w-4 text-muted-foreground" />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => { if (confirm("Delete this stat field?")) deleteStatFieldMutation.mutate(field.id); }} data-testid={`button-delete-stat-field-${field.id}`}>
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </div>
+                  ) : (
+                    <div className="border border-border rounded-lg divide-y divide-border">
+                      {statFields.map((field) => (
+                        <div key={field.id} className="flex items-center justify-between p-3 hover:bg-muted/50 transition-colors" data-testid={`row-stat-field-${field.id}`}>
+                          <div className="flex items-center gap-3">
+                            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                            <span className="font-medium text-foreground" data-testid={`text-stat-field-name-${field.id}`}>{field.name}</span>
                           </div>
-                        ))}
+                          <div className="flex items-center gap-1">
+                            <Button variant="ghost" size="icon" onClick={() => { setEditingStatField(field); statFieldForm.reset({ name: field.name, gameModeId: null }); setShowStatFieldDialog(true); }} data-testid={`button-edit-stat-field-${field.id}`}>
+                              <Pencil className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => { if (confirm("Delete this stat field?")) deleteStatFieldMutation.mutate(field.id); }} data-testid={`button-delete-stat-field-${field.id}`}>
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-3">Select Game Mode</label>
+                      {gameModes.length === 0 ? (
+                        <div className="p-6 text-center border border-border rounded-lg">
+                          <BarChart3 className="h-10 w-10 mx-auto mb-2 text-muted-foreground/30" />
+                          <p className="text-muted-foreground text-sm">Create game modes first</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          {gameModes.map((mode) => {
+                            const modeStatFields = getStatFieldsByMode(mode.id);
+                            const isSelected = selectedModeForStatFields === mode.id;
+                            return (
+                              <div
+                                key={mode.id}
+                                className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors ${isSelected ? "bg-primary/5 border border-primary/30" : "hover:bg-muted/50 border border-transparent"}`}
+                                onClick={() => setSelectedModeForStatFields(mode.id)}
+                                data-testid={`row-stat-mode-${mode.id}`}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <Gamepad2 className="h-4 w-4 text-muted-foreground" />
+                                  <div>
+                                    <span className="font-medium text-foreground">{mode.name}</span>
+                                    <span className="text-xs text-muted-foreground ml-2">
+                                      {modeStatFields.length} {modeStatFields.length === 1 ? "field" : "fields"}
+                                    </span>
+                                  </div>
+                                </div>
+                                <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${isSelected ? "rotate-90" : ""}`} />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <label className="block text-sm font-medium text-foreground">
+                          {selectedStatFieldMode ? `${selectedStatFieldMode.name} Stat Fields` : "Stat Fields"}
+                        </label>
+                        <Button
+                          onClick={() => { setEditingStatField(undefined); statFieldForm.reset({ name: "", gameModeId: selectedModeForStatFields || "" }); setShowStatFieldDialog(true); }}
+                          size="sm"
+                          className="gap-2"
+                          disabled={!selectedModeForStatFields}
+                          data-testid="button-add-stat-field"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Add Field
+                        </Button>
                       </div>
-                    )}
+                      {!selectedModeForStatFields ? (
+                        <div className="p-6 text-center border border-border rounded-lg">
+                          <BarChart3 className="h-10 w-10 mx-auto mb-2 text-muted-foreground/30" />
+                          <p className="text-muted-foreground text-sm">Select a game mode to manage its stat fields</p>
+                        </div>
+                      ) : selectedModeStatFields.length === 0 ? (
+                        <div className="p-6 text-center border border-border rounded-lg">
+                          <BarChart3 className="h-10 w-10 mx-auto mb-2 text-muted-foreground/30" />
+                          <p className="text-muted-foreground text-sm">No stat fields for this mode</p>
+                        </div>
+                      ) : (
+                        <div className="border border-border rounded-lg divide-y divide-border">
+                          {selectedModeStatFields.map((field) => (
+                            <div key={field.id} className="flex items-center justify-between p-3 hover:bg-muted/50 transition-colors" data-testid={`row-stat-field-${field.id}`}>
+                              <div className="flex items-center gap-3">
+                                <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                                <span className="font-medium text-foreground" data-testid={`text-stat-field-name-${field.id}`}>{field.name}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Button variant="ghost" size="icon" onClick={() => { setEditingStatField(field); statFieldForm.reset({ name: field.name, gameModeId: field.gameModeId }); setShowStatFieldDialog(true); }} data-testid={`button-edit-stat-field-${field.id}`}>
+                                  <Pencil className="h-4 w-4 text-muted-foreground" />
+                                </Button>
+                                <Button variant="ghost" size="icon" onClick={() => { if (confirm("Delete this stat field?")) deleteStatFieldMutation.mutate(field.id); }} data-testid={`button-delete-stat-field-${field.id}`}>
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -2510,7 +2691,7 @@ export default function Dashboard() {
                 <FormField control={mapForm.control} name="gameModeId" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Game Mode</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value ?? ""}>
                       <FormControl><SelectTrigger data-testid="select-map-game-mode"><SelectValue placeholder="Select game mode" /></SelectTrigger></FormControl>
                       <SelectContent>
                         {gameModes.map((mode) => (<SelectItem key={mode.id} value={mode.id}>{mode.name}</SelectItem>))}
@@ -2617,7 +2798,7 @@ export default function Dashboard() {
                 <FormField control={statFieldForm.control} name="gameModeId" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Game Mode</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value ?? ""}>
                       <FormControl><SelectTrigger data-testid="select-stat-field-mode"><SelectValue placeholder="Select game mode" /></SelectTrigger></FormControl>
                       <SelectContent>
                         {gameModes.map((mode) => (<SelectItem key={mode.id} value={mode.id}>{mode.name}</SelectItem>))}

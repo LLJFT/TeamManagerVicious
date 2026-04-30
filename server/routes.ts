@@ -29,6 +29,7 @@ import {
   staff as staffTable,
   supportedGames, userGameAssignments, notifications, rosters,
   eventCategories, eventSubTypes, sides, gameRounds,
+  settings,
   type UserWithRole,
   GAME_ABBREVIATIONS,
 } from "@shared/schema";
@@ -3698,6 +3699,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(maps);
     } catch (error: any) {
       console.error('Error in GET /api/maps:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  // ===== Single-mode game toggle =====
+  // Stored in `settings` (key="single_mode_game") at (team, game, roster=null).
+  // When true, the Maps / Stat Fields / Score Config UIs should hide the game-mode
+  // dimension and treat all rows for the game as one flat list. No data is
+  // deleted when this flag flips — existing modes/maps/stat-fields are preserved.
+  app.get("/api/game-config/single-mode", requireAuth, async (req, res) => {
+    try {
+      const gameId = getGameId(req);
+      if (!gameId) return res.status(400).json({ error: "Game context required" });
+      const v = await storage.getSetting("single_mode_game", gameId, null);
+      res.json({ singleMode: v === "true" });
+    } catch (error: any) {
+      console.error('Error in GET /api/game-config/single-mode:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.put("/api/game-config/single-mode", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+    try {
+      const gameId = getGameId(req);
+      if (!gameId) return res.status(400).json({ error: "Game context required" });
+      const { singleMode } = z.object({ singleMode: z.boolean() }).parse(req.body);
+      await storage.setSetting("single_mode_game", singleMode ? "true" : "false", gameId, null);
+      logActivity(
+        req.session.userId!,
+        singleMode ? "enable_single_mode_game" : "disable_single_mode_game",
+        singleMode ? "Switched game to single-mode layout" : "Switched game back to multi-mode layout",
+        "team", undefined, gameId, null
+      );
+      res.json({ singleMode });
+    } catch (error: any) {
+      console.error('Error in PUT /api/game-config/single-mode:', error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ error: "Invalid payload", details: error.errors });
+      }
       res.status(500).json({ error: error.message || "Internal server error" });
     }
   });

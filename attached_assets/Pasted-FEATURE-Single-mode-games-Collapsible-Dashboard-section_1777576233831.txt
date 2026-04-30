@@ -1,0 +1,87 @@
+FEATURE — Single-mode games + Collapsible Dashboard sections
+
+Implement in steps. Stop between steps only if you need a decision from me.
+
+═══════════════════════════════════════
+STEP 1 — Schema & backend: support NULL game mode
+═══════════════════════════════════════
+1. Allow game_mode_id = NULL on both maps and stat_fields tables.
+2. Allow game_mode_id = NULL on game records (already supported — confirm this).
+3. Add a game-level flag: single_mode_game (boolean, default false) on the games/game config table.
+4. When single_mode_game = true:
+   - Maps are fetched by (team + game) only, ignoring game_mode_id
+   - Stat fields are fetched by (team + game) only, ignoring game_mode_id
+   - Game records save with game_mode_id = NULL
+5. Do not break any existing FK constraints — if full NULL is not feasible, use a hidden internal anchor mode instead (invisible to user). Choose whichever approach keeps the schema cleanest.
+6. Do not touch Marvel Rivals, Overwatch, Valorant, or Rainbow Six Siege existing data.
+
+═══════════════════════════════════════
+STEP 2 — Game Config UI: Remove / Add Game Mode toggle
+═══════════════════════════════════════
+In Dashboard → Game Config → Game Modes panel:
+
+1. Add a "Remove Game Mode" button at the top of the Game Modes panel (not per-row — this is a game-level toggle).
+2. When clicked, show confirmation:
+   "This game will switch to single-mode layout. Maps and stat fields will work without a game mode. Existing mode data is preserved. Continue?"
+3. If confirmed:
+   - Set single_mode_game = true for this game
+   - Hide the Game Modes list (do NOT delete any modes)
+   - Show Maps and Stat Fields directly without requiring a mode selection
+4. Replace the button with "Add Game Mode" to reverse the toggle.
+5. "Add Game Mode" restores the full mode interface and sets single_mode_game = false.
+
+═══════════════════════════════════════
+STEP 3 — Maps & Stat Fields in single-mode layout
+═══════════════════════════════════════
+When single_mode_game = true:
+1. Maps panel: show all maps for this game directly, with Add/Edit/Delete working normally.
+2. Stat Fields panel: show all stat fields for this game directly as one flat list.
+3. No mode selector shown anywhere for these games.
+4. Score Configuration panel: show one flat list of stat fields (no per-mode sections).
+
+═══════════════════════════════════════
+STEP 4 — Scoreboard & Results: handle no game mode
+═══════════════════════════════════════
+1. When adding/editing a game result for a single-mode game:
+   - Do not show a game mode picker
+   - Load all maps and stat fields directly
+   - Save game record with game_mode_id = NULL
+2. Results page: display stat field values for games with NULL game_mode_id correctly.
+3. Statistics and Player Stats pages: include games with NULL game_mode_id in all aggregations — never skip or crash on NULL mode.
+4. If only one game mode exists (non-single-mode games): auto-select it in the scoreboard without showing the picker.
+
+═══════════════════════════════════════
+STEP 5 — Collapsible sections in Dashboard
+═══════════════════════════════════════
+5A — Score Configuration panel:
+- Add collapse/expand toggle to the panel header. Default: collapsed.
+- Each game mode entry inside also gets its own collapse toggle. Default: collapsed.
+
+5B — Heroes Configuration panel:
+- Each role group (Duelist, Vanguard, Strategist, Damage, Tank, Support, etc.) gets a collapse arrow on the right of the role header. Default: collapsed.
+- Collapse state persists during the session (no need for DB persistence).
+
+General behavior for all collapse toggles:
+- Smooth expand/collapse animation.
+- Chevron rotates (right = collapsed, down = expanded).
+- No data is lost — UI toggle only.
+
+═══════════════════════════════════════
+CONSTRAINTS (apply to all steps)
+═══════════════════════════════════════
+- Do NOT delete any existing game mode rows for any game.
+- Do NOT touch Marvel Rivals, Overwatch, Valorant, or Rainbow Six Siege heroes, maps, or existing config.
+- Do NOT wipe any historical game records, stat field values, or player stats.
+- This feature activates only when the user explicitly clicks "Remove Game Mode" on a specific game.
+- All other games remain completely unaffected.
+
+═══════════════════════════════════════
+REPORT after completion
+═══════════════════════════════════════
+1. How the single_mode_game flag was implemented (schema change or anchor mode)
+2. How Remove/Add Game Mode toggle works in the UI
+3. How maps and stat fields display in single-mode layout
+4. How scoreboard and results handle NULL game_mode_id
+5. Whether auto-select works when only one mode exists
+6. Which sections now have collapse/expand and their default states
+7. Confirm no existing data was touched for MR, OW, Valorant, R6
