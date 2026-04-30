@@ -24,7 +24,8 @@ import {
   Filter,
 } from "lucide-react";
 import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval, isBefore, isToday, parse } from "date-fns";
-import type { Event, Game, GameMode, Map as MapType, Season } from "@shared/schema";
+import type { Event, Game, GameMode, Map as MapType, Season, Opponent } from "@shared/schema";
+import { OpponentAvatar } from "@/components/OpponentAvatar";
 import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied } from "@/components/AccessDenied";
 import { MultiSelectEventTypeFilter } from "@/components/MultiSelectEventTypeFilter";
@@ -68,6 +69,11 @@ export default function History() {
 
   const { data: seasons = [] } = useQuery<Season[]>({
     queryKey: ["/api/seasons", { gameId, rosterId }],
+    enabled: rosterReady,
+  });
+
+  const { data: opponentRoster = [] } = useQuery<Opponent[]>({
+    queryKey: ["/api/opponents", { gameId, rosterId }],
     enabled: rosterReady,
   });
 
@@ -417,7 +423,10 @@ export default function History() {
                               )}
                             </div>
                             {event.opponentName && (
-                              <p className="font-medium">vs {event.opponentName}</p>
+                              <div className="flex items-center gap-2">
+                                <OpponentAvatar name={event.opponentName} opponents={opponentRoster} size="sm" />
+                                <p className="font-medium">vs {event.opponentName}</p>
+                              </div>
                             )}
                             {event.time && (
                               <p className="text-sm text-muted-foreground">

@@ -16,7 +16,6 @@ import {
   TrendingDown,
   Minus,
   Users,
-  Swords,
   Search,
   ArrowUpDown,
   ChevronDown,
@@ -24,7 +23,8 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { useGame } from "@/hooks/use-game";
-import type { Event, Game, GameMode, Map as MapType } from "@shared/schema";
+import type { Event, Game, GameMode, Map as MapType, Opponent } from "@shared/schema";
+import { OpponentAvatar, findOpponentByName } from "@/components/OpponentAvatar";
 import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied } from "@/components/AccessDenied";
 import { OpponentsSkeleton } from "@/components/PageSkeleton";
@@ -91,6 +91,11 @@ export default function OpponentStats() {
 
   const { data: maps = [] } = useQuery<MapType[]>({
     queryKey: ["/api/maps", { gameId, rosterId }],
+    enabled: rosterReady,
+  });
+
+  const { data: opponentRoster = [] } = useQuery<Opponent[]>({
+    queryKey: ["/api/opponents", { gameId, rosterId }],
     enabled: rosterReady,
   });
 
@@ -290,9 +295,11 @@ export default function OpponentStats() {
                           <ChevronRight className="h-5 w-5 text-muted-foreground" />
                         )}
                       </div>
-                      <div className="p-3 rounded-lg bg-primary/10">
-                        <Swords className="h-6 w-6 text-primary" />
-                      </div>
+                      <OpponentAvatar
+                        name={opponent.name}
+                        opponents={opponentRoster}
+                        size="lg"
+                      />
                       <div>
                         <CardTitle className="text-xl">{opponent.name}</CardTitle>
                         <CardDescription>

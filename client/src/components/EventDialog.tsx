@@ -36,6 +36,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { TIMEZONE_OPTIONS, getTzOffset, localToUtc, utcToLocal } from "@/lib/eventTimezones";
 import { eventTypes, insertEventSchema, type Event, type Season, type EventCategory, type EventSubType, type Opponent } from "@shared/schema";
 import { useGame } from "@/hooks/use-game";
+import { OpponentAvatar } from "@/components/OpponentAvatar";
 
 const formSchema = insertEventSchema.extend({
   time: z.string().optional(),
@@ -328,6 +329,7 @@ export function EventDialog({
                                   data-testid={`option-opponent-${opp.id}`}
                                 >
                                   <Check className={cn("mr-2 h-4 w-4", field.value === opp.id ? "opacity-100" : "opacity-0")} />
+                                  <OpponentAvatar opponent={opp} size="xs" className="mr-2" />
                                   <span className="truncate">{opp.name}</span>
                                   {opp.shortName && <span className="ml-2 text-xs text-muted-foreground">[{opp.shortName}]</span>}
                                 </CommandItem>

@@ -4,8 +4,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Clock } from "lucide-react";
 import { differenceInSeconds } from "date-fns";
-import type { Event, EventCategory, EventSubType } from "@shared/schema";
+import type { Event, EventCategory, EventSubType, Opponent } from "@shared/schema";
 import { getTzOffset, utcToLocal } from "@/lib/eventTimezones";
+import { OpponentAvatar } from "@/components/OpponentAvatar";
 
 function getDeviceTimeZone(): string {
   try {
@@ -65,6 +66,10 @@ export function UpcomingCountdown({ gameId, rosterId, enabled }: Props) {
   const { data: categories = [] } = useQuery<EventCategory[]>({
     queryKey: ["/api/event-categories"],
     enabled,
+  });
+  const { data: opponentRoster = [] } = useQuery<Opponent[]>({
+    queryKey: ["/api/opponents", { gameId, rosterId }],
+    enabled: enabled && !!gameId && !!rosterId,
   });
 
   const subTypeIndex = useMemo(() => {
@@ -168,7 +173,10 @@ export function UpcomingCountdown({ gameId, rosterId, enabled }: Props) {
                   </Badge>
                 )}
                 {event.opponentName && (
-                  <span className="text-xs text-muted-foreground">vs {event.opponentName}</span>
+                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                    <OpponentAvatar name={event.opponentName} opponents={opponentRoster} size="xs" />
+                    vs {event.opponentName}
+                  </span>
                 )}
               </div>
               <div className="font-semibold text-sm truncate" data-testid={`text-event-title-${event.id}`}>

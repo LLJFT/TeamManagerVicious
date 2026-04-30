@@ -25,6 +25,7 @@ import { useState, useEffect, Fragment } from "react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { ObjectUploader } from "@/components/ObjectUploader";
+import { OpponentAvatar } from "@/components/OpponentAvatar";
 
 export default function EventDetails() {
   const [, params] = useRoute("/:gameSlug/:rosterCode/events/:id");
@@ -791,9 +792,24 @@ export default function EventDetails() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl" data-testid="text-event-title">
-              {event.title}
-            </CardTitle>
+            <div className="flex items-center gap-3">
+              {event.opponentName && (
+                <OpponentAvatar
+                  name={event.opponentName}
+                  opponent={linkedOpponent}
+                  opponents={allOpponents}
+                  size="lg"
+                />
+              )}
+              <CardTitle className="text-2xl" data-testid="text-event-title">
+                {event.title}
+              </CardTitle>
+            </div>
+            {event.opponentName && (
+              <div className="text-sm text-muted-foreground" data-testid="text-event-opponent-header">
+                vs {event.opponentName}
+              </div>
+            )}
             <div className="flex gap-2 items-center flex-wrap">
               <Badge variant="outline" data-testid="badge-event-type">
                 {event.eventType}

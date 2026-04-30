@@ -3889,13 +3889,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/objects/upload", requireAuth, uploadGeneral.single("file"), async (req, res) => {
+  // Object-storage-backed upload so files persist across deploys.
+  // Uses in-memory multer + ObjectStorageService.uploadBuffer; returns a
+  // stable /objects/uploads/<id>.<ext> URL served by the public objects route.
+  const objectUploadMemory = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      if (!ALLOWED_EXTENSIONS.has(ext)) {
+        return cb(new Error(`File type ${ext} is not allowed`));
+      }
+      cb(null, true);
+    },
+  });
+  app.post("/api/objects/upload", requireAuth, objectUploadMemory.single("file"), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
       }
-      const filePath = `/uploads/general/${req.file.filename}`;
-      res.json({ url: filePath, path: filePath });
+      const ext = path.extname(req.file.originalname).toLowerCase() || "";
+      const mime = req.file.mimetype || "application/octet-stream";
+
+      // For images, embed as a data URL so the URL is persisted directly in
+      // the DB column (e.g. opponents.logoUrl, heroes.imageUrl) and survives
+      // every redeploy / container restart / object-storage hiccup. The 10 MB
+      // multer cap (above) keeps these well within Postgres text limits even
+      // after base64 inflation (~33%).
+      const allowedImageMimes = new Set([
+        "image/png", "image/jpeg", "image/jpg", "image/gif",
+        "image/webp", "image/bmp", "image/svg+xml",
+        "image/x-icon", "image/vnd.microsoft.icon",
+      ]);
+      if (allowedImageMimes.has(mime)) {
+        const dataUrl = `data:${mime};base64,${req.file.buffer.toString("base64")}`;
+        return res.json({ url: dataUrl, path: dataUrl });
+      }
+
+      // For non-images, attempt object storage; fall back to local disk in dev.
+      try {
+        const { ObjectStorageService } = await import("./objectStorage");
+        const svc = new ObjectStorageService();
+        const url = await svc.uploadBuffer(req.file.buffer, mime, ext);
+        return res.json({ url, path: url });
+      } catch (osErr: any) {
+        console.warn('[upload] Object storage unavailable, falling back to local disk. Detail:',
+          { name: osErr?.name, message: osErr?.message, code: osErr?.code });
+        const dir = path.join(UPLOAD_DIR, "general");
+        fs.mkdirSync(dir, { recursive: true });
+        const filename = `${randomUUID()}${ext}`;
+        fs.writeFileSync(path.join(dir, filename), req.file.buffer);
+        const filePath = `/uploads/general/${filename}`;
+        return res.json({ url: filePath, path: filePath });
+      }
     } catch (error: any) {
       console.error('Error in POST /api/objects/upload:', error);
       res.status(500).json({ error: error.message || "Internal server error" });

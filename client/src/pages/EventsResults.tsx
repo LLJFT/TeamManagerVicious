@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import type { Event, Game } from "@shared/schema";
+import type { Event, Game, Opponent } from "@shared/schema";
+import { OpponentAvatar } from "@/components/OpponentAvatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,10 @@ export default function EventsResults() {
   });
   const { data: allGames = [] } = useQuery<Game[]>({
     queryKey: ["/api/games", { gameId, rosterId }],
+    enabled: rosterReady,
+  });
+  const { data: opponentRoster = [] } = useQuery<Opponent[]>({
+    queryKey: ["/api/opponents", { gameId, rosterId }],
     enabled: rosterReady,
   });
 
@@ -157,10 +162,13 @@ export default function EventsResults() {
                             {event.time && <span>{event.time}</span>}
                           </div>
                           {event.opponentName && (
-                            <p className="text-sm">
-                              <span className="text-muted-foreground">vs </span>
-                              <span className="font-medium">{event.opponentName}</span>
-                            </p>
+                            <div className="flex items-center gap-2">
+                              <OpponentAvatar name={event.opponentName} opponents={opponentRoster} size="xs" />
+                              <p className="text-sm">
+                                <span className="text-muted-foreground">vs </span>
+                                <span className="font-medium">{event.opponentName}</span>
+                              </p>
+                            </div>
                           )}
                           {event.description && (
                             <p className="text-sm text-muted-foreground line-clamp-2">
@@ -235,10 +243,13 @@ export default function EventsResults() {
                             {event.time && <span>{event.time}</span>}
                           </div>
                           {event.opponentName && (
-                            <p className="text-sm">
-                              <span className="text-muted-foreground">vs </span>
-                              <span className="font-medium">{event.opponentName}</span>
-                            </p>
+                            <div className="flex items-center gap-2">
+                              <OpponentAvatar name={event.opponentName} opponents={opponentRoster} size="xs" />
+                              <p className="text-sm">
+                                <span className="text-muted-foreground">vs </span>
+                                <span className="font-medium">{event.opponentName}</span>
+                              </p>
+                            </div>
                           )}
                           {event.notes && (
                             <p className="text-sm text-muted-foreground line-clamp-2">

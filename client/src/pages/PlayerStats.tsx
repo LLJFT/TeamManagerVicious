@@ -11,6 +11,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied } from "@/components/AccessDenied";
 import { StatsSkeleton } from "@/components/PageSkeleton";
 import { useGame } from "@/hooks/use-game";
+import { OpponentAvatar } from "@/components/OpponentAvatar";
+import type { Opponent } from "@shared/schema";
 
 interface StatAggregate {
   fieldName: string;
@@ -96,6 +98,10 @@ export default function PlayerStats() {
   const rosterReady = !!(gameId && rosterId);
   const { data: summaries = [], isLoading } = useQuery<PlayerSummary[]>({
     queryKey: ["/api/player-stats-summary", { gameId, rosterId }],
+    enabled: rosterReady,
+  });
+  const { data: opponentRoster = [] } = useQuery<Opponent[]>({
+    queryKey: ["/api/opponents", { gameId, rosterId }],
     enabled: rosterReady,
   });
 
@@ -455,6 +461,7 @@ export default function PlayerStats() {
                                   ) : (
                                     <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                                   )}
+                                  <OpponentAvatar name={opp.opponent} opponents={opponentRoster} size="sm" />
                                   <span className="text-sm font-medium">{opp.opponent}</span>
                                   <Badge variant={winRate >= 50 ? "default" : "secondary"} className="text-xs">
                                     {winRate}% WR

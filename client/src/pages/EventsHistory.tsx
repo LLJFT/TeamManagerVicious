@@ -34,8 +34,9 @@ import {
   ChevronsRight,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
-import type { Event, Game, GameMode, Map as MapType } from "@shared/schema";
+import type { Event, Game, GameMode, Map as MapType, Opponent } from "@shared/schema";
 import { useGame } from "@/hooks/use-game";
+import { OpponentAvatar } from "@/components/OpponentAvatar";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -72,6 +73,11 @@ export default function EventsHistory() {
 
   const { data: maps = [] } = useQuery<MapType[]>({
     queryKey: ["/api/maps", { gameId, rosterId }],
+    enabled: rosterReady,
+  });
+
+  const { data: opponentRoster = [] } = useQuery<Opponent[]>({
+    queryKey: ["/api/opponents", { gameId, rosterId }],
     enabled: rosterReady,
   });
 
@@ -291,7 +297,10 @@ export default function EventsHistory() {
                             <span>{format(parseISO(event.date), "MMM dd, yyyy")}</span>
                             {event.time && <span>{event.time}</span>}
                             {event.opponentName && (
-                              <span>vs {event.opponentName}</span>
+                              <span className="inline-flex items-center gap-1.5">
+                                <OpponentAvatar name={event.opponentName} opponents={opponentRoster} size="xs" />
+                                vs {event.opponentName}
+                              </span>
                             )}
                             <span className="text-xs">
                               {eventGames.length} {eventGames.length === 1 ? "game" : "games"}
