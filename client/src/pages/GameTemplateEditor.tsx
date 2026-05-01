@@ -17,7 +17,10 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Plus, Trash2, ArrowLeft, Save, Copy } from "lucide-react";
+import { Plus, Trash2, ArrowLeft, Save, Copy, Upload, ImageIcon, X, FolderOpen } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ObjectUploader } from "@/components/ObjectUploader";
+import { MediaLibraryBrowser } from "@/components/MediaLibraryBrowser";
 import type { GameTemplate, GameTemplateConfig, SupportedGame } from "@shared/schema";
 
 function uid() {
@@ -211,7 +214,7 @@ export default function GameTemplateEditorPage() {
         </TabsContent>
 
         <TabsContent value="maps">
-          <MapsTab cfg={cfg} update={updateCfg} />
+          <MapsTab cfg={cfg} update={updateCfg} gameId={template.gameId} />
         </TabsContent>
 
         <TabsContent value="heroes">
@@ -314,16 +317,27 @@ function ModePicker({ value, onChange, modes, testId }: {
   );
 }
 
-function MapsTab({ cfg, update }: TabProps) {
+function MapsTab({ cfg, update, gameId }: TabProps & { gameId: string | null }) {
+  const { toast } = useToast();
+  const [libraryOpenForRow, setLibraryOpenForRow] = useState<number | null>(null);
+
   const add = () => update(p => ({
     ...p,
     maps: [...p.maps, { tempId: uid(), name: "", gameModeTempId: null, imageUrl: null, sortOrder: "0" }],
   }));
+  const setImage = (i: number, url: string | null) => update(p => {
+    const list = [...p.maps]; list[i] = { ...list[i], imageUrl: url }; return { ...p, maps: list };
+  });
   return (
     <Card>
       <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2">
         <CardTitle className="text-base">Maps</CardTitle>
-        <Button size="sm" onClick={add} data-testid="button-add-map"><Plus className="h-4 w-4 mr-1" />Add Map</Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setLibraryOpenForRow(-1)} data-testid="button-browse-library">
+            <FolderOpen className="h-4 w-4 mr-1" />Browse Library
+          </Button>
+          <Button size="sm" onClick={add} data-testid="button-add-map"><Plus className="h-4 w-4 mr-1" />Add Map</Button>
+        </div>
       </CardHeader>
       <CardContent>
         {cfg.maps.length === 0 ? (
@@ -334,7 +348,7 @@ function MapsTab({ cfg, update }: TabProps) {
               <TableRow>
                 <TableHead>Name</TableHead>
                 {!cfg.singleModeGame && <TableHead className="w-48">Game Mode</TableHead>}
-                <TableHead>Image URL</TableHead>
+                <TableHead className="w-[280px]">Image</TableHead>
                 <TableHead className="w-24">Sort</TableHead>
                 <TableHead className="w-16"></TableHead>
               </TableRow>
@@ -359,9 +373,14 @@ function MapsTab({ cfg, update }: TabProps) {
                     </TableCell>
                   )}
                   <TableCell>
-                    <Input value={m.imageUrl ?? ""} placeholder="(optional)" onChange={(e) => update(p => {
-                      const list = [...p.maps]; list[i] = { ...list[i], imageUrl: e.target.value || null }; return { ...p, maps: list };
-                    })} data-testid={`input-map-image-${i}`} />
+                    <MapImageCell
+                      value={m.imageUrl}
+                      onChange={(url) => setImage(i, url)}
+                      onBrowse={() => setLibraryOpenForRow(i)}
+                      onUploadError={(err) => toast({ title: "Upload failed", description: err, variant: "destructive" })}
+                      onUploaded={() => toast({ title: "Image uploaded" })}
+                      testIdPrefix={`map-image-${i}`}
+                    />
                   </TableCell>
                   <TableCell>
                     <Input value={m.sortOrder ?? "0"} onChange={(e) => update(p => {
@@ -381,7 +400,100 @@ function MapsTab({ cfg, update }: TabProps) {
           </Table>
         )}
       </CardContent>
+
+      <Dialog open={libraryOpenForRow !== null} onOpenChange={(open) => { if (!open) setLibraryOpenForRow(null); }}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Media Library</DialogTitle>
+          </DialogHeader>
+          <MediaLibraryBrowser
+            filterGameId={gameId ?? undefined}
+            onSelect={(url) => {
+              if (libraryOpenForRow !== null && libraryOpenForRow >= 0) {
+                setImage(libraryOpenForRow, url);
+                toast({ title: "Image selected" });
+              } else {
+                navigator.clipboard.writeText(url).then(() => toast({ title: "URL copied" })).catch(() => {});
+              }
+              setLibraryOpenForRow(null);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </Card>
+  );
+}
+
+function MapImageCell({
+  value,
+  onChange,
+  onBrowse,
+  onUploaded,
+  onUploadError,
+  testIdPrefix,
+}: {
+  value: string | null | undefined;
+  onChange: (url: string | null) => void;
+  onBrowse: () => void;
+  onUploaded: () => void;
+  onUploadError: (err: string) => void;
+  testIdPrefix: string;
+}) {
+  const hasImage = !!value;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-2">
+        <div className="h-10 w-10 shrink-0 rounded-sm border border-border bg-muted flex items-center justify-center overflow-hidden">
+          {hasImage ? (
+            <img
+              src={value!}
+              alt=""
+              className="object-cover w-full h-full"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+              data-testid={`thumb-${testIdPrefix}`}
+            />
+          ) : (
+            <ImageIcon className="h-4 w-4 text-muted-foreground" />
+          )}
+        </div>
+        <ObjectUploader
+          buttonSize="sm"
+          buttonVariant={hasImage ? "ghost" : "outline"}
+          onUploaded={(r) => { onChange(r.url); onUploaded(); }}
+          onError={onUploadError}
+        >
+          <span className="flex items-center"><Upload className="h-3.5 w-3.5 mr-1" />{hasImage ? "Replace" : "Upload"}</span>
+        </ObjectUploader>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={onBrowse}
+          data-testid={`button-${testIdPrefix}-browse`}
+        >
+          <FolderOpen className="h-3.5 w-3.5 mr-1" />Library
+        </Button>
+        {hasImage && (
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            onClick={() => onChange(null)}
+            data-testid={`button-${testIdPrefix}-remove`}
+            title="Remove image"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
+      <Input
+        value={value ?? ""}
+        placeholder="Or paste image URL…"
+        onChange={(e) => onChange(e.target.value || null)}
+        data-testid={`input-${testIdPrefix}`}
+        className="text-xs"
+      />
+    </div>
   );
 }
 

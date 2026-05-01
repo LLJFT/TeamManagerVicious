@@ -39,6 +39,7 @@ import OrgChat from "@/pages/OrgChat";
 import SettingsPage from "@/pages/SettingsPage";
 import GameTemplatesPage from "@/pages/GameTemplates";
 import GameTemplateEditorPage from "@/pages/GameTemplateEditor";
+import MediaLibraryPage from "@/pages/MediaLibrary";
 import NotFound from "@/pages/not-found";
 
 function GameRoutes({ slug }: { slug: string }) {
@@ -136,6 +137,7 @@ function MainContent() {
       <Route path="/settings" component={SettingsPage} />
       <Route path="/game-templates" component={GameTemplatesPage} />
       <Route path="/game-templates/:id" component={GameTemplateEditorPage} />
+      <Route path="/media-library" component={MediaLibraryPage} />
       <Route path="/account" component={AccountSettings} />
       <Route>
         {() => {

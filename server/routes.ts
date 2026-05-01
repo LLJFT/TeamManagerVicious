@@ -3885,6 +3885,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── Media Library (super_admin only) ──────────────────────────────────
+  // Aggregates every image URL stored on the platform (map images, hero
+  // images, opponent logos, scoreboard uploads) into a structure that the
+  // Media Library UI can render. Read-only — never deletes anything.
+  app.get("/api/media-library", requireAuth, requireOrgRole("super_admin"), async (_req, res) => {
+    try {
+      const teamId = getTeamId();
+      const [allGames, mapsRows, heroesRows, oppsRows, scoreboardRows] = await Promise.all([
+        db.select().from(supportedGames),
+        db.select({ id: maps.id, name: maps.name, url: maps.imageUrl, gameId: maps.gameId, rosterId: maps.rosterId })
+          .from(maps).where(and(eq(maps.teamId, teamId), sql`${maps.imageUrl} IS NOT NULL AND ${maps.imageUrl} <> ''`)),
+        db.select({ id: heroes.id, name: heroes.name, url: heroes.imageUrl, gameId: heroes.gameId, rosterId: heroes.rosterId })
+          .from(heroes).where(and(eq(heroes.teamId, teamId), sql`${heroes.imageUrl} IS NOT NULL AND ${heroes.imageUrl} <> ''`)),
+        db.select({ id: opponents.id, name: opponents.name, url: opponents.logoUrl, gameId: opponents.gameId, rosterId: opponents.rosterId })
+          .from(opponents).where(and(eq(opponents.teamId, teamId), sql`${opponents.logoUrl} IS NOT NULL AND ${opponents.logoUrl} <> ''`)),
+        db.select({ id: games.id, name: games.gameCode, url: games.imageUrl, gameId: games.gameId, rosterId: games.rosterId })
+          .from(games).where(and(eq(games.teamId, teamId), sql`${games.imageUrl} IS NOT NULL AND ${games.imageUrl} <> ''`)),
+      ]);
+
+      type Item = { id: string; name: string; url: string; rosterId: string | null };
+      const grouped = allGames.map((g) => ({
+        gameId: g.id,
+        gameSlug: g.slug,
+        gameName: g.name,
+        gameIconUrl: g.iconUrl,
+        sortOrder: g.sortOrder,
+        categories: {
+          maps: mapsRows.filter(r => r.gameId === g.id).map(r => ({ id: r.id, name: r.name, url: r.url!, rosterId: r.rosterId })) as Item[],
+          heroes: heroesRows.filter(r => r.gameId === g.id).map(r => ({ id: r.id, name: r.name, url: r.url!, rosterId: r.rosterId })) as Item[],
+          opponents: oppsRows.filter(r => r.gameId === g.id).map(r => ({ id: r.id, name: r.name, url: r.url!, rosterId: r.rosterId })) as Item[],
+          scoreboards: scoreboardRows.filter(r => r.gameId === g.id).map(r => ({ id: r.id, name: r.name, url: r.url!, rosterId: r.rosterId })) as Item[],
+        },
+      }));
+      // Drop games that have no images at all so the UI is tidy.
+      const filtered = grouped.filter(g =>
+        g.categories.maps.length + g.categories.heroes.length +
+        g.categories.opponents.length + g.categories.scoreboards.length > 0,
+      );
+      res.json(filtered);
+    } catch (error: any) {
+      console.error('Error in GET /api/media-library:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
   app.get("/api/game-modes/:gameModeId/maps", requireAuth, async (req, res) => {
     try {
       const { gameModeId } = req.params;

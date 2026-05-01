@@ -1,0 +1,60 @@
+Fix two things in the Game Templates → Edit Template → Maps section only.
+
+FIX 1 — Add an Upload button for map images:
+Currently the Image URL field is a plain text input labeled "(optional)".
+The user cannot upload an image directly — they have no way to add images.
+
+Replace the plain text URL input with:
+- An "Upload Image" button that opens a file picker
+- When a file is selected, upload it to object storage
+  (same upload pipeline used elsewhere on the platform)
+- After upload, auto-fill the Image URL field with the returned URL
+- Show a small thumbnail preview (40×40px) next to the upload button
+  once an image is uploaded
+- Keep the text input visible so users can also paste a URL manually
+- If an image is already uploaded, show a "Replace" and "Remove" option
+
+FIX 2 — Add an image library showing all uploaded images:
+Add a media library section below the Maps table (or accessible via
+a "Browse Library" button next to the Upload button).
+
+The library must:
+- Show all images previously uploaded anywhere on this platform
+  (map images, opponent logos, scoreboard uploads, etc.)
+- Display each image as a thumbnail grid (small square previews)
+- Show the image URL as text below or beside each thumbnail
+- Allow clicking any image to copy its URL to the clipboard
+  OR to select it and auto-fill the Image URL field for the current map row
+- Be searchable or scrollable if there are many images
+- Be read-only except for selecting/copying the URL
+
+NEW REQUIREMENT — Super Admin Media Library page
+Instead of only inside Game Templates, also add a separate top-level
+"Media Library" page in Home.
+- Visible ONLY to Super Admin
+- Add it to Admin Home navigation
+- It should be the central place for all uploaded images
+
+The Media Library page must:
+- Be organized by game
+- Each game gets its own tab or section
+- Inside each game, separate collapsible sections for:
+  - Maps
+  - Heroes
+  - Opponents
+  - Scoreboard uploads
+  - Any other image category already stored
+- Every section must have a collapse/expand arrow
+- Default state: collapsed
+- Each image shows as a thumbnail with its URL
+- Clicking an image copies its URL or selects it for reuse
+- Be searchable, scrollable, and easy to scan
+- Do not allow deletes unless already supported safely elsewhere
+
+Game Templates → Maps section should still get the Upload button
+and Browse Library access, but the full library lives in Media Library.
+
+Do not change anything else outside the Maps tab in Game Templates
+and the new Media Library page.
+Do not modify any other tabs, routes, schemas, or components.
+Stop after both fixes. Report what was changed.
