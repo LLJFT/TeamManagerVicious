@@ -19,7 +19,7 @@ export default function MediaLibraryPage() {
           <CardTitle className="text-base">All Images</CardTitle>
         </CardHeader>
         <CardContent>
-          <MediaLibraryBrowser defaultOpen={false} />
+          <MediaLibraryBrowser defaultOpen={false} capHeight={false} />
         </CardContent>
       </Card>
     </div>

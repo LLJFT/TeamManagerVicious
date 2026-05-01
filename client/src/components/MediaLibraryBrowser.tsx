@@ -37,6 +37,11 @@ interface BrowserProps {
   defaultOpen?: boolean;
   /** Limit the visible categories. */
   categories?: MediaCategoryKey[];
+  /**
+   * When true (default), wraps the list in a height-capped ScrollArea — appropriate
+   * for dialog usage. Set false on full-page usage so the page scrolls naturally.
+   */
+  capHeight?: boolean;
 }
 
 export function MediaLibraryBrowser({
@@ -44,6 +49,7 @@ export function MediaLibraryBrowser({
   onSelect,
   defaultOpen = false,
   categories = CATEGORY_ORDER,
+  capHeight = true,
 }: BrowserProps) {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
@@ -104,22 +110,29 @@ export function MediaLibraryBrowser({
           <span className="text-sm">No images found.</span>
         </div>
       ) : (
-        <ScrollArea className="max-h-[60vh] pr-3">
-          <div className="flex flex-col gap-3">
-            {filtered.map((g) => (
-              <GameSection
-                key={g.gameId}
-                game={g}
-                categories={categories}
-                onSelect={onSelect}
-                onCopy={handleCopy}
-                copiedUrl={copiedUrl}
-                hideGameHeader={!!filterGameId}
-                defaultCategoryOpen={!!filterGameId || defaultOpen}
-              />
-            ))}
-          </div>
-        </ScrollArea>
+        (() => {
+          const list = (
+            <div className="flex flex-col gap-3">
+              {filtered.map((g) => (
+                <GameSection
+                  key={g.gameId}
+                  game={g}
+                  categories={categories}
+                  onSelect={onSelect}
+                  onCopy={handleCopy}
+                  copiedUrl={copiedUrl}
+                  hideGameHeader={!!filterGameId}
+                  defaultCategoryOpen={!!filterGameId || defaultOpen}
+                />
+              ))}
+            </div>
+          );
+          return capHeight ? (
+            <ScrollArea className="max-h-[60vh] pr-3">{list}</ScrollArea>
+          ) : (
+            list
+          );
+        })()
       )}
     </div>
   );
