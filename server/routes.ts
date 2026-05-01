@@ -3935,11 +3935,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         [...rows].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name));
       // Cycle guard: a corrupted row (legacy data, race) could form a
       // parent->child loop; without this, recursion would never terminate.
-      const buildNode = (f: typeof foldersRows[number], visited: Set<string> = new Set()): FolderNode => {
-        if (visited.has(f.id)) {
+      // Defensive: tolerate being called via `.map(buildNode)` (which would
+      // pass the array index as the 2nd arg) by accepting anything that
+      // isn't a Set and starting a fresh visited set.
+      const buildNode = (f: typeof foldersRows[number], visited?: Set<string>): FolderNode => {
+        const seen: Set<string> = visited instanceof Set ? visited : new Set();
+        if (seen.has(f.id)) {
           return { id: f.id, name: f.name, sortOrder: f.sortOrder ?? 0, items: [], subfolders: [] };
         }
-        const nextVisited = new Set(visited);
+        const nextVisited = new Set(seen);
         nextVisited.add(f.id);
         return {
           id: f.id,
@@ -3954,13 +3958,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       // "Custom Folders" root = folders with no game and no parent.
+      // NOTE: `.map(buildNode)` would pass the array index as the 2nd arg
+      // and clobber `visited`. Always invoke with an explicit arrow.
       const customFolders = sortFolders(
         foldersRows.filter(f => !f.gameId && !f.parentId),
-      ).map(buildNode);
+      ).map(f => buildNode(f));
 
       // Per-game custom subfolder roots.
       const gameRootFolders = (gameId: string) =>
-        sortFolders(foldersRows.filter(f => f.gameId === gameId && !f.parentId)).map(buildNode);
+        sortFolders(foldersRows.filter(f => f.gameId === gameId && !f.parentId)).map(f => buildNode(f));
 
       // Re-emit `grouped` with games whose roots include either built-in
       // image categories or any custom folder.
