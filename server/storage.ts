@@ -1,5 +1,5 @@
 import type { Player, InsertPlayer, Schedule, InsertSchedule, Setting, InsertSetting, Event, InsertEvent, Attendance, InsertAttendance, TeamNotes, InsertTeamNotes, Game, InsertGame, GameMode, InsertGameMode, Map, InsertMap, Season, InsertSeason, OffDay, InsertOffDay, StatField, InsertStatField, PlayerGameStat, InsertPlayerGameStat, PlayerAvailabilityRecord, InsertPlayerAvailability, StaffAvailabilityRecord, InsertStaffAvailability, Staff, InsertStaff, AvailabilitySlot, RosterRole, SupportedGame, UserGameAssignment, Notification, EventCategory, InsertEventCategory, EventSubType, InsertEventSubType, Side, InsertSide, GameRound, InsertGameRound, Hero, InsertHero, HeroRoleConfig, InsertHeroRoleConfig, GameHero, InsertGameHero, Opponent, InsertOpponent, OpponentPlayer, InsertOpponentPlayer, MatchParticipant, InsertMatchParticipant, OpponentPlayerGameStat, InsertOpponentPlayerGameStat, HeroBanSystem, InsertHeroBanSystem, MapVetoSystem, InsertMapVetoSystem, GameHeroBanAction, InsertGameHeroBanAction, GameMapVetoRow, InsertGameMapVetoRow, GameTemplate, GameTemplateConfig } from "@shared/schema";
-import { players, schedules, settings, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays, statFields, playerGameStats, playerAvailability, staffAvailability, staff as staffTable, availabilitySlots, rosterRoles, supportedGames, userGameAssignments, notifications, users, rosters, eventCategories, eventSubTypes, sides, gameRounds, heroes, heroRoleConfigs, gameHeroes, opponents, opponentPlayers, matchParticipants, opponentPlayerGameStats, heroBanSystems, mapVetoSystems, gameHeroBanActions, gameMapVetoRows, gameTemplates } from "@shared/schema";
+import { players, schedules, settings, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays, statFields, playerGameStats, playerAvailability, staffAvailability, staff as staffTable, availabilitySlots, rosterRoles, supportedGames, userGameAssignments, notifications, users, rosters, eventCategories, eventSubTypes, sides, gameRounds, heroes, heroRoleConfigs, gameHeroes, opponents, opponentPlayers, matchParticipants, opponentPlayerGameStats, heroBanSystems, mapVetoSystems, gameHeroBanActions, gameMapVetoRows, gameTemplates, mediaFolders, mediaItems } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, isNull, desc, sql } from "drizzle-orm";
 
@@ -1289,13 +1289,19 @@ export class DbStorage implements IStorage {
         eq(tbl.rosterId, rosterId),
       );
       // Order matters: maps & statFields reference gameModes — delete them first.
+      // Sub-types reference event_categories (cascade) — delete sub-types before categories.
       await tx.delete(maps).where(scoped(maps));
       await tx.delete(statFields).where(scoped(statFields));
       await tx.delete(gameModes).where(scoped(gameModes));
       await tx.delete(heroes).where(scoped(heroes));
+      await tx.delete(eventSubTypes).where(scoped(eventSubTypes));
       await tx.delete(eventCategories).where(scoped(eventCategories));
       await tx.delete(availabilitySlots).where(scoped(availabilitySlots));
       await tx.delete(opponents).where(scoped(opponents));
+      await tx.delete(rosterRoles).where(scoped(rosterRoles));
+      await tx.delete(sides).where(scoped(sides));
+      await tx.delete(heroBanSystems).where(scoped(heroBanSystems));
+      await tx.delete(mapVetoSystems).where(scoped(mapVetoSystems));
 
       // 2) INSERT deep copies. Build tempId → new UUID maps so child rows can re-link.
       const modeIdMap = new Map<string, string>();
@@ -1345,13 +1351,30 @@ export class DbStorage implements IStorage {
       }));
       if (heroesIn.length > 0) await tx.insert(heroes).values(heroesIn);
 
-      const catsIn = (config.eventCategories || []).map(c => ({
-        id: crypto.randomUUID(),
-        teamId, gameId, rosterId,
-        name: c.name,
-        color: c.color ?? "#3b82f6",
-      }));
+      const catIdMap = new Map<string, string>();
+      const catsIn = (config.eventCategories || []).map(c => {
+        const newId = crypto.randomUUID();
+        catIdMap.set(c.tempId, newId);
+        return {
+          id: newId,
+          teamId, gameId, rosterId,
+          name: c.name,
+          color: c.color ?? "#3b82f6",
+        };
+      });
       if (catsIn.length > 0) await tx.insert(eventCategories).values(catsIn);
+
+      const subTypesIn = (config.eventSubTypes || [])
+        .filter(s => catIdMap.has(s.categoryTempId))
+        .map(s => ({
+          id: crypto.randomUUID(),
+          teamId, gameId, rosterId,
+          categoryId: catIdMap.get(s.categoryTempId)!,
+          name: s.name,
+          color: s.color ?? null,
+          sortOrder: s.sortOrder ?? 0,
+        }));
+      if (subTypesIn.length > 0) await tx.insert(eventSubTypes).values(subTypesIn);
 
       const slotsIn = (config.availabilitySlots || []).map(s => ({
         id: crypto.randomUUID(),
@@ -1373,6 +1396,90 @@ export class DbStorage implements IStorage {
         sortOrder: o.sortOrder ?? 0,
       }));
       if (oppsIn.length > 0) await tx.insert(opponents).values(oppsIn);
+
+      const sidesIn = (config.sides || []).map(s => ({
+        id: crypto.randomUUID(),
+        teamId, gameId, rosterId,
+        name: s.name,
+        sortOrder: s.sortOrder ?? "0",
+      }));
+      if (sidesIn.length > 0) await tx.insert(sides).values(sidesIn);
+
+      const rolesIn = (config.rosterRoles || []).map(r => ({
+        id: crypto.randomUUID(),
+        teamId, gameId, rosterId,
+        name: r.name,
+        type: r.type ?? "player",
+        sortOrder: r.sortOrder ?? 0,
+      }));
+      if (rolesIn.length > 0) await tx.insert(rosterRoles).values(rolesIn);
+
+      const hbsIn = (config.heroBanSystems || []).map(h => ({
+        id: crypto.randomUUID(),
+        teamId, gameId, rosterId,
+        name: h.name,
+        enabled: h.enabled ?? true,
+        mode: h.mode ?? "simple",
+        supportsLocks: h.supportsLocks ?? false,
+        bansPerTeam: h.bansPerTeam ?? 0,
+        locksPerTeam: h.locksPerTeam ?? 0,
+        bansTargetEnemy: h.bansTargetEnemy ?? true,
+        locksSecureOwn: h.locksSecureOwn ?? false,
+        // actionSequence is a free-form jsonb sequence editor (not yet exposed
+        // in the template editor UI). Pass through if present in the template
+        // config; otherwise leave null. Safe today because no other code path
+        // writes this column, but documented so future template-editor work
+        // doesn't lose data.
+        actionSequence: ((h as any).actionSequence ?? null) as any,
+        bansPerRound: h.bansPerRound ?? null,
+        bansEverySideSwitch: h.bansEverySideSwitch ?? false,
+        bansEveryTwoRounds: h.bansEveryTwoRounds ?? false,
+        bansResetOnHalftime: h.bansResetOnHalftime ?? false,
+        overtimeBehavior: h.overtimeBehavior ?? null,
+        totalBansPerMap: h.totalBansPerMap ?? null,
+        bansAccumulate: h.bansAccumulate ?? false,
+        notes: h.notes ?? null,
+        sortOrder: h.sortOrder ?? 0,
+      }));
+      if (hbsIn.length > 0) await tx.insert(heroBanSystems).values(hbsIn);
+
+      const mvsIn = (config.mapVetoSystems || []).map(v => ({
+        id: crypto.randomUUID(),
+        teamId, gameId, rosterId,
+        name: v.name,
+        enabled: v.enabled ?? true,
+        supportsBan: v.supportsBan ?? true,
+        supportsPick: v.supportsPick ?? true,
+        supportsDecider: v.supportsDecider ?? true,
+        supportsSideChoice: v.supportsSideChoice ?? true,
+        defaultRowCount: v.defaultRowCount ?? 7,
+        notes: v.notes ?? null,
+        sortOrder: v.sortOrder ?? 0,
+      }));
+      if (mvsIn.length > 0) await tx.insert(mapVetoSystems).values(mvsIn);
+
+      // Hero roles are TEAM-scoped (shared across rosters). Upsert by
+      // (teamId, gameId, name) using the existing unique index. Never delete
+      // (would affect other rosters). Atomic — race-safe under concurrent
+      // applies, unlike the prior select-then-insert.
+      for (const r of (config.heroRoles || [])) {
+        if (!r.name) continue;
+        await tx.insert(heroRoleConfigs).values({
+          id: crypto.randomUUID(),
+          teamId, gameId,
+          name: r.name,
+          color: r.color ?? null,
+          isActive: r.isActive ?? true,
+          sortOrder: r.sortOrder ?? 0,
+        }).onConflictDoUpdate({
+          target: [heroRoleConfigs.teamId, heroRoleConfigs.gameId, heroRoleConfigs.name],
+          set: {
+            color: r.color ?? null,
+            isActive: r.isActive ?? true,
+            sortOrder: r.sortOrder ?? 0,
+          },
+        });
+      }
 
       // 3) Single-mode flag (per-team-per-game). Upsert in settings.
       const flagVal = config.singleModeGame ? "true" : "false";

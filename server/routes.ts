@@ -30,6 +30,7 @@ import {
   supportedGames, userGameAssignments, notifications, rosters,
   eventCategories, eventSubTypes, sides, gameRounds,
   settings,
+  mediaFolders, mediaItems, insertMediaFolderSchema, insertMediaItemSchema,
   type UserWithRole,
   GAME_ABBREVIATIONS,
 } from "@shared/schema";
@@ -3892,7 +3893,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/media-library", requireAuth, requireOrgRole("super_admin"), async (_req, res) => {
     try {
       const teamId = getTeamId();
-      const [allGames, mapsRows, heroesRows, oppsRows, scoreboardRows] = await Promise.all([
+      const [allGames, mapsRows, heroesRows, oppsRows, scoreboardRows, foldersRows, itemsRows] = await Promise.all([
         db.select().from(supportedGames),
         db.select({ id: maps.id, name: maps.name, url: maps.imageUrl, gameId: maps.gameId, rosterId: maps.rosterId })
           .from(maps).where(and(eq(maps.teamId, teamId), sql`${maps.imageUrl} IS NOT NULL AND ${maps.imageUrl} <> ''`)),
@@ -3902,6 +3903,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .from(opponents).where(and(eq(opponents.teamId, teamId), sql`${opponents.logoUrl} IS NOT NULL AND ${opponents.logoUrl} <> ''`)),
         db.select({ id: games.id, name: games.gameCode, url: games.imageUrl, gameId: games.gameId, rosterId: games.rosterId })
           .from(games).where(and(eq(games.teamId, teamId), sql`${games.imageUrl} IS NOT NULL AND ${games.imageUrl} <> ''`)),
+        db.select().from(mediaFolders).where(eq(mediaFolders.teamId, teamId)),
+        db.select().from(mediaItems).where(eq(mediaItems.teamId, teamId)),
       ]);
 
       type Item = { id: string; name: string; url: string; rosterId: string | null };
@@ -3923,9 +3926,113 @@ export async function registerRoutes(app: Express): Promise<Server> {
         g.categories.maps.length + g.categories.heroes.length +
         g.categories.opponents.length + g.categories.scoreboards.length > 0,
       );
-      res.json(filtered);
+
+      const customFolders = foldersRows
+        .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name))
+        .map(f => ({
+          id: f.id,
+          name: f.name,
+          sortOrder: f.sortOrder ?? 0,
+          items: itemsRows
+            .filter(it => it.folderId === f.id)
+            .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name))
+            .map(it => ({ id: it.id, name: it.name, url: it.url })),
+        }));
+
+      res.json({ games: filtered, customFolders });
     } catch (error: any) {
       console.error('Error in GET /api/media-library:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  // ── Custom Media Folders (super-admin only, team-scoped) ──
+  app.post("/api/media-folders", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const data = insertMediaFolderSchema.parse(req.body);
+      const [row] = await db.insert(mediaFolders).values({ ...data, teamId }).returning();
+      res.json(row);
+    } catch (error: any) {
+      console.error('Error in POST /api/media-folders:', error);
+      if (error.name === 'ZodError') return res.status(400).json({ error: "Invalid folder data", details: error.errors });
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.put("/api/media-folders/:id", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const { id } = req.params;
+      const data = insertMediaFolderSchema.partial().parse(req.body);
+      const [row] = await db.update(mediaFolders).set(data)
+        .where(and(eq(mediaFolders.id, id), eq(mediaFolders.teamId, teamId))).returning();
+      if (!row) return res.status(404).json({ error: "Folder not found" });
+      res.json(row);
+    } catch (error: any) {
+      console.error('Error in PUT /api/media-folders/:id:', error);
+      if (error.name === 'ZodError') return res.status(400).json({ error: "Invalid folder data", details: error.errors });
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.delete("/api/media-folders/:id", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const { id } = req.params;
+      const result = await db.delete(mediaFolders)
+        .where(and(eq(mediaFolders.id, id), eq(mediaFolders.teamId, teamId))).returning();
+      if (result.length === 0) return res.status(404).json({ error: "Folder not found" });
+      res.json({ ok: true });
+    } catch (error: any) {
+      console.error('Error in DELETE /api/media-folders/:id:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.post("/api/media-items", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const data = insertMediaItemSchema.parse(req.body);
+      // Verify the folder exists and belongs to this team.
+      const [folder] = await db.select().from(mediaFolders)
+        .where(and(eq(mediaFolders.id, data.folderId), eq(mediaFolders.teamId, teamId))).limit(1);
+      if (!folder) return res.status(404).json({ error: "Folder not found" });
+      const [row] = await db.insert(mediaItems).values({ ...data, teamId }).returning();
+      res.json(row);
+    } catch (error: any) {
+      console.error('Error in POST /api/media-items:', error);
+      if (error.name === 'ZodError') return res.status(400).json({ error: "Invalid item data", details: error.errors });
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.put("/api/media-items/:id", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const { id } = req.params;
+      const data = insertMediaItemSchema.partial().omit({ folderId: true }).parse(req.body);
+      const [row] = await db.update(mediaItems).set(data)
+        .where(and(eq(mediaItems.id, id), eq(mediaItems.teamId, teamId))).returning();
+      if (!row) return res.status(404).json({ error: "Item not found" });
+      res.json(row);
+    } catch (error: any) {
+      console.error('Error in PUT /api/media-items/:id:', error);
+      if (error.name === 'ZodError') return res.status(400).json({ error: "Invalid item data", details: error.errors });
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.delete("/api/media-items/:id", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const { id } = req.params;
+      const result = await db.delete(mediaItems)
+        .where(and(eq(mediaItems.id, id), eq(mediaItems.teamId, teamId))).returning();
+      if (result.length === 0) return res.status(404).json({ error: "Item not found" });
+      res.json({ ok: true });
+    } catch (error: any) {
+      console.error('Error in DELETE /api/media-items/:id:', error);
       res.status(500).json({ error: error.message || "Internal server error" });
     }
   });

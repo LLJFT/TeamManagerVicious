@@ -36,6 +36,12 @@ type Cfg = Required<{
   eventCategories: NonNullable<GameTemplateConfig["eventCategories"]>;
   availabilitySlots: NonNullable<GameTemplateConfig["availabilitySlots"]>;
   opponents: NonNullable<GameTemplateConfig["opponents"]>;
+  sides: NonNullable<GameTemplateConfig["sides"]>;
+  rosterRoles: NonNullable<GameTemplateConfig["rosterRoles"]>;
+  heroRoles: NonNullable<GameTemplateConfig["heroRoles"]>;
+  eventSubTypes: NonNullable<GameTemplateConfig["eventSubTypes"]>;
+  heroBanSystems: NonNullable<GameTemplateConfig["heroBanSystems"]>;
+  mapVetoSystems: NonNullable<GameTemplateConfig["mapVetoSystems"]>;
 }>;
 
 function emptyCfg(): Cfg {
@@ -48,6 +54,12 @@ function emptyCfg(): Cfg {
     eventCategories: [],
     availabilitySlots: [],
     opponents: [],
+    sides: [],
+    rosterRoles: [],
+    heroRoles: [],
+    eventSubTypes: [],
+    heroBanSystems: [],
+    mapVetoSystems: [],
   };
 }
 
@@ -62,6 +74,12 @@ function normalizeCfg(input: any): Cfg {
   c.eventCategories = Array.isArray(input.eventCategories) ? input.eventCategories : [];
   c.availabilitySlots = Array.isArray(input.availabilitySlots) ? input.availabilitySlots : [];
   c.opponents = Array.isArray(input.opponents) ? input.opponents : [];
+  c.sides = Array.isArray(input.sides) ? input.sides : [];
+  c.rosterRoles = Array.isArray(input.rosterRoles) ? input.rosterRoles : [];
+  c.heroRoles = Array.isArray(input.heroRoles) ? input.heroRoles : [];
+  c.eventSubTypes = Array.isArray(input.eventSubTypes) ? input.eventSubTypes : [];
+  c.heroBanSystems = Array.isArray(input.heroBanSystems) ? input.heroBanSystems : [];
+  c.mapVetoSystems = Array.isArray(input.mapVetoSystems) ? input.mapVetoSystems : [];
   // Heal: ensure every row has a tempId.
   c.gameModes.forEach(m => { if (!m.tempId) m.tempId = uid(); });
   c.maps.forEach(m => { if (!m.tempId) m.tempId = uid(); });
@@ -70,6 +88,12 @@ function normalizeCfg(input: any): Cfg {
   c.eventCategories.forEach(e => { if (!e.tempId) e.tempId = uid(); });
   c.availabilitySlots.forEach(s => { if (!s.tempId) s.tempId = uid(); });
   c.opponents.forEach(o => { if (!o.tempId) o.tempId = uid(); });
+  c.sides.forEach(s => { if (!s.tempId) s.tempId = uid(); });
+  c.rosterRoles.forEach(r => { if (!r.tempId) r.tempId = uid(); });
+  c.heroRoles.forEach(r => { if (!r.tempId) r.tempId = uid(); });
+  c.eventSubTypes.forEach(s => { if (!s.tempId) s.tempId = uid(); });
+  c.heroBanSystems.forEach(h => { if (!h.tempId) h.tempId = uid(); });
+  c.mapVetoSystems.forEach(v => { if (!v.tempId) v.tempId = uid(); });
   return c;
 }
 
@@ -184,10 +208,16 @@ export default function GameTemplateEditorPage() {
           <TabsTrigger value="modes" data-testid="tab-modes">Game Modes</TabsTrigger>
           <TabsTrigger value="maps" data-testid="tab-maps">Maps</TabsTrigger>
           <TabsTrigger value="heroes" data-testid="tab-heroes">Heroes</TabsTrigger>
+          <TabsTrigger value="hero-roles" data-testid="tab-hero-roles">Hero Roles</TabsTrigger>
+          <TabsTrigger value="hero-ban" data-testid="tab-hero-ban">Hero Ban</TabsTrigger>
+          <TabsTrigger value="map-veto" data-testid="tab-map-veto">Map Veto</TabsTrigger>
           <TabsTrigger value="stats" data-testid="tab-stats">Stat Fields</TabsTrigger>
           <TabsTrigger value="score" data-testid="tab-score">Score Config</TabsTrigger>
+          <TabsTrigger value="sides" data-testid="tab-sides">Sides</TabsTrigger>
           <TabsTrigger value="categories" data-testid="tab-categories">Event Categories</TabsTrigger>
+          <TabsTrigger value="sub-types" data-testid="tab-sub-types">Sub Types</TabsTrigger>
           <TabsTrigger value="availability" data-testid="tab-availability">Availability</TabsTrigger>
+          <TabsTrigger value="roster-roles" data-testid="tab-roster-roles">Roster Roles</TabsTrigger>
           <TabsTrigger value="opponents" data-testid="tab-opponents">Opponents</TabsTrigger>
         </TabsList>
 
@@ -239,6 +269,30 @@ export default function GameTemplateEditorPage() {
 
         <TabsContent value="opponents">
           <OpponentsTab cfg={cfg} update={updateCfg} />
+        </TabsContent>
+
+        <TabsContent value="sides">
+          <SidesTab cfg={cfg} update={updateCfg} />
+        </TabsContent>
+
+        <TabsContent value="roster-roles">
+          <RosterRolesTab cfg={cfg} update={updateCfg} />
+        </TabsContent>
+
+        <TabsContent value="hero-roles">
+          <HeroRolesTab cfg={cfg} update={updateCfg} />
+        </TabsContent>
+
+        <TabsContent value="sub-types">
+          <SubTypesTab cfg={cfg} update={updateCfg} />
+        </TabsContent>
+
+        <TabsContent value="hero-ban">
+          <HeroBanTab cfg={cfg} update={updateCfg} />
+        </TabsContent>
+
+        <TabsContent value="map-veto">
+          <MapVetoTab cfg={cfg} update={updateCfg} />
         </TabsContent>
       </Tabs>
     </div>
@@ -497,12 +551,16 @@ function MapImageCell({
   );
 }
 
-const HERO_ROLES = ["Tank", "Damage", "Support", "Duelist", "Vanguard", "Strategist", "Flex", "Other"];
+const FALLBACK_HERO_ROLES = ["Other"];
 
 function HeroesTab({ cfg, update }: TabProps) {
+  const heroRoles = cfg.heroRoles.length > 0
+    ? cfg.heroRoles.map(r => r.name).filter(n => !!n)
+    : FALLBACK_HERO_ROLES;
+  const defaultRole = heroRoles[0] ?? "Other";
   const add = () => update(p => ({
     ...p,
-    heroes: [...p.heroes, { tempId: uid(), name: "", role: "Damage", imageUrl: null, isActive: true, sortOrder: 0 }],
+    heroes: [...p.heroes, { tempId: uid(), name: "", role: defaultRole, imageUrl: null, isActive: true, sortOrder: 0 }],
   }));
   return (
     <Card>
@@ -529,12 +587,12 @@ function HeroesTab({ cfg, update }: TabProps) {
                     })} data-testid={`input-hero-name-${i}`} />
                   </TableCell>
                   <TableCell>
-                    <Select value={h.role} onValueChange={(v) => update(p => {
+                    <Select value={heroRoles.includes(h.role) ? h.role : defaultRole} onValueChange={(v) => update(p => {
                       const list = [...p.heroes]; list[i] = { ...list[i], role: v }; return { ...p, heroes: list };
                     })}>
                       <SelectTrigger data-testid={`select-hero-role-${i}`}><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {HERO_ROLES.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                        {heroRoles.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </TableCell>
@@ -835,6 +893,476 @@ function OpponentsTab({ cfg, update }: TabProps) {
               ))}
             </TableBody>
           </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── New tabs (template-only — applied via /api/game-templates/apply) ────────
+
+function SidesTab({ cfg, update }: TabProps) {
+  const add = () => update(p => ({
+    ...p,
+    sides: [...p.sides, { tempId: uid(), name: "", sortOrder: String(p.sides.length) }],
+  }));
+  return (
+    <Card>
+      <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2">
+        <CardTitle className="text-base">Sides</CardTitle>
+        <Button size="sm" onClick={add} data-testid="button-add-side"><Plus className="h-4 w-4 mr-1" />Add Side</Button>
+      </CardHeader>
+      <CardContent>
+        {cfg.sides.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No sides yet. Examples: Attack / Defense, Blue / Red.</p>
+        ) : (
+          <Table>
+            <TableHeader><TableRow><TableHead>Name</TableHead><TableHead className="w-32">Sort Order</TableHead><TableHead className="w-16"></TableHead></TableRow></TableHeader>
+            <TableBody>
+              {cfg.sides.map((s, i) => (
+                <TableRow key={s.tempId} data-testid={`row-side-${i}`}>
+                  <TableCell>
+                    <Input value={s.name} onChange={(e) => update(p => {
+                      const list = [...p.sides]; list[i] = { ...list[i], name: e.target.value }; return { ...p, sides: list };
+                    })} data-testid={`input-side-name-${i}`} />
+                  </TableCell>
+                  <TableCell>
+                    <Input value={s.sortOrder ?? "0"} onChange={(e) => update(p => {
+                      const list = [...p.sides]; list[i] = { ...list[i], sortOrder: e.target.value }; return { ...p, sides: list };
+                    })} data-testid={`input-side-sort-${i}`} />
+                  </TableCell>
+                  <TableCell>
+                    <Button size="icon" variant="ghost" onClick={() => update(p => ({
+                      ...p, sides: p.sides.filter((_, j) => j !== i),
+                    }))} data-testid={`button-remove-side-${i}`}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+const ROSTER_ROLE_TYPES = ["player", "coach", "manager", "analyst", "substitute", "staff"];
+
+function RosterRolesTab({ cfg, update }: TabProps) {
+  const add = () => update(p => ({
+    ...p,
+    rosterRoles: [...p.rosterRoles, { tempId: uid(), name: "", type: "player", sortOrder: p.rosterRoles.length }],
+  }));
+  return (
+    <Card>
+      <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2">
+        <CardTitle className="text-base">Roster Roles</CardTitle>
+        <Button size="sm" onClick={add} data-testid="button-add-roster-role"><Plus className="h-4 w-4 mr-1" />Add Role</Button>
+      </CardHeader>
+      <CardContent>
+        {cfg.rosterRoles.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No roster roles yet.</p>
+        ) : (
+          <Table>
+            <TableHeader><TableRow>
+              <TableHead>Name</TableHead><TableHead className="w-40">Type</TableHead>
+              <TableHead className="w-24">Sort</TableHead><TableHead className="w-16"></TableHead>
+            </TableRow></TableHeader>
+            <TableBody>
+              {cfg.rosterRoles.map((r, i) => (
+                <TableRow key={r.tempId} data-testid={`row-roster-role-${i}`}>
+                  <TableCell>
+                    <Input value={r.name} onChange={(e) => update(p => {
+                      const list = [...p.rosterRoles]; list[i] = { ...list[i], name: e.target.value }; return { ...p, rosterRoles: list };
+                    })} data-testid={`input-roster-role-name-${i}`} />
+                  </TableCell>
+                  <TableCell>
+                    <Select value={r.type ?? "player"} onValueChange={(v) => update(p => {
+                      const list = [...p.rosterRoles]; list[i] = { ...list[i], type: v }; return { ...p, rosterRoles: list };
+                    })}>
+                      <SelectTrigger data-testid={`select-roster-role-type-${i}`}><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {ROSTER_ROLE_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell>
+                    <Input type="number" value={r.sortOrder ?? 0} onChange={(e) => update(p => {
+                      const list = [...p.rosterRoles]; list[i] = { ...list[i], sortOrder: Number(e.target.value) || 0 }; return { ...p, rosterRoles: list };
+                    })} data-testid={`input-roster-role-sort-${i}`} />
+                  </TableCell>
+                  <TableCell>
+                    <Button size="icon" variant="ghost" onClick={() => update(p => ({
+                      ...p, rosterRoles: p.rosterRoles.filter((_, j) => j !== i),
+                    }))} data-testid={`button-remove-roster-role-${i}`}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function HeroRolesTab({ cfg, update }: TabProps) {
+  const add = () => update(p => ({
+    ...p,
+    heroRoles: [...p.heroRoles, { tempId: uid(), name: "", color: "#3b82f6", isActive: true, sortOrder: p.heroRoles.length }],
+  }));
+  return (
+    <Card>
+      <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2">
+        <div>
+          <CardTitle className="text-base">Hero Roles</CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">Used by the Heroes tab role select. Applied to the team's hero role registry (additive — never deletes).</p>
+        </div>
+        <Button size="sm" onClick={add} data-testid="button-add-hero-role"><Plus className="h-4 w-4 mr-1" />Add Role</Button>
+      </CardHeader>
+      <CardContent>
+        {cfg.heroRoles.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No hero roles yet. Add roles like Tank, Damage, Support so heroes can be categorized.</p>
+        ) : (
+          <Table>
+            <TableHeader><TableRow>
+              <TableHead>Name</TableHead><TableHead className="w-32">Color</TableHead>
+              <TableHead className="w-24">Sort</TableHead><TableHead className="w-24">Active</TableHead><TableHead className="w-16"></TableHead>
+            </TableRow></TableHeader>
+            <TableBody>
+              {cfg.heroRoles.map((r, i) => (
+                <TableRow key={r.tempId} data-testid={`row-hero-role-${i}`}>
+                  <TableCell>
+                    <Input value={r.name} onChange={(e) => update(p => {
+                      const list = [...p.heroRoles]; list[i] = { ...list[i], name: e.target.value }; return { ...p, heroRoles: list };
+                    })} data-testid={`input-hero-role-name-${i}`} />
+                  </TableCell>
+                  <TableCell>
+                    <Input type="color" value={r.color ?? "#3b82f6"} onChange={(e) => update(p => {
+                      const list = [...p.heroRoles]; list[i] = { ...list[i], color: e.target.value }; return { ...p, heroRoles: list };
+                    })} data-testid={`input-hero-role-color-${i}`} />
+                  </TableCell>
+                  <TableCell>
+                    <Input type="number" value={r.sortOrder ?? 0} onChange={(e) => update(p => {
+                      const list = [...p.heroRoles]; list[i] = { ...list[i], sortOrder: Number(e.target.value) || 0 }; return { ...p, heroRoles: list };
+                    })} data-testid={`input-hero-role-sort-${i}`} />
+                  </TableCell>
+                  <TableCell>
+                    <Switch checked={r.isActive ?? true} onCheckedChange={(v) => update(p => {
+                      const list = [...p.heroRoles]; list[i] = { ...list[i], isActive: v }; return { ...p, heroRoles: list };
+                    })} data-testid={`switch-hero-role-active-${i}`} />
+                  </TableCell>
+                  <TableCell>
+                    <Button size="icon" variant="ghost" onClick={() => update(p => ({
+                      ...p, heroRoles: p.heroRoles.filter((_, j) => j !== i),
+                    }))} data-testid={`button-remove-hero-role-${i}`}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function SubTypesTab({ cfg, update }: TabProps) {
+  if (cfg.eventCategories.length === 0) {
+    return <Card><CardContent className="pt-6 text-sm text-muted-foreground">Add at least one Event Category first.</CardContent></Card>;
+  }
+  const add = () => update(p => ({
+    ...p,
+    eventSubTypes: [...p.eventSubTypes, {
+      tempId: uid(),
+      categoryTempId: p.eventCategories[0]!.tempId,
+      name: "",
+      color: null,
+      sortOrder: p.eventSubTypes.length,
+    }],
+  }));
+  return (
+    <Card>
+      <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2">
+        <CardTitle className="text-base">Event Sub Types</CardTitle>
+        <Button size="sm" onClick={add} data-testid="button-add-sub-type"><Plus className="h-4 w-4 mr-1" />Add Sub Type</Button>
+      </CardHeader>
+      <CardContent>
+        {cfg.eventSubTypes.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No sub types yet.</p>
+        ) : (
+          <Table>
+            <TableHeader><TableRow>
+              <TableHead>Name</TableHead><TableHead className="w-48">Category</TableHead>
+              <TableHead className="w-32">Color</TableHead><TableHead className="w-24">Sort</TableHead>
+              <TableHead className="w-16"></TableHead>
+            </TableRow></TableHeader>
+            <TableBody>
+              {cfg.eventSubTypes.map((s, i) => (
+                <TableRow key={s.tempId} data-testid={`row-sub-type-${i}`}>
+                  <TableCell>
+                    <Input value={s.name} onChange={(e) => update(p => {
+                      const list = [...p.eventSubTypes]; list[i] = { ...list[i], name: e.target.value }; return { ...p, eventSubTypes: list };
+                    })} data-testid={`input-sub-type-name-${i}`} />
+                  </TableCell>
+                  <TableCell>
+                    <Select value={s.categoryTempId} onValueChange={(v) => update(p => {
+                      const list = [...p.eventSubTypes]; list[i] = { ...list[i], categoryTempId: v }; return { ...p, eventSubTypes: list };
+                    })}>
+                      <SelectTrigger data-testid={`select-sub-type-cat-${i}`}><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {cfg.eventCategories.map(c => <SelectItem key={c.tempId} value={c.tempId}>{c.name || "(unnamed)"}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell>
+                    <Input type="color" value={s.color ?? "#3b82f6"} onChange={(e) => update(p => {
+                      const list = [...p.eventSubTypes]; list[i] = { ...list[i], color: e.target.value }; return { ...p, eventSubTypes: list };
+                    })} data-testid={`input-sub-type-color-${i}`} />
+                  </TableCell>
+                  <TableCell>
+                    <Input type="number" value={s.sortOrder ?? 0} onChange={(e) => update(p => {
+                      const list = [...p.eventSubTypes]; list[i] = { ...list[i], sortOrder: Number(e.target.value) || 0 }; return { ...p, eventSubTypes: list };
+                    })} data-testid={`input-sub-type-sort-${i}`} />
+                  </TableCell>
+                  <TableCell>
+                    <Button size="icon" variant="ghost" onClick={() => update(p => ({
+                      ...p, eventSubTypes: p.eventSubTypes.filter((_, j) => j !== i),
+                    }))} data-testid={`button-remove-sub-type-${i}`}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+const HBS_MODES = ["simple", "rainbow_flexible", "custom"];
+
+function HeroBanTab({ cfg, update }: TabProps) {
+  const add = () => update(p => ({
+    ...p,
+    heroBanSystems: [...p.heroBanSystems, {
+      tempId: uid(),
+      name: "",
+      enabled: true,
+      mode: "simple",
+      supportsLocks: false,
+      bansPerTeam: 0,
+      locksPerTeam: 0,
+      bansTargetEnemy: true,
+      locksSecureOwn: false,
+      bansPerRound: null,
+      bansEverySideSwitch: false,
+      bansEveryTwoRounds: false,
+      bansResetOnHalftime: false,
+      overtimeBehavior: null,
+      totalBansPerMap: null,
+      bansAccumulate: false,
+      notes: null,
+      sortOrder: p.heroBanSystems.length,
+    }],
+  }));
+  const upd = (i: number, patch: Partial<Cfg["heroBanSystems"][number]>) => update(p => {
+    const list = [...p.heroBanSystems]; list[i] = { ...list[i], ...patch }; return { ...p, heroBanSystems: list };
+  });
+  return (
+    <Card>
+      <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2">
+        <CardTitle className="text-base">Hero Ban Systems</CardTitle>
+        <Button size="sm" onClick={add} data-testid="button-add-hbs"><Plus className="h-4 w-4 mr-1" />Add System</Button>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {cfg.heroBanSystems.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No hero ban systems yet.</p>
+        ) : (
+          cfg.heroBanSystems.map((h, i) => (
+            <Card key={h.tempId} data-testid={`row-hbs-${i}`}>
+              <CardContent className="pt-4 space-y-3">
+                <div className="flex flex-row items-center justify-between gap-2 flex-wrap">
+                  <Input
+                    value={h.name}
+                    placeholder="System name"
+                    className="max-w-xs"
+                    onChange={(e) => upd(i, { name: e.target.value })}
+                    data-testid={`input-hbs-name-${i}`}
+                  />
+                  <div className="flex items-center gap-3">
+                    <Label htmlFor={`hbs-enabled-${i}`} className="text-xs">Enabled</Label>
+                    <Switch id={`hbs-enabled-${i}`} checked={h.enabled ?? true} onCheckedChange={(v) => upd(i, { enabled: v })} data-testid={`switch-hbs-enabled-${i}`} />
+                    <Button size="icon" variant="ghost" onClick={() => update(p => ({ ...p, heroBanSystems: p.heroBanSystems.filter((_, j) => j !== i) }))} data-testid={`button-remove-hbs-${i}`}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <Label className="text-xs">Mode</Label>
+                    <Select value={h.mode ?? "simple"} onValueChange={(v) => upd(i, { mode: v })}>
+                      <SelectTrigger data-testid={`select-hbs-mode-${i}`}><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {HBS_MODES.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Bans / Team</Label>
+                    <Input type="number" value={h.bansPerTeam ?? 0} onChange={(e) => upd(i, { bansPerTeam: Number(e.target.value) || 0 })} data-testid={`input-hbs-bans-per-team-${i}`} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Locks / Team</Label>
+                    <Input type="number" value={h.locksPerTeam ?? 0} onChange={(e) => upd(i, { locksPerTeam: Number(e.target.value) || 0 })} data-testid={`input-hbs-locks-per-team-${i}`} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="flex items-center gap-2">
+                    <Switch checked={h.supportsLocks ?? false} onCheckedChange={(v) => upd(i, { supportsLocks: v })} data-testid={`switch-hbs-supports-locks-${i}`} />
+                    <Label className="text-xs">Supports Locks</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch checked={h.bansTargetEnemy ?? true} onCheckedChange={(v) => upd(i, { bansTargetEnemy: v })} data-testid={`switch-hbs-target-enemy-${i}`} />
+                    <Label className="text-xs">Bans Target Enemy</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch checked={h.locksSecureOwn ?? false} onCheckedChange={(v) => upd(i, { locksSecureOwn: v })} data-testid={`switch-hbs-locks-secure-${i}`} />
+                    <Label className="text-xs">Locks Secure Own</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch checked={h.bansAccumulate ?? false} onCheckedChange={(v) => upd(i, { bansAccumulate: v })} data-testid={`switch-hbs-accumulate-${i}`} />
+                    <Label className="text-xs">Bans Accumulate</Label>
+                  </div>
+                </div>
+                {h.mode === "rainbow_flexible" && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 border-t pt-3">
+                    <div>
+                      <Label className="text-xs">Bans / Round</Label>
+                      <Input type="number" value={h.bansPerRound ?? ""} onChange={(e) => upd(i, { bansPerRound: e.target.value === "" ? null : Number(e.target.value) })} data-testid={`input-hbs-bans-per-round-${i}`} />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Total Bans / Map</Label>
+                      <Input type="number" value={h.totalBansPerMap ?? ""} onChange={(e) => upd(i, { totalBansPerMap: e.target.value === "" ? null : Number(e.target.value) })} data-testid={`input-hbs-total-bans-${i}`} />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch checked={h.bansEverySideSwitch ?? false} onCheckedChange={(v) => upd(i, { bansEverySideSwitch: v })} data-testid={`switch-hbs-every-side-${i}`} />
+                      <Label className="text-xs">Every Side Switch</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch checked={h.bansEveryTwoRounds ?? false} onCheckedChange={(v) => upd(i, { bansEveryTwoRounds: v })} data-testid={`switch-hbs-every-two-${i}`} />
+                      <Label className="text-xs">Every 2 Rounds</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch checked={h.bansResetOnHalftime ?? false} onCheckedChange={(v) => upd(i, { bansResetOnHalftime: v })} data-testid={`switch-hbs-reset-half-${i}`} />
+                      <Label className="text-xs">Reset on Halftime</Label>
+                    </div>
+                    <div className="md:col-span-3">
+                      <Label className="text-xs">Overtime Behavior</Label>
+                      <Input value={h.overtimeBehavior ?? ""} onChange={(e) => upd(i, { overtimeBehavior: e.target.value || null })} data-testid={`input-hbs-overtime-${i}`} />
+                    </div>
+                  </div>
+                )}
+                <div>
+                  <Label className="text-xs">Notes</Label>
+                  <Input value={h.notes ?? ""} onChange={(e) => upd(i, { notes: e.target.value || null })} data-testid={`input-hbs-notes-${i}`} />
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function MapVetoTab({ cfg, update }: TabProps) {
+  const add = () => update(p => ({
+    ...p,
+    mapVetoSystems: [...p.mapVetoSystems, {
+      tempId: uid(),
+      name: "",
+      enabled: true,
+      supportsBan: true,
+      supportsPick: true,
+      supportsDecider: true,
+      supportsSideChoice: true,
+      defaultRowCount: 7,
+      notes: null,
+      sortOrder: p.mapVetoSystems.length,
+    }],
+  }));
+  const upd = (i: number, patch: Partial<Cfg["mapVetoSystems"][number]>) => update(p => {
+    const list = [...p.mapVetoSystems]; list[i] = { ...list[i], ...patch }; return { ...p, mapVetoSystems: list };
+  });
+  return (
+    <Card>
+      <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2">
+        <CardTitle className="text-base">Map Veto Systems</CardTitle>
+        <Button size="sm" onClick={add} data-testid="button-add-mvs"><Plus className="h-4 w-4 mr-1" />Add System</Button>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {cfg.mapVetoSystems.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No map veto systems yet.</p>
+        ) : (
+          cfg.mapVetoSystems.map((v, i) => (
+            <Card key={v.tempId} data-testid={`row-mvs-${i}`}>
+              <CardContent className="pt-4 space-y-3">
+                <div className="flex flex-row items-center justify-between gap-2 flex-wrap">
+                  <Input
+                    value={v.name}
+                    placeholder="System name"
+                    className="max-w-xs"
+                    onChange={(e) => upd(i, { name: e.target.value })}
+                    data-testid={`input-mvs-name-${i}`}
+                  />
+                  <div className="flex items-center gap-3">
+                    <Label className="text-xs">Enabled</Label>
+                    <Switch checked={v.enabled ?? true} onCheckedChange={(val) => upd(i, { enabled: val })} data-testid={`switch-mvs-enabled-${i}`} />
+                    <Button size="icon" variant="ghost" onClick={() => update(p => ({ ...p, mapVetoSystems: p.mapVetoSystems.filter((_, j) => j !== i) }))} data-testid={`button-remove-mvs-${i}`}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="flex items-center gap-2">
+                    <Switch checked={v.supportsBan ?? true} onCheckedChange={(val) => upd(i, { supportsBan: val })} data-testid={`switch-mvs-ban-${i}`} />
+                    <Label className="text-xs">Supports Ban</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch checked={v.supportsPick ?? true} onCheckedChange={(val) => upd(i, { supportsPick: val })} data-testid={`switch-mvs-pick-${i}`} />
+                    <Label className="text-xs">Supports Pick</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch checked={v.supportsDecider ?? true} onCheckedChange={(val) => upd(i, { supportsDecider: val })} data-testid={`switch-mvs-decider-${i}`} />
+                    <Label className="text-xs">Supports Decider</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch checked={v.supportsSideChoice ?? true} onCheckedChange={(val) => upd(i, { supportsSideChoice: val })} data-testid={`switch-mvs-side-choice-${i}`} />
+                    <Label className="text-xs">Supports Side Choice</Label>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Default Row Count</Label>
+                    <Input type="number" min={1} max={40} value={v.defaultRowCount ?? 7} onChange={(e) => upd(i, { defaultRowCount: Math.max(1, Math.min(40, Number(e.target.value) || 7)) })} data-testid={`input-mvs-rows-${i}`} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Notes</Label>
+                    <Input value={v.notes ?? ""} onChange={(e) => upd(i, { notes: e.target.value || null })} data-testid={`input-mvs-notes-${i}`} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))
         )}
       </CardContent>
     </Card>

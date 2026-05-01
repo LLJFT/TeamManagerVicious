@@ -801,6 +801,37 @@ export const gameTemplates = pgTable("game_templates", {
   uniqueIndex("game_templates_code_uniq").on(table.code),
 ]);
 
+export const mediaFolders = pgTable("media_folders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id").notNull(),
+  name: text("name").notNull(),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: text("created_at").default(sql`now()`),
+}, (table) => [
+  index("media_folders_team_id_idx").on(table.teamId),
+]);
+
+export const mediaItems = pgTable("media_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id").notNull(),
+  folderId: varchar("folder_id").notNull().references(() => mediaFolders.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  url: text("url").notNull(),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: text("created_at").default(sql`now()`),
+}, (table) => [
+  index("media_items_team_id_idx").on(table.teamId),
+  index("media_items_folder_id_idx").on(table.folderId),
+]);
+
+export const insertMediaFolderSchema = createInsertSchema(mediaFolders).omit({ id: true, createdAt: true, teamId: true });
+export type InsertMediaFolder = z.infer<typeof insertMediaFolderSchema>;
+export type MediaFolder = typeof mediaFolders.$inferSelect;
+
+export const insertMediaItemSchema = createInsertSchema(mediaItems).omit({ id: true, createdAt: true, teamId: true });
+export type InsertMediaItem = z.infer<typeof insertMediaItemSchema>;
+export type MediaItem = typeof mediaItems.$inferSelect;
+
 export const availabilitySlots = pgTable("availability_slots", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
@@ -1361,6 +1392,64 @@ export interface GameTemplateConfig {
     region?: string | null;
     notes?: string | null;
     isActive?: boolean;
+    sortOrder?: number;
+  }>;
+  // ── Added in extended editor: full Dashboard-config parity ──
+  sides?: Array<{
+    tempId: string;
+    name: string;
+    sortOrder?: string | null;
+  }>;
+  rosterRoles?: Array<{
+    tempId: string;
+    name: string;
+    type?: string;
+    sortOrder?: number;
+  }>;
+  heroRoles?: Array<{
+    tempId: string;
+    name: string;
+    color?: string | null;
+    isActive?: boolean;
+    sortOrder?: number;
+  }>;
+  eventSubTypes?: Array<{
+    tempId: string;
+    categoryTempId: string;
+    name: string;
+    color?: string | null;
+    sortOrder?: number;
+  }>;
+  heroBanSystems?: Array<{
+    tempId: string;
+    name: string;
+    enabled?: boolean;
+    mode?: string;
+    supportsLocks?: boolean;
+    bansPerTeam?: number;
+    locksPerTeam?: number;
+    bansTargetEnemy?: boolean;
+    locksSecureOwn?: boolean;
+    bansPerRound?: number | null;
+    bansEverySideSwitch?: boolean;
+    bansEveryTwoRounds?: boolean;
+    bansResetOnHalftime?: boolean;
+    overtimeBehavior?: string | null;
+    totalBansPerMap?: number | null;
+    bansAccumulate?: boolean;
+    notes?: string | null;
+    sortOrder?: number;
+  }>;
+  mapVetoSystems?: Array<{
+    tempId: string;
+    name: string;
+    enabled?: boolean;
+    supportsBan?: boolean;
+    supportsPick?: boolean;
+    supportsDecider?: boolean;
+    supportsSideChoice?: boolean;
+    defaultRowCount?: number;
+    notes?: string | null;
     sortOrder?: number;
   }>;
 }

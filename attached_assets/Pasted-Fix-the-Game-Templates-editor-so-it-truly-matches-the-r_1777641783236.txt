@@ -1,0 +1,110 @@
+Fix the Game Templates editor so it truly matches the roster Dashboard configuration experience.
+
+Right now the template editor is still missing several important configuration areas.
+I need the template editor to behave like the real roster Dashboard config, not a reduced version.
+
+Add the missing configuration sections and wire them fully into template save/apply.
+
+MISSING FEATURES TO ADD
+1. Event Sub Types
+2. Hero Ban
+3. Map Veto
+4. Roster Roles
+5. Hero Roles
+6. Sides Configuration
+
+IMPORTANT DISTINCTION
+
+Roster Roles and Hero Roles are NOT the same thing.
+They must be handled as two completely separate configuration areas.
+
+A) Same behavior as roster Dashboard
+- These sections must behave the same way they do inside the real roster Dashboard
+- They must be editable inside the template editor
+- Their data must be saved into the template config
+- Their data must be applied when the template code is used on a roster
+
+B) Roster Roles
+- Add a proper Roster Roles configuration area inside the template editor
+- I must be able to create/edit/delete roster roles for that template
+- These roster roles must be saved in the template
+- These roster roles must be copied when the template is applied to a roster
+
+C) Hero Roles
+- Add a separate Hero Roles configuration area inside the template editor
+- I must be able to create/edit/delete hero roles for that template
+- In the Heroes tab, the hero Role dropdown must show ONLY the hero roles created for THIS template
+- Do not use a fixed hardcoded hero role list
+- Do not mix Hero Roles with Roster Roles
+- Do not mix in Hero Roles from other templates, games, or rosters
+- If I create 3 hero roles in this template, only those 3 hero roles should appear in the hero role select for this template
+- If no custom hero roles exist yet, show a safe fallback like "Other" until hero roles are created
+
+D) Hero Ban and Map Veto
+- Add full config support for Hero Ban and Map Veto exactly like the roster Dashboard
+- Their settings must be stored in the template
+- When the template is applied to a roster, those settings must be copied too
+
+E) Event Sub Types
+- Add Event Sub Types configuration to the template editor
+- Save them in the template
+- Apply them to the target roster when the template is used
+
+F) Sides Configuration
+- Add Sides Configuration to the template editor
+- Save it in the template
+- Apply it to the target roster when the template is used
+
+G) Template apply flow
+When a template is applied to a roster, it must also replace/copy:
+- Event Sub Types
+- Hero Ban config
+- Map Veto config
+- Roster Roles
+- Hero Roles
+- Sides Configuration
+
+H) Media Library custom folders/groups
+Add support in Media Library for custom named folders/groups created manually by Super Admin.
+
+Requirements:
+- I want to be able to create my own top-level folder/group names, not just game names
+- Example:
+  - ORG
+    - T1 ORGS
+    - T2 ORGS
+    - FRENCHISE
+- I must be able to upload images directly into these custom folders/groups
+- Images uploaded there must persist normally and never disappear
+- Later I can open that folder/group, copy any image URL, and paste it anywhere I need
+- Keep the existing game-based grouping if useful, but add support for these custom manual folders/groups as well
+- Super Admin only
+
+I) Scoreboard Uploads in Media Library
+- If Scoreboard Uploads are needed for persistence/safety, keep them
+- If they are harmless, keep them
+- No need to remove them unless they cause a real problem
+- They do not need special UI work beyond staying safe and not breaking anything
+
+J) Scope and safety
+- Keep this feature super_admin only as it is now
+- Do not remove the existing Game Templates page
+- Do not break Media Library
+- Do not touch unrelated pages
+- Do not remove existing template data
+- If schema/config shape needs to be extended, extend it cleanly and migrate existing templates safely
+
+IMPORTANT
+The goal is:
+Game Templates editor = same Dashboard config experience as rosters,
+except still without Users and Roles admin permissions pages.
+
+So after this fix, the template editor should include everything relevant to game/team configuration, including the missing items above.
+
+Stop after done and report:
+1. Which missing sections were added
+2. How roster roles work
+3. How hero roles work in the Heroes tab
+4. What changed in template save/apply
+5. How custom Media Library folders/groups work
+6. Whether any existing templates were migrated safely
