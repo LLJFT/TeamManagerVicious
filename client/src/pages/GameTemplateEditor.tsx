@@ -104,20 +104,16 @@ export default function GameTemplateEditorPage() {
   const params = useParams();
   const id = params.id!;
 
-  if (user?.orgRole !== "super_admin") {
-    return (
-      <div className="p-8">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-destructive font-medium">Game Templates are restricted to Super Admins.</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
+  // ── ALL HOOKS MUST RUN IN THE SAME ORDER EVERY RENDER ──
+  // The super_admin gate cannot be an early return BEFORE hooks — when
+  // useAuth resolves async (null → user object), the hook order changes
+  // between renders, which corrupts useState slots. (This was the
+  // "everything I added disappears" persistence bug — the load useEffect
+  // got assigned to the wrong slot and never wrote into cfg.) Run every
+  // hook unconditionally, then conditionally render at the end.
   const { data: template, isLoading } = useQuery<GameTemplate>({
     queryKey: ["/api/game-templates", id],
+    enabled: !!id && user?.orgRole === "super_admin",
   });
   const { data: games = [] } = useQuery<SupportedGame[]>({
     queryKey: ["/api/supported-games"],
@@ -126,13 +122,19 @@ export default function GameTemplateEditorPage() {
   const [name, setName] = useState("");
   const [cfg, setCfg] = useState<Cfg>(emptyCfg());
   const [dirty, setDirty] = useState(false);
+  // Track which template id we've loaded into local state. Lets the load
+  // effect run reliably even when React Query swaps cached objects (same
+  // id) while preserving in-progress edits across re-renders.
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
 
   useEffect(() => {
     if (!template) return;
+    if (loadedFor === template.id) return;
     setName(template.name);
     setCfg(normalizeCfg(template.config));
     setDirty(false);
-  }, [template?.id]);
+    setLoadedFor(template.id);
+  }, [template, loadedFor]);
 
   const game = useMemo(() => games.find(g => g.id === template?.gameId), [games, template]);
 
@@ -156,6 +158,19 @@ export default function GameTemplateEditorPage() {
       toast({ title: "Save failed", description: err.message, variant: "destructive" });
     },
   });
+
+  // ── Conditional rendering AFTER hooks ──
+  if (user?.orgRole !== "super_admin") {
+    return (
+      <div className="p-8">
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-destructive font-medium">Game Templates are restricted to Super Admins.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (isLoading || !template) {
     return <div className="p-8 text-muted-foreground" data-testid="text-loading">Loading template…</div>;

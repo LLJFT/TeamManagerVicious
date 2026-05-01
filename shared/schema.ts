@@ -804,11 +804,19 @@ export const gameTemplates = pgTable("game_templates", {
 export const mediaFolders = pgTable("media_folders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id").notNull(),
+  // Nullable parent for unlimited nesting. When null, folder is a root.
+  parentId: varchar("parent_id"),
+  // Optional game scope: when set, this folder lives under a supportedGames
+  // root (custom subfolders inside a game). When null, it lives under the
+  // "Custom Folders" root.
+  gameId: varchar("game_id"),
   name: text("name").notNull(),
   sortOrder: integer("sort_order").default(0),
   createdAt: text("created_at").default(sql`now()`),
 }, (table) => [
   index("media_folders_team_id_idx").on(table.teamId),
+  index("media_folders_parent_id_idx").on(table.parentId),
+  index("media_folders_game_id_idx").on(table.gameId),
 ]);
 
 export const mediaItems = pgTable("media_items", {

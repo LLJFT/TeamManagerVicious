@@ -105,10 +105,19 @@ export const getQueryFn: <T>(options: {
       const [path, weekStart, weekEnd] = queryKey;
       url = `${path}?weekStartDate=${weekStart}&weekEndDate=${weekEnd}`;
     } else {
+      // Multi-segment keys: ["/api/foo", id, "subpath"] => "/api/foo/<id>/subpath".
+      // Each non-object string segment is appended as a path part. A bare
+      // segment (no leading "/") is treated as an id; one that already
+      // starts with "/" is appended as-is. Object segments are query-param
+      // bags handled below — never part of the URL path.
       url = queryKey[0] as string;
-      const rest = queryKey.slice(1);
-      if (rest.length > 0 && typeof rest[0] === "string" && rest[0].startsWith("/")) {
-        url = rest.reduce((acc: string, seg) => `${acc}/${seg}`, url as string) as string;
+      for (const seg of queryKey.slice(1)) {
+        if (typeof seg !== "string") continue;
+        if (seg.startsWith("/")) {
+          url = `${url}${seg}`;
+        } else if (seg.length > 0) {
+          url = `${url}/${seg}`;
+        }
       }
     }
 

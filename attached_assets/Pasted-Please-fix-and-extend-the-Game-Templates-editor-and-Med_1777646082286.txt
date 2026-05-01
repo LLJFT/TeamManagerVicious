@@ -1,0 +1,118 @@
+Please fix and extend the Game Templates editor and Media Library with the following requirements.
+
+1) TEMPLATE PERSISTENCE
+There is a persistence bug after the recent changes.
+When I leave the template editor and come back, everything I added disappears.
+Please make sure ALL template configuration is saved and restored from template-scoped storage, so I can reopen the same template later and continue editing it without re-entering everything again.
+
+Important:
+- All configuration must remain persisted after navigating away and returning.
+- Reopen the template and load the existing saved values into the editor.
+- Do not reset the editor state back to defaults if saved template data exists.
+- This must apply to all sections, including Hero Roles, Roster Roles, Event Categories/Sub Types, Hero Ban, Map Veto, Sides, and any other template config.
+- The entire feature must be template-scoped, not global.
+- Hero Roles must also be template-scoped only, so they do not leak across templates.
+
+2) TEMPLATE EDITOR FEATURES
+The template editor must include the full configuration experience, similar to the roster Dashboard.
+
+Add the missing sections:
+- Event Sub Types
+- Hero Ban
+- Map Veto
+- Roster Roles
+- Hero Roles
+- Sides Configuration
+
+Important distinction:
+Roster Roles and Hero Roles are NOT the same thing.
+They must be handled as two completely separate configuration areas.
+
+Roster Roles:
+- Add a proper Roster Roles configuration area inside the template editor.
+- I must be able to create, edit, and delete roster roles for that template.
+- These roster roles must be saved in the template.
+- These roster roles must be copied when the template is applied to a roster.
+
+Hero Roles:
+- Add a separate Hero Roles configuration area inside the template editor.
+- I must be able to create, edit, and delete hero roles for that template.
+- In the Heroes tab, the hero Role dropdown must show ONLY the hero roles created for THIS template.
+- Do not use a fixed hardcoded hero role list.
+- Do not mix Hero Roles with Roster Roles.
+- Do not mix in Hero Roles from other templates, games, or rosters.
+- If I create 3 hero roles in this template, only those 3 hero roles should appear in the hero role select for this template.
+- If no custom hero roles exist yet, show a safe fallback like "Other" until hero roles are created.
+
+Hero roles scope:
+- Everything must be template-scoped.
+- I could not properly test Hero Roles before because of the persistence issue, so fix persistence and keep Hero Roles template-scoped only.
+
+Hero Ban and Map Veto:
+- Add full config support exactly like the roster Dashboard.
+- Their settings must be stored in the template.
+- When the template is applied to a roster, those settings must be copied too.
+
+Event Sub Types:
+- Add Event Sub Types configuration to the template editor.
+- Save them in the template.
+- Apply them to the target roster when the template is used.
+
+Sides Configuration:
+- Add Sides Configuration to the template editor.
+- Save it in the template.
+- Apply it to the target roster when the template is used.
+
+3) TEMPLATE APPLY FLOW
+When a template is applied to a roster, it must also replace/copy:
+- Event Sub Types
+- Hero Ban config
+- Map Veto config
+- Roster Roles
+- Hero Roles
+- Sides Configuration
+
+4) MEDIA LIBRARY
+The Media Library needs custom folder support and better folder structure.
+
+Custom folders:
+- I want to be able to create my own top-level folder/group names, not just game names.
+- Example:
+  - ORG
+    - T1 ORGS
+    - T2 ORGS
+    - FRENCHISE
+- I must be able to upload images directly into these custom folders/groups.
+- Images uploaded there must persist normally and never disappear.
+- Later I can open that folder/group, copy any image URL, and paste it anywhere I need.
+- Keep the existing game-based grouping if useful, but add support for these custom manual folders/groups as well.
+- Super Admin only.
+
+Nested folders:
+- Also update Media Library folder behavior so folders can contain subfolders.
+- I want to be able to add images inside the game folders, not only inside the custom folders I create manually.
+- Right now, when I create a folder, I can only upload images into it.
+- I also need the ability to create subfolders inside folders, so folders can contain both images and nested folders.
+- Keep the existing game-based grouping and add the same nested folder support there too.
+- Folder structure should be hierarchical, not flat.
+- This should work for both the manually created custom folders and the existing game folders.
+
+Scoreboard Uploads:
+- If Scoreboard Uploads are needed for persistence and safety, keep them.
+- If they are harmless, keep them.
+- No need to remove them unless they cause a real problem.
+- They do not need special UI work beyond staying safe and not breaking anything.
+
+5) SCOPE AND SAFETY
+- Keep everything super_admin only as it is now.
+- Do not remove the existing Game Templates page.
+- Do not break Media Library.
+- Do not touch unrelated pages.
+- Do not remove existing template data.
+- If schema/config shape needs to be extended, extend it cleanly and migrate existing templates safely.
+- Preserve all existing saved data and make sure it reloads properly on edit.
+
+Goal:
+Game Templates editor should match the Dashboard config experience for roster/team/game settings, but still without Users and Roles admin permission pages.
+Media Library should support both custom folders and nested folder trees.
+Everything relevant should remain template-scoped where applicable.

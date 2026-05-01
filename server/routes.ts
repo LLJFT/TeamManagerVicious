@@ -3921,15 +3921,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
           scoreboards: scoreboardRows.filter(r => r.gameId === g.id).map(r => ({ id: r.id, name: r.name, url: r.url!, rosterId: r.rosterId })) as Item[],
         },
       }));
-      // Drop games that have no images at all so the UI is tidy.
-      const filtered = grouped.filter(g =>
-        g.categories.maps.length + g.categories.heroes.length +
-        g.categories.opponents.length + g.categories.scoreboards.length > 0,
-      );
-
-      const customFolders = foldersRows
-        .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name))
-        .map(f => ({
+      // Build a recursive folder tree. A folder appears under its `parentId`,
+      // or — when it has none — under either the "Custom Folders" root
+      // (`gameId === null`) or the matching game's group (`gameId !== null`).
+      type FolderNode = {
+        id: string;
+        name: string;
+        sortOrder: number;
+        items: { id: string; name: string; url: string }[];
+        subfolders: FolderNode[];
+      };
+      const sortFolders = (rows: typeof foldersRows) =>
+        [...rows].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name));
+      // Cycle guard: a corrupted row (legacy data, race) could form a
+      // parent->child loop; without this, recursion would never terminate.
+      const buildNode = (f: typeof foldersRows[number], visited: Set<string> = new Set()): FolderNode => {
+        if (visited.has(f.id)) {
+          return { id: f.id, name: f.name, sortOrder: f.sortOrder ?? 0, items: [], subfolders: [] };
+        }
+        const nextVisited = new Set(visited);
+        nextVisited.add(f.id);
+        return {
           id: f.id,
           name: f.name,
           sortOrder: f.sortOrder ?? 0,
@@ -3937,9 +3949,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
             .filter(it => it.folderId === f.id)
             .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name))
             .map(it => ({ id: it.id, name: it.name, url: it.url })),
-        }));
+          subfolders: sortFolders(foldersRows.filter(c => c.parentId === f.id)).map(c => buildNode(c, nextVisited)),
+        };
+      };
 
-      res.json({ games: filtered, customFolders });
+      // "Custom Folders" root = folders with no game and no parent.
+      const customFolders = sortFolders(
+        foldersRows.filter(f => !f.gameId && !f.parentId),
+      ).map(buildNode);
+
+      // Per-game custom subfolder roots.
+      const gameRootFolders = (gameId: string) =>
+        sortFolders(foldersRows.filter(f => f.gameId === gameId && !f.parentId)).map(buildNode);
+
+      // Re-emit `grouped` with games whose roots include either built-in
+      // image categories or any custom folder.
+      const groupedWithFolders = grouped.map(g => ({
+        ...g,
+        customFolders: gameRootFolders(g.gameId),
+      }));
+      const filteredWithFolders = groupedWithFolders.filter(g =>
+        g.categories.maps.length + g.categories.heroes.length +
+        g.categories.opponents.length + g.categories.scoreboards.length +
+        g.customFolders.length > 0,
+      );
+
+      res.json({ games: filteredWithFolders, customFolders });
     } catch (error: any) {
       console.error('Error in GET /api/media-library:', error);
       res.status(500).json({ error: error.message || "Internal server error" });
@@ -3951,7 +3986,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const teamId = getTeamId();
       const data = insertMediaFolderSchema.parse(req.body);
-      const [row] = await db.insert(mediaFolders).values({ ...data, teamId }).returning();
+      // If creating a subfolder, the parent must belong to this team. We
+      // also inherit the parent's gameId so a subfolder can never escape
+      // its tree (e.g. a child of a Valorant folder must remain Valorant).
+      let gameId = data.gameId ?? null;
+      if (data.parentId) {
+        const [parent] = await db.select().from(mediaFolders)
+          .where(and(eq(mediaFolders.id, data.parentId), eq(mediaFolders.teamId, teamId))).limit(1);
+        if (!parent) return res.status(400).json({ error: "Parent folder not found" });
+        gameId = parent.gameId ?? null;
+      }
+      const [row] = await db.insert(mediaFolders).values({
+        ...data, teamId, gameId,
+      }).returning();
       res.json(row);
     } catch (error: any) {
       console.error('Error in POST /api/media-folders:', error);
@@ -3965,9 +4012,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teamId = getTeamId();
       const { id } = req.params;
       const data = insertMediaFolderSchema.partial().parse(req.body);
-      const [row] = await db.update(mediaFolders).set(data)
+
+      // Make sure the folder exists in this team before we touch anything.
+      const [existing] = await db.select().from(mediaFolders)
+        .where(and(eq(mediaFolders.id, id), eq(mediaFolders.teamId, teamId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Folder not found" });
+
+      // Lock down which fields can move around. We never let `gameId` be
+      // rewritten directly — it's derived from the parent at create time
+      // and stays put — and we validate any new parentId hard against
+      // (a) same team, (b) not self, (c) not a descendant (cycle).
+      const updates: Record<string, unknown> = {};
+      if (typeof data.name === "string") updates.name = data.name;
+      if (typeof data.sortOrder === "number") updates.sortOrder = data.sortOrder;
+
+      if ("parentId" in data) {
+        const newParentId = data.parentId ?? null;
+        if (newParentId === id) return res.status(400).json({ error: "Folder cannot be its own parent" });
+        let inheritedGameId: string | null = existing.gameId ?? null;
+        if (newParentId) {
+          const [parent] = await db.select().from(mediaFolders)
+            .where(and(eq(mediaFolders.id, newParentId), eq(mediaFolders.teamId, teamId))).limit(1);
+          if (!parent) return res.status(400).json({ error: "Parent folder not found" });
+          // Cycle check: walk the candidate parent's ancestor chain — if
+          // we ever land on `id`, this move would form a loop.
+          const allTeamFolders = await db.select({ id: mediaFolders.id, parentId: mediaFolders.parentId })
+            .from(mediaFolders).where(eq(mediaFolders.teamId, teamId));
+          const parentOf = new Map(allTeamFolders.map(f => [f.id, f.parentId ?? null]));
+          let cursor: string | null = parent.id;
+          const seen = new Set<string>();
+          while (cursor) {
+            if (cursor === id) return res.status(400).json({ error: "Cannot move folder into its own descendant" });
+            if (seen.has(cursor)) break;
+            seen.add(cursor);
+            cursor = parentOf.get(cursor) ?? null;
+          }
+          inheritedGameId = parent.gameId ?? null;
+        }
+        updates.parentId = newParentId;
+        updates.gameId = inheritedGameId;
+      }
+
+      if (Object.keys(updates).length === 0) return res.json(existing);
+      const [row] = await db.update(mediaFolders).set(updates)
         .where(and(eq(mediaFolders.id, id), eq(mediaFolders.teamId, teamId))).returning();
-      if (!row) return res.status(404).json({ error: "Folder not found" });
       res.json(row);
     } catch (error: any) {
       console.error('Error in PUT /api/media-folders/:id:', error);
@@ -3980,10 +4068,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const teamId = getTeamId();
       const { id } = req.params;
+      // Recursively collect every descendant folder so we can purge the
+      // whole subtree. mediaItems cascade automatically via their FK, but
+      // child folders don't (parentId has no DB-level FK because we add it
+      // late and don't want to risk a hard cascade on existing rows).
+      const allTeamFolders = await db.select({ id: mediaFolders.id, parentId: mediaFolders.parentId })
+        .from(mediaFolders).where(eq(mediaFolders.teamId, teamId));
+      const childrenOf = new Map<string, string[]>();
+      for (const f of allTeamFolders) {
+        const key = f.parentId ?? "__root__";
+        if (!childrenOf.has(key)) childrenOf.set(key, []);
+        childrenOf.get(key)!.push(f.id);
+      }
+      const toDelete: string[] = [];
+      const seen = new Set<string>();
+      const queue = [id];
+      // visited guard so a corrupted cycle in legacy data can't loop forever.
+      while (queue.length) {
+        const cur = queue.shift()!;
+        if (seen.has(cur)) continue;
+        seen.add(cur);
+        toDelete.push(cur);
+        for (const child of childrenOf.get(cur) ?? []) queue.push(child);
+      }
       const result = await db.delete(mediaFolders)
-        .where(and(eq(mediaFolders.id, id), eq(mediaFolders.teamId, teamId))).returning();
+        .where(and(inArray(mediaFolders.id, toDelete), eq(mediaFolders.teamId, teamId))).returning();
       if (result.length === 0) return res.status(404).json({ error: "Folder not found" });
-      res.json({ ok: true });
+      res.json({ ok: true, deletedCount: result.length });
     } catch (error: any) {
       console.error('Error in DELETE /api/media-folders/:id:', error);
       res.status(500).json({ error: error.message || "Internal server error" });

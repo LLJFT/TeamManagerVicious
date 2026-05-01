@@ -43,22 +43,10 @@ export default function GameTemplatesPage() {
   const [, navigate] = useLocation();
   const [createOpen, setCreateOpen] = useState(false);
 
-  if (user?.orgRole !== "super_admin") {
-    return (
-      <div className="p-8">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-destructive font-medium" data-testid="text-access-denied">
-              Game Templates are restricted to Super Admins.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
+  // Hooks must run unconditionally — gating below.
   const { data: templates = [], isLoading } = useQuery<GameTemplate[]>({
     queryKey: ["/api/game-templates"],
+    enabled: user?.orgRole === "super_admin",
   });
 
   const { data: games = [] } = useQuery<SupportedGame[]>({
@@ -103,6 +91,20 @@ export default function GameTemplatesPage() {
       toast({ title: "Delete failed", description: err.message, variant: "destructive" });
     },
   });
+
+  if (user?.orgRole !== "super_admin") {
+    return (
+      <div className="p-8">
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-destructive font-medium" data-testid="text-access-denied">
+              Game Templates are restricted to Super Admins.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-4">

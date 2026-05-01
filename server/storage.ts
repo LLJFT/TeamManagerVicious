@@ -1458,28 +1458,13 @@ export class DbStorage implements IStorage {
       }));
       if (mvsIn.length > 0) await tx.insert(mapVetoSystems).values(mvsIn);
 
-      // Hero roles are TEAM-scoped (shared across rosters). Upsert by
-      // (teamId, gameId, name) using the existing unique index. Never delete
-      // (would affect other rosters). Atomic — race-safe under concurrent
-      // applies, unlike the prior select-then-insert.
-      for (const r of (config.heroRoles || [])) {
-        if (!r.name) continue;
-        await tx.insert(heroRoleConfigs).values({
-          id: crypto.randomUUID(),
-          teamId, gameId,
-          name: r.name,
-          color: r.color ?? null,
-          isActive: r.isActive ?? true,
-          sortOrder: r.sortOrder ?? 0,
-        }).onConflictDoUpdate({
-          target: [heroRoleConfigs.teamId, heroRoleConfigs.gameId, heroRoleConfigs.name],
-          set: {
-            color: r.color ?? null,
-            isActive: r.isActive ?? true,
-            sortOrder: r.sortOrder ?? 0,
-          },
-        });
-      }
+      // Hero roles are TEMPLATE-SCOPED ONLY. They live inside the template
+      // config JSON (`config.heroRoles`) and drive the Heroes-tab role
+      // dropdown inside the editor. We deliberately DO NOT write them into
+      // the team-shared `hero_role_configs` table on apply, because that
+      // would leak this template's roles into every other roster on the team.
+      // (The Heroes form on the roster Dashboard reads its options from the
+      // active template's `cfg.heroRoles` instead.)
 
       // 3) Single-mode flag (per-team-per-game). Upsert in settings.
       const flagVal = config.singleModeGame ? "true" : "false";

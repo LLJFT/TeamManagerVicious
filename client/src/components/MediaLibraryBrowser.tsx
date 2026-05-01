@@ -24,6 +24,15 @@ import {
 
 export type MediaItem = { id: string; name: string; url: string; rosterId?: string | null };
 export type MediaCategoryKey = "maps" | "heroes" | "opponents" | "scoreboards";
+/** Recursive folder node with optional subfolders. */
+export type CustomFolder = {
+  id: string;
+  name: string;
+  sortOrder: number;
+  items: { id: string; name: string; url: string }[];
+  /** Server now always sends this; default to [] for back-compat. */
+  subfolders?: CustomFolder[];
+};
 export type MediaGame = {
   gameId: string;
   gameSlug: string;
@@ -31,12 +40,8 @@ export type MediaGame = {
   gameIconUrl: string | null;
   sortOrder: number;
   categories: Record<MediaCategoryKey, MediaItem[]>;
-};
-export type CustomFolder = {
-  id: string;
-  name: string;
-  sortOrder: number;
-  items: { id: string; name: string; url: string }[];
+  /** Custom subfolders attached to this game. Server adds — default to []. */
+  customFolders?: CustomFolder[];
 };
 export type MediaLibraryResponse = {
   games: MediaGame[];
@@ -52,24 +57,45 @@ const CATEGORY_LABELS: Record<MediaCategoryKey, string> = {
 const CATEGORY_ORDER: MediaCategoryKey[] = ["maps", "heroes", "opponents", "scoreboards"];
 
 interface BrowserProps {
-  /** When provided, only show this game and skip the per-game collapsible. */
   filterGameId?: string;
-  /** When set, clicking an image calls this with the URL (e.g. fill into form). */
   onSelect?: (url: string) => void;
-  /** Default state for category collapsibles. */
   defaultOpen?: boolean;
-  /** Limit the visible categories. */
   categories?: MediaCategoryKey[];
-  /**
-   * When true (default), wraps the list in a height-capped ScrollArea — appropriate
-   * for dialog usage. Set false on full-page usage so the page scrolls naturally.
-   */
   capHeight?: boolean;
-  /**
-   * When true (default), shows the Custom Folders section + management UI.
-   * Set false in picker dialogs that only need the games list.
-   */
   showCustomFolders?: boolean;
+}
+
+// ── Search helpers ────────────────────────────────────────────────────────────
+
+/**
+ * Filter a folder tree by a free-text query. Returns a new tree containing
+ * only branches that match (folder name match OR any descendant item match),
+ * with non-matching items removed from leaves.
+ */
+function filterFolderTree(folders: CustomFolder[], q: string): CustomFolder[] {
+  if (!q) return folders;
+  const out: CustomFolder[] = [];
+  for (const f of folders) {
+    const subs = filterFolderTree(f.subfolders ?? [], q);
+    const items = f.items.filter(it => it.name.toLowerCase().includes(q));
+    const folderMatches = f.name.toLowerCase().includes(q);
+    if (folderMatches || items.length > 0 || subs.length > 0) {
+      out.push({
+        ...f,
+        items: folderMatches ? f.items : items,
+        subfolders: subs,
+      });
+    }
+  }
+  return out;
+}
+
+function countAll(folders: CustomFolder[]): number {
+  let n = 0;
+  for (const f of folders) {
+    n += f.items.length + countAll(f.subfolders ?? []);
+  }
+  return n;
 }
 
 export function MediaLibraryBrowser({
@@ -87,7 +113,6 @@ export function MediaLibraryBrowser({
   const { data, isLoading } = useQuery<MediaLibraryResponse>({
     queryKey: ["/api/media-library"],
   });
-  // Defensive: tolerate the legacy array shape so older snapshots still render.
   const library: MediaGame[] = Array.isArray(data) ? data : (data?.games ?? []);
   const customFolders: CustomFolder[] = Array.isArray(data) ? [] : (data?.customFolders ?? []);
 
@@ -105,22 +130,18 @@ export function MediaLibraryBrowser({
             g.categories[k].filter(it => it.name.toLowerCase().includes(q)),
           ]),
         ) as MediaGame["categories"],
+        customFolders: filterFolderTree(g.customFolders ?? [], q),
       }))
       .filter(g =>
-        Object.values(g.categories).some(arr => arr.length > 0),
+        Object.values(g.categories).some(arr => arr.length > 0)
+        || (g.customFolders ?? []).length > 0,
       );
   }, [library, search, filterGameId]);
 
   const filteredCustom = useMemo(() => {
     if (filterGameId) return [];
     const q = search.trim().toLowerCase();
-    if (!q) return customFolders;
-    return customFolders
-      .map(f => ({
-        ...f,
-        items: f.items.filter(it => it.name.toLowerCase().includes(q)),
-      }))
-      .filter(f => f.items.length > 0 || f.name.toLowerCase().includes(q));
+    return q ? filterFolderTree(customFolders, q) : customFolders;
   }, [customFolders, search, filterGameId]);
 
   const handleCopy = async (url: string) => {
@@ -150,7 +171,7 @@ export function MediaLibraryBrowser({
             data-testid="input-media-search"
           />
         </div>
-        {showCustom && <NewFolderButton />}
+        {showCustom && <NewFolderButton scopeLabel="Custom Folder" />}
       </div>
       {isLoading ? (
         <div className="text-sm text-muted-foreground" data-testid="text-media-loading">Loading library…</div>
@@ -182,6 +203,7 @@ export function MediaLibraryBrowser({
                   copiedUrl={copiedUrl}
                   hideGameHeader={!!filterGameId}
                   defaultCategoryOpen={!!filterGameId || defaultOpen}
+                  showFolderManagement={showCustom}
                 />
               ))}
             </div>
@@ -197,16 +219,34 @@ export function MediaLibraryBrowser({
   );
 }
 
-// ── New Folder ───────────────────────────────────────────────────────────────
+// ── New Folder dialog (used as both top-level & subfolder creator) ───────────
 
-function NewFolderButton() {
+function NewFolderButton({
+  scopeLabel,
+  parentId,
+  gameId,
+  size = "sm",
+  variant = "default",
+  iconOnly = false,
+  testIdSuffix,
+}: {
+  /** Human label shown inside the dialog. */
+  scopeLabel: string;
+  parentId?: string | null;
+  gameId?: string | null;
+  size?: "sm" | "default" | "icon";
+  variant?: "default" | "outline" | "ghost";
+  iconOnly?: boolean;
+  testIdSuffix?: string;
+}) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [sortOrder, setSortOrder] = useState("0");
+  const tid = testIdSuffix ?? `${gameId ?? "root"}-${parentId ?? "top"}`;
 
   const create = useMutation({
-    mutationFn: async (body: { name: string; sortOrder: number }) =>
+    mutationFn: async (body: { name: string; sortOrder: number; parentId?: string | null; gameId?: string | null }) =>
       apiRequest("POST", "/api/media-folders", body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/media-library"] });
@@ -218,15 +258,26 @@ function NewFolderButton() {
     onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
   });
 
+  const trigger = iconOnly ? (
+    <Button
+      size="icon"
+      variant={variant}
+      data-testid={`button-new-folder-${tid}`}
+      title={`New ${scopeLabel}`}
+    >
+      <FolderPlus className="h-4 w-4" />
+    </Button>
+  ) : (
+    <Button size={size} variant={variant} data-testid={`button-new-folder-${tid}`}>
+      <FolderPlus className="h-4 w-4 mr-1" /> New {scopeLabel}
+    </Button>
+  );
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="default" data-testid="button-new-folder">
-          <FolderPlus className="h-4 w-4 mr-1" /> New Folder
-        </Button>
-      </DialogTrigger>
+      <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent>
-        <DialogHeader><DialogTitle>New Custom Folder</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>New {scopeLabel}</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div>
             <Label className="text-xs">Folder Name</Label>
@@ -234,7 +285,7 @@ function NewFolderButton() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. ORG > T1 ORGS"
-              data-testid="input-new-folder-name"
+              data-testid={`input-new-folder-name-${tid}`}
             />
           </div>
           <div>
@@ -243,16 +294,21 @@ function NewFolderButton() {
               type="number"
               value={sortOrder}
               onChange={(e) => setSortOrder(e.target.value)}
-              data-testid="input-new-folder-sort"
+              data-testid={`input-new-folder-sort-${tid}`}
             />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={() => setOpen(false)} data-testid="button-new-folder-cancel">Cancel</Button>
+          <Button variant="ghost" onClick={() => setOpen(false)} data-testid={`button-new-folder-cancel-${tid}`}>Cancel</Button>
           <Button
-            onClick={() => create.mutate({ name: name.trim(), sortOrder: Number(sortOrder) || 0 })}
+            onClick={() => create.mutate({
+              name: name.trim(),
+              sortOrder: Number(sortOrder) || 0,
+              parentId: parentId ?? null,
+              gameId: gameId ?? null,
+            })}
             disabled={!name.trim() || create.isPending}
-            data-testid="button-new-folder-save"
+            data-testid={`button-new-folder-save-${tid}`}
           >
             {create.isPending ? "Creating…" : "Create"}
           </Button>
@@ -262,7 +318,7 @@ function NewFolderButton() {
   );
 }
 
-// ── Custom Folders ───────────────────────────────────────────────────────────
+// ── Custom Folders (recursive) ──────────────────────────────────────────────
 
 function CustomFoldersSection({
   folders,
@@ -292,6 +348,7 @@ function CustomFoldersSection({
           onCopy={onCopy}
           copiedUrl={copiedUrl}
           defaultOpen={defaultOpen}
+          depth={0}
         />
       ))}
     </div>
@@ -304,16 +361,20 @@ function CustomFolderCard({
   onCopy,
   copiedUrl,
   defaultOpen,
+  depth,
 }: {
   folder: CustomFolder;
   onSelect?: (url: string) => void;
   onCopy: (url: string) => void;
   copiedUrl: string | null;
   defaultOpen: boolean;
+  depth: number;
 }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(defaultOpen);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const subfolders = folder.subfolders ?? [];
+  const totalItems = folder.items.length + countAll(subfolders);
 
   const addItem = useMutation({
     mutationFn: async (body: { folderId: string; name: string; url: string; sortOrder: number }) =>
@@ -345,7 +406,11 @@ function CustomFolderCard({
   });
 
   return (
-    <Card className="p-3" data-testid={`card-custom-folder-${folder.id}`}>
+    <Card
+      className="p-3"
+      style={{ marginLeft: depth > 0 ? `${Math.min(depth, 4) * 12}px` : undefined }}
+      data-testid={`card-custom-folder-${folder.id}`}
+    >
       <Collapsible open={open} onOpenChange={setOpen}>
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <CollapsibleTrigger asChild>
@@ -356,18 +421,25 @@ function CustomFolderCard({
             >
               <span className="flex items-center gap-2 min-w-0">
                 {open ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
+                <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <span className="font-semibold truncate">{folder.name}</span>
-                <Badge variant="secondary">{folder.items.length}</Badge>
+                <Badge variant="secondary">{totalItems}</Badge>
               </span>
             </Button>
           </CollapsibleTrigger>
           <div className="flex items-center gap-1 shrink-0">
+            <NewFolderButton
+              scopeLabel="Subfolder"
+              parentId={folder.id}
+              variant="ghost"
+              iconOnly
+              testIdSuffix={`sub-${folder.id}`}
+            />
             <ObjectUploader
               buttonSize="sm"
               buttonVariant="outline"
               onUploaded={(r) => {
                 const url = r.url;
-                // Default name = file basename without extension.
                 const base = url.split("/").pop()?.replace(/\.[^.]+$/, "") || "image";
                 addItem.mutate({
                   folderId: folder.id,
@@ -392,22 +464,43 @@ function CustomFolderCard({
           </div>
         </div>
         <CollapsibleContent>
-          {folder.items.length === 0 ? (
-            <div className="text-xs text-muted-foreground py-3 px-2">No images yet — use the Upload button above.</div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 p-2">
-              {folder.items.map((it) => (
-                <CustomImageTile
-                  key={it.id}
-                  item={it}
-                  onSelect={onSelect}
-                  onCopy={onCopy}
-                  copied={copiedUrl === it.url}
-                  onDelete={() => deleteItem.mutate(it.id)}
-                  testId={`tile-custom-${folder.id}-${it.id}`}
-                />
-              ))}
+          {folder.items.length === 0 && subfolders.length === 0 ? (
+            <div className="text-xs text-muted-foreground py-3 px-2">
+              Empty — use Upload to add an image, or the folder icon to add a subfolder.
             </div>
+          ) : (
+            <>
+              {folder.items.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 p-2">
+                  {folder.items.map((it) => (
+                    <CustomImageTile
+                      key={it.id}
+                      item={it}
+                      onSelect={onSelect}
+                      onCopy={onCopy}
+                      copied={copiedUrl === it.url}
+                      onDelete={() => deleteItem.mutate(it.id)}
+                      testId={`tile-custom-${folder.id}-${it.id}`}
+                    />
+                  ))}
+                </div>
+              )}
+              {subfolders.length > 0 && (
+                <div className="flex flex-col gap-2 mt-2">
+                  {subfolders.map((sub) => (
+                    <CustomFolderCard
+                      key={sub.id}
+                      folder={sub}
+                      onSelect={onSelect}
+                      onCopy={onCopy}
+                      copiedUrl={copiedUrl}
+                      defaultOpen={defaultOpen}
+                      depth={depth + 1}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </CollapsibleContent>
       </Collapsible>
@@ -416,7 +509,7 @@ function CustomFolderCard({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete folder?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete "{folder.name}" and all {folder.items.length} image(s) inside it.
+              This will permanently delete "{folder.name}", any subfolders, and all {totalItems} image(s) inside.
               The underlying uploaded files will remain in object storage.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -504,6 +597,7 @@ function GameSection({
   copiedUrl,
   hideGameHeader,
   defaultCategoryOpen,
+  showFolderManagement,
 }: {
   game: MediaGame;
   categories: MediaCategoryKey[];
@@ -512,13 +606,42 @@ function GameSection({
   copiedUrl: string | null;
   hideGameHeader: boolean;
   defaultCategoryOpen: boolean;
+  showFolderManagement: boolean;
 }) {
   const [open, setOpen] = useState(hideGameHeader);
-  const total = categories.reduce((acc, k) => acc + game.categories[k].length, 0);
+  const built = categories.reduce((acc, k) => acc + game.categories[k].length, 0);
+  const customs = game.customFolders ?? [];
+  const total = built + countAll(customs);
   if (total === 0) return null;
 
   const body = (
     <div className="flex flex-col gap-2 pt-2">
+      {showFolderManagement && (
+        <div className="flex items-center justify-end px-1">
+          <NewFolderButton
+            scopeLabel={`Folder in ${game.gameName}`}
+            gameId={game.gameId}
+            size="sm"
+            variant="outline"
+            testIdSuffix={`game-${game.gameSlug}`}
+          />
+        </div>
+      )}
+      {customs.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {customs.map((f) => (
+            <CustomFolderCard
+              key={f.id}
+              folder={f}
+              onSelect={onSelect}
+              onCopy={onCopy}
+              copiedUrl={copiedUrl}
+              defaultOpen={defaultCategoryOpen}
+              depth={0}
+            />
+          ))}
+        </div>
+      )}
       {categories.map((k) => (
         <CategorySection
           key={k}
