@@ -21,6 +21,7 @@ import {
   LogOut, Trophy, Clock, GitCompare, Target, Shield,
   UserCog, ClipboardList, ArrowLeft, LayoutDashboard,
   ShieldCheck, Gamepad2, KeyRound, Layers, Image as ImageIcon,
+  Swords,
 } from "lucide-react";
 import type { Permission, OrgRole } from "@shared/schema";
 import { orgRoleLabels } from "@shared/schema";
@@ -41,6 +42,7 @@ function makeGameItems(prefix: string) {
       { title: "History", url: `${prefix}/history`, icon: Clock, permission: "view_history" as Permission },
       { title: "Compare", url: `${prefix}/compare`, icon: GitCompare, permission: "view_compare" as Permission },
       { title: "Opponents", url: `${prefix}/opponents`, icon: Target, permission: "view_opponents" as Permission },
+      { title: "Draft Stats", url: `${prefix}/draft-stats`, icon: Swords, permission: "view_statistics" as Permission },
     ],
     management: [
       { title: "Dashboard", url: `${prefix}/dashboard`, icon: Settings, permission: "view_dashboard" as Permission },

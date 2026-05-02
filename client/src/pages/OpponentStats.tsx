@@ -24,7 +24,9 @@ import {
   UserPlus,
 } from "lucide-react";
 import { useGame } from "@/hooks/use-game";
-import type { Event, Game, GameMode, Map as MapType, Opponent } from "@shared/schema";
+import type { Event, Game, GameMode, Map as MapType, Opponent, Hero, GameHeroBanAction, GameMapVetoRow, GameHero } from "@shared/schema";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Swords, Ban, Lock } from "lucide-react";
 import { OpponentAvatar, findOpponentByName } from "@/components/OpponentAvatar";
 import { OpponentRosterDialog } from "@/components/OpponentRosterDialog";
 import { useAuth } from "@/hooks/use-auth";
@@ -49,6 +51,11 @@ interface EventDetail {
   score: string;
 }
 
+interface ScoutingItem<T> {
+  item: T;
+  count: number;
+}
+
 interface OpponentData {
   name: string;
   eventStats: StatsSummary;
@@ -57,6 +64,17 @@ interface OpponentData {
   worstMaps: { map: MapType; modeName: string; winRate: number; total: number }[];
   lastPlayed?: string;
   eventDetails: EventDetail[];
+  // Scouting insights — only populated when draft data is present for this opponent
+  scouting: {
+    bannedByThem: ScoutingItem<Hero>[];
+    protectedByThem: ScoutingItem<Hero>[];
+    heroesPlayedByThem: ScoutingItem<Hero>[];
+    mapsPickedByThem: ScoutingItem<MapType>[];
+    mapsBannedByThem: ScoutingItem<MapType>[];
+    totalBanRows: number;
+    totalVetoRows: number;
+    totalPlayRows: number;
+  };
 }
 
 type SortOption = "matches" | "winRate" | "name" | "lastPlayed";
@@ -106,6 +124,26 @@ export default function OpponentStats() {
     enabled: rosterReady,
   });
 
+  const { data: heroes = [] } = useQuery<Hero[]>({
+    queryKey: ["/api/heroes", { gameId, rosterId }],
+    enabled: rosterReady,
+  });
+
+  const { data: heroBanRows = [] } = useQuery<GameHeroBanAction[]>({
+    queryKey: ["/api/hero-ban-actions", { gameId, rosterId }],
+    enabled: rosterReady,
+  });
+
+  const { data: vetoRows = [] } = useQuery<GameMapVetoRow[]>({
+    queryKey: ["/api/map-veto-rows", { gameId, rosterId }],
+    enabled: rosterReady,
+  });
+
+  const { data: gameHeroRows = [] } = useQuery<GameHero[]>({
+    queryKey: ["/api/game-heroes", { gameId, rosterId }],
+    enabled: rosterReady,
+  });
+
   // Lazy-create an opponent record on demand when the user opens View Roster
   // for an opponent that exists only as text on past events. This NEVER
   // touches existing event/history rows — it just adds a new opponents row
@@ -144,6 +182,18 @@ export default function OpponentStats() {
     return { total, wins, losses, draws, winRate };
   };
 
+  const heroById = useMemo(() => {
+    const m = new Map<string, Hero>();
+    heroes.forEach(h => m.set(h.id, h));
+    return m;
+  }, [heroes]);
+
+  const mapById = useMemo(() => {
+    const m = new Map<string, MapType>();
+    maps.forEach(x => m.set(x.id, x));
+    return m;
+  }, [maps]);
+
   const opponentData = useMemo<OpponentData[]>(() => {
     const opponentMap = new Map<string, Event[]>();
 
@@ -163,6 +213,65 @@ export default function OpponentStats() {
       const displayName = opponentEvents[0].opponentName!;
       const eventIds = new Set(opponentEvents.map(e => e.id));
       const opponentGames = allGames.filter(g => eventIds.has(g.eventId || ""));
+      const matchIds = new Set(opponentGames.map(g => g.id));
+
+      // ---- Scouting computation ----
+      const oppBanRows = heroBanRows.filter(r => matchIds.has(r.matchId));
+      const oppVetoRows = vetoRows.filter(r => matchIds.has(r.matchId));
+      const oppPlayRows = gameHeroRows.filter(r => matchIds.has(r.matchId));
+
+      const tally = <T,>(rows: { key: string }[], lookup: Map<string, T>): ScoutingItem<T>[] => {
+        const counts = new Map<string, number>();
+        rows.forEach(r => { counts.set(r.key, (counts.get(r.key) || 0) + 1); });
+        const out: ScoutingItem<T>[] = [];
+        counts.forEach((count, key) => {
+          const item = lookup.get(key);
+          if (item) out.push({ item, count });
+        });
+        out.sort((a, b) => b.count - a.count);
+        return out;
+      };
+
+      const bannedByThem = tally<Hero>(
+        oppBanRows.filter(r => r.actingTeam === "b" && r.actionType === "ban" && r.heroId).map(r => ({ key: r.heroId! })),
+        heroById,
+      );
+      const protectedByThem = tally<Hero>(
+        oppBanRows.filter(r => r.actingTeam === "b" && (r.actionType === "lock" || r.actionType === "protect") && r.heroId).map(r => ({ key: r.heroId! })),
+        heroById,
+      );
+      const heroPlaysSeen = new Set<string>();
+      const heroesPlayedByThem = tally<Hero>(
+        oppPlayRows
+          .filter(r => !!r.opponentPlayerId)
+          .filter(r => {
+            const t = `${r.matchId}::${r.heroId}::${r.opponentPlayerId}`;
+            if (heroPlaysSeen.has(t)) return false;
+            heroPlaysSeen.add(t);
+            return true;
+          })
+          .map(r => ({ key: r.heroId })),
+        heroById,
+      );
+      const mapsPickedByThem = tally<MapType>(
+        oppVetoRows.filter(r => r.actingTeam === "b" && r.actionType === "pick" && r.mapId).map(r => ({ key: r.mapId! })),
+        mapById,
+      );
+      const mapsBannedByThem = tally<MapType>(
+        oppVetoRows.filter(r => r.actingTeam === "b" && r.actionType === "ban" && r.mapId).map(r => ({ key: r.mapId! })),
+        mapById,
+      );
+
+      const scouting = {
+        bannedByThem,
+        protectedByThem,
+        heroesPlayedByThem,
+        mapsPickedByThem,
+        mapsBannedByThem,
+        totalBanRows: oppBanRows.length,
+        totalVetoRows: oppVetoRows.length,
+        totalPlayRows: oppPlayRows.length,
+      };
 
       const eventStats = calculateStats(opponentEvents.filter(e => e.result));
       const gameStats = calculateStats(opponentGames.filter(g => g.result));
@@ -206,11 +315,12 @@ export default function OpponentStats() {
         worstMaps: mapPerformance.sort((a, b) => a.winRate - b.winRate).slice(0, 3),
         lastPlayed: sortedByDate[0]?.date,
         eventDetails,
+        scouting,
       });
     });
 
     return result;
-  }, [events, allGames, gameModes, maps]);
+  }, [events, allGames, gameModes, maps, heroBanRows, vetoRows, gameHeroRows, heroById, mapById]);
 
   const filteredAndSorted = useMemo(() => {
     let filtered = opponentData;
@@ -460,6 +570,123 @@ export default function OpponentStats() {
                 </CardContent>
                 {expandedOpponents.has(opponent.name) && (
                   <div className="border-t border-border">
+                    {(opponent.scouting.totalBanRows > 0 || opponent.scouting.totalVetoRows > 0 || opponent.scouting.totalPlayRows > 0) && (
+                      <div className="p-4 border-b border-border bg-muted/20">
+                        <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+                          <h4 className="text-sm font-semibold flex items-center gap-2">
+                            <Swords className="h-4 w-4 text-primary" />
+                            Scouting Insights vs {opponent.name}
+                          </h4>
+                          <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                            <Badge variant="outline" className="font-mono">{opponent.scouting.totalBanRows} ban rows</Badge>
+                            <Badge variant="outline" className="font-mono">{opponent.scouting.totalVetoRows} veto rows</Badge>
+                            <Badge variant="outline" className="font-mono">{opponent.scouting.totalPlayRows} hero rows</Badge>
+                            <Link href={`/${fullSlug}/draft-stats`}>
+                              <Button variant="ghost" size="sm" className="h-6 px-2 text-xs gap-1" data-testid={`link-draft-stats-${opponent.name}`}>
+                                Full draft stats <ExternalLink className="h-3 w-3" />
+                              </Button>
+                            </Link>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {opponent.scouting.heroesPlayedByThem.length > 0 && (
+                            <div className="bg-card border border-border rounded p-2.5">
+                              <div className="text-xs font-semibold mb-1.5 flex items-center gap-1.5">
+                                <Trophy className="h-3.5 w-3.5 text-rose-500" /> Heroes They Play
+                              </div>
+                              <div className="space-y-1">
+                                {opponent.scouting.heroesPlayedByThem.slice(0, 5).map((s, i) => (
+                                  <div key={i} className="flex items-center gap-2 text-xs">
+                                    <Avatar className="h-5 w-5 shrink-0">
+                                      {s.item.imageUrl ? <AvatarImage src={s.item.imageUrl} alt={s.item.name} /> : null}
+                                      <AvatarFallback className="text-[8px] bg-muted">{s.item.name.slice(0, 2)}</AvatarFallback>
+                                    </Avatar>
+                                    <span className="truncate flex-1">{s.item.name}</span>
+                                    <Badge variant="secondary" className="text-[10px] tabular-nums">{s.count}</Badge>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {opponent.scouting.bannedByThem.length > 0 && (
+                            <div className="bg-card border border-border rounded p-2.5">
+                              <div className="text-xs font-semibold mb-1.5 flex items-center gap-1.5">
+                                <Ban className="h-3.5 w-3.5 text-amber-500" /> Heroes They Ban
+                              </div>
+                              <div className="space-y-1">
+                                {opponent.scouting.bannedByThem.slice(0, 5).map((s, i) => (
+                                  <div key={i} className="flex items-center gap-2 text-xs">
+                                    <Avatar className="h-5 w-5 shrink-0">
+                                      {s.item.imageUrl ? <AvatarImage src={s.item.imageUrl} alt={s.item.name} /> : null}
+                                      <AvatarFallback className="text-[8px] bg-muted">{s.item.name.slice(0, 2)}</AvatarFallback>
+                                    </Avatar>
+                                    <span className="truncate flex-1">{s.item.name}</span>
+                                    <Badge variant="secondary" className="text-[10px] tabular-nums">{s.count}</Badge>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {opponent.scouting.protectedByThem.length > 0 && (
+                            <div className="bg-card border border-border rounded p-2.5">
+                              <div className="text-xs font-semibold mb-1.5 flex items-center gap-1.5">
+                                <Lock className="h-3.5 w-3.5 text-emerald-500" /> Heroes They Protect
+                              </div>
+                              <div className="space-y-1">
+                                {opponent.scouting.protectedByThem.slice(0, 5).map((s, i) => (
+                                  <div key={i} className="flex items-center gap-2 text-xs">
+                                    <Avatar className="h-5 w-5 shrink-0">
+                                      {s.item.imageUrl ? <AvatarImage src={s.item.imageUrl} alt={s.item.name} /> : null}
+                                      <AvatarFallback className="text-[8px] bg-muted">{s.item.name.slice(0, 2)}</AvatarFallback>
+                                    </Avatar>
+                                    <span className="truncate flex-1">{s.item.name}</span>
+                                    <Badge variant="secondary" className="text-[10px] tabular-nums">{s.count}</Badge>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {opponent.scouting.mapsPickedByThem.length > 0 && (
+                            <div className="bg-card border border-border rounded p-2.5">
+                              <div className="text-xs font-semibold mb-1.5 flex items-center gap-1.5">
+                                <Trophy className="h-3.5 w-3.5 text-rose-500" /> Maps They Pick
+                              </div>
+                              <div className="space-y-1">
+                                {opponent.scouting.mapsPickedByThem.slice(0, 5).map((s, i) => (
+                                  <div key={i} className="flex items-center gap-2 text-xs">
+                                    <Avatar className="h-5 w-5 shrink-0 rounded-sm">
+                                      {s.item.imageUrl ? <AvatarImage src={s.item.imageUrl} alt={s.item.name} className="object-cover" /> : null}
+                                      <AvatarFallback className="text-[8px] bg-muted rounded-sm">{s.item.name.slice(0, 2)}</AvatarFallback>
+                                    </Avatar>
+                                    <span className="truncate flex-1">{s.item.name}</span>
+                                    <Badge variant="secondary" className="text-[10px] tabular-nums">{s.count}</Badge>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {opponent.scouting.mapsBannedByThem.length > 0 && (
+                            <div className="bg-card border border-border rounded p-2.5">
+                              <div className="text-xs font-semibold mb-1.5 flex items-center gap-1.5">
+                                <Ban className="h-3.5 w-3.5 text-amber-500" /> Maps They Ban
+                              </div>
+                              <div className="space-y-1">
+                                {opponent.scouting.mapsBannedByThem.slice(0, 5).map((s, i) => (
+                                  <div key={i} className="flex items-center gap-2 text-xs">
+                                    <Avatar className="h-5 w-5 shrink-0 rounded-sm">
+                                      {s.item.imageUrl ? <AvatarImage src={s.item.imageUrl} alt={s.item.name} className="object-cover" /> : null}
+                                      <AvatarFallback className="text-[8px] bg-muted rounded-sm">{s.item.name.slice(0, 2)}</AvatarFallback>
+                                    </Avatar>
+                                    <span className="truncate flex-1">{s.item.name}</span>
+                                    <Badge variant="secondary" className="text-[10px] tabular-nums">{s.count}</Badge>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                     <div className="p-4">
                       <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
                         <Trophy className="h-4 w-4 text-primary" />

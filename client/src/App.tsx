@@ -24,6 +24,7 @@ import History from "@/pages/History";
 import UnifiedStats from "@/pages/UnifiedStats";
 import Compare from "@/pages/Compare";
 import OpponentStats from "@/pages/OpponentStats";
+import DraftStats from "@/pages/DraftStats";
 import Players from "@/pages/Players";
 import Dashboard from "@/pages/Dashboard";
 import StaffPage from "@/pages/Staff";
@@ -54,6 +55,7 @@ function GameRoutes({ slug }: { slug: string }) {
       <Route path={`${basePath}/stats`} component={UnifiedStats} />
       <Route path={`${basePath}/compare`} component={Compare} />
       <Route path={`${basePath}/opponents`} component={OpponentStats} />
+      <Route path={`${basePath}/draft-stats`} component={DraftStats} />
       <Route path={`${basePath}/players`} component={Players} />
       <Route path={`${basePath}/dashboard`} component={Dashboard} />
       <Route path={`${basePath}/staff`} component={StaffPage} />

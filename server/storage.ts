@@ -83,10 +83,13 @@ export interface IStorage {
   updateMapVetoSystem(id: string, s: Partial<InsertMapVetoSystem>, gameId?: string | null, rosterId?: string | null): Promise<MapVetoSystem | undefined>;
   removeMapVetoSystem(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean>;
   getHeroBanActionsByMatchId(matchId: string): Promise<GameHeroBanAction[]>;
+  getHeroBanActionsByRoster(gameId: string, rosterId: string, opponentId?: string): Promise<GameHeroBanAction[]>;
   replaceHeroBanActions(matchId: string, rows: Omit<InsertGameHeroBanAction, "matchId">[], gameId?: string | null, rosterId?: string | null): Promise<GameHeroBanAction[]>;
   getMapVetoRowsByMatchId(matchId: string): Promise<GameMapVetoRow[]>;
+  getMapVetoRowsByRoster(gameId: string, rosterId: string, opponentId?: string): Promise<GameMapVetoRow[]>;
   replaceMapVetoRows(matchId: string, rows: Omit<InsertGameMapVetoRow, "matchId">[], gameId?: string | null, rosterId?: string | null): Promise<GameMapVetoRow[]>;
   getGameHeroesByMatchId(matchId: string): Promise<GameHero[]>;
+  getGameHeroesByRoster(gameId: string, rosterId: string, opponentId?: string): Promise<GameHero[]>;
   addGameHero(gameHero: InsertGameHero, gameId?: string | null, rosterId?: string | null): Promise<GameHero>;
   removeGameHero(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean>;
   replaceGameHeroes(matchId: string, rows: Omit<InsertGameHero, "matchId">[], gameId?: string | null, rosterId?: string | null): Promise<GameHero[]>;
@@ -601,6 +604,27 @@ export class DbStorage implements IStorage {
     return await db.select().from(gameHeroBanActions).where(and(eq(gameHeroBanActions.matchId, matchId), eq(gameHeroBanActions.teamId, teamId)));
   }
 
+  async getHeroBanActionsByRoster(gameId: string, rosterId: string, opponentId?: string): Promise<GameHeroBanAction[]> {
+    const teamId = getTeamId();
+    if (opponentId) {
+      const rows = await db.select({ a: gameHeroBanActions })
+        .from(gameHeroBanActions)
+        .innerJoin(games, eq(gameHeroBanActions.matchId, games.id))
+        .where(and(
+          eq(gameHeroBanActions.teamId, teamId),
+          eq(gameHeroBanActions.gameId, gameId),
+          eq(gameHeroBanActions.rosterId, rosterId),
+          eq(games.opponentId, opponentId),
+        ));
+      return rows.map(r => r.a);
+    }
+    return await db.select().from(gameHeroBanActions).where(and(
+      eq(gameHeroBanActions.teamId, teamId),
+      eq(gameHeroBanActions.gameId, gameId),
+      eq(gameHeroBanActions.rosterId, rosterId),
+    ));
+  }
+
   async replaceHeroBanActions(matchId: string, rows: Omit<InsertGameHeroBanAction, "matchId">[], gameId?: string | null, rosterId?: string | null): Promise<GameHeroBanAction[]> {
     const teamId = getTeamId();
     return await db.transaction(async (tx) => {
@@ -616,6 +640,27 @@ export class DbStorage implements IStorage {
     return await db.select().from(gameMapVetoRows).where(and(eq(gameMapVetoRows.matchId, matchId), eq(gameMapVetoRows.teamId, teamId)));
   }
 
+  async getMapVetoRowsByRoster(gameId: string, rosterId: string, opponentId?: string): Promise<GameMapVetoRow[]> {
+    const teamId = getTeamId();
+    if (opponentId) {
+      const rows = await db.select({ r: gameMapVetoRows })
+        .from(gameMapVetoRows)
+        .innerJoin(games, eq(gameMapVetoRows.matchId, games.id))
+        .where(and(
+          eq(gameMapVetoRows.teamId, teamId),
+          eq(gameMapVetoRows.gameId, gameId),
+          eq(gameMapVetoRows.rosterId, rosterId),
+          eq(games.opponentId, opponentId),
+        ));
+      return rows.map(r => r.r);
+    }
+    return await db.select().from(gameMapVetoRows).where(and(
+      eq(gameMapVetoRows.teamId, teamId),
+      eq(gameMapVetoRows.gameId, gameId),
+      eq(gameMapVetoRows.rosterId, rosterId),
+    ));
+  }
+
   async replaceMapVetoRows(matchId: string, rows: Omit<InsertGameMapVetoRow, "matchId">[], gameId?: string | null, rosterId?: string | null): Promise<GameMapVetoRow[]> {
     const teamId = getTeamId();
     return await db.transaction(async (tx) => {
@@ -629,6 +674,27 @@ export class DbStorage implements IStorage {
   async getGameHeroesByMatchId(matchId: string): Promise<GameHero[]> {
     const teamId = getTeamId();
     return await db.select().from(gameHeroes).where(and(eq(gameHeroes.matchId, matchId), eq(gameHeroes.teamId, teamId)));
+  }
+
+  async getGameHeroesByRoster(gameId: string, rosterId: string, opponentId?: string): Promise<GameHero[]> {
+    const teamId = getTeamId();
+    if (opponentId) {
+      const rows = await db.select({ h: gameHeroes })
+        .from(gameHeroes)
+        .innerJoin(games, eq(gameHeroes.matchId, games.id))
+        .where(and(
+          eq(gameHeroes.teamId, teamId),
+          eq(gameHeroes.gameId, gameId),
+          eq(gameHeroes.rosterId, rosterId),
+          eq(games.opponentId, opponentId),
+        ));
+      return rows.map(r => r.h);
+    }
+    return await db.select().from(gameHeroes).where(and(
+      eq(gameHeroes.teamId, teamId),
+      eq(gameHeroes.gameId, gameId),
+      eq(gameHeroes.rosterId, rosterId),
+    ));
   }
 
   async addGameHero(insertGameHero: InsertGameHero, gameId?: string | null, rosterId?: string | null): Promise<GameHero> {

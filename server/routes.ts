@@ -455,6 +455,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "/api/game-modes", "/api/maps", "/api/games", "/api/off-days",
     "/api/stat-fields", "/api/player-stats-summary", "/api/team-notes",
     "/api/activity-logs",
+    "/api/hero-ban-actions", "/api/map-veto-rows", "/api/game-heroes",
   ];
   for (const path of gameAccessPaths) {
     app.use(path, requireGameAccess);
@@ -3714,6 +3715,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error('Error in PUT /api/games/:id/map-veto-rows:', error);
       if (error.name === 'ZodError') return res.status(400).json({ error: "Invalid map veto data", details: error.errors });
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  // ===== Roster-scoped bulk analytics endpoints (read-only) =====
+  app.get("/api/hero-ban-actions", requireAuth, async (req, res) => {
+    try {
+      const gameId = getGameId(req);
+      const rosterId = getRosterId(req);
+      const opponentId = (req.query.opponentId as string | undefined) || undefined;
+      if (!gameId || !rosterId) return res.json([]);
+      const rows = await storage.getHeroBanActionsByRoster(gameId, rosterId, opponentId);
+      res.json(rows);
+    } catch (error: any) {
+      console.error('Error in GET /api/hero-ban-actions:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.get("/api/map-veto-rows", requireAuth, async (req, res) => {
+    try {
+      const gameId = getGameId(req);
+      const rosterId = getRosterId(req);
+      const opponentId = (req.query.opponentId as string | undefined) || undefined;
+      if (!gameId || !rosterId) return res.json([]);
+      const rows = await storage.getMapVetoRowsByRoster(gameId, rosterId, opponentId);
+      res.json(rows);
+    } catch (error: any) {
+      console.error('Error in GET /api/map-veto-rows:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.get("/api/game-heroes", requireAuth, async (req, res) => {
+    try {
+      const gameId = getGameId(req);
+      const rosterId = getRosterId(req);
+      const opponentId = (req.query.opponentId as string | undefined) || undefined;
+      if (!gameId || !rosterId) return res.json([]);
+      const rows = await storage.getGameHeroesByRoster(gameId, rosterId, opponentId);
+      res.json(rows);
+    } catch (error: any) {
+      console.error('Error in GET /api/game-heroes:', error);
       res.status(500).json({ error: error.message || "Internal server error" });
     }
   });
