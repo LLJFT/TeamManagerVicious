@@ -1629,23 +1629,28 @@ export class DbStorage implements IStorage {
       heroBanSystems: 0, mapVetoSystems: 0, opponents: 0, opponentPlayers: 0,
     };
 
-    // 1) Live-roster guard for non-force seeds.
+    // 1) Live-roster guard for non-force seeds — checks every table that
+    //    seeding writes to so we never silently mutate a populated roster.
     if (!force) {
       const scoped = (tbl: any) => and(
         eq(tbl.teamId, teamId), eq(tbl.gameId, gameId), eq(tbl.rosterId, rosterId),
       );
-      const [rrCount, sideCount, oppCount, pCount, gmCount, ecCount, hbCount, mvCount] = await Promise.all([
+      const checks = await Promise.all([
         db.select({ id: rosterRoles.id }).from(rosterRoles).where(scoped(rosterRoles)).limit(1),
         db.select({ id: sides.id }).from(sides).where(scoped(sides)).limit(1),
         db.select({ id: opponents.id }).from(opponents).where(scoped(opponents)).limit(1),
         db.select({ id: players.id }).from(players).where(scoped(players)).limit(1),
         db.select({ id: gameModes.id }).from(gameModes).where(scoped(gameModes)).limit(1),
         db.select({ id: eventCategories.id }).from(eventCategories).where(scoped(eventCategories)).limit(1),
+        db.select({ id: eventSubTypes.id }).from(eventSubTypes).where(scoped(eventSubTypes)).limit(1),
         db.select({ id: heroBanSystems.id }).from(heroBanSystems).where(scoped(heroBanSystems)).limit(1),
         db.select({ id: mapVetoSystems.id }).from(mapVetoSystems).where(scoped(mapVetoSystems)).limit(1),
+        db.select({ id: heroes.id }).from(heroes).where(scoped(heroes)).limit(1),
+        db.select({ id: maps.id }).from(maps).where(scoped(maps)).limit(1),
+        db.select({ id: statFields.id }).from(statFields).where(scoped(statFields)).limit(1),
+        db.select({ id: availabilitySlots.id }).from(availabilitySlots).where(scoped(availabilitySlots)).limit(1),
       ]);
-      if (rrCount.length || sideCount.length || oppCount.length || pCount.length ||
-          gmCount.length || ecCount.length || hbCount.length || mvCount.length) {
+      if (checks.some(rows => rows.length > 0)) {
         return { source: "skipped", counts: emptyCounts, warnings: ["roster already populated; pass force=true to re-seed"] };
       }
     }
@@ -1730,6 +1735,7 @@ export class DbStorage implements IStorage {
         await tx.delete(sides).where(scoped(sides));
         await tx.delete(heroBanSystems).where(scoped(heroBanSystems));
         await tx.delete(mapVetoSystems).where(scoped(mapVetoSystems));
+        await tx.delete(availabilitySlots).where(scoped(availabilitySlots));
       }
 
       // 4a) Roster Roles
@@ -1845,7 +1851,10 @@ export class DbStorage implements IStorage {
       //     gets `defaultPlayersPerOpponent` generic players with IGN baked
       //     into the name as "DisplayName (ign)" — mirroring the template
       //     apply path which uses the same column convention.
-      const seedList = (gameSlug && OPPONENT_SEEDS_BY_GAME_SLUG[gameSlug]) || [];
+      // Normalize a few common slug aliases for the opponent seed lookup.
+      const opponentSlugAliases: Record<string, string> = { "cs": "cs2", "csgo2": "cs2" };
+      const opponentLookupSlug = gameSlug ? (opponentSlugAliases[gameSlug] ?? gameSlug) : null;
+      const seedList = (opponentLookupSlug && OPPONENT_SEEDS_BY_GAME_SLUG[opponentLookupSlug]) || [];
       const oppDefs: Array<{ name: string; shortName: string | null; region: string | null }> = [];
       for (const o of seedList.slice(0, 6)) {
         oppDefs.push({ name: o.name, shortName: o.shortName ?? null, region: o.region ?? null });
