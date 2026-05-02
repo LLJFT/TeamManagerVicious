@@ -3508,6 +3508,7 @@ function ResetRosterTab() {
       </Dialog>
 
       <ApplyTemplateCard rosterId={rosterId!} gameId={gameId!} rosterDisplayName={rosterDisplayName} gameDisplayName={gameDisplayName} />
+      <SeedRosterCard rosterId={rosterId!} gameId={gameId!} rosterDisplayName={rosterDisplayName} gameDisplayName={gameDisplayName} />
     </div>
   );
 }
@@ -3651,6 +3652,165 @@ function ApplyTemplateCard({ rosterId, gameId, rosterDisplayName, gameDisplayNam
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Seed Roster — manual super_admin re-seed of an existing roster from the
+// game's defaults (or an explicitly-typed Game Template code). Wipes first
+// (force=true). Server picks: explicit templateId > auto-detected template
+// for the game > per-game defaults.
+// ─────────────────────────────────────────────────────────────────────────────
+function SeedRosterCard({ rosterId, gameId, rosterDisplayName, gameDisplayName }: {
+  rosterId: string; gameId: string; rosterDisplayName: string; gameDisplayName: string;
+}) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [pwd, setPwd] = useState("");
+  const [code, setCode] = useState("");
+  const [resolvedTemplateId, setResolvedTemplateId] = useState<string | null>(null);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+  const [looking, setLooking] = useState(false);
+
+  // Resolve the typed template code → templateId (validated against this game).
+  // Empty code → defaults path on submit. Non-empty must lookup successfully.
+  useEffect(() => {
+    setResolvedTemplateId(null);
+    setLookupError(null);
+    if (!code.trim()) return;
+    let cancelled = false;
+    setLooking(true);
+    (async () => {
+      try {
+        const r = await apiRequest("GET", `/api/game-templates/by-code/${encodeURIComponent(code.trim().toUpperCase())}`);
+        const tpl = await r.json();
+        if (cancelled) return;
+        if (tpl.gameId !== gameId) {
+          setLookupError("That template was built for a different game.");
+        } else {
+          setResolvedTemplateId(tpl.id);
+        }
+      } catch (e: any) {
+        if (!cancelled) setLookupError(e?.message || "Code not found");
+      } finally {
+        if (!cancelled) setLooking(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [code, gameId]);
+
+  const seedMutation = useMutation({
+    mutationFn: async () => {
+      const body: any = { password: pwd };
+      if (resolvedTemplateId) body.templateId = resolvedTemplateId;
+      const r = await apiRequest("POST", `/api/admin/rosters/${rosterId}/seed`, body);
+      return r.json();
+    },
+    onSuccess: (res: any) => {
+      const c = res?.counts || {};
+      const summary = `${c.rosterRoles ?? 0} roles · ${c.sides ?? 0} sides · ${c.gameModes ?? 0} modes · ${c.maps ?? 0} maps · ${c.eventCategories ?? 0} categories · ${c.heroes ?? 0} heroes · ${c.opponents ?? 0} opponents · ${c.opponentPlayers ?? 0} opp players`;
+      toast({
+        title: res.source === "template" ? `Seeded from template "${res.templateName}"` : "Seeded with defaults",
+        description: summary,
+      });
+      setOpen(false);
+      setPwd("");
+      setCode("");
+      queryClient.invalidateQueries();
+    },
+    onError: (e: any) => toast({ title: "Seed failed", description: e?.message || "Unknown error", variant: "destructive" }),
+  });
+
+  const codeBlocked = code.trim().length > 0 && !resolvedTemplateId;
+
+  return (
+    <Card className="lg:col-span-2">
+      <CardHeader className="pb-4 border-b border-border">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-emerald-500/10">
+            <Database className="h-5 w-5 text-emerald-600" />
+          </div>
+          <div>
+            <CardTitle className="text-xl">Seed Roster (Dataset)</CardTitle>
+            <CardDescription>
+              <span className="font-semibold text-destructive">Destructive.</span> Wipes this roster and re-seeds it. Leave the template code blank to use the per-game defaults (roles, sides, modes, maps, categories, heroes, opponents + players). Type a template code to seed from that template instead.
+            </CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-6 space-y-3">
+        <Button
+          className="bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700"
+          onClick={() => setOpen(true)}
+          data-testid="button-open-seed-roster"
+        >
+          <Database className="h-4 w-4 mr-2" />
+          Seed Roster…
+        </Button>
+      </CardContent>
+
+      <Dialog open={open} onOpenChange={(o) => { if (!seedMutation.isPending) { setOpen(o); if (!o) { setPwd(""); setCode(""); } } }}>
+        <DialogContent data-testid="dialog-seed-roster">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Database className="h-5 w-5 text-emerald-600" />
+              Seed Roster
+            </DialogTitle>
+            <DialogDescription>
+              Wipes ALL of this roster's config + opponents + players, then re-seeds. Optional: type a template code to seed from that template; otherwise the per-game defaults are used.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-md border border-border p-3 bg-muted/30 space-y-1">
+            <div className="text-xs text-muted-foreground">Game</div>
+            <div className="font-medium" data-testid="text-seed-game-name">{gameDisplayName}</div>
+            <div className="text-xs text-muted-foreground mt-2">Roster (will be wiped)</div>
+            <div className="font-medium" data-testid="text-seed-roster-name">{rosterDisplayName}</div>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="seed-code">Template code (optional)</Label>
+            <Input
+              id="seed-code"
+              value={code}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              placeholder="Leave blank for defaults · e.g. MR-AB12CD"
+              className="font-mono"
+              disabled={seedMutation.isPending}
+              data-testid="input-seed-template-code"
+              autoComplete="off"
+            />
+            {looking && <p className="text-xs text-muted-foreground">Looking up…</p>}
+            {lookupError && <p className="text-xs text-destructive" data-testid="text-seed-code-error">{lookupError}</p>}
+            {resolvedTemplateId && <p className="text-xs text-emerald-700 dark:text-emerald-300" data-testid="text-seed-code-ok">Template found · will seed from it.</p>}
+            {!code.trim() && <p className="text-xs text-muted-foreground">No code entered → will use per-game defaults.</p>}
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="seed-password">Enter admin password to confirm</Label>
+            <Input
+              id="seed-password"
+              type="password"
+              value={pwd}
+              onChange={(e) => setPwd(e.target.value)}
+              disabled={seedMutation.isPending}
+              data-testid="input-seed-password"
+              autoComplete="off"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setOpen(false); setPwd(""); setCode(""); }} disabled={seedMutation.isPending} data-testid="button-cancel-seed">
+              Cancel
+            </Button>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700"
+              onClick={() => seedMutation.mutate()}
+              disabled={pwd.length === 0 || seedMutation.isPending || codeBlocked}
+              data-testid="button-confirm-seed"
+            >
+              {seedMutation.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Seeding…</> : "Seed Roster"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

@@ -1293,6 +1293,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Manual super_admin re-seed of an existing roster. Calls seedNewRoster
+  // with force=true so the wipe path runs first. Body:
+  //   { password: string, templateId?: string }
+  //   - templateId omitted → defaults path (or auto-detected template if one exists for the game)
+  //   - templateId set     → that specific template wins
+  app.post("/api/admin/rosters/:id/seed", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+    try {
+      const { RESET_PASSWORD } = await import("./roster-reset");
+      const password = (req.body?.password ?? "").toString();
+      if (password !== RESET_PASSWORD) {
+        return res.status(403).json({ message: "Invalid admin password" });
+      }
+      const teamId = getTeamId();
+      const [roster] = await db.select().from(rosters)
+        .where(and(eq(rosters.id, req.params.id), eq(rosters.teamId, teamId)))
+        .limit(1);
+      if (!roster) return res.status(404).json({ message: "Roster not found" });
+      const templateId = req.body?.templateId ? String(req.body.templateId) : undefined;
+      const result = await storage.seedNewRoster(roster.id, roster.gameId!, { templateId, force: true });
+      res.json({ ok: true, ...result });
+    } catch (err: any) {
+      console.error("[manual-seed] failed:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   app.post("/api/admin/rosters/:id/load-example", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
     try {
       const { LOAD_EXAMPLE_PASSWORD, loadExampleData, startJob } = await import("./roster-reset");
@@ -5501,7 +5527,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const [roster] = await db.insert(rosters)
         .values({ teamId, gameId, name, slug: slug.toLowerCase().replace(/\s+/g, '-'), code: generateRosterCode() })
         .returning();
-      res.json(roster);
+
+      // Auto-seed the brand-new roster. Failure does NOT roll back creation —
+      // the roster is usable empty, and a super_admin can re-seed manually
+      // from the Reset Roster tab.
+      let seedResult: any = null;
+      let seedError: string | null = null;
+      try {
+        seedResult = await storage.seedNewRoster(roster.id, gameId, {});
+      } catch (e: any) {
+        seedError = e?.message || String(e);
+        console.error(`[seed] auto-seed failed for roster ${roster.id}:`, e);
+      }
+      res.json({ ...roster, seedResult, seedError });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -6037,7 +6075,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const [roster] = await db.insert(rosters)
         .values({ teamId, gameId: req.params.gameId, name, slug: rosterSlug, sortOrder: 99, code: generateRosterCode() })
         .returning();
-      res.json(roster);
+
+      // Auto-seed the brand-new roster. See note on the other create endpoint.
+      let seedResult: any = null;
+      let seedError: string | null = null;
+      try {
+        seedResult = await storage.seedNewRoster(roster.id, req.params.gameId, {});
+      } catch (e: any) {
+        seedError = e?.message || String(e);
+        console.error(`[seed] auto-seed failed for roster ${roster.id}:`, e);
+      }
+      res.json({ ...roster, seedResult, seedError });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }

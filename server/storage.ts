@@ -1651,8 +1651,9 @@ export class DbStorage implements IStorage {
     }
 
     // 2) Resolve game slug — needed for picking defaults & opponent seed list.
+    //    supportedGames is a global catalog (no teamId column).
     const gameRow = await db.select().from(supportedGames)
-      .where(and(eq(supportedGames.teamId, teamId), eq(supportedGames.id, gameId)))
+      .where(eq(supportedGames.id, gameId))
       .limit(1);
     const gameSlug = gameRow[0]?.slug ?? null;
     if (!gameSlug) warnings.push("supportedGames row not found for gameId; using generic defaults");
@@ -1810,7 +1811,7 @@ export class DbStorage implements IStorage {
       if (defaults.heroes.length > 0) {
         await tx.insert(heroes).values(defaults.heroes.map((h, i) => ({
           teamId, gameId, rosterId,
-          name: h.name, role: h.role, imageUrl: h.imageUrl ?? null,
+          name: h.name, role: h.role, imageUrl: null,
           isActive: true, sortOrder: i,
         })));
         counts.heroes = defaults.heroes.length;
