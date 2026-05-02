@@ -1,0 +1,69 @@
+Continue the analytics expansion — same conventions as Draft Stats.
+
+Add two new roster-scoped analytics pages inside each roster:
+
+1) TEAM LEADERBOARD PAGE
+Sidebar: Analytics → Team Stats (or similar icon)
+Gate: view_statistics (same as Draft Stats)
+Scope: current roster only
+
+Include every meaningful team-level stat the real stored data supports, including as many of the following as possible:
+- Overall W/L record and win rate
+- Win rate by map
+- Win rate by game mode
+- Win rate by event category
+- Win rate by event sub type
+- Win rate by opponent
+- Win rate by side (if side data exists)
+- Performance trend over time (last N matches/events)
+- Current win streak / loss streak
+- Best / worst streak ever
+- Tournament / event history with outcomes
+- Average match duration if stored
+- Most played game modes
+- Map pool breadth
+- Series record (BO1 / BO3 / BO5 breakdown if data supports it)
+- Home vs away performance if side/home data exists
+- Any other team-level performance dimension in the real schema
+
+2) PLAYER LEADERBOARD PAGE
+Sidebar: Analytics → Player Stats (or similar icon)
+Gate: view_statistics (same as Draft Stats)
+Scope: current roster only, only players linked to this roster
+
+Include every meaningful player-level stat the real stored data supports, including as many of the following as possible:
+- Win rate per player (when they are in the lineup)
+- Most played heroes/agents per player
+- Best performing heroes/agents per player (by win rate)
+- Hero pool size per player
+- Ban frequency for heroes that player typically plays
+- KDA or any stat fields available in the schema
+- Contribution scores if calculable from stored stat fields
+- Avg stat performance per game mode or map if enough data
+- Event history per player
+- Streak info per player if derivable
+- Any other player-level performance dimension in the real schema
+
+REQUIREMENTS
+- Same roster-scoped query pattern as Draft Stats (teamId + gameId + rosterId)
+- Same auth gating: requireGameAccess + view_statistics
+- Same deduplication logic as the fixed Draft Stats (dedupe per matchId to avoid double-counting)
+- Same UI style and component structure as Draft Stats
+- Add both pages to the sidebar under Analytics
+- Handle empty states with clear messages (same pattern as Draft Stats)
+- Do not break any existing pages
+- Do not touch forbidden files (vite.config.ts, server/vite.ts, package.json, drizzle.config.ts)
+- Add new endpoints to GAME_SCOPED_PREFIXES and gameAccessPaths (same as the auth fix done in Draft Stats)
+
+PROCESS
+- Inspect the existing schema (games, events, players, stat_fields, match results, attendance) before writing any code
+- Identify exactly which stats are supported by real stored data vs which are not
+- Build both pages on real data only — no mocks, no fakes
+- If a stat is not yet capturable from stored data, skip it and note it in the report
+
+REPORT AFTER IMPLEMENTATION
+1. All team stats added
+2. All player stats added
+3. Data sources / tables used
+4. How empty states are handled
+5. Any recommended next analytics pages or schema additions to unlock more stats later
