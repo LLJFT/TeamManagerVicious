@@ -1,0 +1,115 @@
+Do NOT touch any existing live data. Do NOT modify how the template 
+share/copy code is generated. Logic changes only where specified.
+
+---
+
+CHANGE 1 — Opponents tab in Game Template: add image UI
+
+In Game Templates → Edit Template → Opponents, the current columns are:
+Name | Short | Region | Logo URL | Active | Delete
+
+Keep all existing columns exactly as-is. Add the following to the 
+Logo URL column — same pattern as the Heroes image cell:
+  • Small image preview thumbnail (32×32px) if a logo exists
+  • "Upload" button → uploads to object storage → saves returned URL 
+    into the Logo URL field
+  • "Library" button → opens Media Library picker → saves selected URL 
+    into the Logo URL field
+  • Keep the Logo URL text input visible and editable (manual paste 
+    still works)
+  • If the URL is invalid or image fails to load, hide preview with 
+    visibility: hidden (not display: none) — do not collapse layout
+  • Use key={value} on the <img> so changing the URL always remounts 
+    the preview
+  • Existing Logo URL values must remain untouched
+
+---
+
+CHANGE 2 — Add "View Roster" inside the Opponents tab of Game Template
+
+In the live roster Dashboard, the Opponents tab already has a 
+"View Roster" button next to each opponent (small icon, visible 
+in the opponents list row).
+
+Add the exact same "View Roster" functionality inside the Opponents 
+tab of the Game Template editor — same position, same icon, same UX.
+
+When clicked, it opens a panel or dialog showing the template's own 
+player list with these fields per player:
+  • Player Name (required)
+  • IGN / In-Game Name (required)  
+  • Role (optional — dropdown from the template's roster roles if 
+    defined, otherwise free text)
+  • Notes (optional — plain text)
+  • Starter (on/off toggle — default off)
+
+Display as a table:
+  Player Name | IGN | Role | Notes | Starter | Delete
+
+Behavior:
+  • Same UX as the Players section in the live roster Dashboard
+  • "Add player" button at the bottom of the table
+  • Data is saved as part of the template only — no connection to 
+    any live roster
+  • Editing here does NOT affect any deployed roster
+
+---
+
+CHANGE 3 — Apply template code behavior: clear roster first
+
+Currently when a roster applies a Game Template code, it loads the 
+template data on top of existing roster data.
+
+Change this behavior:
+
+When a user pastes a template code into a roster and confirms apply:
+  1. Delete ALL existing roster data first:
+     - Players
+     - Game Modes
+     - Maps
+     - Heroes config
+     - Opponents
+     - Seasons
+     - Stat fields
+     - Any other config scoped to that roster
+  2. Then load all template data into the roster:
+     - Players (from template Roster tab)
+     - Game Modes
+     - Maps
+     - Heroes
+     - Opponents
+     - Seasons
+     - Stat fields
+     - All other template config
+  3. After the apply is complete, the roster runs independently —
+     future edits to the template do NOT automatically update this 
+     roster. The same template code can be applied again at any time 
+     to reset the roster back to the template's current state.
+  4. The template code itself does NOT change after being applied —
+     it stays exactly the same and can be reused on any roster 
+     any number of times.
+
+Show a warning dialog before applying:
+  "Applying this template will delete ALL existing data in this 
+   roster and replace it with the template data. This cannot be 
+   undone. Continue?"
+  Buttons: "Yes, apply template" (destructive red) | "Cancel"
+
+If the user cancels, nothing is deleted or changed.
+If any uploads fail during apply, still complete the apply but log 
+the failures — do not abort the entire operation.
+
+---
+
+SAFETY:
+  • Do NOT delete any data unless the user explicitly confirms the 
+    apply dialog
+  • Do NOT change how the template code is generated or stored
+  • Do NOT modify how templates are fetched or displayed
+  • Do NOT alter any existing live roster data
+  • Existing live roster data is untouched unless a user actively 
+    applies a template code and confirms the warning dialog
+  • Report after completion:
+    - Which files were changed
+    - What was added
+    - Confirm no existing data was deleted automatically
