@@ -4381,8 +4381,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const url = await svc.uploadBuffer(req.file.buffer, mime, ext);
         return res.json({ url, path: url });
       } catch (osErr: any) {
-        console.error('[upload] Object storage failed:',
-          { name: osErr?.name, message: osErr?.message, code: osErr?.code });
+        // Dump every field that GCS / the Replit sidecar typically uses to
+        // describe the failure. err.message alone often comes back as
+        // "Error code undefined" — the real diagnostic info lives in
+        // err.code / err.errors / err.response. This makes it possible to
+        // tell from a single deployment-log line whether the deployment is
+        // missing bucket grants, the env vars are unset, or it's a real
+        // transient GCS error.
+        const errorsStr = osErr?.errors ? JSON.stringify(osErr.errors).slice(0, 400) : undefined;
+        const respBody = osErr?.response?.body ? String(osErr.response.body).slice(0, 400) : undefined;
+        console.error('[upload] Object storage failed:', {
+          name: osErr?.name,
+          message: osErr?.message,
+          code: osErr?.code,
+          status: osErr?.response?.statusCode,
+          errors: errorsStr,
+          body: respBody,
+          privateDirSet: !!process.env.PRIVATE_OBJECT_DIR,
+          publicPathsSet: !!process.env.PUBLIC_OBJECT_SEARCH_PATHS,
+        });
 
         // Non-images in dev only: keep local-disk fallback so contributors
         // working offline can still upload e.g. CSVs. Images NEVER fall

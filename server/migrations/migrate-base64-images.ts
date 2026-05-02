@@ -236,6 +236,28 @@ export async function migrateBase64Images(): Promise<void> {
     return;
   }
 
+  // Health probe: try a single 1-byte upload before scanning the DB. If the
+  // sidecar is broken (e.g. deployment lacks bucket grants), this fails fast
+  // and we skip the per-row attempts so we don't generate hundreds of noisy
+  // failure lines. We also dump the real GCS error fields here, since
+  // err.message alone often comes back as "Error code undefined" — the
+  // useful information lives in err.code / err.errors / err.response.
+  try {
+    const probe = Buffer.from([0]);
+    await svc.uploadBuffer(probe, "application/octet-stream", ".probe");
+  } catch (err: any) {
+    const code = err?.code ?? err?.response?.statusCode ?? "?";
+    const msg = err?.message ?? String(err);
+    const inner = err?.errors ? JSON.stringify(err.errors).slice(0, 400) : "";
+    const respBody = err?.response?.body ? String(err.response.body).slice(0, 400) : "";
+    console.warn(
+      `[base64-migration] Object storage probe FAILED — skipping migration this boot. ` +
+      `code=${code} message=${msg}${inner ? ` errors=${inner}` : ""}${respBody ? ` body=${respBody}` : ""}. ` +
+      `On a deployed app this usually means the published instance lacks bucket grants — republish from Replit to refresh permissions.`
+    );
+    return;
+  }
+
   const counts: Counts = { scanned: 0, migrated: 0, failed: 0, skipped: 0, raced: 0 };
   const t0 = Date.now();
 
