@@ -50,3 +50,6 @@ TEAM_ID = "9ae96acf-6ae9-40b4-945b-86651991bfc3"
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
+
+[objectStorage]
+defaultBucketID = "replit-objstore-a0bb4cae-7d6e-4951-a797-13a4f72e1402"
