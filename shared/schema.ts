@@ -1402,6 +1402,19 @@ export interface GameTemplateConfig {
     isActive?: boolean;
     sortOrder?: number;
   }>;
+  // Template-scoped opponent rosters. Each player belongs to an opponent
+  // by tempId (re-linked to the new opponent uuid on apply). When the
+  // template is applied, these are inserted into `opponent_players`.
+  players?: Array<{
+    tempId: string;
+    opponentTempId: string;
+    name: string;
+    ign?: string | null;
+    role?: string | null;
+    notes?: string | null;
+    isStarter?: boolean;
+    sortOrder?: number;
+  }>;
   // ── Added in extended editor: full Dashboard-config parity ──
   sides?: Array<{
     tempId: string;

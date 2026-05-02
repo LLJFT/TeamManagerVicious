@@ -17,7 +17,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Plus, Trash2, ArrowLeft, Save, Copy, Upload, ImageIcon, X, FolderOpen } from "lucide-react";
+import { Plus, Trash2, ArrowLeft, Save, Copy, Upload, ImageIcon, X, FolderOpen, Users } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { MediaLibraryBrowser } from "@/components/MediaLibraryBrowser";
@@ -36,6 +36,7 @@ type Cfg = Required<{
   eventCategories: NonNullable<GameTemplateConfig["eventCategories"]>;
   availabilitySlots: NonNullable<GameTemplateConfig["availabilitySlots"]>;
   opponents: NonNullable<GameTemplateConfig["opponents"]>;
+  players: NonNullable<GameTemplateConfig["players"]>;
   sides: NonNullable<GameTemplateConfig["sides"]>;
   rosterRoles: NonNullable<GameTemplateConfig["rosterRoles"]>;
   heroRoles: NonNullable<GameTemplateConfig["heroRoles"]>;
@@ -54,6 +55,7 @@ function emptyCfg(): Cfg {
     eventCategories: [],
     availabilitySlots: [],
     opponents: [],
+    players: [],
     sides: [],
     rosterRoles: [],
     heroRoles: [],
@@ -74,6 +76,7 @@ function normalizeCfg(input: any): Cfg {
   c.eventCategories = Array.isArray(input.eventCategories) ? input.eventCategories : [];
   c.availabilitySlots = Array.isArray(input.availabilitySlots) ? input.availabilitySlots : [];
   c.opponents = Array.isArray(input.opponents) ? input.opponents : [];
+  c.players = Array.isArray(input.players) ? input.players : [];
   c.sides = Array.isArray(input.sides) ? input.sides : [];
   c.rosterRoles = Array.isArray(input.rosterRoles) ? input.rosterRoles : [];
   c.heroRoles = Array.isArray(input.heroRoles) ? input.heroRoles : [];
@@ -88,6 +91,11 @@ function normalizeCfg(input: any): Cfg {
   c.eventCategories.forEach(e => { if (!e.tempId) e.tempId = uid(); });
   c.availabilitySlots.forEach(s => { if (!s.tempId) s.tempId = uid(); });
   c.opponents.forEach(o => { if (!o.tempId) o.tempId = uid(); });
+  // Drop any player rows whose opponentTempId no longer matches an
+  // existing opponent (e.g. opponent was deleted). Heal missing tempIds.
+  const oppTempIds = new Set(c.opponents.map(o => o.tempId));
+  c.players = c.players.filter(p => p.opponentTempId && oppTempIds.has(p.opponentTempId));
+  c.players.forEach(p => { if (!p.tempId) p.tempId = uid(); });
   c.sides.forEach(s => { if (!s.tempId) s.tempId = uid(); });
   c.rosterRoles.forEach(r => { if (!r.tempId) r.tempId = uid(); });
   c.heroRoles.forEach(r => { if (!r.tempId) r.tempId = uid(); });
@@ -283,7 +291,7 @@ export default function GameTemplateEditorPage() {
         </TabsContent>
 
         <TabsContent value="opponents">
-          <OpponentsTab cfg={cfg} update={updateCfg} />
+          <OpponentsTab cfg={cfg} update={updateCfg} gameId={template.gameId} />
         </TabsContent>
 
         <TabsContent value="sides">
@@ -887,16 +895,69 @@ function AvailabilityTab({ cfg, update }: TabProps) {
   );
 }
 
-function OpponentsTab({ cfg, update }: TabProps) {
+function OpponentsTab({ cfg, update, gameId }: TabProps & { gameId: string | null }) {
+  const { toast } = useToast();
+  const [libraryOpenForRow, setLibraryOpenForRow] = useState<number | null>(null);
+  const [rosterOpenFor, setRosterOpenFor] = useState<string | null>(null);
   const add = () => update(p => ({
     ...p,
     opponents: [...p.opponents, { tempId: uid(), name: "", shortName: null, logoUrl: null, region: null, notes: null, isActive: true, sortOrder: p.opponents.length }],
+  }));
+  const setLogo = (i: number, url: string | null) => update(p => {
+    const list = [...p.opponents]; list[i] = { ...list[i], logoUrl: url }; return { ...p, opponents: list };
+  });
+  const removeOpp = (tempId: string) => update(p => ({
+    ...p,
+    opponents: p.opponents.filter(o => o.tempId !== tempId),
+    // Cascade: drop any template players that referenced this opponent.
+    players: p.players.filter(pl => pl.opponentTempId !== tempId),
+  }));
+  // Roles for the opponent-roster Role dropdown. Prefer the template's
+  // own player-type roster roles; fall back to free text when none.
+  const playerRoles = cfg.rosterRoles
+    .filter(r => (r.type ?? "player") === "player")
+    .map(r => r.name)
+    .filter(n => !!n);
+  const openRoster = rosterOpenFor
+    ? cfg.opponents.find(o => o.tempId === rosterOpenFor) ?? null
+    : null;
+  const oppPlayers = openRoster
+    ? cfg.players.filter(p => p.opponentTempId === openRoster.tempId)
+    : [];
+  const addPlayer = (oppTempId: string) => update(p => ({
+    ...p,
+    players: [
+      ...p.players,
+      {
+        tempId: uid(),
+        opponentTempId: oppTempId,
+        name: "",
+        ign: null,
+        role: null,
+        notes: null,
+        isStarter: true,
+        sortOrder: p.players.filter(pl => pl.opponentTempId === oppTempId).length,
+      },
+    ],
+  }));
+  const updatePlayer = (tempId: string, patch: Partial<Cfg["players"][number]>) => update(p => ({
+    ...p,
+    players: p.players.map(pl => pl.tempId === tempId ? { ...pl, ...patch } : pl),
+  }));
+  const removePlayer = (tempId: string) => update(p => ({
+    ...p,
+    players: p.players.filter(pl => pl.tempId !== tempId),
   }));
   return (
     <Card>
       <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2">
         <CardTitle className="text-base">Opponents</CardTitle>
-        <Button size="sm" onClick={add} data-testid="button-add-opp"><Plus className="h-4 w-4 mr-1" />Add Opponent</Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setLibraryOpenForRow(-1)} data-testid="button-browse-library-opps">
+            <FolderOpen className="h-4 w-4 mr-1" />Browse Library
+          </Button>
+          <Button size="sm" onClick={add} data-testid="button-add-opp"><Plus className="h-4 w-4 mr-1" />Add Opponent</Button>
+        </div>
       </CardHeader>
       <CardContent>
         {cfg.opponents.length === 0 ? (
@@ -905,11 +966,15 @@ function OpponentsTab({ cfg, update }: TabProps) {
           <Table>
             <TableHeader><TableRow>
               <TableHead>Name</TableHead><TableHead className="w-32">Short</TableHead>
-              <TableHead className="w-32">Region</TableHead><TableHead>Logo URL</TableHead>
+              <TableHead className="w-32">Region</TableHead>
+              <TableHead className="w-[280px]">Logo</TableHead>
+              <TableHead className="w-32">Roster</TableHead>
               <TableHead className="w-24">Active</TableHead><TableHead className="w-16"></TableHead>
             </TableRow></TableHeader>
             <TableBody>
-              {cfg.opponents.map((o, i) => (
+              {cfg.opponents.map((o, i) => {
+                const playerCount = cfg.players.filter(p => p.opponentTempId === o.tempId).length;
+                return (
                 <TableRow key={o.tempId} data-testid={`row-opp-${i}`}>
                   <TableCell>
                     <Input value={o.name} onChange={(e) => update(p => {
@@ -927,9 +992,27 @@ function OpponentsTab({ cfg, update }: TabProps) {
                     })} data-testid={`input-opp-region-${i}`} />
                   </TableCell>
                   <TableCell>
-                    <Input value={o.logoUrl ?? ""} placeholder="(opt)" onChange={(e) => update(p => {
-                      const list = [...p.opponents]; list[i] = { ...list[i], logoUrl: e.target.value || null }; return { ...p, opponents: list };
-                    })} data-testid={`input-opp-logo-${i}`} />
+                    <MapImageCell
+                      value={o.logoUrl}
+                      onChange={(url) => setLogo(i, url)}
+                      onBrowse={() => setLibraryOpenForRow(i)}
+                      onUploadError={(err) => toast({ title: "Upload failed", description: err, variant: "destructive" })}
+                      onUploaded={() => toast({ title: "Logo uploaded" })}
+                      testIdPrefix={`opp-logo-${i}`}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setRosterOpenFor(o.tempId)}
+                      data-testid={`button-view-roster-${i}`}
+                    >
+                      <Users className="h-4 w-4 mr-1" />View Roster
+                      {playerCount > 0 && (
+                        <Badge variant="secondary" className="ml-2">{playerCount}</Badge>
+                      )}
+                    </Button>
                   </TableCell>
                   <TableCell>
                     <Switch checked={o.isActive ?? true} onCheckedChange={(v) => update(p => {
@@ -937,18 +1020,142 @@ function OpponentsTab({ cfg, update }: TabProps) {
                     })} data-testid={`switch-opp-active-${i}`} />
                   </TableCell>
                   <TableCell>
-                    <Button size="icon" variant="ghost" onClick={() => update(p => ({
-                      ...p, opponents: p.opponents.filter((_, j) => j !== i),
-                    }))} data-testid={`button-remove-opp-${i}`}>
+                    <Button size="icon" variant="ghost" onClick={() => removeOpp(o.tempId)} data-testid={`button-remove-opp-${i}`}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </TableCell>
                 </TableRow>
-              ))}
+              );
+              })}
             </TableBody>
           </Table>
         )}
       </CardContent>
+
+      <Dialog open={libraryOpenForRow !== null} onOpenChange={(open) => { if (!open) setLibraryOpenForRow(null); }}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Media Library</DialogTitle>
+          </DialogHeader>
+          <MediaLibraryBrowser
+            filterGameId={gameId ?? undefined}
+            onSelect={(url) => {
+              if (libraryOpenForRow !== null && libraryOpenForRow >= 0) {
+                setLogo(libraryOpenForRow, url);
+                toast({ title: "Logo selected" });
+              } else {
+                navigator.clipboard.writeText(url).then(() => toast({ title: "URL copied" })).catch(() => {});
+              }
+              setLibraryOpenForRow(null);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={rosterOpenFor !== null} onOpenChange={(open) => { if (!open) setRosterOpenFor(null); }}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>
+              {openRoster ? `Roster — ${openRoster.name || "(unnamed opponent)"}` : "Roster"}
+            </DialogTitle>
+          </DialogHeader>
+          {openRoster && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  Template-scoped players. Loaded into this opponent's roster when the template is applied.
+                </p>
+                <Button size="sm" onClick={() => addPlayer(openRoster.tempId)} data-testid="button-add-opp-player">
+                  <Plus className="h-4 w-4 mr-1" />Add Player
+                </Button>
+              </div>
+              {oppPlayers.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No players in this opponent's roster yet.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead className="w-40">IGN</TableHead>
+                      <TableHead className="w-44">Role</TableHead>
+                      <TableHead>Notes</TableHead>
+                      <TableHead className="w-24">Starter</TableHead>
+                      <TableHead className="w-16"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {oppPlayers.map((p, i) => (
+                      <TableRow key={p.tempId} data-testid={`row-opp-player-${i}`}>
+                        <TableCell>
+                          <Input
+                            value={p.name}
+                            onChange={(e) => updatePlayer(p.tempId, { name: e.target.value })}
+                            data-testid={`input-opp-player-name-${i}`}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            value={p.ign ?? ""}
+                            placeholder="(opt)"
+                            onChange={(e) => updatePlayer(p.tempId, { ign: e.target.value || null })}
+                            data-testid={`input-opp-player-ign-${i}`}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          {playerRoles.length > 0 ? (
+                            <Select
+                              value={p.role ?? "__none__"}
+                              onValueChange={(v) => updatePlayer(p.tempId, { role: v === "__none__" ? null : v })}
+                            >
+                              <SelectTrigger data-testid={`select-opp-player-role-${i}`}><SelectValue placeholder="(none)" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__none__">(none)</SelectItem>
+                                {playerRoles.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Input
+                              value={p.role ?? ""}
+                              placeholder="(opt)"
+                              onChange={(e) => updatePlayer(p.tempId, { role: e.target.value || null })}
+                              data-testid={`input-opp-player-role-${i}`}
+                            />
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            value={p.notes ?? ""}
+                            placeholder="(opt)"
+                            onChange={(e) => updatePlayer(p.tempId, { notes: e.target.value || null })}
+                            data-testid={`input-opp-player-notes-${i}`}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Switch
+                            checked={p.isStarter ?? true}
+                            onCheckedChange={(v) => updatePlayer(p.tempId, { isStarter: v })}
+                            data-testid={`switch-opp-player-starter-${i}`}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => removePlayer(p.tempId)}
+                            data-testid={`button-remove-opp-player-${i}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

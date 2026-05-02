@@ -5,6 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -3565,13 +3569,13 @@ function ApplyTemplateCard({ rosterId, gameId, rosterDisplayName, gameDisplayNam
     <Card className="lg:col-span-2">
       <CardHeader className="pb-4 border-b border-border">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-primary/10">
-            <Database className="h-5 w-5 text-primary" />
+          <div className="p-2 rounded-lg bg-destructive/10">
+            <Database className="h-5 w-5 text-destructive" />
           </div>
           <div>
             <CardTitle className="text-xl">Apply Game Template</CardTitle>
             <CardDescription>
-              Replace this roster's game config with a saved template (modes, maps, heroes, stat fields, score config, event categories, availability times, opponents). Players, games, events, attendance, and history are not touched.
+              <span className="font-semibold text-destructive">Destructive.</span> Wipes ALL of this roster's data — players, events, games, attendance, history, scoreboard, schedules, off days, opponents and opponent rosters — then re-seeds everything from the template. Cannot be undone.
             </CardDescription>
           </div>
         </div>
@@ -3604,48 +3608,49 @@ function ApplyTemplateCard({ rosterId, gameId, rosterDisplayName, gameDisplayNam
           <div className="rounded-md border border-border p-3 bg-muted/30 text-sm space-y-1" data-testid="text-template-preview">
             <div className="font-medium">{preview.name} <span className="font-mono text-muted-foreground ml-1">{preview.code}</span></div>
             <div className="text-xs text-muted-foreground">
-              {tally("gameModes")} modes · {tally("maps")} maps · {tally("heroes")} heroes · {tally("statFields")} stat fields · {tally("eventCategories")} categories · {tally("availabilitySlots")} slots · {tally("opponents")} opponents
+              {tally("gameModes")} modes · {tally("maps")} maps · {tally("heroes")} heroes · {tally("statFields")} stat fields · {tally("eventCategories")} categories · {tally("availabilitySlots")} slots · {tally("opponents")} opponents · {tally("players")} opponent players
               {preview.config?.singleModeGame ? " · single-mode" : ""}
             </div>
           </div>
         )}
       </CardContent>
 
-      <Dialog open={confirmOpen} onOpenChange={(o) => { if (!applyMutation.isPending) setConfirmOpen(o); }}>
-        <DialogContent data-testid="dialog-apply-template">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+      <AlertDialog open={confirmOpen} onOpenChange={(o) => { if (!applyMutation.isPending) setConfirmOpen(o); }}>
+        <AlertDialogContent data-testid="dialog-apply-template">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-destructive" />
-              Confirm Apply Template
-            </DialogTitle>
-            <DialogDescription>
-              This wipes <strong>this roster's</strong> game modes, maps, heroes, stat fields, score config, event categories, availability times, and opponents — then re-seeds them from the template. Players, games, events, attendance, and history are untouched. Done in one transaction (any error rolls back).
-            </DialogDescription>
-          </DialogHeader>
-          <div className="rounded-md border border-border p-3 bg-muted/30 space-y-1">
+              Wipe roster &amp; apply template?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-destructive font-medium">
+              This permanently DELETES every piece of data on this roster — players, staff, events, games, attendance, history, scoreboard, schedules, off days, opponents, opponent rosters, team notes — and re-seeds the template's config. This cannot be undone. Done in one transaction (any error rolls back).
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="rounded-md border border-destructive/40 p-3 bg-destructive/5 space-y-1">
             <div className="text-xs text-muted-foreground">Game</div>
             <div className="font-medium">{gameDisplayName}</div>
-            <div className="text-xs text-muted-foreground mt-2">Roster</div>
+            <div className="text-xs text-muted-foreground mt-2">Roster (will be wiped)</div>
             <div className="font-medium">{rosterDisplayName}</div>
             {preview && (
               <>
-                <div className="text-xs text-muted-foreground mt-2">Template</div>
+                <div className="text-xs text-muted-foreground mt-2">Template (will be loaded)</div>
                 <div className="font-medium">{preview.name} <span className="font-mono text-muted-foreground">({preview.code})</span></div>
               </>
             )}
           </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setConfirmOpen(false)} disabled={applyMutation.isPending}>Cancel</Button>
-            <Button
-              onClick={() => applyMutation.mutate()}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={applyMutation.isPending} data-testid="button-cancel-apply">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); applyMutation.mutate(); }}
               disabled={applyMutation.isPending}
               data-testid="button-confirm-apply"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {applyMutation.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Applying…</> : "Apply Template"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              {applyMutation.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Wiping &amp; applying…</> : "Wipe roster & apply template"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

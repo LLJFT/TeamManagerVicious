@@ -1,7 +1,7 @@
 import type { Player, InsertPlayer, Schedule, InsertSchedule, Setting, InsertSetting, Event, InsertEvent, Attendance, InsertAttendance, TeamNotes, InsertTeamNotes, Game, InsertGame, GameMode, InsertGameMode, Map, InsertMap, Season, InsertSeason, OffDay, InsertOffDay, StatField, InsertStatField, PlayerGameStat, InsertPlayerGameStat, PlayerAvailabilityRecord, InsertPlayerAvailability, StaffAvailabilityRecord, InsertStaffAvailability, Staff, InsertStaff, AvailabilitySlot, RosterRole, SupportedGame, UserGameAssignment, Notification, EventCategory, InsertEventCategory, EventSubType, InsertEventSubType, Side, InsertSide, GameRound, InsertGameRound, Hero, InsertHero, HeroRoleConfig, InsertHeroRoleConfig, GameHero, InsertGameHero, Opponent, InsertOpponent, OpponentPlayer, InsertOpponentPlayer, MatchParticipant, InsertMatchParticipant, OpponentPlayerGameStat, InsertOpponentPlayerGameStat, HeroBanSystem, InsertHeroBanSystem, MapVetoSystem, InsertMapVetoSystem, GameHeroBanAction, InsertGameHeroBanAction, GameMapVetoRow, InsertGameMapVetoRow, GameTemplate, GameTemplateConfig } from "@shared/schema";
 import { players, schedules, settings, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays, statFields, playerGameStats, playerAvailability, staffAvailability, staff as staffTable, availabilitySlots, rosterRoles, supportedGames, userGameAssignments, notifications, users, rosters, eventCategories, eventSubTypes, sides, gameRounds, heroes, heroRoleConfigs, gameHeroes, opponents, opponentPlayers, matchParticipants, opponentPlayerGameStats, heroBanSystems, mapVetoSystems, gameHeroBanActions, gameMapVetoRows, gameTemplates, mediaFolders, mediaItems } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, isNull, desc, sql } from "drizzle-orm";
+import { eq, and, isNull, desc, sql, inArray } from "drizzle-orm";
 
 export function getTeamId(): string {
   const teamId = process.env.TEAM_ID || process.env.REPL_ID;
@@ -1282,22 +1282,65 @@ export class DbStorage implements IStorage {
     const config = (tpl.config || {}) as GameTemplateConfig;
 
     await db.transaction(async (tx) => {
-      // 1) DELETE existing config for this roster only.
+      // 1) WIPE ALL roster data first. The user has explicitly confirmed
+      //    a destructive apply via the AlertDialog on the client. We delete
+      //    operational data (players, events, games, attendance, history,
+      //    schedules, off days, opponents, opponent rosters, staff,
+      //    availability, team notes) IN ADDITION to the template-config
+      //    tables (modes, maps, heroes, etc).
+      //    PRESERVED: users, userGameAssignments, roles, notifications,
+      //    activityLogs (audit), rosters (the roster itself), settings
+      //    (except single_mode flag which is upserted below), chat,
+      //    media library.
       const scoped = (tbl: any) => and(
         eq(tbl.teamId, teamId),
         eq(tbl.gameId, gameId),
         eq(tbl.rosterId, rosterId),
       );
-      // Order matters: maps & statFields reference gameModes — delete them first.
-      // Sub-types reference event_categories (cascade) — delete sub-types before categories.
+
+      // Operational data — order matters for FK constraints. games has
+      //   ON DELETE CASCADE for: gameHeroes, gameRounds, gameHeroBanActions,
+      //   gameMapVetoRows, matchParticipants, playerGameStats, opponentPlayerGameStats.
+      // events has ON DELETE RESTRICT from games.eventId, so games MUST be
+      //   deleted before events.
+      // heroes has ON DELETE RESTRICT from gameHeroes.heroId, so games
+      //   MUST be deleted before heroes.
+      // opponents → opponentPlayers cascades. players → playerAvailability
+      //   cascades. staff → staffAvailability cascades.
+      await tx.delete(games).where(scoped(games));
+      await tx.delete(attendance).where(scoped(attendance));
+      await tx.delete(events).where(scoped(events));
+      await tx.delete(seasons).where(scoped(seasons));
+      await tx.delete(schedules).where(scoped(schedules));
+      await tx.delete(offDays).where(scoped(offDays));
+      await tx.delete(opponents).where(scoped(opponents));
+
+      // FK-safe: users.playerId references players.id with NO onDelete clause,
+      // so we MUST null out any user→player links for players in this roster
+      // BEFORE deleting players, or the transaction will roll back. Users
+      // themselves are preserved.
+      const playersToWipe = await tx.select({ id: players.id })
+        .from(players)
+        .where(scoped(players));
+      const playerIdsToWipe = playersToWipe.map(p => p.id);
+      if (playerIdsToWipe.length > 0) {
+        await tx.update(users)
+          .set({ playerId: null })
+          .where(and(eq(users.teamId, teamId), inArray(users.playerId, playerIdsToWipe)));
+      }
+      await tx.delete(players).where(scoped(players));
+      await tx.delete(staffTable).where(scoped(staffTable));
+      await tx.delete(teamNotes).where(scoped(teamNotes));
+
+      // Template-config tables (heroes after games; maps & statFields
+      // before gameModes; eventSubTypes before eventCategories).
+      await tx.delete(heroes).where(scoped(heroes));
       await tx.delete(maps).where(scoped(maps));
       await tx.delete(statFields).where(scoped(statFields));
       await tx.delete(gameModes).where(scoped(gameModes));
-      await tx.delete(heroes).where(scoped(heroes));
       await tx.delete(eventSubTypes).where(scoped(eventSubTypes));
       await tx.delete(eventCategories).where(scoped(eventCategories));
       await tx.delete(availabilitySlots).where(scoped(availabilitySlots));
-      await tx.delete(opponents).where(scoped(opponents));
       await tx.delete(rosterRoles).where(scoped(rosterRoles));
       await tx.delete(sides).where(scoped(sides));
       await tx.delete(heroBanSystems).where(scoped(heroBanSystems));
@@ -1384,18 +1427,46 @@ export class DbStorage implements IStorage {
       }));
       if (slotsIn.length > 0) await tx.insert(availabilitySlots).values(slotsIn);
 
-      const oppsIn = (config.opponents || []).map(o => ({
-        id: crypto.randomUUID(),
-        teamId, gameId, rosterId,
-        name: o.name,
-        shortName: o.shortName ?? null,
-        logoUrl: o.logoUrl ?? null,
-        region: o.region ?? null,
-        notes: o.notes ?? null,
-        isActive: o.isActive ?? true,
-        sortOrder: o.sortOrder ?? 0,
-      }));
+      const oppIdMap = new Map<string, string>();
+      const oppsIn = (config.opponents || []).map(o => {
+        const newId = crypto.randomUUID();
+        oppIdMap.set(o.tempId, newId);
+        return {
+          id: newId,
+          teamId, gameId, rosterId,
+          name: o.name,
+          shortName: o.shortName ?? null,
+          logoUrl: o.logoUrl ?? null,
+          region: o.region ?? null,
+          notes: o.notes ?? null,
+          isActive: o.isActive ?? true,
+          sortOrder: o.sortOrder ?? 0,
+        };
+      });
       if (oppsIn.length > 0) await tx.insert(opponents).values(oppsIn);
+
+      // Re-link template-scoped opponent players to the freshly inserted
+      // opponents via the tempId → newId map. Skip orphans (opponentTempId
+      // not found) — that means the user deleted the opponent but left
+      // dangling players in the template.
+      const oppPlayersIn = (config.players || [])
+        .filter(p => oppIdMap.has(p.opponentTempId))
+        .map(p => ({
+          id: crypto.randomUUID(),
+          teamId, gameId, rosterId,
+          opponentId: oppIdMap.get(p.opponentTempId)!,
+          // Append IGN to name in parens when present so the live
+          // opponent_players table (which has no separate IGN column)
+          // still shows it.
+          name: p.ign && p.ign.trim()
+            ? `${p.name} (${p.ign.trim()})`
+            : p.name,
+          role: p.role ?? null,
+          isStarter: p.isStarter ?? true,
+          sortOrder: p.sortOrder ?? 0,
+          notes: p.notes ?? null,
+        }));
+      if (oppPlayersIn.length > 0) await tx.insert(opponentPlayers).values(oppPlayersIn);
 
       const sidesIn = (config.sides || []).map(s => ({
         id: crypto.randomUUID(),
