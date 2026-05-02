@@ -1,0 +1,53 @@
+Fix and complete the Dataset (seed data) system for the roster/game management app.
+
+CONTEXT
+- Super_admin-only web app for managing esports rosters, games, and events.
+- Each game may have a Game Template defining its full config:
+  Hero Roles, Roster Roles, Hero Ban config, Map Veto config, Sides config,
+  Event Categories + Sub Types, Maps, Heroes/Agents, Opponents (with template players).
+
+REQUIREMENTS
+
+1. If the game HAS a Game Template:
+   - Pull all config from that template (Hero Roles, Roster Roles, Maps, Heroes,
+     Sides, Event Categories, Sub Types, Hero Ban config, Map Veto config, Opponents + players).
+   - Copy the data into the new roster — do NOT reference the template directly,
+     so editing the roster later cannot break or mutate the template.
+   - Link opponents and players correctly using the same tempId→newId resolution
+     logic already used in applyGameTemplate.
+
+2. If the game has NO Game Template:
+   - Run a sensible default dataset for that game.
+   - Create realistic defaults for: Maps, Heroes, Roster Roles, Hero Roles, Sides,
+     Event Categories + Sub Types, Hero Ban config, Map Veto config.
+   - Add at least 2 default opponents, each with at least 1 player with an IGN.
+
+3. GENERAL SEED REQUIREMENTS (applies to both paths):
+   - Roster info populated (name, game, status).
+   - Players/members with positions matching the Roster Roles from the template or defaults.
+   - Opponents with at least one player each (IGN required).
+   - All config tables seeded: maps, heroes, event categories, sub types,
+     hero ban config, map veto config, sides config.
+   - Every seeded roster must be clean, complete, and immediately usable after creation.
+
+4. SAFETY:
+   - Never overwrite or touch existing live rosters.
+   - Only apply to newly created rosters or explicit seed/reset actions triggered
+     by super_admin.
+   - Keep all seed/reset endpoints super_admin only.
+   - Do not break any existing data or foreign key relationships.
+   - Use the same FK-safe ordering already in applyGameTemplate
+     (null users.playerId before deleting players, etc.) if any wipe is involved.
+
+5. VALIDATION:
+   - After seeding, confirm: no broken references, all linked records exist,
+     template-sourced data is copied (not referenced), default path works for
+     games with no template.
+
+DELIVERABLES
+Please report:
+1. How template detection works (how you identify if a game has a template).
+2. What gets seeded from the template vs defaults (per data type).
+3. How opponents and players are structured and linked.
+4. Edge cases handled (missing template, partial template config, no heroes defined, etc.).
+5. Confirmation that existing rosters are untouched.

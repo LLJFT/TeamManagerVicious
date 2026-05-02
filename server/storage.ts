@@ -2,6 +2,8 @@ import type { Player, InsertPlayer, Schedule, InsertSchedule, Setting, InsertSet
 import { players, schedules, settings, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays, statFields, playerGameStats, playerAvailability, staffAvailability, staff as staffTable, availabilitySlots, rosterRoles, supportedGames, userGameAssignments, notifications, users, rosters, eventCategories, eventSubTypes, sides, gameRounds, heroes, heroRoleConfigs, gameHeroes, opponents, opponentPlayers, matchParticipants, opponentPlayerGameStats, heroBanSystems, mapVetoSystems, gameHeroBanActions, gameMapVetoRows, gameTemplates, mediaFolders, mediaItems } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, isNull, desc, sql, inArray } from "drizzle-orm";
+import { getGameDefaults, defaultIgn } from "./defaults/gameDefaults";
+import { OPPONENT_SEEDS_BY_GAME_SLUG } from "./defaults/realOpponents";
 
 export function getTeamId(): string {
   const teamId = process.env.TEAM_ID || process.env.REPL_ID;
@@ -166,6 +168,30 @@ export interface IStorage {
   updateGameTemplate(id: string, fields: { name?: string; config?: any }): Promise<GameTemplate | undefined>;
   deleteGameTemplate(id: string): Promise<boolean>;
   applyGameTemplate(templateId: string, rosterId: string, gameId: string): Promise<{ ok: true }>;
+  findDefaultTemplateForGame(gameId: string): Promise<GameTemplate | undefined>;
+  seedNewRoster(rosterId: string, gameId: string, opts?: { templateId?: string; force?: boolean }): Promise<SeedRosterResult>;
+}
+
+export interface SeedRosterResult {
+  source: "template" | "defaults" | "skipped";
+  templateId?: string;
+  templateName?: string;
+  counts: {
+    rosterRoles: number;
+    heroRoles: number;
+    sides: number;
+    eventCategories: number;
+    eventSubTypes: number;
+    gameModes: number;
+    maps: number;
+    statFields: number;
+    heroes: number;
+    heroBanSystems: number;
+    mapVetoSystems: number;
+    opponents: number;
+    opponentPlayers: number;
+  };
+  warnings: string[];
 }
 
 export class DbStorage implements IStorage {
@@ -1553,6 +1579,316 @@ export class DbStorage implements IStorage {
     });
 
     return { ok: true };
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Roster seeding (Dataset system)
+  // ──────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Pick a "default" Game Template for a game. Strategy: most recently updated
+   * template for the (team, game). Returns undefined if none exists.
+   */
+  async findDefaultTemplateForGame(gameId: string): Promise<GameTemplate | undefined> {
+    const teamId = getTeamId();
+    const rows = await db
+      .select()
+      .from(gameTemplates)
+      .where(and(eq(gameTemplates.teamId, teamId), eq(gameTemplates.gameId, gameId)))
+      .orderBy(desc(gameTemplates.updatedAt))
+      .limit(1);
+    return rows[0];
+  }
+
+  /**
+   * Seed a roster with a complete, immediately-usable dataset.
+   *
+   *   - If a templateId is given OR a Game Template exists for this game → copy
+   *     it via applyGameTemplate (destructive, FK-safe wipe + insert).
+   *   - Else → seed from per-game defaults inside one transaction.
+   *
+   * Safety:
+   *   - force=false (default): if the roster already has ANY data
+   *     (rosterRoles, sides, players, opponents, gameModes, eventCategories,
+   *     heroBanSystems, mapVetoSystems), return {source:"skipped"} without
+   *     touching anything. This is what auto-seed-on-create relies on to never
+   *     overwrite a live roster.
+   *   - force=true: wipe first (same logic as applyGameTemplate) then re-seed.
+   */
+  async seedNewRoster(
+    rosterId: string,
+    gameId: string,
+    opts: { templateId?: string; force?: boolean } = {},
+  ): Promise<SeedRosterResult> {
+    const teamId = getTeamId();
+    const force = !!opts.force;
+    const warnings: string[] = [];
+    const emptyCounts = {
+      rosterRoles: 0, heroRoles: 0, sides: 0, eventCategories: 0, eventSubTypes: 0,
+      gameModes: 0, maps: 0, statFields: 0, heroes: 0,
+      heroBanSystems: 0, mapVetoSystems: 0, opponents: 0, opponentPlayers: 0,
+    };
+
+    // 1) Live-roster guard for non-force seeds.
+    if (!force) {
+      const scoped = (tbl: any) => and(
+        eq(tbl.teamId, teamId), eq(tbl.gameId, gameId), eq(tbl.rosterId, rosterId),
+      );
+      const [rrCount, sideCount, oppCount, pCount, gmCount, ecCount, hbCount, mvCount] = await Promise.all([
+        db.select({ id: rosterRoles.id }).from(rosterRoles).where(scoped(rosterRoles)).limit(1),
+        db.select({ id: sides.id }).from(sides).where(scoped(sides)).limit(1),
+        db.select({ id: opponents.id }).from(opponents).where(scoped(opponents)).limit(1),
+        db.select({ id: players.id }).from(players).where(scoped(players)).limit(1),
+        db.select({ id: gameModes.id }).from(gameModes).where(scoped(gameModes)).limit(1),
+        db.select({ id: eventCategories.id }).from(eventCategories).where(scoped(eventCategories)).limit(1),
+        db.select({ id: heroBanSystems.id }).from(heroBanSystems).where(scoped(heroBanSystems)).limit(1),
+        db.select({ id: mapVetoSystems.id }).from(mapVetoSystems).where(scoped(mapVetoSystems)).limit(1),
+      ]);
+      if (rrCount.length || sideCount.length || oppCount.length || pCount.length ||
+          gmCount.length || ecCount.length || hbCount.length || mvCount.length) {
+        return { source: "skipped", counts: emptyCounts, warnings: ["roster already populated; pass force=true to re-seed"] };
+      }
+    }
+
+    // 2) Resolve game slug — needed for picking defaults & opponent seed list.
+    const gameRow = await db.select().from(supportedGames)
+      .where(and(eq(supportedGames.teamId, teamId), eq(supportedGames.id, gameId)))
+      .limit(1);
+    const gameSlug = gameRow[0]?.slug ?? null;
+    if (!gameSlug) warnings.push("supportedGames row not found for gameId; using generic defaults");
+
+    // 3) Template path — explicit templateId OR auto-detected default template.
+    let template: GameTemplate | undefined;
+    if (opts.templateId) {
+      template = await this.getGameTemplate(opts.templateId);
+      if (!template) throw new Error("Template not found");
+      if (template.gameId !== gameId) throw new Error("Template game does not match roster game");
+    } else {
+      template = await this.findDefaultTemplateForGame(gameId);
+    }
+
+    if (template) {
+      await this.applyGameTemplate(template.id, rosterId, gameId);
+      const cfg = (template.config || {}) as GameTemplateConfig;
+      return {
+        source: "template",
+        templateId: template.id,
+        templateName: template.name,
+        counts: {
+          rosterRoles: cfg.rosterRoles?.length ?? 0,
+          heroRoles: cfg.heroRoles?.length ?? 0,
+          sides: cfg.sides?.length ?? 0,
+          eventCategories: cfg.eventCategories?.length ?? 0,
+          eventSubTypes: cfg.eventSubTypes?.length ?? 0,
+          gameModes: cfg.gameModes?.length ?? 0,
+          maps: cfg.maps?.length ?? 0,
+          statFields: cfg.statFields?.length ?? 0,
+          heroes: cfg.heroes?.length ?? 0,
+          heroBanSystems: cfg.heroBanSystems?.length ?? 0,
+          mapVetoSystems: cfg.mapVetoSystems?.length ?? 0,
+          opponents: cfg.opponents?.length ?? 0,
+          opponentPlayers: cfg.players?.length ?? 0,
+        },
+        warnings,
+      };
+    }
+
+    // 4) Defaults path.
+    const defaults = getGameDefaults(gameSlug);
+    const counts = { ...emptyCounts };
+
+    await db.transaction(async (tx) => {
+      // Force: wipe first using same FK-safe ordering as applyGameTemplate.
+      if (force) {
+        const scoped = (tbl: any) => and(
+          eq(tbl.teamId, teamId), eq(tbl.gameId, gameId), eq(tbl.rosterId, rosterId),
+        );
+        await tx.delete(games).where(scoped(games));
+        await tx.delete(attendance).where(scoped(attendance));
+        await tx.delete(events).where(scoped(events));
+        await tx.delete(seasons).where(scoped(seasons));
+        await tx.delete(schedules).where(scoped(schedules));
+        await tx.delete(offDays).where(scoped(offDays));
+        await tx.delete(opponents).where(scoped(opponents));
+        const playersToWipe = await tx.select({ id: players.id }).from(players).where(scoped(players));
+        const playerIdsToWipe = playersToWipe.map(p => p.id);
+        if (playerIdsToWipe.length > 0) {
+          await tx.update(users).set({ playerId: null })
+            .where(and(eq(users.teamId, teamId), inArray(users.playerId, playerIdsToWipe)));
+        }
+        await tx.delete(players).where(scoped(players));
+        await tx.delete(staffTable).where(scoped(staffTable));
+        await tx.delete(teamNotes).where(scoped(teamNotes));
+        await tx.delete(heroes).where(scoped(heroes));
+        await tx.delete(maps).where(scoped(maps));
+        await tx.delete(statFields).where(scoped(statFields));
+        await tx.delete(gameModes).where(scoped(gameModes));
+        await tx.delete(eventSubTypes).where(scoped(eventSubTypes));
+        await tx.delete(eventCategories).where(scoped(eventCategories));
+        await tx.delete(rosterRoles).where(scoped(rosterRoles));
+        await tx.delete(sides).where(scoped(sides));
+        await tx.delete(heroBanSystems).where(scoped(heroBanSystems));
+        await tx.delete(mapVetoSystems).where(scoped(mapVetoSystems));
+      }
+
+      // 4a) Roster Roles
+      if (defaults.rosterRoles.length > 0) {
+        const rows = defaults.rosterRoles.map(r => ({
+          teamId, gameId, rosterId,
+          name: r.name, type: r.type, sortOrder: r.sortOrder,
+        }));
+        await tx.insert(rosterRoles).values(rows);
+        counts.rosterRoles = rows.length;
+      }
+
+      // 4b) Hero Roles — TEAM-shared `hero_role_configs`. Idempotent: insert
+      //     only if (team, game) currently has none, so we don't leak roles
+      //     across rosters.
+      if (defaults.heroRoles.length > 0) {
+        const existing = await tx.select({ id: heroRoleConfigs.id })
+          .from(heroRoleConfigs)
+          .where(and(eq(heroRoleConfigs.teamId, teamId), eq(heroRoleConfigs.gameId, gameId)))
+          .limit(1);
+        if (existing.length === 0) {
+          await tx.insert(heroRoleConfigs).values(
+            defaults.heroRoles.map((name, i) => ({
+              teamId, gameId, name, sortOrder: i, isActive: true,
+            }))
+          );
+          counts.heroRoles = defaults.heroRoles.length;
+        }
+      }
+
+      // 4c) Sides
+      if (defaults.sides.length > 0) {
+        await tx.insert(sides).values(defaults.sides.map((name, i) => ({
+          teamId, gameId, rosterId, name, sortOrder: String(i),
+        })));
+        counts.sides = defaults.sides.length;
+      }
+
+      // 4d) Event Categories + Sub Types
+      for (const cat of defaults.eventCategories) {
+        const inserted = await tx.insert(eventCategories).values({
+          teamId, gameId, rosterId, name: cat.name, color: cat.color, sortOrder: counts.eventCategories,
+        }).returning({ id: eventCategories.id });
+        counts.eventCategories++;
+        const catId = inserted[0].id;
+        if (cat.subs.length > 0) {
+          await tx.insert(eventSubTypes).values(cat.subs.map((sub, j) => ({
+            teamId, gameId, rosterId, categoryId: catId, name: sub, sortOrder: j,
+          })));
+          counts.eventSubTypes += cat.subs.length;
+        }
+      }
+
+      // 4e) Game Modes → Maps → Stat Fields. Each game mode owns its maps and
+      //     stat fields so the relations are coherent.
+      for (const mode of defaults.gameModes) {
+        const inserted = await tx.insert(gameModes).values({
+          teamId, gameId, rosterId, name: mode.name, sortOrder: String(counts.gameModes),
+        }).returning({ id: gameModes.id });
+        counts.gameModes++;
+        const modeId = inserted[0].id;
+        if (mode.maps.length > 0) {
+          await tx.insert(maps).values(mode.maps.map((m, j) => ({
+            teamId, gameId, rosterId, name: m, gameModeId: modeId, sortOrder: String(j),
+          })));
+          counts.maps += mode.maps.length;
+        }
+        if (mode.statFields.length > 0) {
+          await tx.insert(statFields).values(mode.statFields.map(s => ({
+            teamId, gameId, rosterId, name: s, gameModeId: modeId,
+          })));
+          counts.statFields += mode.statFields.length;
+        }
+      }
+
+      // 4f) Heroes — only games with a curated default hero list (Overwatch,
+      //     Marvel Rivals). Other games get an empty heroes pool that the
+      //     team will populate themselves.
+      if (defaults.heroes.length > 0) {
+        await tx.insert(heroes).values(defaults.heroes.map((h, i) => ({
+          teamId, gameId, rosterId,
+          name: h.name, role: h.role, imageUrl: h.imageUrl ?? null,
+          isActive: true, sortOrder: i,
+        })));
+        counts.heroes = defaults.heroes.length;
+      }
+
+      // 4g) Hero Ban System (one preset).
+      if (defaults.heroBanSystem) {
+        await tx.insert(heroBanSystems).values({
+          teamId, gameId, rosterId,
+          name: defaults.heroBanSystem.name,
+          mode: defaults.heroBanSystem.mode,
+          bansPerTeam: defaults.heroBanSystem.bansPerTeam,
+          enabled: true,
+        });
+        counts.heroBanSystems = 1;
+      }
+
+      // 4h) Map Veto System (one preset).
+      if (defaults.mapVetoSystem) {
+        await tx.insert(mapVetoSystems).values({
+          teamId, gameId, rosterId,
+          name: defaults.mapVetoSystem.name,
+          defaultRowCount: defaults.mapVetoSystem.defaultRowCount,
+          enabled: true,
+        });
+        counts.mapVetoSystems = 1;
+      }
+
+      // 4i) Opponents — pull real names from OPPONENT_SEEDS_BY_GAME_SLUG; pad
+      //     to ≥2 with placeholders if the seed list is short. Each opponent
+      //     gets `defaultPlayersPerOpponent` generic players with IGN baked
+      //     into the name as "DisplayName (ign)" — mirroring the template
+      //     apply path which uses the same column convention.
+      const seedList = (gameSlug && OPPONENT_SEEDS_BY_GAME_SLUG[gameSlug]) || [];
+      const oppDefs: Array<{ name: string; shortName: string | null; region: string | null }> = [];
+      for (const o of seedList.slice(0, 6)) {
+        oppDefs.push({ name: o.name, shortName: o.shortName ?? null, region: o.region ?? null });
+      }
+      while (oppDefs.length < 2) {
+        const i = oppDefs.length + 1;
+        oppDefs.push({ name: `Opponent ${i}`, shortName: `OPP${i}`, region: null });
+      }
+
+      const playerRoleNames = defaults.rosterRoles
+        .filter(r => r.type === "player")
+        .map(r => r.name);
+
+      for (const o of oppDefs) {
+        const inserted = await tx.insert(opponents).values({
+          teamId, gameId, rosterId,
+          name: o.name, shortName: o.shortName, region: o.region,
+          isActive: true, sortOrder: counts.opponents,
+        }).returning({ id: opponents.id });
+        counts.opponents++;
+        const opponentId = inserted[0].id;
+
+        const igNamePrefix = (o.shortName ?? o.name).toLowerCase().replace(/[^a-z0-9]+/g, "");
+        const playerRows = Array.from({ length: defaults.defaultPlayersPerOpponent }).map((_, idx) => {
+          const ign = `${igNamePrefix || "player"}${idx + 1}`;
+          const displayName = `Player ${idx + 1}`;
+          const role = playerRoleNames.length > 0
+            ? playerRoleNames[idx % playerRoleNames.length]
+            : null;
+          return {
+            teamId, gameId, rosterId, opponentId,
+            name: `${displayName} (${ign})`,
+            role, isStarter: idx < 5, sortOrder: idx,
+          };
+        });
+        await tx.insert(opponentPlayers).values(playerRows);
+        counts.opponentPlayers += playerRows.length;
+      }
+    });
+
+    // Suppress unused-import warning when defaultIgn isn't reached above.
+    void defaultIgn;
+
+    return { source: "defaults", counts, warnings };
   }
 }
 
