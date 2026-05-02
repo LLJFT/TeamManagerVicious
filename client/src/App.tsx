@@ -25,6 +25,9 @@ import UnifiedStats from "@/pages/UnifiedStats";
 import Compare from "@/pages/Compare";
 import OpponentStats from "@/pages/OpponentStats";
 import DraftStats from "@/pages/DraftStats";
+import MapInsights from "@/pages/MapInsights";
+import HeroInsights from "@/pages/HeroInsights";
+import Trends from "@/pages/Trends";
 import TeamLeaderboard from "@/pages/TeamLeaderboard";
 import PlayerLeaderboard from "@/pages/PlayerLeaderboard";
 import Players from "@/pages/Players";
@@ -58,6 +61,9 @@ function GameRoutes({ slug }: { slug: string }) {
       <Route path={`${basePath}/compare`} component={Compare} />
       <Route path={`${basePath}/opponents`} component={OpponentStats} />
       <Route path={`${basePath}/draft-stats`} component={DraftStats} />
+      <Route path={`${basePath}/map-insights`} component={MapInsights} />
+      <Route path={`${basePath}/hero-insights`} component={HeroInsights} />
+      <Route path={`${basePath}/trends`} component={Trends} />
       <Route path={`${basePath}/team-leaderboard`} component={TeamLeaderboard} />
       <Route path={`${basePath}/player-leaderboard`} component={PlayerLeaderboard} />
       <Route path={`${basePath}/players`} component={Players} />

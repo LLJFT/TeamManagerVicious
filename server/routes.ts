@@ -456,7 +456,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "/api/stat-fields", "/api/player-stats-summary", "/api/team-notes",
     "/api/activity-logs",
     "/api/hero-ban-actions", "/api/map-veto-rows", "/api/game-heroes",
-    "/api/match-participants", "/api/player-game-stats",
+    "/api/match-participants", "/api/player-game-stats", "/api/game-rounds",
   ];
   for (const path of gameAccessPaths) {
     app.use(path, requireGameAccess);
@@ -3787,6 +3787,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(rows);
     } catch (error: any) {
       console.error('Error in GET /api/player-game-stats:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.get("/api/game-rounds", requireAuth, requirePermission("view_statistics"), async (req, res) => {
+    try {
+      const gameId = getGameId(req);
+      const rosterId = getRosterId(req);
+      const opponentId = (req.query.opponentId as string | undefined) || undefined;
+      if (!gameId || !rosterId) return res.json([]);
+      const rows = await storage.getGameRoundsByRoster(gameId, rosterId, opponentId);
+      res.json(rows);
+    } catch (error: any) {
+      console.error('Error in GET /api/game-rounds:', error);
       res.status(500).json({ error: error.message || "Internal server error" });
     }
   });

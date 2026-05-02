@@ -136,6 +136,7 @@ export interface IStorage {
   updateSide(id: string, side: Partial<InsertSide>, gameId?: string | null, rosterId?: string | null): Promise<Side>;
   removeSide(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean>;
   getRoundsForGame(matchId: string): Promise<GameRound[]>;
+  getGameRoundsByRoster(gameId: string, rosterId: string, opponentId?: string): Promise<GameRound[]>;
   replaceRoundsForGame(matchId: string, rounds: Omit<InsertGameRound, "matchId">[], gameId?: string | null, rosterId?: string | null): Promise<GameRound[]>;
   duplicateEvent(eventId: string, gameId?: string | null, rosterId?: string | null): Promise<Event>;
   getAllStatFields(gameId?: string | null, rosterId?: string | null): Promise<StatField[]>;
@@ -920,6 +921,21 @@ export class DbStorage implements IStorage {
     const teamId = getTeamId();
     return await db.select().from(gameRounds)
       .where(and(eq(gameRounds.matchId, matchId), eq(gameRounds.teamId, teamId)));
+  }
+
+  async getGameRoundsByRoster(gameId: string, rosterId: string, opponentId?: string): Promise<GameRound[]> {
+    const teamId = getTeamId();
+    const conditions: any[] = [
+      eq(gameRounds.teamId, teamId),
+      eq(gameRounds.gameId, gameId),
+      eq(games.rosterId, rosterId),
+    ];
+    if (opponentId) conditions.push(eq(games.opponentId, opponentId));
+    const rows = await db.select({ r: gameRounds })
+      .from(gameRounds)
+      .innerJoin(games, eq(gameRounds.matchId, games.id))
+      .where(and(...conditions));
+    return rows.map(r => r.r);
   }
 
   async replaceRoundsForGame(matchId: string, rounds: Omit<InsertGameRound, "matchId">[], gameId?: string | null, rosterId?: string | null): Promise<GameRound[]> {

@@ -40,7 +40,7 @@ export const GAME_SCOPED_PREFIXES = [
   "/api/users", "/api/roles", "/api/activity-logs",
   "/api/game-assignments/pending",
   "/api/hero-ban-actions", "/api/map-veto-rows", "/api/game-heroes",
-  "/api/match-participants",
+  "/api/match-participants", "/api/game-rounds",
 ];
 
 function shouldAppendGameId(url: string): boolean {

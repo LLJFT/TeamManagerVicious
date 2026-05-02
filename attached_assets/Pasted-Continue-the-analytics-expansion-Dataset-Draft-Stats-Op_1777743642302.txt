@@ -1,0 +1,92 @@
+Continue the analytics expansion.
+
+Dataset, Draft Stats, Opponent Scouting, Team Leaderboard, and Player Leaderboard are all done.
+
+Now do a full statistics audit and expansion pass. The goal is maximum analytics coverage across every roster.
+
+IMPORTANT FREEDOM
+You are free to:
+- Add as many new pages as needed inside each roster
+- Reorganize the Analytics sidebar structure if it improves clarity
+- Group related stats together in a way that makes sense for a coach or analyst
+- Add sub-tabs, sections, or drill-downs inside existing pages
+- Create entirely new pages if a stat area deserves its own space
+
+The only requirements are:
+- Everything must be roster-scoped (real data only, no mocks)
+- All pages gated behind view_statistics
+- Same auth/dedup/empty-state conventions as Draft Stats
+- Do not break existing pages
+- Do not touch forbidden files (vite.config.ts, server/vite.ts, package.json, drizzle.config.ts)
+- New endpoints must be added to GAME_SCOPED_PREFIXES and gameAccessPaths
+
+STEP 1 — AUDIT FIRST
+Before writing any code, audit every existing analytics page:
+- List what stats currently exist
+- List what is missing or underdeveloped
+- Identify any data that exists in the DB but is not surfaced anywhere in the UI
+- Identify what a head coach or analyst would most want that is currently missing
+
+STEP 2 — EXPAND AND ADD
+
+After the audit, expand and add stats across every area.
+Here is what I want covered — add as much as the real stored data supports:
+
+MAP STATISTICS
+- Total times played, win rate, pick rate by us, pick rate by opponent
+- Ban rate by us, ban rate by opponent
+- Decider frequency and decider win rate
+- Performance trend over time
+- Performance per opponent
+- Best map, worst map clearly highlighted
+
+HERO / AGENT STATISTICS
+- Total picks, win rate per hero
+- Ban rate per hero (how often banned against us)
+- Pick + ban combined priority score
+- Heroes never played
+- Heroes always banned before we play them
+- Hero performance per player
+- Hero pool depth per player
+- Meta presence across all matches
+
+BAN STATISTICS
+- Our ban patterns overall
+- Opponent ban patterns overall
+- Opponent-specific ban tendencies
+- Priority bans (consistently banned across all opponents)
+- Situational bans (only against certain opponents)
+- Ban efficiency (are we banning high win-rate heroes)
+
+PLAYER STATISTICS
+- Win rate, most played heroes, best/worst performing heroes
+- Hero pool size, matches played
+- KDA if stat fields support it
+- Any available stat field values per player
+- Performance trend over time if possible
+
+TEAM STATISTICS
+- Overall W/L/D, win rate by map, mode, side, opponent
+- Event performance history, current streak
+- Best and worst performing periods
+
+OPPONENT STATISTICS
+- Head to head record per opponent
+- Maps played vs each opponent
+- Ban and hero patterns per opponent
+- Win rate per opponent
+- Threat level rating based on head to head
+- Make sure scouting insights are complete and visible
+
+STEP 3 — FINAL COVERAGE CHECK
+After building everything:
+- Is there any data in the DB that is not surfaced anywhere in the UI?
+- Are there any obvious stats a coach or analyst would want that are still missing?
+- Flag anything that needs more stored data to be meaningful
+
+REPORT AFTER IMPLEMENTATION
+1. Full list of new or improved stats per section
+2. New pages or UI structure changes made
+3. Any DB data not surfaced and why
+4. Any stat that needs more match history to be meaningful
+5. Recommended next steps for analytics depth
