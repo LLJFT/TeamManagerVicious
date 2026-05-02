@@ -1,0 +1,49 @@
+Continue from the existing Dataset work.
+
+I need you to make sure the roster creation / roster view flow is correct end-to-end, especially when the roster is created from a Game Template.
+
+IMPORTANT ISSUE TO FIX
+The “View Roster” behavior inside Game Template is not matching the real Dashboard roster view.
+That means the template side is not fully linked to the real roster system yet.
+
+Please fix this so the template-generated roster behaves exactly like a real roster in the dashboard.
+
+WHAT TO VERIFY AND FIX
+
+1) Roster linkage
+- When a roster is created from a Game Template, it must be truly linked to the real roster data model.
+- The roster created from the template must not be a fake preview or disconnected copy.
+- The result must be a working roster in the dashboard, not just a template-only object.
+
+2) View Roster consistency
+- The “View Roster” entry inside Game Template must behave consistently with the actual roster dashboard view.
+- The data shown there must reflect the real roster structure and saved records.
+- Do not show a different or partial structure in the template view.
+
+3) Players and team data
+- Make sure the template-based roster actually adds players/members correctly.
+- Ensure the roster members, team info, opponents, and linked config are all created properly.
+- The roster should be fully usable after creation.
+
+4) Template correctness
+- Game Template should seed or apply data in a way that is correct, complete, and stable.
+- The template should not miss any required relations.
+- Everything should be connected properly across the roster, players, opponents, maps, heroes, roles, and config.
+
+5) Dashboard parity
+- The roster created from the template must look and behave like a normal dashboard roster.
+- If the dashboard roster view supports editing, viewing, and linked records, the template-created roster must support the same behavior.
+- The template should not produce a special-case broken roster.
+
+6) Safety
+- Do not break existing rosters.
+- Do not change unrelated systems.
+- Keep the work super_admin only.
+- Preserve existing data.
+
+What I want from you:
+1. Fix the template → roster creation linkage.
+2. Make View Roster from Game Template align with the real roster dashboard.
+3. Ensure players/members are actually created and attached correctly.
+4. Verify the overall template flow is working end-to-end.
+5. Report exactly what was corrected and what now matches the dashboard.

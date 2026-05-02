@@ -7,13 +7,15 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Pencil, Trash2 } from "lucide-react";
-import type { Opponent, OpponentPlayer } from "@shared/schema";
+import type { Opponent, OpponentPlayer, RosterRole } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
 interface OpponentPlayerForm {
   name: string;
+  ign: string;
   role: string;
   isStarter: boolean;
   notes: string;
@@ -21,10 +23,27 @@ interface OpponentPlayerForm {
 
 const emptyOppPlayer: OpponentPlayerForm = {
   name: "",
+  ign: "",
   role: "",
   isStarter: true,
   notes: "",
 };
+
+// Mirrors the template-apply convention in server/storage.ts:
+// applyGameTemplate stores opponent players as `"DisplayName (ign)"` in
+// `opponent_players.name` (no separate IGN column). Parse that back into
+// separate fields for editing, then re-bake on save.
+function splitNameAndIgn(stored: string): { name: string; ign: string } {
+  const m = /^(.*?)\s*\(([^()]+)\)\s*$/.exec(stored ?? "");
+  if (m) return { name: m[1].trim(), ign: m[2].trim() };
+  return { name: stored ?? "", ign: "" };
+}
+
+function combineNameAndIgn(name: string, ign: string): string {
+  const n = name.trim();
+  const i = ign.trim();
+  return i ? `${n} (${i})` : n;
+}
 
 export function OpponentRosterDialog({
   opponent,
@@ -50,6 +69,27 @@ export function OpponentRosterDialog({
       return r.json();
     },
   });
+
+  // Roster-roles for the role dropdown — same pattern as the Dashboard
+  // and the template editor's "View Roster" dialog. The default fetcher
+  // injects gameId/rosterId from the current roster context.
+  const { data: rosterRoles = [] } = useQuery<RosterRole[]>({
+    queryKey: ["/api/roster-roles", { gameId: opponent?.gameId, rosterId: opponent?.rosterId }],
+    enabled: !!opponent,
+  });
+  const playerRoles = useMemo(
+    () => rosterRoles.filter(r => (r.type ?? "player") === "player").map(r => r.name),
+    [rosterRoles],
+  );
+  // Preserve the currently-selected role even when it's not in the roster's
+  // configured rosterRoles list (e.g. legacy data, or role typed before
+  // rosterRoles existed). Otherwise the Select would render empty and the
+  // value would silently flip on save.
+  const roleOptions = useMemo(() => {
+    const r = form.role.trim();
+    if (r && !playerRoles.includes(r)) return [r, ...playerRoles];
+    return playerRoles;
+  }, [playerRoles, form.role]);
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -90,13 +130,15 @@ export function OpponentRosterDialog({
   });
 
   const handleAddOrUpdate = () => {
-    const trimmed = form.name.trim();
-    if (!trimmed) {
+    const trimmedName = form.name.trim();
+    if (!trimmedName) {
       toast({ title: "Player name is required", variant: "destructive" });
       return;
     }
+    // Bake "Display (ign)" so the existing template-apply convention is preserved.
+    const bakedName = combineNameAndIgn(trimmedName, form.ign);
     const payload = {
-      name: trimmed,
+      name: bakedName,
       role: form.role.trim() || null,
       isStarter: form.isStarter,
       notes: form.notes.trim() || null,
@@ -110,9 +152,11 @@ export function OpponentRosterDialog({
   };
 
   const startEdit = (p: OpponentPlayer) => {
+    const split = splitNameAndIgn(p.name);
     setEditingPlayer(p);
     setForm({
-      name: p.name,
+      name: split.name,
+      ign: split.ign,
       role: p.role ?? "",
       isStarter: p.isStarter,
       notes: p.notes ?? "",
@@ -124,8 +168,11 @@ export function OpponentRosterDialog({
     setForm(emptyOppPlayer);
   };
 
+  // Pre-split players so the displayed name and IGN match the template editor's split fields.
   const sortedPlayers = useMemo(() =>
-    [...players].sort((a, b) => Number(b.isStarter) - Number(a.isStarter) || a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)),
+    [...players]
+      .map(p => ({ ...p, _split: splitNameAndIgn(p.name) }))
+      .sort((a, b) => Number(b.isStarter) - Number(a.isStarter) || a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)),
   [players]);
 
   return (
@@ -147,15 +194,36 @@ export function OpponentRosterDialog({
                 <Input
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder="Player name / IGN"
+                  placeholder="Player name"
                   data-testid="input-opp-player-name"
                 />
                 <Input
-                  value={form.role}
-                  onChange={(e) => setForm({ ...form, role: e.target.value })}
-                  placeholder="Role (e.g. Duelist)"
-                  data-testid="input-opp-player-role"
+                  value={form.ign}
+                  onChange={(e) => setForm({ ...form, ign: e.target.value })}
+                  placeholder="IGN (optional)"
+                  data-testid="input-opp-player-ign"
                 />
+              </div>
+              <div>
+                {roleOptions.length > 0 ? (
+                  <Select
+                    value={form.role || "__none__"}
+                    onValueChange={(v) => setForm({ ...form, role: v === "__none__" ? "" : v })}
+                  >
+                    <SelectTrigger data-testid="select-opp-player-role"><SelectValue placeholder="Role (optional)" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">(none)</SelectItem>
+                      {roleOptions.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    value={form.role}
+                    onChange={(e) => setForm({ ...form, role: e.target.value })}
+                    placeholder="Role (e.g. Duelist)"
+                    data-testid="input-opp-player-role"
+                  />
+                )}
               </div>
               <Textarea
                 value={form.notes}
@@ -205,12 +273,15 @@ export function OpponentRosterDialog({
                   <div key={p.id} className="flex items-center gap-2 p-2 border border-border rounded-md" data-testid={`row-opp-player-${p.id}`}>
                     <Avatar className="h-7 w-7 shrink-0">
                       <AvatarFallback className="text-[10px]">
-                        {p.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+                        {p._split.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-medium truncate" data-testid={`text-opp-player-name-${p.id}`}>{p.name}</span>
+                        <span className="text-sm font-medium truncate" data-testid={`text-opp-player-name-${p.id}`}>{p._split.name}</span>
+                        {p._split.ign && (
+                          <Badge variant="outline" data-testid={`badge-opp-player-ign-${p.id}`}>{p._split.ign}</Badge>
+                        )}
                         {p.isStarter ? (
                           <Badge variant="secondary" data-testid={`badge-opp-player-starter-${p.id}`}>Starter</Badge>
                         ) : (
@@ -227,7 +298,7 @@ export function OpponentRosterDialog({
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startEdit(p)} data-testid={`button-edit-opp-player-${p.id}`}>
                           <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { if (confirm(`Remove "${p.name}"?`)) deleteMutation.mutate(p.id); }} data-testid={`button-delete-opp-player-${p.id}`}>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { if (confirm(`Remove "${p._split.name}"?`)) deleteMutation.mutate(p.id); }} data-testid={`button-delete-opp-player-${p.id}`}>
                           <Trash2 className="h-3.5 w-3.5 text-destructive" />
                         </Button>
                       </div>
