@@ -3734,7 +3734,7 @@ function SeedRosterCard({ rosterId, gameId, rosterDisplayName, gameDisplayName }
           <div>
             <CardTitle className="text-xl">Seed Roster (Dataset)</CardTitle>
             <CardDescription>
-              <span className="font-semibold text-destructive">Destructive.</span> Wipes this roster and re-seeds it. Leave the template code blank to use the per-game defaults (roles, sides, modes, maps, categories, heroes, opponents + players). Type a template code to seed from that template instead.
+              <span className="font-semibold text-destructive">Destructive.</span> Wipes this roster and re-seeds it. Leave the template code blank to auto-pick: if this game has a Game Template, the most recently updated one is used; otherwise the curated per-game defaults (roles, sides, modes, maps, categories, heroes, opponents + players). Type a template code to force-seed from that specific template.
             </CardDescription>
           </div>
         </div>
@@ -3758,7 +3758,7 @@ function SeedRosterCard({ rosterId, gameId, rosterDisplayName, gameDisplayName }
               Seed Roster
             </DialogTitle>
             <DialogDescription>
-              Wipes ALL of this roster's config + opponents + players, then re-seeds. Optional: type a template code to seed from that template; otherwise the per-game defaults are used.
+              Wipes ALL of this roster's config + opponents + players, then re-seeds. Optional template code forces a specific template; left blank, the system uses this game's default template if one exists, otherwise per-game defaults.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-md border border-border p-3 bg-muted/30 space-y-1">
@@ -3782,7 +3782,7 @@ function SeedRosterCard({ rosterId, gameId, rosterDisplayName, gameDisplayName }
             {looking && <p className="text-xs text-muted-foreground">Looking up…</p>}
             {lookupError && <p className="text-xs text-destructive" data-testid="text-seed-code-error">{lookupError}</p>}
             {resolvedTemplateId && <p className="text-xs text-emerald-700 dark:text-emerald-300" data-testid="text-seed-code-ok">Template found · will seed from it.</p>}
-            {!code.trim() && <p className="text-xs text-muted-foreground">No code entered → will use per-game defaults.</p>}
+            {!code.trim() && <p className="text-xs text-muted-foreground">No code entered → uses this game's default Game Template if one exists, otherwise per-game defaults.</p>}
           </div>
           <div className="space-y-1">
             <Label htmlFor="seed-password">Enter admin password to confirm</Label>
