@@ -3,7 +3,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db";
-import { eq, and, ilike, sql, isNull, inArray, or } from "drizzle-orm";
+import { eq, ne, and, ilike, sql, isNull, inArray, or } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { requireAuth, requirePermission, requireOrgRole, requireGameAccess } from "./auth";
 import { getTeamId } from "./storage";
@@ -269,6 +269,18 @@ async function logActivity(userId: string | null, action: string, details?: stri
 
 function generateRosterCode(): string {
   return String(Math.floor(1000000000 + Math.random() * 9000000000));
+}
+
+// Normalize a user-supplied slug: lowercase, alphanumeric + dashes only,
+// collapse consecutive dashes, trim leading/trailing dashes. Returns "" if
+// nothing usable remains.
+function normalizeSlug(input: string): string {
+  return String(input || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 export async function ensureRostersExist() {
@@ -6083,10 +6095,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ==================== GAME MANAGEMENT ====================
   app.post("/api/supported-games", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
     try {
-      const { name, slug, abbreviation } = req.body;
-      if (!name || !slug) return res.status(400).json({ message: "Name and slug are required" });
+      const { name, slug } = req.body;
+      if (!name || typeof name !== "string" || !name.trim()) {
+        return res.status(400).json({ message: "Name is required" });
+      }
+      const normalized = normalizeSlug(slug || name);
+      if (!normalized) {
+        return res.status(400).json({
+          message: "Slug is invalid. Use lowercase letters, numbers, and hyphens only (e.g. \"valorant\" or \"rocket-league\").",
+        });
+      }
+      const existing = await db.select({ id: supportedGames.id })
+        .from(supportedGames)
+        .where(eq(supportedGames.slug, normalized))
+        .limit(1);
+      if (existing.length > 0) {
+        return res.status(409).json({ message: `Slug "${normalized}" is already taken by another game.` });
+      }
       const [game] = await db.insert(supportedGames)
-        .values({ name, slug: slug.toLowerCase().replace(/[^a-z0-9-]/g, '-'), sortOrder: 999 })
+        .values({ name: name.trim(), slug: normalized, sortOrder: 999 })
         .returning();
       const teamId = getTeamId();
       const defaultRosters = [
@@ -6095,11 +6122,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         { name: "Team 3", slug: "team-3", sortOrder: 2 },
         { name: "Team 4", slug: "team-4", sortOrder: 3 },
       ];
+      const createdRosters: any[] = [];
       for (const r of defaultRosters) {
-        await db.insert(rosters).values({ teamId, gameId: game.id, name: r.name, slug: r.slug, sortOrder: r.sortOrder, code: generateRosterCode() });
+        const [roster] = await db.insert(rosters)
+          .values({ teamId, gameId: game.id, name: r.name, slug: r.slug, sortOrder: r.sortOrder, code: generateRosterCode() })
+          .returning();
+        createdRosters.push(roster);
+      }
+      // Auto-seed every roster of the brand-new game using template/defaults precedence.
+      // Failures are logged but never block game creation — the roster is still usable
+      // and can be re-seeded from the Reset Roster tab by a super_admin.
+      const seedSummary: { rosterId: string; ok: boolean; source?: string; error?: string }[] = [];
+      for (const r of createdRosters) {
+        try {
+          const result = await storage.seedNewRoster(r.id, game.id, {});
+          seedSummary.push({ rosterId: r.id, ok: true, source: result?.source });
+        } catch (e: any) {
+          const msg = e?.message || String(e);
+          seedSummary.push({ rosterId: r.id, ok: false, error: msg });
+          console.error(`[seed] auto-seed failed for new-game roster ${r.id}:`, e);
+        }
       }
       logActivity(req.session.userId!, "add_game", `Added game "${name}"`, "system");
-      res.json(game);
+      res.json({ ...game, seedSummary });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -6107,11 +6152,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/supported-games/:id", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
     try {
-      const { name, slug, abbreviation, iconUrl } = req.body;
+      const { name, slug, iconUrl } = req.body;
       const updates: any = {};
-      if (name) updates.name = name;
-      if (slug) updates.slug = slug.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+      if (name && typeof name === "string" && name.trim()) updates.name = name.trim();
+      if (slug !== undefined && slug !== null && slug !== "") {
+        const normalized = normalizeSlug(slug);
+        if (!normalized) {
+          return res.status(400).json({
+            message: "Slug is invalid. Use lowercase letters, numbers, and hyphens only.",
+          });
+        }
+        const existing = await db.select({ id: supportedGames.id })
+          .from(supportedGames)
+          .where(and(eq(supportedGames.slug, normalized), ne(supportedGames.id, req.params.id)))
+          .limit(1);
+        if (existing.length > 0) {
+          return res.status(409).json({ message: `Slug "${normalized}" is already taken by another game.` });
+        }
+        updates.slug = normalized;
+      }
       if (iconUrl !== undefined) updates.iconUrl = iconUrl;
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ message: "No fields to update" });
+      }
       const [updated] = await db.update(supportedGames)
         .set(updates)
         .where(eq(supportedGames.id, req.params.id))
@@ -6158,7 +6221,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { name, slug } = req.body;
       if (!name) return res.status(400).json({ message: "Name is required" });
       const teamId = getTeamId();
-      const rosterSlug = (slug || name).toLowerCase().replace(/[^a-z0-9-]/g, '-');
+      const rosterSlug = normalizeSlug(slug || name) || "team";
       const [roster] = await db.insert(rosters)
         .values({ teamId, gameId: req.params.gameId, name, slug: rosterSlug, sortOrder: 99, code: generateRosterCode() })
         .returning();

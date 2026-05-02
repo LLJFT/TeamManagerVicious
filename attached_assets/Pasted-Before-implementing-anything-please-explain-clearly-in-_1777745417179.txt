@@ -1,0 +1,48 @@
+Before implementing anything, please explain clearly in plain language:
+
+1) What is the "Game Slug" field in the Game Management page?
+2) What exactly is it used for in this system?
+3) Where does it appear — in URLs, in code, in the database?
+4) Is it auto-generated from the Game Name or do I type it manually?
+5) What are the rules for a valid slug? (casing, spaces, special characters, uniqueness)
+6) What happens if two games have the same slug?
+7) Give me a real example from the current system — show me an existing game's name and its slug side by side
+
+After explaining, please verify and fix the following:
+
+A) NEW ROSTER FOR EXISTING GAME
+- When I add a new roster to any existing game it must be complete and usable immediately
+- No broken links, missing config, missing tabs, or empty pages
+- Seed/dataset must run correctly using the Game Template if one exists, or sensible defaults if not
+
+B) NEW GAME WITH NEW ROSTERS
+- When I add a brand new game with rosters everything must work correctly
+- The game must appear in navigation
+- Its rosters must be accessible and complete
+- No missing tables, broken relations, or missing config
+
+C) SLUG VALIDATION
+- Verify the slug is being validated correctly when a game is created or edited
+- Enforce: lowercase only, no spaces (use hyphens), no special characters, must be unique
+- If slug is not auto-generated from the name, add auto-generation with manual override option
+- Show a clear error if the slug is invalid or already taken
+
+D) URL FORMAT
+- Verify that every new roster gets a long unique UUID-style URL consistent with existing rosters
+- Example format: /roster/valorant/4d366c88-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+- No short or broken URLs
+- The URL must load the roster correctly after creation
+
+E) SAFETY
+- Do not touch or break existing rosters or games
+- Do not change the URL format of existing rosters
+- Only improve the creation flow for new items
+- Keep super_admin gating where it exists
+
+After implementation report:
+1. Full plain-language explanation of Game Slug with a real example
+2. What was verified and fixed in the new roster creation flow
+3. What was verified and fixed in the new game creation flow
+4. Slug validation rules now enforced
+5. URL format confirmation for new rosters
+6. Any edge cases or risks found

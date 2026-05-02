@@ -48,6 +48,7 @@ export default function SettingsPage() {
   const [gameIconUploading, setGameIconUploading] = useState<string | null>(null);
   const [addGameName, setAddGameName] = useState("");
   const [addGameSlug, setAddGameSlug] = useState("");
+  const [addGameSlugTouched, setAddGameSlugTouched] = useState(false);
   const [editingGame, setEditingGame] = useState<string | null>(null);
   const [editGameName, setEditGameName] = useState("");
   const [addRosterFor, setAddRosterFor] = useState<string | null>(null);
@@ -97,17 +98,46 @@ export default function SettingsPage() {
     onSuccess: () => { toast({ title: "Theme applied" }); queryClient.invalidateQueries({ queryKey: ["/api/org-setting/org_theme"] }); },
   });
 
+  const normalizeSlug = (input: string) =>
+    String(input || "")
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9-]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-+|-+$/g, "");
+
+  const previewedGameSlug = useMemo(() => {
+    const raw = addGameSlugTouched && addGameSlug ? addGameSlug : addGameName;
+    return normalizeSlug(raw);
+  }, [addGameName, addGameSlug, addGameSlugTouched]);
+
+  const slugConflict = useMemo(
+    () => previewedGameSlug && allGames.some(g => g.slug === previewedGameSlug),
+    [previewedGameSlug, allGames],
+  );
+
   const addGameMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("POST", "/api/supported-games", { name: addGameName, slug: addGameSlug || addGameName.toLowerCase().replace(/[^a-z0-9]/g, '-') });
+      await apiRequest("POST", "/api/supported-games", {
+        name: addGameName.trim(),
+        slug: previewedGameSlug,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/supported-games"] });
       queryClient.invalidateQueries({ queryKey: ["/api/all-rosters"] });
-      setAddGameName(""); setAddGameSlug("");
-      toast({ title: "Game added" });
+      setAddGameName(""); setAddGameSlug(""); setAddGameSlugTouched(false);
+      toast({ title: "Game added", description: "4 default rosters created and seeded." });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => {
+      const msg = String(e?.message || "Unknown error");
+      const isConflict = msg.startsWith("409");
+      toast({
+        title: isConflict ? "Slug already taken" : "Could not add game",
+        description: msg.replace(/^\d+:\s*/, ""),
+        variant: "destructive",
+      });
+    },
   });
 
   const editGameMutation = useMutation({
@@ -369,18 +399,55 @@ export default function SettingsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-end gap-3 flex-wrap">
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Game Name</label>
-              <Input value={addGameName} onChange={(e) => setAddGameName(e.target.value)} placeholder="e.g., Rocket League" data-testid="input-add-game-name" />
+          <div className="space-y-2">
+            <div className="flex items-end gap-3 flex-wrap">
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Game Name</label>
+                <Input
+                  value={addGameName}
+                  onChange={(e) => setAddGameName(e.target.value)}
+                  placeholder="e.g., Rocket League"
+                  data-testid="input-add-game-name"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Slug (URL)</label>
+                <Input
+                  value={addGameSlug}
+                  onChange={(e) => { setAddGameSlug(e.target.value); setAddGameSlugTouched(true); }}
+                  placeholder="auto from name (e.g., rocket-league)"
+                  data-testid="input-add-game-slug"
+                />
+              </div>
+              <Button
+                onClick={() => addGameMutation.mutate()}
+                disabled={!addGameName.trim() || !previewedGameSlug || !!slugConflict || addGameMutation.isPending}
+                data-testid="button-add-game"
+              >
+                <Plus className="h-4 w-4 mr-2" /> Add Game
+              </Button>
             </div>
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Slug</label>
-              <Input value={addGameSlug} onChange={(e) => setAddGameSlug(e.target.value)} placeholder="e.g., rocket-league" data-testid="input-add-game-slug" />
+            {addGameName.trim() && (
+              <div className="text-xs text-muted-foreground" data-testid="text-slug-preview">
+                {previewedGameSlug ? (
+                  <>
+                    URL preview: <code className="px-1 py-0.5 rounded bg-muted">/{previewedGameSlug}/...</code>
+                    {slugConflict && (
+                      <span className="ml-2 text-destructive font-medium">
+                        — already used by another game, please change.
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-destructive">
+                    Slug is empty after cleaning. Use lowercase letters, numbers, or hyphens.
+                  </span>
+                )}
+              </div>
+            )}
+            <div className="text-[11px] text-muted-foreground">
+              Rules: lowercase letters, numbers and hyphens only. Must be unique. Adding a game also creates Team 1–4 with full default config.
             </div>
-            <Button onClick={() => addGameMutation.mutate()} disabled={!addGameName || addGameMutation.isPending} data-testid="button-add-game">
-              <Plus className="h-4 w-4 mr-2" /> Add Game
-            </Button>
           </div>
 
           <div className="space-y-3">
