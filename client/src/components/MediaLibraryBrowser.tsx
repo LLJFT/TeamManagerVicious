@@ -438,14 +438,23 @@ function CustomFolderCard({
             <ObjectUploader
               buttonSize="sm"
               buttonVariant="outline"
+              multiple
               onUploaded={(r) => {
                 const url = r.url;
-                const base = url.split("/").pop()?.replace(/\.[^.]+$/, "") || "image";
+                // Prefer the original filename (minus extension) over the
+                // randomized object-storage path so the gallery thumbnails
+                // are actually identifiable when batch-uploading.
+                const original = r.file?.name?.replace(/\.[^.]+$/, "");
+                const fallback = url.split("/").pop()?.replace(/\.[^.]+$/, "") || "image";
+                // Each call inside a batch needs a distinct sortOrder
+                // (otherwise N concurrent items all land on the same slot
+                // and ordering becomes nondeterministic). Stamp with
+                // Date.now() so back-to-back uploads stay in pick order.
                 addItem.mutate({
                   folderId: folder.id,
-                  name: base,
+                  name: original || fallback,
                   url,
-                  sortOrder: folder.items.length,
+                  sortOrder: folder.items.length + Date.now(),
                 });
               }}
               onError={(msg) => toast({ title: "Upload failed", description: msg, variant: "destructive" })}

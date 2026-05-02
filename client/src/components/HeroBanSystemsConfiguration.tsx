@@ -252,9 +252,14 @@ export function HeroBanSystemsConfiguration({ canEdit }: { canEdit: boolean }) {
                 <Input id="hbs-lpt" type="number" min={0} value={form.locksPerTeam} onChange={(e) => setForm({ ...form, locksPerTeam: Number(e.target.value) })} data-testid="input-hbs-locks-per-team" />
               </div>
             </div>
-            <div className="flex items-center justify-between gap-2">
-              <Label htmlFor="hbs-target">Bans target enemy heroes</Label>
-              <Switch id="hbs-target" checked={form.bansTargetEnemy} onCheckedChange={(v) => setForm({ ...form, bansTargetEnemy: v })} data-testid="switch-hbs-bans-target-enemy" />
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="hbs-target">Bans target enemy heroes</Label>
+                <Switch id="hbs-target" checked={form.bansTargetEnemy} onCheckedChange={(v) => setForm({ ...form, bansTargetEnemy: v })} data-testid="switch-hbs-bans-target-enemy" />
+              </div>
+              <p className="text-xs text-muted-foreground leading-snug">
+                ON: each team bans heroes from the other team. OFF: bans remove heroes from their own pool.
+              </p>
             </div>
             <div className="flex items-center justify-between gap-2">
               <Label htmlFor="hbs-secure">Locks secure own heroes</Label>
@@ -286,9 +291,14 @@ export function HeroBanSystemsConfiguration({ canEdit }: { canEdit: boolean }) {
                   <Label htmlFor="hbs-rht">Reset bans on halftime</Label>
                   <Switch id="hbs-rht" checked={form.bansResetOnHalftime} onCheckedChange={(v) => setForm({ ...form, bansResetOnHalftime: v })} data-testid="switch-hbs-halftime" />
                 </div>
-                <div className="flex items-center justify-between gap-2">
-                  <Label htmlFor="hbs-acc">Bans accumulate across rounds</Label>
-                  <Switch id="hbs-acc" checked={form.bansAccumulate} onCheckedChange={(v) => setForm({ ...form, bansAccumulate: v })} data-testid="switch-hbs-accumulate" />
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="hbs-acc">Bans persist across rounds</Label>
+                    <Switch id="hbs-acc" checked={form.bansAccumulate} onCheckedChange={(v) => setForm({ ...form, bansAccumulate: v })} data-testid="switch-hbs-accumulate" />
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-snug">
+                    ON: bans from earlier rounds stay active. OFF: bans reset at the start of each round.
+                  </p>
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor="hbs-ot">Overtime behavior</Label>

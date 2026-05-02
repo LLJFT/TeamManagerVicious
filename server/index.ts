@@ -7,6 +7,7 @@ import { fixupTestData } from "./seed-fixup";
 import { ensureBossSuperAdmin } from "./ensure-boss-admin";
 import { ensureHeroRoleConfigs } from "./ensure-hero-role-configs";
 import { dedupeGameScopedEntities } from "./migrations/dedupe-game-scoped";
+import { migrateBase64Images } from "./migrations/migrate-base64-images";
 import { ensureOverwatchHeroes } from "./ensure-overwatch-heroes";
 import { ensureOpponents } from "./ensure-opponents";
 import { runHealthCheck } from "./health-check";
@@ -117,6 +118,12 @@ app.use((req, res, next) => {
           // for these entities, so duplicates are cosmetic until cleaned.
           dedupeGameScopedEntities().catch(err => {
             console.error("[boot-bg] dedupe-game-scoped error:", err?.message || err);
+          });
+          // Round 3 fix: migrate any legacy base64 image columns to
+          // object-storage URLs. Idempotent — safe to run on every boot;
+          // skips anything already migrated.
+          migrateBase64Images().catch(err => {
+            console.error("[boot-bg] migrate-base64-images error:", err?.message || err);
           });
         })
         .catch(err => {

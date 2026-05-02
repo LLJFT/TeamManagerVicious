@@ -4368,42 +4368,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "image/x-icon", "image/vnd.microsoft.icon",
       ]);
 
-      // Try object storage first for everything — returns a short, stable
+      // Always go to object storage — returns a short, stable
       // /objects/uploads/<id>.<ext> URL that lives in GCS via the Replit
-      // sidecar and survives every redeploy / container restart. Keeps the
-      // DB row tiny (no megabytes of base64 in JSON bodies → no 413s).
+      // sidecar and survives every redeploy / container restart. We
+      // intentionally do NOT fall back to base64-in-the-DB anymore: those
+      // payloads were causing 413s on save and brutal lag in the editor.
+      // If object storage is unreachable, surface a clean 503 so the user
+      // can retry rather than corrupt the row with megabytes of base64.
       try {
         const { ObjectStorageService } = await import("./objectStorage");
         const svc = new ObjectStorageService();
         const url = await svc.uploadBuffer(req.file.buffer, mime, ext);
         return res.json({ url, path: url });
       } catch (osErr: any) {
-        console.warn('[upload] Object storage unavailable, falling back. Detail:',
+        console.error('[upload] Object storage failed:',
           { name: osErr?.name, message: osErr?.message, code: osErr?.code });
 
-        // Fallback for images: embed as a data URL so the image is still
-        // persisted directly in the DB column and survives any container
-        // restart. Cap raw size at 5 MB so the post-base64 payload (~6.7 MB)
-        // stays comfortably under the 10 MB JSON body limit set in
-        // server/index.ts and never reproduces the 413 we just fixed.
-        if (allowedImageMimes.has(mime)) {
-          const MAX_DATA_URL_BYTES = 5 * 1024 * 1024;
-          if (req.file.buffer.length > MAX_DATA_URL_BYTES) {
-            return res.status(503).json({
-              error: "Image storage temporarily unavailable. Please retry in a moment, or upload an image smaller than 5 MB.",
-            });
-          }
-          const dataUrl = `data:${mime};base64,${req.file.buffer.toString("base64")}`;
-          return res.json({ url: dataUrl, path: dataUrl });
+        // Non-images in dev only: keep local-disk fallback so contributors
+        // working offline can still upload e.g. CSVs. Images NEVER fall
+        // back to local disk because that disk is wiped on redeploy.
+        if (!allowedImageMimes.has(mime) && process.env.NODE_ENV !== "production") {
+          const dir = path.join(UPLOAD_DIR, "general");
+          fs.mkdirSync(dir, { recursive: true });
+          const filename = `${randomUUID()}${ext}`;
+          fs.writeFileSync(path.join(dir, filename), req.file.buffer);
+          const filePath = `/uploads/general/${filename}`;
+          return res.json({ url: filePath, path: filePath });
         }
 
-        // Fallback for non-images: local disk (ephemeral; only for dev).
-        const dir = path.join(UPLOAD_DIR, "general");
-        fs.mkdirSync(dir, { recursive: true });
-        const filename = `${randomUUID()}${ext}`;
-        fs.writeFileSync(path.join(dir, filename), req.file.buffer);
-        const filePath = `/uploads/general/${filename}`;
-        return res.json({ url: filePath, path: filePath });
+        return res.status(503).json({
+          error: "Image storage is temporarily unavailable. Please try again in a moment.",
+        });
       }
     } catch (error: any) {
       console.error('Error in POST /api/objects/upload:', error);

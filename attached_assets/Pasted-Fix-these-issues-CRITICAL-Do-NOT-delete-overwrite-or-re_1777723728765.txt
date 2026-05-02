@@ -1,0 +1,66 @@
+Fix these issues. 
+
+⚠️ CRITICAL: Do NOT delete, overwrite, or reset any existing live data — 
+heroes, maps, image URLs, template config, everything on the live site 
+must remain exactly as-is after these fixes. This includes all existing 
+image URLs already saved in hero records. If a hero already has an image 
+URL, it must still be there after the fix — do not clear it, do not 
+replace it unless the user explicitly uploads a new image for that hero.
+
+FIX 1 — 413 error + lag: images stored as base64 instead of URLs
+Templates are saving map and hero images as raw base64 strings directly 
+in the database. This causes:
+  • 413 "request entity too large" when saving
+  • Extreme lag when loading the template editor
+
+Fix this properly:
+  1. When a user uploads an image (map or hero), upload it to object 
+     storage and save only the returned URL — never store base64 in 
+     the database
+  2. For ALL existing records that currently have base64 values in their 
+     image fields, migrate them: upload each base64 image to object 
+     storage, replace the database value with the returned URL
+  3. After migration, verify all existing images still display correctly
+  4. The migration must be non-destructive — if any upload fails, keep 
+     the original base64 value for that record and log the error
+
+FIX 2 — Media Library: allow uploading multiple images at once
+Currently the upload button only allows selecting 1 file at a time.
+Change the file input to accept multiple files: 
+<input type="file" multiple accept="image/*" />
+When multiple files are selected, upload them all and show a progress 
+indicator. All uploaded images must appear in the library when done.
+
+FIX 3 — Heroes tab: add upload UI without touching existing data
+In Game Templates → Edit Template → Heroes, the Image URL column is 
+currently a plain text input.
+
+⚠️ Every hero that already has an image URL must keep that URL — do NOT 
+clear or reset any existing image field values. The goal is to ADD a 
+better UI on top of the existing field, not replace the data.
+
+Replace the plain text input with this layout per hero row:
+  • A small image preview thumbnail (32×32px) shown if an image exists
+  • An "Upload" button — on upload, store via object storage and 
+    populate the URL field with the returned URL
+  • A "Library" button — on pick, populate the URL field with the 
+    selected image URL
+  • Keep the text input VISIBLE so the user can manually paste a URL
+  • If a URL is pasted manually, show its preview immediately
+  • Uploading or picking from library only REPLACES the value if the 
+    user actively does so — never auto-clear the existing value
+
+FIX 4 — Rename toggle + add clear explanations in Hero Ban Systems
+Rename the "Bans Accumulate" toggle to "Bans Persist Across Rounds".
+
+Add helper text next to it:
+"When enabled, any hero banned in a round stays banned for the entire 
+match — bans are permanent and carry across all rounds. When disabled, 
+each round starts fresh with no active bans."
+
+Add helper text next to "Bans Target Enemy":
+"When enabled, each team's bans remove heroes from the opponent's hero 
+pool only. When disabled, bans remove the hero from both teams' pools."
+
+Stop after all fixes. Report what was changed and how many image records 
+were migrated from base64 to URLs.

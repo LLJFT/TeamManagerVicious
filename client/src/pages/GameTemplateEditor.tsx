@@ -263,7 +263,7 @@ export default function GameTemplateEditorPage() {
         </TabsContent>
 
         <TabsContent value="heroes">
-          <HeroesTab cfg={cfg} update={updateCfg} />
+          <HeroesTab cfg={cfg} update={updateCfg} gameId={template.gameId} />
         </TabsContent>
 
         <TabsContent value="stats">
@@ -568,7 +568,9 @@ function MapImageCell({
 
 const FALLBACK_HERO_ROLES = ["Other"];
 
-function HeroesTab({ cfg, update }: TabProps) {
+function HeroesTab({ cfg, update, gameId }: TabProps & { gameId: string | null }) {
+  const { toast } = useToast();
+  const [libraryOpenForRow, setLibraryOpenForRow] = useState<number | null>(null);
   const heroRoles = cfg.heroRoles.length > 0
     ? cfg.heroRoles.map(r => r.name).filter(n => !!n)
     : FALLBACK_HERO_ROLES;
@@ -577,11 +579,19 @@ function HeroesTab({ cfg, update }: TabProps) {
     ...p,
     heroes: [...p.heroes, { tempId: uid(), name: "", role: defaultRole, imageUrl: null, isActive: true, sortOrder: 0 }],
   }));
+  const setImage = (i: number, url: string | null) => update(p => {
+    const list = [...p.heroes]; list[i] = { ...list[i], imageUrl: url }; return { ...p, heroes: list };
+  });
   return (
     <Card>
       <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2">
         <CardTitle className="text-base">Heroes</CardTitle>
-        <Button size="sm" onClick={add} data-testid="button-add-hero"><Plus className="h-4 w-4 mr-1" />Add Hero</Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setLibraryOpenForRow(-1)} data-testid="button-browse-library-heroes">
+            <FolderOpen className="h-4 w-4 mr-1" />Browse Library
+          </Button>
+          <Button size="sm" onClick={add} data-testid="button-add-hero"><Plus className="h-4 w-4 mr-1" />Add Hero</Button>
+        </div>
       </CardHeader>
       <CardContent>
         {cfg.heroes.length === 0 ? (
@@ -590,7 +600,7 @@ function HeroesTab({ cfg, update }: TabProps) {
           <Table>
             <TableHeader><TableRow>
               <TableHead>Name</TableHead><TableHead className="w-40">Role</TableHead>
-              <TableHead>Image URL</TableHead><TableHead className="w-24">Sort</TableHead>
+              <TableHead className="w-[280px]">Image</TableHead><TableHead className="w-24">Sort</TableHead>
               <TableHead className="w-24">Active</TableHead><TableHead className="w-16"></TableHead>
             </TableRow></TableHeader>
             <TableBody>
@@ -612,9 +622,14 @@ function HeroesTab({ cfg, update }: TabProps) {
                     </Select>
                   </TableCell>
                   <TableCell>
-                    <Input value={h.imageUrl ?? ""} placeholder="(optional)" onChange={(e) => update(p => {
-                      const list = [...p.heroes]; list[i] = { ...list[i], imageUrl: e.target.value || null }; return { ...p, heroes: list };
-                    })} data-testid={`input-hero-image-${i}`} />
+                    <MapImageCell
+                      value={h.imageUrl}
+                      onChange={(url) => setImage(i, url)}
+                      onBrowse={() => setLibraryOpenForRow(i)}
+                      onUploadError={(err) => toast({ title: "Upload failed", description: err, variant: "destructive" })}
+                      onUploaded={() => toast({ title: "Image uploaded" })}
+                      testIdPrefix={`hero-image-${i}`}
+                    />
                   </TableCell>
                   <TableCell>
                     <Input type="number" value={h.sortOrder ?? 0} onChange={(e) => update(p => {
@@ -639,6 +654,26 @@ function HeroesTab({ cfg, update }: TabProps) {
           </Table>
         )}
       </CardContent>
+
+      <Dialog open={libraryOpenForRow !== null} onOpenChange={(open) => { if (!open) setLibraryOpenForRow(null); }}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Media Library</DialogTitle>
+          </DialogHeader>
+          <MediaLibraryBrowser
+            filterGameId={gameId ?? undefined}
+            onSelect={(url) => {
+              if (libraryOpenForRow !== null && libraryOpenForRow >= 0) {
+                setImage(libraryOpenForRow, url);
+                toast({ title: "Image selected" });
+              } else {
+                navigator.clipboard.writeText(url).then(() => toast({ title: "URL copied" })).catch(() => {});
+              }
+              setLibraryOpenForRow(null);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
@@ -1245,17 +1280,27 @@ function HeroBanTab({ cfg, update }: TabProps) {
                     <Switch checked={h.supportsLocks ?? false} onCheckedChange={(v) => upd(i, { supportsLocks: v })} data-testid={`switch-hbs-supports-locks-${i}`} />
                     <Label className="text-xs">Supports Locks</Label>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Switch checked={h.bansTargetEnemy ?? true} onCheckedChange={(v) => upd(i, { bansTargetEnemy: v })} data-testid={`switch-hbs-target-enemy-${i}`} />
-                    <Label className="text-xs">Bans Target Enemy</Label>
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-2">
+                      <Switch checked={h.bansTargetEnemy ?? true} onCheckedChange={(v) => upd(i, { bansTargetEnemy: v })} data-testid={`switch-hbs-target-enemy-${i}`} />
+                      <Label className="text-xs">Bans Target Enemy</Label>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-snug">
+                      ON: each team bans heroes from the other team. OFF: bans remove heroes from their own pool.
+                    </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <Switch checked={h.locksSecureOwn ?? false} onCheckedChange={(v) => upd(i, { locksSecureOwn: v })} data-testid={`switch-hbs-locks-secure-${i}`} />
                     <Label className="text-xs">Locks Secure Own</Label>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Switch checked={h.bansAccumulate ?? false} onCheckedChange={(v) => upd(i, { bansAccumulate: v })} data-testid={`switch-hbs-accumulate-${i}`} />
-                    <Label className="text-xs">Bans Accumulate</Label>
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-2">
+                      <Switch checked={h.bansAccumulate ?? false} onCheckedChange={(v) => upd(i, { bansAccumulate: v })} data-testid={`switch-hbs-accumulate-${i}`} />
+                      <Label className="text-xs">Bans Persist Across Rounds</Label>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-snug">
+                      ON: bans from earlier rounds stay active. OFF: bans reset at the start of each round.
+                    </p>
                   </div>
                 </div>
                 {h.mode === "rainbow_flexible" && (
