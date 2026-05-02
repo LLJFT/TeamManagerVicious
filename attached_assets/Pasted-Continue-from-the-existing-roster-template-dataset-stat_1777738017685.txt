@@ -1,0 +1,200 @@
+Continue from the existing roster/template/dataset/statistics work.
+
+I want a major roster-scoped analytics expansion focused on:
+1) full Map Veto / Map Pick analytics
+2) full Hero/Agent Ban / Protect analytics
+3) opponent-specific scouting analytics
+4) deep drill-down with links back to the exact roster events/matches involved
+
+This must be implemented for the real roster system, not as a mock or template-only preview.
+
+CORE REQUIREMENT
+I do NOT want a small generic stats page.
+I want the system to calculate and surface as many real strategic draft/veto/ban/protect possibilities as the roster’s actual stored data allows.
+
+SCOPE
+- Everything must be roster-scoped only.
+- Use only real data for the current roster.
+- Do not mix in other rosters or global team data.
+- Opponent-specific analytics must only use opponents linked to this roster.
+- Respect each roster’s current game config, maps, heroes, map veto system, hero ban/protect system, event categories, sub types, and modes.
+- Keep everything compatible with the existing dashboard and roster navigation.
+
+MAIN DELIVERABLES
+
+A) ROSTER MAP / BAN ANALYTICS PAGE
+Create a new dedicated page inside each roster for advanced draft / map / ban / protect analytics.
+
+B) OPPONENT SCOUTING ANALYTICS
+For each opponent, add a dedicated analytics entry either:
+- inside the existing Opponents page, OR
+- as a separate opponent analytics page
+whichever fits the app architecture better.
+
+For each opponent, I want deep analysis of:
+- what maps we pick against them
+- what maps they pick against us
+- what maps we ban against them
+- what maps they ban against us
+- what maps get left open
+- what maps become deciders
+- what heroes/agents we ban against them
+- what heroes/agents they ban against us
+- what heroes/agents we protect/preserve against them
+- what heroes/agents they protect/preserve against us
+- win rate by map vs that opponent
+- ban/protect patterns by that opponent
+- event history against that opponent
+- direct links to the exact roster events/matches against that opponent
+
+MAP VETO / MAP PICK ANALYTICS
+Implement every meaningful metric the current real data can support, including as many of the following as possible:
+
+Global roster-level map analytics:
+- Total times each map was played
+- Total wins / losses per map
+- Win rate per map
+- Most played maps
+- Least played maps
+- Best-performing maps
+- Worst-performing maps
+- Recent trend per map
+- Map performance by event category
+- Map performance by event sub type
+- Map performance by game mode if applicable
+- Map performance by opponent
+- Home/side-based map trends if side data exists
+- Map first-pick rate
+- Map opponent-pick rate
+- Map decider rate
+- Map left-open rate
+- Map veto / remove frequency
+- Our first bans by map
+- Our second bans by map
+- Opponent first bans by map
+- Opponent second bans by map
+- Our pick order / pick position by map
+- Opponent pick order / pick position by map
+- Final surviving map / decider frequency
+- Series-type aware analysis if BO1 / BO3 / BO5 data exists
+- Map record after we pick it
+- Map record after the opponent picks it
+- Map record when left as decider
+- Recent map pool trend over last N events
+- Streaks on specific maps
+- “Comfort maps” and “danger maps” if the data supports ranking logic
+
+Opponent-specific map analytics:
+- Against each opponent: map picks by us
+- Against each opponent: map picks by them
+- Against each opponent: maps we ban most
+- Against each opponent: maps they ban most
+- Against each opponent: maps left open most
+- Against each opponent: most common decider maps
+- Against each opponent: win/loss by map
+- Against each opponent: recent map trend
+- Against each opponent: map veto pattern summary
+- Against each opponent: links to the exact events/matches behind every count
+
+HERO / AGENT BAN / PROTECT ANALYTICS
+Implement every meaningful metric the current real data can support, including as many of the following as possible:
+
+Roster-level hero/agent draft analytics:
+- Most banned heroes/agents against us
+- Most banned heroes/agents by us
+- Ban frequency per hero/agent
+- Priority bans
+- Rarely banned heroes/agents
+- Never banned heroes/agents (if meaningful)
+- Most protected heroes/agents by us
+- Most protected heroes/agents against us
+- Protect frequency per hero/agent
+- Ban + protect combined priority ranking
+- First-phase bans if draft order exists
+- Second-phase bans if draft order exists
+- First protect / second protect if draft order exists
+- Bans by event category
+- Bans by event sub type
+- Bans by game mode
+- Bans by opponent
+- Protects by opponent
+- Recent ban trend
+- Recent protect trend
+- “Target bans” against us
+- “Respect bans” by us
+- Hero/agent ban rate when we win vs when we lose
+- Hero/agent protect rate when we win vs when we lose
+- Most common banned combinations if multi-ban data exists
+- Most common protected combinations if multi-protect data exists
+- Ban/protect pattern summaries that are actually useful for strategy
+
+Opponent-specific hero/agent analytics:
+- What heroes/agents we ban most against each opponent
+- What heroes/agents they ban most against us
+- What heroes/agents we protect most against them
+- What heroes/agents they protect most against us
+- Which heroes/agents are always contested in this matchup
+- Which heroes/agents are almost never touched in this matchup
+- Ban/protect patterns for that opponent over time
+- Event-linked evidence for every major pattern
+- Direct links to the exact roster events/matches where those bans/protects happened
+
+EVENT / MATCH DRILL-DOWN
+For every important metric, ranking, row, card, or chart:
+- make it clickable when possible
+- clicking should take the user to the exact relevant roster events / matches / records
+- if a dedicated drill-down view is better than direct navigation, add that
+- I want analysts to be able to go from “this opponent bans X against us 70% of the time” directly to the actual events/matches behind that number
+
+UI / UX REQUIREMENTS
+- Keep the page practical and strategy-focused, not decorative
+- Use cards, sections, tables, charts, and drill-downs only where useful
+- Support empty states gracefully
+- Hide unsupported widgets cleanly
+- If a game has maps but no hero bans, still show the map analytics
+- If a game has bans but no map veto system, still show the ban/protect analytics
+- If a specific game does not support protects, hide protect-only widgets
+- Do not show broken placeholders for unsupported systems
+- Keep styling consistent with the roster dashboard
+- Make opponent scouting easy to navigate
+
+DATA / LOGIC RULES
+- Use the real roster-scoped stored data only
+- Respect template-applied / seeded config for that roster
+- Skip invalid or incomplete records safely
+- Never crash because a row is partially missing
+- Only compute metrics that the current schema/data actually supports
+- Where data is not available, omit the metric or show a clear explanation
+- Do not fabricate values
+- Do not treat template config alone as played match history
+- Separate “configured map pool / hero pool” from actual played / banned / picked / protected history
+
+IMPLEMENTATION PROCESS
+Before coding:
+1. Inspect the current roster event/match data model thoroughly
+2. Identify exactly where maps played, map veto actions, hero bans, hero protects, event categories, modes, opponents, and match outcomes are stored
+3. Identify which analytics are truly supported now vs which are not yet captured
+4. Build the page(s) around the real available data model
+
+If the current schema does NOT yet capture some needed draft actions explicitly:
+- do not fake them
+- implement all supported analytics first
+- clearly report which desired analytics are blocked by missing stored data
+- if helpful, recommend the exact next schema additions needed to unlock those analytics later
+
+SAFETY
+- Do not break existing roster pages or flows
+- Do not alter unrelated systems
+- Keep everything roster-scoped and super_admin-safe where required
+- Preserve existing data
+- Keep backward compatibility
+
+FINAL REPORT
+After implementation, report clearly:
+1. All map-related analytics added
+2. All ban/protect-related analytics added
+3. All opponent-specific analytics added
+4. Which tables / routes / data sources were used
+5. Which desired analytics were not possible yet because the app does not currently store the necessary data
+6. How unsupported games/systems are handled
+7. Recommended next schema or stats pages after this
