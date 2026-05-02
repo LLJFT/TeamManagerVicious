@@ -297,7 +297,7 @@ export function HeroBanSystemsConfiguration({ canEdit }: { canEdit: boolean }) {
                     <Switch id="hbs-acc" checked={form.bansAccumulate} onCheckedChange={(v) => setForm({ ...form, bansAccumulate: v })} data-testid="switch-hbs-accumulate" />
                   </div>
                   <p className="text-xs text-muted-foreground leading-snug">
-                    ON: bans from earlier rounds stay active. OFF: bans reset at the start of each round.
+                    When enabled, any hero banned in any round remains banned for the rest of the entire match.
                   </p>
                 </div>
                 <div className="space-y-1">

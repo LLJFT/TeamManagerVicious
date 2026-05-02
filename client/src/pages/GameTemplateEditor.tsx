@@ -514,11 +514,15 @@ function MapImageCell({
       <div className="flex items-center gap-2">
         <div className="h-10 w-10 shrink-0 rounded-sm border border-border bg-muted flex items-center justify-center overflow-hidden">
           {hasImage ? (
+            // key={value} forces a fresh <img> each time the URL changes,
+            // so a previous failed-to-load state never permanently hides
+            // the preview when the user keeps editing the URL.
             <img
+              key={value!}
               src={value!}
               alt=""
               className="object-cover w-full h-full"
-              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }}
               data-testid={`thumb-${testIdPrefix}`}
             />
           ) : (
@@ -1299,7 +1303,7 @@ function HeroBanTab({ cfg, update }: TabProps) {
                       <Label className="text-xs">Bans Persist Across Rounds</Label>
                     </div>
                     <p className="text-[11px] text-muted-foreground leading-snug">
-                      ON: bans from earlier rounds stay active. OFF: bans reset at the start of each round.
+                      When enabled, any hero banned in any round remains banned for the rest of the entire match.
                     </p>
                   </div>
                 </div>
