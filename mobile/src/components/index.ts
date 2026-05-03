@@ -28,3 +28,4 @@ export { WinRateBadge, wrTone } from './WinRateBadge';
 export { RankRow } from './RankRow';
 export { ScopePicker } from './ScopePicker';
 export { AnalyticsFiltersBar } from './AnalyticsFiltersBar';
+export { TextField } from './TextField';

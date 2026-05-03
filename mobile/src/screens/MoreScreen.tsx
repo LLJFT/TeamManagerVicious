@@ -15,6 +15,7 @@ export function MoreScreen() {
   const nav = useNavigation<NativeStackNavigationProp<MoreStackParamList>>();
   const { hasOrgRole } = useAuth();
   const isAdmin = hasOrgRole('super_admin', 'org_admin');
+  const isSuperAdmin = hasOrgRole('super_admin');
   const isGameManager = hasOrgRole('super_admin', 'org_admin', 'game_manager');
 
   return (
@@ -27,15 +28,15 @@ export function MoreScreen() {
           <ListItem title={t('more.help')} testID="row-help" onPress={() => nav.navigate('Help')} />
         </View>
 
-        {isAdmin || isGameManager ? (
+        {isGameManager ? (
           <View style={{ paddingTop: spacing.lg }}>
             <Text variant="overline" tone="tertiary" style={{ paddingHorizontal: spacing.lg, marginBottom: spacing.xs }}>
               {t('more.admin')}
             </Text>
             {isAdmin ? <ListItem title={t('more.users')} testID="row-admin-users" onPress={() => nav.navigate('AdminUsers')} /> : null}
             {isAdmin ? <ListItem title={t('more.roles')} testID="row-admin-roles" onPress={() => nav.navigate('AdminRoles')} /> : null}
-            {isGameManager ? <ListItem title={t('more.gameTemplates')} testID="row-admin-templates" onPress={() => nav.navigate('AdminGameTemplates')} /> : null}
-            {isGameManager ? <ListItem title={t('more.gameAccess')} testID="row-admin-access" onPress={() => nav.navigate('AdminGameAccess')} /> : null}
+            {isSuperAdmin ? <ListItem title={t('more.gameTemplates')} testID="row-admin-templates" onPress={() => nav.navigate('AdminGameTemplates')} /> : null}
+            <ListItem title={t('more.gameAccess')} testID="row-admin-access" onPress={() => nav.navigate('AdminGameAccess')} />
           </View>
         ) : null}
       </ScrollView>
