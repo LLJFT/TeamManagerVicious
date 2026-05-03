@@ -1,0 +1,159 @@
+Create TWO separate editable presentation decks in Canva, each 15–20 slides, polished and sales-ready.
+
+IMPORTANT
+- The presentations must be fully editable in Canva
+- Do not export as flat images only
+- Use text, shapes, icons, charts, and image placeholders that can be edited later
+- Make the decks look professional, premium, modern, and easy to present
+- Keep the design consistent with a serious esports / team management platform
+- Do not make them look like generic startup templates
+- Use strong hierarchy, clean spacing, and premium visual style
+
+PROJECT CONTEXT
+The product is an esports roster / team management / statistics platform.
+It helps with:
+- roster management
+- events / match results
+- opponents
+- heroes / agents
+- maps
+- draft / ban / pick stats
+- analytics
+- scouting
+- team comps
+- subscriptions / access
+- admin / organization workflows
+
+I need TWO decks:
+
+1) INDIVIDUALS DECK
+For individual buyers who want to purchase ONE roster only.
+This deck should be focused on:
+- what one roster is
+- what the buyer gets
+- how the roster helps them
+- why it is valuable
+- how it is used
+- how it improves results / preparation / analysis
+- clear call to action to buy one roster
+
+2) ORGANIZATIONS DECK
+For organizations / teams / managers / staff.
+This deck should explain:
+- the full platform
+- how roster management works
+- how the platform helps the organization
+- analytics and scouting advantages
+- game / template / stats workflows
+- why it scales across multiple rosters and users
+- why it is valuable for serious esports organizations
+- clear call to action to purchase the platform / access / organization plan
+
+SLIDE COUNT
+- Each deck must be between 15 and 20 slides
+- If helpful, use 15–18 slides for the individual version and 18–20 slides for the organization version
+
+REQUIRED OUTPUT
+Generate:
+- Deck 1: Individuals / single roster sales presentation
+- Deck 2: Organizations / platform sales presentation
+
+DESIGN DIRECTION
+- Premium
+- Modern
+- Clean
+- Tactical
+- Esports-focused
+- High-trust
+- Not flashy or childish
+- Not overly loud
+- Not a generic SaaS template
+- Strong visual hierarchy
+- Professional typography
+- Easy to read in a live presentation
+
+VISUAL STYLE
+Use:
+- dark premium surfaces where appropriate
+- accent colors for highlights
+- strong section dividers
+- clean charts / comparison tables / feature callouts
+- icons or simple diagrams where useful
+- screenshots or product mockups if available
+- minimal clutter
+- polished layouts
+
+If there are product screenshots available, include them in relevant slides.
+If not, use clean editable layouts, mockup frames, diagrams, or feature blocks.
+
+DECK 1 — INDIVIDUALS
+This deck should include slides like:
+- Cover
+- What this is
+- Why this roster matters
+- What the buyer gets
+- What features are included
+- How it helps performance / prep
+- How it looks / works
+- Example use case
+- Pricing or purchase framing
+- Why this is better than doing it manually
+- FAQ / objections
+- Call to action
+- Closing slide
+
+DECK 2 — ORGANIZATIONS
+This deck should include slides like:
+- Cover
+- The organization problem
+- Why the current workflow is inefficient
+- Platform overview
+- Multi-roster structure
+- Game templates / stats structure
+- Analytics / scouting benefits
+- Opponent insights
+- Draft / map / hero analysis
+- Team management value
+- Scaling across staff / teams
+- Security / access / organization benefits
+- Why this matters competitively
+- Pricing / adoption framing
+- Call to action
+- Closing slide
+
+CONTENT REQUIREMENTS
+- Write persuasive but realistic copy
+- Keep it concise enough for slides
+- Do not overload each slide with text
+- Each slide should have one main message
+- Use headings, short body copy, and structured bullets
+- Make the slides easy to modify in Canva later
+
+CANVA REQUIREMENTS
+- Build the decks in a way that is editable in Canva
+- Use separate text boxes for headings, subheadings, and bullets
+- Use reusable shapes and components where possible
+- Make sure the layout is suitable for Canva editing
+- Keep typography consistent
+- Keep spacing and alignment clean
+
+DELIVERABLES
+For each deck:
+- a slide-by-slide outline
+- the actual slide content
+- suggested visual direction for each slide
+- recommended layout structure
+
+If possible, also include:
+- one shorter variant slide set
+- one premium variant slide set
+
+QUALITY BAR
+- Sales-ready
+- Executive-ready
+- Design-quality presentation
+- Clear value proposition
+- Strong branding
+- Professional and polished
+- Easy to present live
+- Easy to customize in Canva
