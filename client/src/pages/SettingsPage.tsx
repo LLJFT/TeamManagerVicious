@@ -131,17 +131,17 @@ function SuperAdminExampleDataCard() {
       <CardHeader className="pb-3 gap-2">
         <CardTitle className="text-base flex items-center gap-2">
           <Database className="h-4 w-4" />
-          Example Data
+          Bulk: Load Example Data into ALL rosters
         </CardTitle>
         <CardDescription>
-          Super-admin only. Wipes every roster in this team and reseeds it with realistic example
-          events, players, staff, and matches. Use this to populate analytics on a fresh
-          environment or when you want clean demo data.
+          Super-admin only. This is the <strong>team-wide</strong> bulk action — it wipes
+          <strong> every roster in every game</strong> on this team and reseeds them with example
+          data. To seed just one roster, open that roster's Dashboard → Reset Roster tab instead.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="text-xs text-muted-foreground">
-          This is destructive. Each roster's existing events, games, and stats will be replaced.
+          Destructive. Every roster's existing events, games, and stats will be replaced.
           Seeding takes roughly <strong>30–90 seconds per roster</strong> and runs sequentially, so a
           team-wide run with many rosters can take many minutes. The job continues server-side even
           if you close this page; reopening it will not resume tracking after a server restart.
@@ -155,7 +155,7 @@ function SuperAdminExampleDataCard() {
           {running ? (
             <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Loading…</>
           ) : (
-            <><Database className="h-4 w-4 mr-2" /> Load Example Data (all rosters)</>
+            <><Database className="h-4 w-4 mr-2" /> Bulk Load: ALL rosters in this team</>
           )}
         </Button>
         {running && (

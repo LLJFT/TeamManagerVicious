@@ -3377,17 +3377,19 @@ function ResetRosterTab() {
               <Database className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <CardTitle className="text-xl">Load Example Data</CardTitle>
+              <CardTitle className="text-xl">Load Example Data (this roster only)</CardTitle>
               <CardDescription>
-                Replaces this roster with a complete demo dataset.
+                Replaces this single roster with a complete demo dataset. Other rosters and other
+                games are not touched.
               </CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent className="pt-6 space-y-4">
           <p className="text-sm text-muted-foreground">
-            Wipes the roster and seeds players, staff, game config, two months of events
-            with games and stats. Use this to demo the platform to a new client.
+            Wipes <strong>only this roster</strong> and reseeds it with players, staff, game
+            config, and two months of events with games and stats. Other rosters in this game and
+            in your team remain untouched. Typically takes 30–90 seconds for one roster.
           </p>
           <Button
             className="bg-cyan-600 hover:bg-cyan-700 text-white border-cyan-700"
@@ -3456,12 +3458,13 @@ function ResetRosterTab() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Database className="h-5 w-5 text-cyan-600" />
-              Load Example Data
+              Load Example Data — this roster only
             </DialogTitle>
             <DialogDescription>
-              This will first clear all existing roster data, then load a complete example
-              dataset so you can see how the platform works. Everything currently in this
-              roster will be replaced. Use this to demo the platform to a new client.
+              This affects <strong>this roster only</strong>. The roster's existing players,
+              staff, events, games, and stats will be wiped and replaced with example data. Other
+              rosters in this game, and every other game in your team, will not be touched. This
+              typically takes 30–90 seconds for one roster.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-md border border-border p-3 bg-muted/30 space-y-1">
@@ -3486,8 +3489,8 @@ function ResetRosterTab() {
             <div className="rounded-md border border-cyan-600/30 bg-cyan-600/10 p-3 text-sm flex items-center gap-2" data-testid="status-load-job">
               <Loader2 className="h-4 w-4 animate-spin text-cyan-600" />
               <div>
-                <div className="font-medium text-cyan-700 dark:text-cyan-300">Loading example data… this may take up to 2 minutes</div>
-                <div className="text-xs text-muted-foreground">Elapsed: {loadElapsed}s</div>
+                <div className="font-medium text-cyan-700 dark:text-cyan-300">Loading example data for this roster…</div>
+                <div className="text-xs text-muted-foreground">Typically 30–90 seconds. Elapsed: {loadElapsed}s</div>
               </div>
             </div>
           )}
