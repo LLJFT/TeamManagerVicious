@@ -1,0 +1,59 @@
+The current Load Example Data result is not good enough yet.
+
+I need you to improve the example-data generator so it follows the Game Template whenever one exists.
+
+If a Game Template exists for the selected game:
+- Use it as the source of truth for maps, heroes, bans, roles, sides, event categories, roster structure, opponent structure, and any other template-defined defaults
+- Copy the template’s opponents, their rosters, player names, roles, and images if they exist in the template
+- Copy map-related and ban-related configuration from the template
+- Make sure all seeded example data reflects the template consistently
+
+If no Game Template exists:
+- Generate a normal example dataset
+- Create 15 opponents
+- Give each opponent its own roster of 5 players
+- For each opponent player, assign:
+  - name
+  - role
+- Add opponent images/logos if available from the system defaults or template logic
+
+Requirements:
+- This must be roster-scoped and safe
+- Do NOT touch any other roster
+- Do NOT overwrite unrelated real data
+- The example data should be rich enough to test the analytics properly
+
+What the example data should include:
+- Opponents
+- Opponent rosters
+- Opponent players
+- Maps
+- Hero bans
+- Map bans
+- Draft / veto data where supported
+- Events against those opponents
+- Stats for both our roster and opponent rosters where supported
+- Enough variety to make statistics pages meaningful
+
+Please ensure:
+1. If a template exists, the seeded data matches the template structure
+2. If no template exists, the fallback example data is still realistic and complete
+3. The analytics pages can actually show opponent stats, map bans, hero bans, and head-to-head data after seeding
+4. The seed does not create placeholder or empty opponents
+5. The seed creates a useful test dataset, not just minimal dummy rows
+
+Important:
+- If the system supports opponent logos/images, add them
+- If the system supports opponent roster/player stats, seed them too
+- Make the data rich enough that charts and filters are useful
+- Keep the per-roster scope strict
+- Keep the super_admin safety rules in place
+
+After implementing, report:
+1. Whether Game Template was used when available
+2. What fallback data is used when no template exists
+3. How many opponents are created in fallback mode
+4. How many players per opponent roster are created
+5. What stats were added for opponents and events
+6. Whether map bans / hero bans are now seeded correctly
+7. Any template limitations that prevented deeper data seeding

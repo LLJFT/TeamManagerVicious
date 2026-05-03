@@ -1,7 +1,64 @@
 import { db } from "./db";
-import { sql } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
 import bcrypt from "bcryptjs";
-import { GAME_ABBREVIATIONS } from "@shared/schema";
+import { GAME_ABBREVIATIONS, type GameTemplateConfig } from "@shared/schema";
+import { OPPONENT_SEEDS_BY_GAME_SLUG, type RealOpponent } from "./defaults/realOpponents";
+
+// ---------------------------------------------------------------------------
+// Bulk-insert helpers. Each call is a SINGLE round-trip with multi-row VALUES,
+// which is 10–100x faster than looping per-row INSERTs on a remote DB.
+// ---------------------------------------------------------------------------
+function rowToValuesSql(values: any[]): SQL {
+  return sql.join([sql`(`, sql.join(values.map(v => sql`${v}`), sql`, `), sql`)`]);
+}
+async function bulkInsert(
+  table: string,
+  columns: string[],
+  rows: any[][],
+): Promise<void> {
+  if (rows.length === 0) return;
+  const colList = sql.raw(columns.join(", "));
+  const tbl = sql.raw(table);
+  const valuesSql = sql.join(rows.map(r => rowToValuesSql(r)), sql`, `);
+  await db.execute(sql`INSERT INTO ${tbl} (${colList}) VALUES ${valuesSql}`);
+}
+async function bulkInsertReturningIds(
+  table: string,
+  columns: string[],
+  rows: any[][],
+): Promise<string[]> {
+  if (rows.length === 0) return [];
+  const colList = sql.raw(columns.join(", "));
+  const tbl = sql.raw(table);
+  const valuesSql = sql.join(rows.map(r => rowToValuesSql(r)), sql`, `);
+  const res: any = await db.execute(
+    sql`INSERT INTO ${tbl} (${colList}) VALUES ${valuesSql} RETURNING id`,
+  );
+  // Postgres preserves insertion order in RETURNING, so this maps 1:1 to rows.
+  return (res.rows ?? []).map((r: any) => r.id);
+}
+// Postgres caps prepared-statement params at 32k. Chunk wide bulk inserts to
+// stay safely below that even with ~10 columns and large row counts.
+const BULK_CHUNK = 500;
+async function bulkInsertChunked(table: string, columns: string[], rows: any[][]): Promise<void> {
+  for (let i = 0; i < rows.length; i += BULK_CHUNK) {
+    await bulkInsert(table, columns, rows.slice(i, i + BULK_CHUNK));
+  }
+}
+// Pre-generate UUIDs client-side and prepend them to each row so we don't
+// depend on `INSERT ... RETURNING id` preserving VALUES order (Postgres does
+// not contractually guarantee that). All `id` columns in this schema default
+// to gen_random_uuid(), so providing a UUID is equivalent.
+async function bulkInsertWithIds(table: string, columns: string[], rows: any[][]): Promise<string[]> {
+  if (rows.length === 0) return [];
+  const ids = rows.map(() => crypto.randomUUID());
+  const colsWithId = ["id", ...columns];
+  const rowsWithId = rows.map((r, i) => [ids[i], ...r]);
+  for (let i = 0; i < rowsWithId.length; i += BULK_CHUNK) {
+    await bulkInsert(table, colsWithId, rowsWithId.slice(i, i + BULK_CHUNK));
+  }
+  return ids;
+}
 
 export const RESET_PASSWORD = "TheBootcamp&2!@90A94";
 export const LOAD_EXAMPLE_PASSWORD = "TheBootcamp&2!@90A94";
@@ -174,12 +231,30 @@ export async function resetRosterData(rosterId: string): Promise<{ deletedUsers:
     DELETE FROM player_game_stats
     WHERE match_id IN (SELECT id FROM games WHERE roster_id = ${rosterId})
   `);
+  // 1b. opponent_player_game_stats (via games of this roster)
+  await db.execute(sql`
+    DELETE FROM opponent_player_game_stats
+    WHERE match_id IN (SELECT id FROM games WHERE roster_id = ${rosterId})
+  `);
+  // 1c. match_participants, game_heroes, game_hero_ban_actions, game_map_veto_rows, game_rounds
+  await db.execute(sql`DELETE FROM match_participants WHERE roster_id = ${rosterId}`);
+  await db.execute(sql`DELETE FROM game_heroes WHERE roster_id = ${rosterId}`);
+  await db.execute(sql`DELETE FROM game_hero_ban_actions WHERE roster_id = ${rosterId}`);
+  await db.execute(sql`DELETE FROM game_map_veto_rows WHERE roster_id = ${rosterId}`);
+  await db.execute(sql`DELETE FROM game_rounds WHERE roster_id = ${rosterId}`);
   // 2. attendance
   await db.execute(sql`DELETE FROM attendance WHERE roster_id = ${rosterId}`);
   // 3. games
   await db.execute(sql`DELETE FROM games WHERE roster_id = ${rosterId}`);
   // 4. events
   await db.execute(sql`DELETE FROM events WHERE roster_id = ${rosterId}`);
+  // 4b. opponents + opponent_players (cascade handles opponent_players)
+  await db.execute(sql`DELETE FROM opponents WHERE roster_id = ${rosterId}`);
+  // 4c. heroes (roster-scoped only) + ban/veto systems + sides
+  await db.execute(sql`DELETE FROM heroes WHERE roster_id = ${rosterId}`);
+  await db.execute(sql`DELETE FROM hero_ban_systems WHERE roster_id = ${rosterId}`);
+  await db.execute(sql`DELETE FROM map_veto_systems WHERE roster_id = ${rosterId}`);
+  await db.execute(sql`DELETE FROM sides WHERE roster_id = ${rosterId}`);
   // 5. player_availability + players
   await db.execute(sql`DELETE FROM player_availability WHERE roster_id = ${rosterId}`);
   await db.execute(sql`DELETE FROM players WHERE roster_id = ${rosterId}`);
@@ -228,10 +303,30 @@ export async function resetRosterData(rosterId: string): Promise<{ deletedUsers:
 // ====================================================================
 // TASK 2B: Load example data
 // ====================================================================
-const OPPONENTS = [
-  "Falcons", "Liquid", "Vitality", "FaZe", "Twisted Minds",
-  "Virtus Pro", "GenG", "Karmine Corp", "T1", "100 Thieves", "G2",
+// Fallback opponent list (used only if no real-team list is registered for the
+// game slug AND no game_template exists for the game). Real lists in
+// server/defaults/realOpponents.ts are preferred.
+const FALLBACK_OPPONENTS: RealOpponent[] = [
+  { name: "Falcons", shortName: "FLCN", region: "EMEA" },
+  { name: "Liquid", shortName: "LIQ", region: "NA" },
+  { name: "Vitality", shortName: "VIT", region: "EMEA" },
+  { name: "FaZe", shortName: "FAZE", region: "NA" },
+  { name: "Twisted Minds", shortName: "TM", region: "EMEA" },
+  { name: "Virtus Pro", shortName: "VP", region: "EMEA" },
+  { name: "GenG", shortName: "GENG", region: "APAC" },
+  { name: "Karmine Corp", shortName: "KC", region: "EMEA" },
+  { name: "T1", shortName: "T1", region: "APAC" },
+  { name: "100 Thieves", shortName: "100T", region: "NA" },
+  { name: "G2", shortName: "G2", region: "EMEA" },
+  { name: "Cloud9", shortName: "C9", region: "NA" },
+  { name: "NRG", shortName: "NRG", region: "NA" },
+  { name: "DRX", shortName: "DRX", region: "APAC" },
+  { name: "Sentinels", shortName: "SEN", region: "NA" },
 ];
+
+// Opponent-player roles for fallback generation (one Tank, two DPS, two Support
+// — a standard 5-stack composition that matches the analytics expectations).
+const FALLBACK_OPP_ROLES = ["Tank", "DPS", "DPS", "Support", "Support"];
 
 const ROLE_DEFS = [
   { role: "Tank", labels: ["Tank1", "Tank2"] },
@@ -456,7 +551,148 @@ export async function loadExampleData(rosterId: string, jobId?: string): Promise
     staffCount++;
   }
 
-  // ---------- Events / Games / Stats / Attendance ----------
+  // ---------- Game Template lookup ----------
+  // Prefer most-recent game_template for this game (any team). Its config
+  // becomes the source of truth for opponents, opponent rosters, and heroes.
+  phase("Looking up game template…");
+  let templateConfig: GameTemplateConfig | null = null;
+  let templateName: string | null = null;
+  try {
+    const tplRes: any = await db.execute(sql`
+      SELECT name, config FROM game_templates
+      WHERE game_id = ${gameId}
+      ORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST
+      LIMIT 1
+    `);
+    if (tplRes.rows?.length) {
+      templateName = tplRes.rows[0].name as string;
+      const cfg = tplRes.rows[0].config;
+      templateConfig = (typeof cfg === "string" ? JSON.parse(cfg) : cfg) as GameTemplateConfig;
+    }
+  } catch (e) {
+    // Templates are optional; fall back silently if the table or row is missing.
+    templateConfig = null;
+  }
+  const usedTemplate = !!(templateConfig && (
+    (templateConfig.opponents?.length ?? 0) > 0 ||
+    (templateConfig.heroes?.length ?? 0) > 0
+  ));
+
+  // ---------- Opponents + Opponent Rosters ----------
+  phase(usedTemplate
+    ? `Seeding opponents from template "${templateName}"…`
+    : "Seeding 15 fallback opponents with 5-player rosters each…");
+
+  type OppSeed = { name: string; shortName: string | null; logoUrl: string | null; region: string | null };
+  let oppSeeds: OppSeed[] = [];
+  let oppPlayerSeeds: Array<{ oppIdx: number; name: string; role: string }> = [];
+
+  if (usedTemplate && templateConfig?.opponents?.length) {
+    // Map template tempId -> array index so we can attach players.
+    const tempIdToIdx = new Map<string, number>();
+    templateConfig.opponents.forEach((o, idx) => {
+      tempIdToIdx.set(o.tempId, idx);
+      oppSeeds.push({
+        name: o.name,
+        shortName: o.shortName ?? null,
+        logoUrl: o.logoUrl ?? null,
+        region: o.region ?? null,
+      });
+    });
+    // Template players (linked by opponentTempId)
+    if (templateConfig.players?.length) {
+      for (const p of templateConfig.players) {
+        const idx = tempIdToIdx.get(p.opponentTempId);
+        if (idx === undefined) continue;
+        oppPlayerSeeds.push({ oppIdx: idx, name: p.ign || p.name, role: p.role || "Flex" });
+      }
+    }
+    // For any opponent without a template-defined player roster, generate 5.
+    const oppsWithPlayers = new Set(oppPlayerSeeds.map(p => p.oppIdx));
+    for (let i = 0; i < oppSeeds.length; i++) {
+      if (oppsWithPlayers.has(i)) continue;
+      const short = oppSeeds[i].shortName || oppSeeds[i].name.slice(0, 4).toUpperCase();
+      for (let n = 0; n < 5; n++) {
+        oppPlayerSeeds.push({ oppIdx: i, name: `${short} P${n + 1}`, role: FALLBACK_OPP_ROLES[n] });
+      }
+    }
+  } else {
+    // No template — fall back to the curated real-team list for this game,
+    // or to the generic FALLBACK_OPPONENTS if the game slug isn't registered
+    // OR if the curated list is empty/short. Pad with FALLBACK_OPPONENTS so we
+    // always end up with 15 opponents (downstream uses modulo on this length).
+    const curated = OPPONENT_SEEDS_BY_GAME_SLUG[gameSlug] ?? [];
+    const padded = curated.length >= 15
+      ? curated
+      : [...curated, ...FALLBACK_OPPONENTS.filter(f => !curated.some(c => c.name === f.name))];
+    const realList = padded.length > 0 ? padded : FALLBACK_OPPONENTS;
+    oppSeeds = realList.slice(0, 15).map(o => ({
+      name: o.name,
+      shortName: o.shortName ?? null,
+      logoUrl: null,
+      region: o.region ?? null,
+    }));
+    // 5 generated players per opponent.
+    oppSeeds.forEach((o, idx) => {
+      const short = o.shortName || o.name.slice(0, 4).toUpperCase();
+      for (let n = 0; n < 5; n++) {
+        oppPlayerSeeds.push({ oppIdx: idx, name: `${short} P${n + 1}`, role: FALLBACK_OPP_ROLES[n] });
+      }
+    });
+  }
+
+  const opponentIds = await bulkInsertWithIds(
+    "opponents",
+    ["team_id", "game_id", "roster_id", "name", "short_name", "logo_url", "region", "is_active", "sort_order"],
+    oppSeeds.map((o, i) => [teamId, gameId, rosterId, o.name, o.shortName, o.logoUrl, o.region, true, i]),
+  );
+  const opponentPlayerIdsByOpp: string[][] = opponentIds.map(() => []);
+  // Insert opponent players grouped by opponent so we know which ids belong where.
+  // Single bulk insert with ordered RETURNING; map back via insertion order per opponent.
+  if (oppPlayerSeeds.length > 0) {
+    const oppPlayerRows = oppPlayerSeeds.map((p, i) => [
+      teamId, gameId, rosterId, opponentIds[p.oppIdx], p.name, p.role, true, i,
+    ]);
+    const oppPlayerIds = await bulkInsertWithIds(
+      "opponent_players",
+      ["team_id", "game_id", "roster_id", "opponent_id", "name", "role", "is_starter", "sort_order"],
+      oppPlayerRows,
+    );
+    oppPlayerIds.forEach((id, i) => {
+      opponentPlayerIdsByOpp[oppPlayerSeeds[i].oppIdx].push(id);
+    });
+  }
+
+  // ---------- Heroes (template-only — needed for hero-ban analytics) ----------
+  let heroIds: string[] = [];
+  if (templateConfig?.heroes?.length) {
+    phase(`Seeding ${templateConfig.heroes.length} heroes from template…`);
+    heroIds = await bulkInsertWithIds(
+      "heroes",
+      ["team_id", "game_id", "roster_id", "name", "role", "image_url", "is_active", "sort_order"],
+      templateConfig.heroes.map((h, i) => [
+        teamId, gameId, rosterId, h.name, h.role || "Flex", h.imageUrl ?? null, h.isActive !== false, h.sortOrder ?? i,
+      ]),
+    );
+  }
+
+  // ---------- Hero-Ban + Map-Veto Systems (one each, roster-scoped) ----------
+  phase("Seeding hero-ban + map-veto systems…");
+  const banSysIds = await bulkInsertWithIds(
+    "hero_ban_systems",
+    ["team_id", "game_id", "roster_id", "name", "enabled", "mode", "supports_locks", "bans_per_team", "locks_per_team", "bans_target_enemy", "locks_secure_own", "sort_order"],
+    [[teamId, gameId, rosterId, "Standard Bans", true, "simple", false, 2, 0, true, false, 0]],
+  );
+  const heroBanSystemId = banSysIds[0];
+  const vetoSysIds = await bulkInsertWithIds(
+    "map_veto_systems",
+    ["team_id", "game_id", "roster_id", "name", "enabled", "supports_ban", "supports_pick", "supports_decider", "supports_side_choice", "default_row_count", "sort_order"],
+    [[teamId, gameId, rosterId, "Standard Veto", true, true, true, true, true, 7, 0]],
+  );
+  const mapVetoSystemId = vetoSysIds[0];
+
+  // ---------- Plan all events/games up-front (no DB calls in this loop) ----------
+  phase("Planning event calendar…");
   const today = new Date();
   const start = new Date(today); start.setMonth(start.getMonth() - 1);
   const end = new Date(today); end.setMonth(end.getMonth() + 1);
@@ -467,104 +703,245 @@ export async function loadExampleData(rosterId: string, jobId?: string): Promise
   const meetingSubs = subTypesByCat["Meetings"];
   const allModes = Object.keys(modeIds);
 
-  let eventCount = 0;
-  let gameCount = 0;
-  const totalDays = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
-  let dayIdx = 0;
+  type EventPlan = {
+    kind: "scrim_practice" | "scrim_warmup" | "tournament" | "meeting";
+    title: string; eventTypeStr: string; subId: string;
+    date: string; time: string; seasonId: string;
+    opponentIdx: number; // index into opponentIds (meetings still get one for FK consistency? no — meetings have no opponent)
+  };
+  const planned: EventPlan[] = [];
+  const offDayDates: string[] = [];
+  let oppCursor = 0;
+  const nextOpp = () => { const i = oppCursor % opponentIds.length; oppCursor++; return i; };
 
   for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    dayIdx++;
-    // Update phase every few days so the user sees real progress through the
-    // dominant events/games/stats phase. Each insert here is its own DB
-    // round-trip so this loop dominates wall-clock time on production.
-    if (dayIdx % 5 === 0 || dayIdx === 1) {
-      phase(`Seeding events (day ${dayIdx} of ${totalDays}) — ${eventCount} events, ${gameCount} games so far`);
-    }
-    const dow = d.getDay(); // 0=Sun ... 4=Thu, 5=Fri
+    const dow = d.getDay();
     const dateStr = isoDate(d);
-    if (dow === 4 || dow === 5) {
-      // Off day
-      await db.execute(sql`
-        INSERT INTO off_days (team_id, game_id, roster_id, date)
-        VALUES (${teamId}, ${gameId}, ${rosterId}, ${dateStr})
-      `);
-      continue;
-    }
+    if (dow === 4 || dow === 5) { offDayDates.push(dateStr); continue; }
 
-    // Build day's event mix
-    const dayEvents: { kind: "scrim_practice" | "scrim_warmup" | "tournament" | "meeting"; time: string; subId: string; subName: string; title: string; }[] = [];
-
-    // Always 1 practice scrim
-    dayEvents.push({ kind: "scrim_practice", time: "16:00", subId: subPractice.id, subName: subPractice.name, title: "Practice" });
-
-    // ~50% chance of a tournament
+    const seasonId = rand(seasonIds);
+    // Always 1 practice scrim — assigned a real opponent so head-to-head fills up.
+    planned.push({
+      kind: "scrim_practice", title: "Practice",
+      eventTypeStr: "Scrim", subId: subPractice.id,
+      date: dateStr, time: "16:00", seasonId, opponentIdx: nextOpp(),
+    });
     if (Math.random() < 0.5) {
       const t = rand(tournSubs);
-      dayEvents.push({ kind: "scrim_warmup", time: "18:00", subId: subWarmup.id, subName: subWarmup.name, title: `Warm-up vs ${rand(OPPONENTS)}` });
-      dayEvents.push({ kind: "tournament", time: "19:00", subId: t.id, subName: t.name, title: `${t.name} vs ${rand(OPPONENTS)}` });
+      const oppA = nextOpp();
+      const oppB = nextOpp();
+      planned.push({
+        kind: "scrim_warmup", title: `Warm-up vs ${oppSeeds[oppA].name}`,
+        eventTypeStr: "Scrim", subId: subWarmup.id,
+        date: dateStr, time: "18:00", seasonId, opponentIdx: oppA,
+      });
+      planned.push({
+        kind: "tournament", title: `${t.name} vs ${oppSeeds[oppB].name}`,
+        eventTypeStr: "Tournament", subId: t.id,
+        date: dateStr, time: "19:00", seasonId, opponentIdx: oppB,
+      });
     }
-
-    // ~30% chance of a meeting
     if (Math.random() < 0.3) {
       const m = rand(meetingSubs);
-      dayEvents.push({ kind: "meeting", time: "15:00", subId: m.id, subName: m.name, title: m.name });
-    }
-
-    for (const ev of dayEvents) {
-      const eventTypeStr =
-        ev.kind === "tournament" ? "Tournament" :
-        ev.kind === "meeting" ? "Meetings" : "Scrim";
-      const evIns: any = await db.execute(sql`
-        INSERT INTO events (team_id, game_id, roster_id, title, event_type, event_sub_type, date, time, season_id)
-        VALUES (${teamId}, ${gameId}, ${rosterId}, ${ev.title}, ${eventTypeStr}, ${ev.subId}, ${dateStr}, ${ev.time}, ${rand(seasonIds)})
-        RETURNING id
-      `);
-      const eventId: string = evIns.rows[0].id;
-      eventCount++;
-
-      // Attendance for everyone
-      for (const p of players) {
-        const status = rand(["attended", "attended", "attended", "late", "absent"]);
-        await db.execute(sql`
-          INSERT INTO attendance (team_id, game_id, roster_id, player_id, date, event_id, status)
-          VALUES (${teamId}, ${gameId}, ${rosterId}, ${p.id}, ${dateStr}, ${eventId}, ${status})
-        `);
-      }
-
-      // Games (only for scrim/tournament, 5 each)
-      if (ev.kind !== "meeting") {
-        for (let g = 1; g <= 5; g++) {
-          const modeName = rand(allModes);
-          const map = rand(mapsByMode[modeName]);
-          const fields = statFieldsByMode[modeName];
-          const score = `${randInt(0, 16)}-${randInt(0, 16)}`;
-          const gameIns: any = await db.execute(sql`
-            INSERT INTO games (team_id, game_id, roster_id, event_id, game_code, score, game_mode_id, map_id, result)
-            VALUES (${teamId}, ${gameId}, ${rosterId}, ${eventId}, ${`G${g}`}, ${score}, ${modeIds[modeName]}, ${map.id}, ${rand(["win", "loss", "draw"])})
-            RETURNING id
-          `);
-          const matchId: string = gameIns.rows[0].id;
-          gameCount++;
-
-          // Player stats: every player x every field
-          for (const p of players) {
-            for (const f of fields) {
-              await db.execute(sql`
-                INSERT INTO player_game_stats (team_id, game_id, match_id, player_id, stat_field_id, value)
-                VALUES (${teamId}, ${gameId}, ${matchId}, ${p.id}, ${f.id}, ${randInt(0, 25).toString()})
-              `);
-            }
-          }
-        }
-      }
+      planned.push({
+        kind: "meeting", title: m.name,
+        eventTypeStr: "Meetings", subId: m.id,
+        date: dateStr, time: "15:00", seasonId, opponentIdx: -1,
+      });
     }
   }
 
+  // ---------- Bulk insert: off_days, events ----------
+  phase(`Inserting ${offDayDates.length} off-days…`);
+  await bulkInsertChunked(
+    "off_days",
+    ["team_id", "game_id", "roster_id", "date"],
+    offDayDates.map(d => [teamId, gameId, rosterId, d]),
+  );
+
+  phase(`Inserting ${planned.length} events…`);
+  const eventIds = await bulkInsertWithIds(
+    "events",
+    ["team_id", "game_id", "roster_id", "title", "event_type", "event_sub_type", "date", "time", "season_id", "opponent_id"],
+    planned.map(p => [
+      teamId, gameId, rosterId, p.title, p.eventTypeStr, p.subId, p.date, p.time, p.seasonId,
+      p.opponentIdx >= 0 ? opponentIds[p.opponentIdx] : null,
+    ]),
+  );
+
+  // ---------- Bulk insert: attendance (8 players × every event) ----------
+  phase(`Inserting attendance for ${planned.length} events…`);
+  const attendanceRows: any[][] = [];
+  for (let i = 0; i < planned.length; i++) {
+    const p = planned[i];
+    const eventId = eventIds[i];
+    for (const pl of players) {
+      attendanceRows.push([
+        teamId, gameId, rosterId, pl.id, p.date, eventId,
+        rand(["attended", "attended", "attended", "late", "absent"]),
+      ]);
+    }
+  }
+  await bulkInsertChunked(
+    "attendance",
+    ["team_id", "game_id", "roster_id", "player_id", "date", "event_id", "status"],
+    attendanceRows,
+  );
+
+  // ---------- Plan games (5 per non-meeting event) ----------
+  type GamePlan = {
+    eventIdx: number; eventId: string; opponentId: string;
+    modeName: string; modeId: string; mapId: string;
+    fields: { id: string; name: string }[];
+    code: string; score: string; result: string;
+  };
+  const gamePlans: GamePlan[] = [];
+  for (let i = 0; i < planned.length; i++) {
+    const p = planned[i];
+    if (p.kind === "meeting") continue;
+    const eventId = eventIds[i];
+    const oppId = opponentIds[p.opponentIdx];
+    for (let g = 1; g <= 5; g++) {
+      const modeName = rand(allModes);
+      const map = rand(mapsByMode[modeName]);
+      gamePlans.push({
+        eventIdx: i, eventId, opponentId: oppId,
+        modeName, modeId: modeIds[modeName], mapId: map.id,
+        fields: statFieldsByMode[modeName],
+        code: `G${g}`,
+        score: `${randInt(0, 16)}-${randInt(0, 16)}`,
+        result: rand(["win", "loss", "draw"]),
+      });
+    }
+  }
+
+  phase(`Inserting ${gamePlans.length} games…`);
+  const gameIds = await bulkInsertWithIds(
+    "games",
+    ["team_id", "game_id", "roster_id", "event_id", "game_code", "score", "game_mode_id", "map_id", "result", "opponent_id", "hero_ban_system_id", "map_veto_system_id"],
+    gamePlans.map(g => [
+      teamId, gameId, rosterId, g.eventId, g.code, g.score, g.modeId, g.mapId, g.result, g.opponentId, heroBanSystemId, mapVetoSystemId,
+    ]),
+  );
+
+  // ---------- Bulk insert: match_participants (us + opponent) ----------
+  phase(`Inserting match participants for ${gameIds.length} games…`);
+  const participantRows: any[][] = [];
+  for (let gi = 0; gi < gamePlans.length; gi++) {
+    const matchId = gameIds[gi];
+    // Find which opponent this game is against → grab its 5 players.
+    const oppIdx = oppSeeds.findIndex((_, idx) => opponentIds[idx] === gamePlans[gi].opponentId);
+    const oppPlayerIds = oppIdx >= 0 ? opponentPlayerIdsByOpp[oppIdx] : [];
+    for (const pl of players) {
+      participantRows.push([teamId, gameId, rosterId, matchId, "us", pl.id, null, true]);
+    }
+    for (const oppPid of oppPlayerIds) {
+      participantRows.push([teamId, gameId, rosterId, matchId, "opponent", null, oppPid, true]);
+    }
+  }
+  await bulkInsertChunked(
+    "match_participants",
+    ["team_id", "game_id", "roster_id", "match_id", "side", "player_id", "opponent_player_id", "played"],
+    participantRows,
+  );
+
+  // ---------- Bulk insert: player_game_stats (us) ----------
+  phase(`Inserting player stats for ${gameIds.length} games…`);
+  const statRows: any[][] = [];
+  for (let gi = 0; gi < gamePlans.length; gi++) {
+    const matchId = gameIds[gi];
+    for (const pl of players) {
+      for (const f of gamePlans[gi].fields) {
+        statRows.push([teamId, gameId, matchId, pl.id, f.id, randInt(0, 25).toString()]);
+      }
+    }
+  }
+  await bulkInsertChunked(
+    "player_game_stats",
+    ["team_id", "game_id", "match_id", "player_id", "stat_field_id", "value"],
+    statRows,
+  );
+
+  // ---------- Bulk insert: opponent_player_game_stats ----------
+  phase(`Inserting opponent stats for ${gameIds.length} games…`);
+  const oppStatRows: any[][] = [];
+  for (let gi = 0; gi < gamePlans.length; gi++) {
+    const matchId = gameIds[gi];
+    const oppIdx = oppSeeds.findIndex((_, idx) => opponentIds[idx] === gamePlans[gi].opponentId);
+    const oppPlayerIds = oppIdx >= 0 ? opponentPlayerIdsByOpp[oppIdx] : [];
+    for (const oppPid of oppPlayerIds) {
+      for (const f of gamePlans[gi].fields) {
+        oppStatRows.push([teamId, gameId, matchId, oppPid, f.id, randInt(0, 25).toString()]);
+      }
+    }
+  }
+  await bulkInsertChunked(
+    "opponent_player_game_stats",
+    ["team_id", "game_id", "match_id", "opponent_player_id", "stat_field_id", "value"],
+    oppStatRows,
+  );
+
+  // ---------- Bulk insert: hero ban actions (~40% of games, only if heroes seeded) ----------
+  let heroBanActionsCount = 0;
+  if (heroIds.length >= 4) {
+    const banRows: any[][] = [];
+    for (let gi = 0; gi < gamePlans.length; gi++) {
+      if (Math.random() > 0.4) continue;
+      const matchId = gameIds[gi];
+      // 4 alternating bans (a,b,a,b) using random heroes (no repeats per match).
+      const pool = [...heroIds].sort(() => Math.random() - 0.5).slice(0, 4);
+      pool.forEach((hid, step) => {
+        banRows.push([teamId, gameId, rosterId, matchId, step + 1, "ban", step % 2 === 0 ? "a" : "b", hid, null]);
+      });
+      heroBanActionsCount += pool.length;
+    }
+    phase(`Inserting ${heroBanActionsCount} hero-ban actions across ~${Math.round(heroBanActionsCount / 4)} games…`);
+    await bulkInsertChunked(
+      "game_hero_ban_actions",
+      ["team_id", "game_id", "roster_id", "match_id", "step_number", "action_type", "acting_team", "hero_id", "notes"],
+      banRows,
+    );
+  }
+
+  // ---------- Bulk insert: map veto rows (~40% of games) ----------
+  const allMaps = Object.values(mapsByMode).flat();
+  let mapVetoRowsCount = 0;
+  if (allMaps.length >= 5) {
+    const vetoRows: any[][] = [];
+    for (let gi = 0; gi < gamePlans.length; gi++) {
+      if (Math.random() > 0.4) continue;
+      const matchId = gameIds[gi];
+      // Standard 5-step veto: ban, ban, pick, pick, decider.
+      const pool = [...allMaps].sort(() => Math.random() - 0.5).slice(0, 5);
+      const seq = ["ban", "ban", "pick", "pick", "decider"] as const;
+      seq.forEach((act, step) => {
+        const m = pool[step];
+        vetoRows.push([teamId, gameId, rosterId, matchId, step + 1, act, step % 2 === 0 ? "a" : "b", m.id, null, null]);
+      });
+      mapVetoRowsCount += seq.length;
+    }
+    phase(`Inserting ${mapVetoRowsCount} map-veto rows across ~${Math.round(mapVetoRowsCount / 5)} games…`);
+    await bulkInsertChunked(
+      "game_map_veto_rows",
+      ["team_id", "game_id", "roster_id", "match_id", "step_number", "action_type", "acting_team", "map_id", "side_id", "notes"],
+      vetoRows,
+    );
+  }
+
   return {
-    events: eventCount,
-    games: gameCount,
+    events: planned.length,
+    games: gameIds.length,
     players: players.length,
     staff: staffCount,
     users: players.length + staffCount,
-  };
+    // Extended metadata so the API/UI can report what was actually seeded.
+    ...(({} as any)),
+    opponents: opponentIds.length,
+    opponentPlayers: oppPlayerSeeds.length,
+    heroes: heroIds.length,
+    heroBanActions: heroBanActionsCount,
+    mapVetoRows: mapVetoRowsCount,
+    usedTemplate,
+    templateName,
+  } as any;
 }
