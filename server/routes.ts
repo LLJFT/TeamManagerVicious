@@ -1383,20 +1383,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (targets.length === 0) {
         return res.status(400).json({ message: "No rosters found to seed" });
       }
-      const job = startJob(`load-example-all:${teamId}:${targets.length}`, async () => {
+      const { setJobMessage } = await import("./roster-reset");
+      const total = targets.length;
+      const job = startJob(`load-example-all:${teamId}:${total}`, async () => {
         const results: { rosterId: string; ok: boolean; events?: number; error?: string }[] = [];
+        let i = 0;
         for (const r of targets) {
+          i++;
+          setJobMessage(job.id, `Seeding roster ${i} of ${total}`);
+          const t0 = Date.now();
           try {
             const out = await loadExampleData(r.id);
             results.push({ rosterId: r.id, ok: true, events: out.events });
+            console.log(`[load-example-all] roster ${i}/${total} ${r.id} done in ${Date.now() - t0}ms (${out.events} events)`);
           } catch (e: any) {
-            console.error(`[load-example-all] roster ${r.id} failed:`, e);
+            console.error(`[load-example-all] roster ${i}/${total} ${r.id} failed after ${Date.now() - t0}ms:`, e);
             results.push({ rosterId: r.id, ok: false, error: e?.message || "Unknown error" });
           }
         }
         const ok = results.filter(r => r.ok).length;
         const totalEvents = results.reduce((s, r) => s + (r.events || 0), 0);
-        return { rosters: targets.length, ok, failed: targets.length - ok, totalEvents, results };
+        return { rosters: total, ok, failed: total - ok, totalEvents, results };
       });
       res.json({ ok: true, jobId: job.id, status: job.status, rosters: targets.length });
     } catch (err: any) {
@@ -1409,7 +1416,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { getJob } = await import("./roster-reset");
       const job = getJob(req.params.jobId);
-      if (!job) return res.status(404).json({ message: "Job not found or expired" });
+      // Return a structured "missing" response (not 404) so the polling client
+      // can distinguish "the in-memory job tracker forgot this id (server
+      // restart, expiry, etc.)" from a real network error and reset its UI.
+      if (!job) return res.json({ id: req.params.jobId, status: "missing", message: "Job not found (server may have restarted)" });
       res.json({
         id: job.id,
         type: job.type,

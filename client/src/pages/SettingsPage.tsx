@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -54,18 +54,37 @@ function SuperAdminExampleDataCard() {
   const [jobId, setJobId] = useState<string | null>(null);
   const [rosterCount, setRosterCount] = useState<number>(0);
 
-  // Poll the job until it completes.
-  const { data: job } = useQuery<any>({
+  // Poll the job until it completes. The server returns status "missing" if
+  // the in-memory job tracker has lost the id (e.g. server restart) so the UI
+  // can recover instead of spinning forever.
+  const { data: job, error: jobError } = useQuery<any>({
     queryKey: ["/api/admin/jobs", jobId],
     enabled: !!jobId,
     refetchInterval: (query) => {
       const status = (query.state.data as any)?.status;
-      return status === "completed" || status === "failed" ? false : 1500;
+      if (status === "completed" || status === "failed" || status === "missing") return false;
+      return 2000;
     },
   });
+  const startedAt = useRef<number | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (!jobId) { startedAt.current = null; setElapsed(0); return; }
+    if (startedAt.current == null) startedAt.current = Date.now();
+    const t = setInterval(() => {
+      if (startedAt.current) setElapsed(Math.floor((Date.now() - startedAt.current) / 1000));
+    }, 1000);
+    return () => clearInterval(t);
+  }, [jobId]);
 
   useEffect(() => {
-    if (!job || !jobId) return;
+    if (!jobId) return;
+    if (jobError) {
+      toast({ title: "Lost connection to job", description: (jobError as Error).message, variant: "destructive" });
+      setJobId(null);
+      return;
+    }
+    if (!job) return;
     if (job.status === "completed") {
       const r = job.result || {};
       toast({
@@ -79,8 +98,15 @@ function SuperAdminExampleDataCard() {
     } else if (job.status === "failed") {
       toast({ title: "Load failed", description: job.error || "Unknown error", variant: "destructive" });
       setJobId(null);
+    } else if (job.status === "missing") {
+      toast({
+        title: "Job no longer tracked",
+        description: "The server lost track of this job (likely restarted). The work may still be running in the background — check Activity Log later.",
+        variant: "destructive",
+      });
+      setJobId(null);
     }
-  }, [job, jobId, toast]);
+  }, [job, jobId, jobError, toast]);
 
   const start = useMutation({
     mutationFn: async () => apiRequest("POST", "/api/admin/load-example-data", { password, allRosters: true }),
@@ -116,6 +142,9 @@ function SuperAdminExampleDataCard() {
       <CardContent className="space-y-3">
         <div className="text-xs text-muted-foreground">
           This is destructive. Each roster's existing events, games, and stats will be replaced.
+          Seeding takes roughly <strong>30–90 seconds per roster</strong> and runs sequentially, so a
+          team-wide run with many rosters can take many minutes. The job continues server-side even
+          if you close this page; reopening it will not resume tracking after a server restart.
         </div>
         <Button
           variant="outline"
@@ -124,11 +153,17 @@ function SuperAdminExampleDataCard() {
           data-testid="button-load-example-data"
         >
           {running ? (
-            <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Loading… ({rosterCount} rosters)</>
+            <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Loading…</>
           ) : (
             <><Database className="h-4 w-4 mr-2" /> Load Example Data (all rosters)</>
           )}
         </Button>
+        {running && (
+          <div className="text-xs text-muted-foreground" data-testid="text-load-example-progress">
+            <div>{job?.message || "Starting…"}{rosterCount ? ` · ${rosterCount} rosters total` : ""}</div>
+            <div>Elapsed: {Math.floor(elapsed / 60)}m {elapsed % 60}s</div>
+          </div>
+        )}
       </CardContent>
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
@@ -137,7 +172,9 @@ function SuperAdminExampleDataCard() {
             <AlertDialogTitle>Load example data into every roster?</AlertDialogTitle>
             <AlertDialogDescription>
               This will wipe every roster's events, games, players, staff, and stats and replace them
-              with example data. There is no undo. Enter the boss password to confirm.
+              with example data. There is no undo. This typically takes 30–90 seconds per roster
+              and runs sequentially — a team-wide run can take many minutes. Enter the boss
+              password to confirm.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <Input

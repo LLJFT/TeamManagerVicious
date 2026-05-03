@@ -59,6 +59,11 @@ export function getJob(id: string): Job | null {
   return jobs.get(id) || null;
 }
 
+export function setJobMessage(id: string, message: string) {
+  const j = jobs.get(id);
+  if (j) j.message = message;
+}
+
 // ====================================================================
 // TASK 1: Fix broken events in April/May 2026
 // ====================================================================

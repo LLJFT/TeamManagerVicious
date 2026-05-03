@@ -1,0 +1,62 @@
+Audit and verify the current “Load Example Data” run that is in progress.
+
+I need you to determine clearly:
+1. Is the job currently working normally or is it stuck?
+2. Is the current runtime expected for this roster/game?
+3. What exact steps is the loader performing right now?
+4. Which step is taking the most time?
+5. Is there any hidden failure, retry loop, deadlock, long query, or background task issue?
+6. Will it finish successfully if left running, or should it be cancelled?
+
+Context:
+- The modal says “Loading example data… this may take up to 2 minutes”
+- It has already been running noticeably long
+- I want a real verification, not assumptions
+
+What to do:
+- Inspect the full flow behind Load Example Data
+- Check server logs, workflow logs, request lifecycle, background jobs, DB activity, and any polling endpoint/status logic
+- Verify whether the frontend status is accurate or stale
+- Verify whether the backend job is still progressing or has stopped
+- Identify whether the delay is caused by:
+  - roster wipe/reset
+  - seedNewRoster defaults
+  - event creation
+  - result/match generation
+  - opponent/opponent-player stat generation
+  - analytics population
+  - object storage/media work
+  - repeated queries / N+1 loops
+  - transaction waits / locks
+  - polling logic not updating correctly
+
+Required output:
+- Clear verdict: normal / slow but healthy / stuck / failed silently
+- Elapsed time observed
+- Expected normal runtime range for:
+  - one roster
+  - all rosters
+- Exact bottleneck
+- Whether Cancel is safe right now
+- Whether partial data may already have been written
+- Whether the UI message “this may take up to 2 minutes” is accurate or needs to be changed
+
+If it is too slow or misleading, fix it properly:
+- Improve progress reporting
+- Show real phases or percentages if possible
+- Make the loader status more trustworthy
+- If needed, optimize the slowest step
+- If the frontend polling/status is stale, fix that too
+
+Safety:
+- Do not break existing real data
+- Do not touch forbidden files
+- Do not assume success just because the modal is spinning
+- If the current run is unsafe or stuck, explain whether I should cancel it immediately
+
+After checking/fixing, report:
+1. Whether the current run was actually working
+2. Why it took this long
+3. What was fixed (if anything)
+4. Safe expected runtime going forward
+5. Whether the progress UI is now accurate
