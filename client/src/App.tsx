@@ -30,6 +30,7 @@ import HeroInsights from "@/pages/HeroInsights";
 import Trends from "@/pages/Trends";
 import TeamLeaderboard from "@/pages/TeamLeaderboard";
 import PlayerLeaderboard from "@/pages/PlayerLeaderboard";
+import TeamComps from "@/pages/TeamComps";
 import Players from "@/pages/Players";
 import Dashboard from "@/pages/Dashboard";
 import StaffPage from "@/pages/Staff";
@@ -66,6 +67,7 @@ function GameRoutes({ slug }: { slug: string }) {
       <Route path={`${basePath}/trends`} component={Trends} />
       <Route path={`${basePath}/team-leaderboard`} component={TeamLeaderboard} />
       <Route path={`${basePath}/player-leaderboard`} component={PlayerLeaderboard} />
+      <Route path={`${basePath}/comps`} component={TeamComps} />
       <Route path={`${basePath}/players`} component={Players} />
       <Route path={`${basePath}/dashboard`} component={Dashboard} />
       <Route path={`${basePath}/staff`} component={StaffPage} />

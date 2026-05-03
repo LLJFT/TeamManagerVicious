@@ -22,6 +22,7 @@ import {
   UserCog, ClipboardList, ArrowLeft, LayoutDashboard,
   ShieldCheck, Gamepad2, KeyRound, Layers, Image as ImageIcon,
   Swords, Medal, Crown, Map as MapIcon, Sparkles, TrendingUp,
+  Layers as LayersIcon,
 } from "lucide-react";
 import type { Permission, OrgRole } from "@shared/schema";
 import { orgRoleLabels } from "@shared/schema";
@@ -48,6 +49,7 @@ function makeGameItems(prefix: string) {
       { title: "Trends", url: `${prefix}/trends`, icon: TrendingUp, permission: "view_statistics" as Permission },
       { title: "Team Leaderboard", url: `${prefix}/team-leaderboard`, icon: Crown, permission: "view_statistics" as Permission },
       { title: "Player Leaderboard", url: `${prefix}/player-leaderboard`, icon: Medal, permission: "view_statistics" as Permission },
+      { title: "Team Comps", url: `${prefix}/comps`, icon: LayersIcon, permission: "view_statistics" as Permission },
     ],
     management: [
       { title: "Dashboard", url: `${prefix}/dashboard`, icon: Settings, permission: "view_dashboard" as Permission },
