@@ -680,10 +680,26 @@ const baseTranslations: Record<string, any> = {
   en, ar, fr, es, de, pt, tr, ja, ko, zh, ru, it, nl, pl, sv,
 };
 
+function deepMerge(target: any, source: any): any {
+  if (!source || typeof source !== "object") return target;
+  if (!target || typeof target !== "object") return { ...source };
+  const out: any = { ...target };
+  for (const key of Object.keys(source)) {
+    const s = source[key];
+    const t = out[key];
+    if (s && typeof s === "object" && !Array.isArray(s) && t && typeof t === "object" && !Array.isArray(t)) {
+      out[key] = deepMerge(t, s);
+    } else {
+      out[key] = s;
+    }
+  }
+  return out;
+}
+
 const resources: Record<string, { translation: any }> = {};
 for (const code of Object.keys(baseTranslations)) {
   resources[code] = {
-    translation: { ...baseTranslations[code], ...(extraResources[code] || {}) },
+    translation: deepMerge(baseTranslations[code], extraResources[code] || {}),
   };
 }
 

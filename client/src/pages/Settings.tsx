@@ -15,6 +15,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { SimpleToast } from "@/components/SimpleToast";
 import { useTheme, siteStyles, SiteStyle } from "@/hooks/use-theme";
+import { useTranslation } from "react-i18next";
 
 const gameModeFormSchema = z.object({
   name: z.string().min(1, "Game mode name is required"),
@@ -41,6 +42,7 @@ type SeasonFormData = z.infer<typeof seasonFormSchema>;
 type StatFieldFormData = z.infer<typeof statFieldFormSchema>;
 
 export default function Settings() {
+  const { t } = useTranslation();
   const { style, setStyle } = useTheme();
   const [showGameModeDialog, setShowGameModeDialog] = useState(false);
   const [showMapDialog, setShowMapDialog] = useState(false);
@@ -102,12 +104,12 @@ export default function Settings() {
       setShowStatFieldDialog(false);
       setEditingStatField(undefined);
       statFieldForm.reset();
-      setToastMessage("Stat field created successfully");
+      setToastMessage(t("settings.toasts.statFieldCreated"));
       setToastType("success");
       setShowToast(true);
     },
     onError: (error: any) => {
-      setToastMessage(error.message || "Failed to create stat field");
+      setToastMessage(error.message || t("settings.toasts.statFieldFailedCreate"));
       setToastType("error");
       setShowToast(true);
     },
@@ -123,12 +125,12 @@ export default function Settings() {
       setShowStatFieldDialog(false);
       setEditingStatField(undefined);
       statFieldForm.reset();
-      setToastMessage("Stat field updated successfully");
+      setToastMessage(t("settings.toasts.statFieldUpdated"));
       setToastType("success");
       setShowToast(true);
     },
     onError: (error: any) => {
-      setToastMessage(error.message || "Failed to update stat field");
+      setToastMessage(error.message || t("settings.toasts.statFieldFailedUpdate"));
       setToastType("error");
       setShowToast(true);
     },
@@ -141,12 +143,12 @@ export default function Settings() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/stat-fields"] });
-      setToastMessage("Stat field deleted successfully");
+      setToastMessage(t("settings.toasts.statFieldDeleted"));
       setToastType("success");
       setShowToast(true);
     },
     onError: (error: any) => {
-      setToastMessage(error.message || "Failed to delete stat field");
+      setToastMessage(error.message || t("settings.toasts.statFieldFailedDelete"));
       setToastType("error");
       setShowToast(true);
     },
@@ -162,12 +164,12 @@ export default function Settings() {
       setShowGameModeDialog(false);
       setEditingGameMode(undefined);
       gameModeForm.reset();
-      setToastMessage("Game mode created successfully");
+      setToastMessage(t("settings.toasts.gameModeCreated"));
       setToastType("success");
       setShowToast(true);
     },
     onError: (error: any) => {
-      setToastMessage(error.message || "Failed to create game mode");
+      setToastMessage(error.message || t("settings.toasts.gameModeFailedCreate"));
       setToastType("error");
       setShowToast(true);
     },
@@ -183,12 +185,12 @@ export default function Settings() {
       setShowGameModeDialog(false);
       setEditingGameMode(undefined);
       gameModeForm.reset();
-      setToastMessage("Game mode updated successfully");
+      setToastMessage(t("settings.toasts.gameModeUpdated"));
       setToastType("success");
       setShowToast(true);
     },
     onError: (error: any) => {
-      setToastMessage(error.message || "Failed to update game mode");
+      setToastMessage(error.message || t("settings.toasts.gameModeFailedUpdate"));
       setToastType("error");
       setShowToast(true);
     },
@@ -210,12 +212,12 @@ export default function Settings() {
           setSelectedModeForMaps(null);
         }
       }
-      setToastMessage("Game mode deleted successfully");
+      setToastMessage(t("settings.toasts.gameModeDeleted"));
       setToastType("success");
       setShowToast(true);
     },
     onError: (error: any) => {
-      setToastMessage(error.message || "Failed to delete game mode");
+      setToastMessage(error.message || t("settings.toasts.gameModeFailedDelete"));
       setToastType("error");
       setShowToast(true);
     },
@@ -231,12 +233,12 @@ export default function Settings() {
       setShowMapDialog(false);
       setEditingMap(undefined);
       mapForm.reset();
-      setToastMessage("Map created successfully");
+      setToastMessage(t("settings.toasts.mapCreated"));
       setToastType("success");
       setShowToast(true);
     },
     onError: (error: any) => {
-      setToastMessage(error.message || "Failed to create map");
+      setToastMessage(error.message || t("settings.toasts.mapFailedCreate"));
       setToastType("error");
       setShowToast(true);
     },
@@ -252,12 +254,12 @@ export default function Settings() {
       setShowMapDialog(false);
       setEditingMap(undefined);
       mapForm.reset();
-      setToastMessage("Map updated successfully");
+      setToastMessage(t("settings.toasts.mapUpdated"));
       setToastType("success");
       setShowToast(true);
     },
     onError: (error: any) => {
-      setToastMessage(error.message || "Failed to update map");
+      setToastMessage(error.message || t("settings.toasts.mapFailedUpdate"));
       setToastType("error");
       setShowToast(true);
     },
@@ -270,12 +272,12 @@ export default function Settings() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/maps"] });
-      setToastMessage("Map deleted successfully");
+      setToastMessage(t("settings.toasts.mapDeleted"));
       setToastType("success");
       setShowToast(true);
     },
     onError: (error: any) => {
-      setToastMessage(error.message || "Failed to delete map");
+      setToastMessage(error.message || t("settings.toasts.mapFailedDelete"));
       setToastType("error");
       setShowToast(true);
     },
@@ -291,12 +293,12 @@ export default function Settings() {
       setShowSeasonDialog(false);
       setEditingSeason(undefined);
       seasonForm.reset();
-      setToastMessage("Season created successfully");
+      setToastMessage(t("settings.toasts.seasonCreated"));
       setToastType("success");
       setShowToast(true);
     },
     onError: (error: any) => {
-      setToastMessage(error.message || "Failed to create season");
+      setToastMessage(error.message || t("settings.toasts.seasonFailedCreate"));
       setToastType("error");
       setShowToast(true);
     },
@@ -312,12 +314,12 @@ export default function Settings() {
       setShowSeasonDialog(false);
       setEditingSeason(undefined);
       seasonForm.reset();
-      setToastMessage("Season updated successfully");
+      setToastMessage(t("settings.toasts.seasonUpdated"));
       setToastType("success");
       setShowToast(true);
     },
     onError: (error: any) => {
-      setToastMessage(error.message || "Failed to update season");
+      setToastMessage(error.message || t("settings.toasts.seasonFailedUpdate"));
       setToastType("error");
       setShowToast(true);
     },
@@ -330,12 +332,12 @@ export default function Settings() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/seasons"] });
-      setToastMessage("Season deleted successfully");
+      setToastMessage(t("settings.toasts.seasonDeleted"));
       setToastType("success");
       setShowToast(true);
     },
     onError: (error: any) => {
-      setToastMessage(error.message || "Failed to delete season");
+      setToastMessage(error.message || t("settings.toasts.seasonFailedDelete"));
       setToastType("error");
       setShowToast(true);
     },
@@ -375,7 +377,7 @@ export default function Settings() {
 
   const handleEditMap = (map: MapType) => {
     setEditingMap(map);
-    mapForm.reset({ name: map.name, gameModeId: map.gameModeId });
+    mapForm.reset({ name: map.name, gameModeId: map.gameModeId ?? undefined });
     setShowMapDialog(true);
   };
 
@@ -427,7 +429,7 @@ export default function Settings() {
 
   const handleEditStatField = (statField: StatField) => {
     setEditingStatField(statField);
-    statFieldForm.reset({ name: statField.name, gameModeId: statField.gameModeId });
+    statFieldForm.reset({ name: statField.name, gameModeId: statField.gameModeId ?? undefined });
     setShowStatFieldDialog(true);
   };
 
@@ -488,8 +490,8 @@ export default function Settings() {
               </Button>
             </Link>
             <div>
-              <h1 className="text-3xl font-bold text-foreground">Settings</h1>
-              <p className="text-muted-foreground">Configure game modes, maps, and seasons</p>
+              <h1 className="text-3xl font-bold text-foreground">{t("settings.title")}</h1>
+              <p className="text-muted-foreground">{t("settings.manage.subtitle")}</p>
             </div>
           </div>
         </div>
@@ -501,8 +503,8 @@ export default function Settings() {
                 <Palette className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <CardTitle className="text-xl">Site Styles</CardTitle>
-                <CardDescription>Choose your preferred visual theme</CardDescription>
+                <CardTitle className="text-xl">{t("settings.manage.siteStyles")}</CardTitle>
+                <CardDescription>{t("settings.manage.siteStylesDesc")}</CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -541,8 +543,8 @@ export default function Settings() {
                     <Gamepad2 className="h-5 w-5 text-primary" />
                   </div>
                   <div>
-                    <CardTitle className="text-xl">Game Modes</CardTitle>
-                    <CardDescription>{gameModes.length} configured</CardDescription>
+                    <CardTitle className="text-xl">{t("settings.manage.gameModes")}</CardTitle>
+                    <CardDescription>{t("settings.manage.configured", { count: gameModes.length })}</CardDescription>
                   </div>
                 </div>
                 <Button onClick={handleAddGameMode} size="sm" className="gap-2" data-testid="button-add-game-mode">
@@ -707,8 +709,8 @@ export default function Settings() {
                     <Calendar className="h-5 w-5 text-amber-500" />
                   </div>
                   <div>
-                    <CardTitle className="text-xl">Seasons</CardTitle>
-                    <CardDescription>{seasons.length} configured</CardDescription>
+                    <CardTitle className="text-xl">{t("settings.manage.seasons")}</CardTitle>
+                    <CardDescription>{t("settings.manage.configured", { count: seasons.length })}</CardDescription>
                   </div>
                 </div>
                 <Button onClick={handleAddSeason} size="sm" className="gap-2" data-testid="button-add-season">
@@ -779,8 +781,8 @@ export default function Settings() {
                   <BarChart3 className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <CardTitle className="text-xl">Stat Fields</CardTitle>
-                  <CardDescription>Define custom stat fields per game mode for player tracking</CardDescription>
+                  <CardTitle className="text-xl">{t("settings.manage.statFields")}</CardTitle>
+                  <CardDescription>{t("settings.manage.statFieldsDesc")}</CardDescription>
                 </div>
               </div>
             </div>
@@ -915,7 +917,7 @@ export default function Settings() {
                       <FormControl>
                         <Input
                           {...field}
-                          placeholder="e.g., Convergence, Domination, Convoy"
+                          placeholder={t("settings.manage.modePlaceholder")}
                           data-testid="input-game-mode-name"
                         />
                       </FormControl>
@@ -962,7 +964,7 @@ export default function Settings() {
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger data-testid="select-game-mode">
-                            <SelectValue placeholder="Select game mode" />
+                            <SelectValue placeholder={t("settings.manage.selectGameMode")} />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -986,7 +988,7 @@ export default function Settings() {
                       <FormControl>
                         <Input
                           {...field}
-                          placeholder="e.g., Central Park, Krakoa"
+                          placeholder={t("settings.manage.mapPlaceholder")}
                           data-testid="input-map-name"
                         />
                       </FormControl>
@@ -1033,7 +1035,7 @@ export default function Settings() {
                       <FormControl>
                         <Input
                           {...field}
-                          placeholder="e.g., Season 5.0, Season 5.5, Season 6.0"
+                          placeholder={t("settings.manage.seasonNamePlaceholder")}
                           data-testid="input-season-name"
                         />
                       </FormControl>
@@ -1050,7 +1052,7 @@ export default function Settings() {
                       <FormControl>
                         <Input
                           {...field}
-                          placeholder="e.g., Dec 2024 - Jan 2025"
+                          placeholder={t("settings.manage.seasonDescPlaceholder")}
                           data-testid="input-season-description"
                         />
                       </FormControl>
@@ -1097,7 +1099,7 @@ export default function Settings() {
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger data-testid="select-stat-field-mode">
-                            <SelectValue placeholder="Select game mode" />
+                            <SelectValue placeholder={t("settings.manage.selectGameMode")} />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -1121,7 +1123,7 @@ export default function Settings() {
                       <FormControl>
                         <Input
                           {...field}
-                          placeholder="e.g., Kills, Deaths, Assists, Damage"
+                          placeholder={t("settings.manage.statFieldPlaceholder")}
                           data-testid="input-stat-field-name"
                         />
                       </FormControl>

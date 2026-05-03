@@ -17,6 +17,7 @@ import { allPermissions } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { GameIcon } from "@/components/game-icon";
+import { useTranslation } from "react-i18next";
 
 function rgbToHsl(r: number, g: number, b: number) {
   r /= 255; g /= 255; b /= 255;
@@ -47,6 +48,7 @@ const PERMISSION_GROUPS: Record<string, string[]> = {
 };
 
 function SuperAdminExampleDataCard() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { toast } = useToast();
   const [password, setPassword] = useState("");
@@ -80,7 +82,7 @@ function SuperAdminExampleDataCard() {
   useEffect(() => {
     if (!jobId) return;
     if (jobError) {
-      toast({ title: "Lost connection to job", description: (jobError as Error).message, variant: "destructive" });
+      toast({ title: t("settings.toasts.lostConnection"), description: (jobError as Error).message, variant: "destructive" });
       setJobId(null);
       return;
     }
@@ -88,20 +90,20 @@ function SuperAdminExampleDataCard() {
     if (job.status === "completed") {
       const r = job.result || {};
       toast({
-        title: "Example data loaded",
-        description: `${r.ok ?? 0}/${r.rosters ?? 0} rosters seeded · ${r.totalEvents ?? 0} events created`,
+        title: t("settings.toasts.exampleLoaded"),
+        description: `${r.ok ?? 0}/${r.rosters ?? 0} rosters · ${r.totalEvents ?? 0} events`,
       });
       setJobId(null);
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
       queryClient.invalidateQueries({ queryKey: ["/api/games"] });
       queryClient.invalidateQueries({ queryKey: ["/api/players"] });
     } else if (job.status === "failed") {
-      toast({ title: "Load failed", description: job.error || "Unknown error", variant: "destructive" });
+      toast({ title: t("settings.toasts.loadFailed"), description: job.error || "Unknown error", variant: "destructive" });
       setJobId(null);
     } else if (job.status === "missing") {
       toast({
-        title: "Job no longer tracked",
-        description: "The server lost track of this job (likely restarted). The work may still be running in the background — check Activity Log later.",
+        title: t("settings.toasts.jobUntracked"),
+        description: t("settings.toasts.jobUntrackedDesc"),
         variant: "destructive",
       });
       setJobId(null);
@@ -116,10 +118,10 @@ function SuperAdminExampleDataCard() {
       setRosterCount(data.rosters || 0);
       setConfirmOpen(false);
       setPassword("");
-      toast({ title: "Loading example data…", description: `Processing ${data.rosters} rosters in the background.` });
+      toast({ title: t("settings.toasts.loadingExample"), description: `Processing ${data.rosters || 0} rosters in the background.` });
     },
     onError: (e: any) => {
-      toast({ title: "Failed to start", description: e.message || "Unknown error", variant: "destructive" });
+      toast({ title: t("settings.toasts.failedToStart"), description: e.message || "Unknown error", variant: "destructive" });
     },
   });
 
@@ -179,7 +181,7 @@ function SuperAdminExampleDataCard() {
           </AlertDialogHeader>
           <Input
             type="password"
-            placeholder="Boss password"
+            placeholder={t("settings.bossPassword")}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             data-testid="input-example-data-password"
@@ -201,6 +203,7 @@ function SuperAdminExampleDataCard() {
 }
 
 export default function SettingsPage() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [orgName, setOrgName] = useState("");
   const [gameIconUploading, setGameIconUploading] = useState<string | null>(null);
@@ -243,17 +246,17 @@ export default function SettingsPage() {
 
   const saveOrgNameMutation = useMutation({
     mutationFn: () => apiRequest("PUT", "/api/org-setting/org_name", { value: orgName }),
-    onSuccess: () => { toast({ title: "Organization name updated" }); queryClient.invalidateQueries({ queryKey: ["/api/org-setting/org_name"] }); },
+    onSuccess: () => { toast({ title: t("settings.toasts.orgNameUpdated") }); queryClient.invalidateQueries({ queryKey: ["/api/org-setting/org_name"] }); },
   });
 
   const saveLogoMutation = useMutation({
     mutationFn: (url: string) => apiRequest("PUT", "/api/org-setting/org_logo", { value: url }),
-    onSuccess: () => { toast({ title: "Logo updated" }); queryClient.invalidateQueries({ queryKey: ["/api/org-setting/org_logo"] }); },
+    onSuccess: () => { toast({ title: t("settings.toasts.logoUpdated") }); queryClient.invalidateQueries({ queryKey: ["/api/org-setting/org_logo"] }); },
   });
 
   const saveThemeMutation = useMutation({
     mutationFn: (colors: string) => apiRequest("PUT", "/api/org-setting/org_theme", { value: colors }),
-    onSuccess: () => { toast({ title: "Theme applied" }); queryClient.invalidateQueries({ queryKey: ["/api/org-setting/org_theme"] }); },
+    onSuccess: () => { toast({ title: t("settings.toasts.themeApplied") }); queryClient.invalidateQueries({ queryKey: ["/api/org-setting/org_theme"] }); },
   });
 
   const normalizeSlug = (input: string) =>
@@ -285,13 +288,13 @@ export default function SettingsPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/supported-games"] });
       queryClient.invalidateQueries({ queryKey: ["/api/all-rosters"] });
       setAddGameName(""); setAddGameSlug(""); setAddGameSlugTouched(false);
-      toast({ title: "Game added", description: "4 default rosters created and seeded." });
+      toast({ title: t("settings.toasts.gameAdded"), description: t("settings.manage.defaultRostersSeeded") });
     },
     onError: (e: any) => {
       const msg = String(e?.message || "Unknown error");
       const isConflict = msg.startsWith("409");
       toast({
-        title: isConflict ? "Slug already taken" : "Could not add game",
+        title: isConflict ? t("settings.toasts.slugTaken") : t("settings.toasts.couldNotAddGame"),
         description: msg.replace(/^\d+:\s*/, ""),
         variant: "destructive",
       });
@@ -305,9 +308,9 @@ export default function SettingsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/supported-games"] });
       setEditingGame(null);
-      toast({ title: "Game updated" });
+      toast({ title: t("settings.toasts.gameUpdated") });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: t("settings.toasts.error"), description: e.message, variant: "destructive" }),
   });
 
   const deleteGameMutation = useMutation({
@@ -317,9 +320,9 @@ export default function SettingsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/supported-games"] });
       queryClient.invalidateQueries({ queryKey: ["/api/all-rosters"] });
-      toast({ title: "Game deleted" });
+      toast({ title: t("settings.toasts.gameDeleted") });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: t("settings.toasts.error"), description: e.message, variant: "destructive" }),
   });
 
   const addRosterMutation = useMutation({
@@ -329,9 +332,9 @@ export default function SettingsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/all-rosters"] });
       setAddRosterFor(null); setNewRosterName("");
-      toast({ title: "Roster added" });
+      toast({ title: t("settings.toasts.rosterAdded") });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: t("settings.toasts.error"), description: e.message, variant: "destructive" }),
   });
 
   const renameRosterMutation = useMutation({
@@ -342,9 +345,9 @@ export default function SettingsPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/all-rosters"] });
       queryClient.invalidateQueries({ queryKey: ["/api/rosters"] });
       setEditingRoster(null);
-      toast({ title: "Roster updated" });
+      toast({ title: t("settings.toasts.rosterUpdated") });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: t("settings.toasts.error"), description: e.message, variant: "destructive" }),
   });
 
   const deleteRosterMutation = useMutation({
@@ -353,9 +356,9 @@ export default function SettingsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/all-rosters"] });
-      toast({ title: "Roster deleted" });
+      toast({ title: t("settings.toasts.rosterDeleted") });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: t("settings.toasts.error"), description: e.message, variant: "destructive" }),
   });
 
   const updateMgmtPermsMutation = useMutation({
@@ -366,13 +369,13 @@ export default function SettingsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/platform-roles"] });
       setEditingMgmtPerms(false);
-      toast({ title: "Management permissions updated" });
+      toast({ title: t("settings.toasts.permissionsUpdated") });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: t("settings.toasts.error"), description: e.message, variant: "destructive" }),
   });
 
   const extractColorsFromLogo = () => {
-    if (!orgLogoUrl) { toast({ title: "Upload a logo first", variant: "destructive" }); return; }
+    if (!orgLogoUrl) { toast({ title: t("settings.toasts.uploadLogoFirst"), variant: "destructive" }); return; }
     const img = new window.Image();
     img.crossOrigin = "anonymous";
     img.onload = () => {
@@ -394,7 +397,7 @@ export default function SettingsPage() {
         colorCounts[key].count++;
       }
       const sorted = Object.values(colorCounts).sort((a, b) => b.count - a.count);
-      if (sorted.length === 0) { toast({ title: "Could not extract colors", variant: "destructive" }); return; }
+      if (sorted.length === 0) { toast({ title: t("settings.toasts.couldNotExtract"), variant: "destructive" }); return; }
       const dom = sorted[0];
       const { h, s, l } = rgbToHsl(dom.r, dom.g, dom.b);
       const hslStr = `${Math.round(h)} ${Math.round(s)}% ${Math.round(l)}%`;
@@ -406,7 +409,7 @@ export default function SettingsPage() {
       document.documentElement.style.setProperty("--sidebar-primary-foreground", fgStr);
       saveThemeMutation.mutate(JSON.stringify({ primary: hslStr, primaryForeground: fgStr }));
     };
-    img.onerror = () => toast({ title: "Could not load logo image", variant: "destructive" });
+    img.onerror = () => toast({ title: t("settings.toasts.couldNotLoadLogo"), variant: "destructive" });
     img.src = orgLogoUrl;
   };
 
@@ -418,7 +421,7 @@ export default function SettingsPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center gap-2">
         <Settings className="h-6 w-6" />
-        <h1 className="text-2xl font-bold" data-testid="text-settings-title">Settings</h1>
+        <h1 className="text-2xl font-bold" data-testid="text-settings-title">{t("settings.title")}</h1>
       </div>
 
       <Card>
@@ -433,7 +436,7 @@ export default function SettingsPage() {
             <Input
               value={orgName || currentOrgName || ""}
               onChange={(e) => setOrgName(e.target.value)}
-              placeholder="Enter organization name"
+              placeholder={t("settings.enterOrgName")}
               data-testid="input-org-name"
             />
             <Button onClick={() => saveOrgNameMutation.mutate()} disabled={saveOrgNameMutation.isPending} data-testid="button-save-org-name">
@@ -466,7 +469,7 @@ export default function SettingsPage() {
                 onUploaded={(result) => {
                   saveLogoMutation.mutate(result.url || result.path);
                 }}
-                onError={(msg) => toast({ title: "Upload failed", description: msg, variant: "destructive" })}
+                onError={(msg) => toast({ title: t("settings.toasts.uploadFailed"), description: msg, variant: "destructive" })}
                 buttonVariant="outline"
                 buttonSize="sm"
               >
@@ -564,7 +567,7 @@ export default function SettingsPage() {
                 <Input
                   value={addGameName}
                   onChange={(e) => setAddGameName(e.target.value)}
-                  placeholder="e.g., Rocket League"
+                  placeholder={t("settings.manage.gameNamePlaceholder")}
                   data-testid="input-add-game-name"
                 />
               </div>
@@ -573,7 +576,7 @@ export default function SettingsPage() {
                 <Input
                   value={addGameSlug}
                   onChange={(e) => { setAddGameSlug(e.target.value); setAddGameSlugTouched(true); }}
-                  placeholder="auto from name (e.g., rocket-league)"
+                  placeholder={t("settings.manage.gameSlugPlaceholder")}
                   data-testid="input-add-game-slug"
                 />
               </div>
@@ -636,9 +639,9 @@ export default function SettingsPage() {
                         accept="image/*"
                         onUploaded={() => {
                           queryClient.invalidateQueries({ queryKey: ["/api/supported-games"] });
-                          toast({ title: "Game icon updated" });
+                          toast({ title: t("settings.toasts.iconUpdated") });
                         }}
-                        onError={(msg) => toast({ title: "Upload failed", description: msg, variant: "destructive" })}
+                        onError={(msg) => toast({ title: t("settings.toasts.uploadFailed"), description: msg, variant: "destructive" })}
                         buttonVariant="ghost"
                         buttonSize="icon"
                       >
@@ -649,7 +652,7 @@ export default function SettingsPage() {
                           <Pencil className="h-4 w-4" />
                         </Button>
                       )}
-                      <Button size="icon" variant="ghost" onClick={() => { if (confirm(`Delete "${game.name}"?`)) deleteGameMutation.mutate(game.id); }} data-testid={`button-delete-game-${game.id}`}>
+                      <Button size="icon" variant="ghost" onClick={() => { if (confirm(t("settings.manage.confirmDeleteGame", { name: game.name }))) deleteGameMutation.mutate(game.id); }} data-testid={`button-delete-game-${game.id}`}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -659,8 +662,8 @@ export default function SettingsPage() {
                       <div key={roster.id} className="flex items-center justify-between gap-2 text-sm" data-testid={`row-roster-${roster.id}`}>
                         {editingRoster === roster.id ? (
                           <div className="flex items-center gap-2 flex-wrap">
-                            <Input value={editRosterName} onChange={(e) => setEditRosterName(e.target.value)} placeholder="Roster name" className="w-[160px]" data-testid={`input-roster-name-${roster.id}`} />
-                            <Input value={editRosterCustomName} onChange={(e) => setEditRosterCustomName(e.target.value)} placeholder="Display name (optional)" className="w-[180px]" data-testid={`input-roster-custom-name-${roster.id}`} />
+                            <Input value={editRosterName} onChange={(e) => setEditRosterName(e.target.value)} placeholder={t("settings.manage.rosterName")} className="w-[160px]" data-testid={`input-roster-name-${roster.id}`} />
+                            <Input value={editRosterCustomName} onChange={(e) => setEditRosterCustomName(e.target.value)} placeholder={t("settings.manage.displayNameOptional")} className="w-[180px]" data-testid={`input-roster-custom-name-${roster.id}`} />
                             <Button size="sm" onClick={() => renameRosterMutation.mutate({ id: roster.id, name: editRosterName, customName: editRosterCustomName.trim() || null })} data-testid={`button-save-roster-${roster.id}`}>
                               <Save className="h-3 w-3" />
                             </Button>
@@ -682,7 +685,7 @@ export default function SettingsPage() {
                               <Pencil className="h-3 w-3" />
                             </Button>
                           )}
-                          <Button size="icon" variant="ghost" onClick={() => { if (confirm(`Delete roster "${roster.name}"?`)) deleteRosterMutation.mutate(roster.id); }}>
+                          <Button size="icon" variant="ghost" onClick={() => { if (confirm(t("settings.manage.confirmDeleteRoster", { name: roster.name }))) deleteRosterMutation.mutate(roster.id); }}>
                             <Trash2 className="h-3 w-3" />
                           </Button>
                         </div>
@@ -690,7 +693,7 @@ export default function SettingsPage() {
                     ))}
                     {addRosterFor === game.id ? (
                       <div className="flex items-center gap-2 mt-1">
-                        <Input value={newRosterName} onChange={(e) => setNewRosterName(e.target.value)} placeholder="Roster name" className="w-[160px]" data-testid={`input-add-roster-${game.id}`} />
+                        <Input value={newRosterName} onChange={(e) => setNewRosterName(e.target.value)} placeholder={t("settings.manage.rosterName")} className="w-[160px]" data-testid={`input-add-roster-${game.id}`} />
                         <Button size="sm" onClick={() => addRosterMutation.mutate({ gameId: game.id, name: newRosterName })} disabled={!newRosterName}>
                           Add
                         </Button>
