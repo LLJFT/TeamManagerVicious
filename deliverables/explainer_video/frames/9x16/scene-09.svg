@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920"><rect width="1080" height="1920" fill="#0E1117"/>
+<text x="80" y="70" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="14" letter-spacing="3" fill="#E11D2E" text-anchor="start">FEATURE SPOTLIGHT</text>
+<text x="80" y="124" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="900" font-size="44" letter-spacing="4" fill="#F5F6F8" text-anchor="start">WHAT YOUR TEAM ACTUALLY DOES.</text>
+<text x="80" y="156" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="18" fill="#5B6573" text-anchor="start">Not what you think they do.</text>
+<rect x="80" y="190" width="920" height="1670" rx="12" fill="#1A1F2A" stroke="#2A3140" stroke-width="1"/>
+<text x="104" y="218" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="11" letter-spacing="3" fill="#5B6573" text-anchor="start">WIN RATE  ·  LAST 12 WEEKS</text>
+<rect x="104" y="234" width="546" height="1594" rx="9" fill="#222836" stroke="#2A3140" stroke-width="1"/>
+<line x1="116" y1="552.8" x2="638" y2="552.8" stroke="#2A3140" stroke-width="1"/>
+<line x1="116" y1="871.6" x2="638" y2="871.6" stroke="#2A3140" stroke-width="1"/>
+<line x1="116" y1="1190.4" x2="638" y2="1190.4" stroke="#2A3140" stroke-width="1"/>
+<line x1="116" y1="1509.2" x2="638" y2="1509.2" stroke="#2A3140" stroke-width="1"/>
+<circle cx="128" cy="1334.2" r="3" fill="#E11D2E"/>
+<circle cx="173.27272727272728" cy="1102.3000000000002" r="3" fill="#E11D2E"/>
+<circle cx="218.54545454545456" cy="1218.25" r="3" fill="#E11D2E"/>
+<circle cx="263.8181818181818" cy="947.6999999999999" r="3" fill="#E11D2E"/>
+<circle cx="309.0909090909091" cy="1025" r="3" fill="#E11D2E"/>
+<circle cx="354.3636363636364" cy="831.7499999999998" r="3" fill="#E11D2E"/>
+<circle cx="399.6363636363636" cy="638.5000000000002" r="3" fill="#E11D2E"/>
+<circle cx="444.90909090909093" cy="715.8000000000002" r="3" fill="#E11D2E"/>
+<circle cx="490.1818181818182" cy="599.8500000000001" r="3" fill="#E11D2E"/>
+<circle cx="535.4545454545455" cy="561.2" r="3" fill="#E11D2E"/>
+<circle cx="580.7272727272727" cy="522.55" r="3" fill="#E11D2E"/>
+<circle cx="626" cy="483.9000000000001" r="3" fill="#E11D2E"/>
+<path d="M 128 1334.2 L 173.27272727272728 1102.3000000000002 L 218.54545454545456 1218.25 L 263.8181818181818 947.6999999999999 L 309.0909090909091 1025 L 354.3636363636364 831.7499999999998 L 399.6363636363636 638.5000000000002 L 444.90909090909093 715.8000000000002 L 490.1818181818182 599.8500000000001 L 535.4545454545455 561.2 L 580.7272727272727 522.55 L 626 483.9000000000001" stroke="#E11D2E" stroke-width="2.5" fill="none"/>
+<rect x="566" y="451.9000000000001" width="60" height="22" rx="4" fill="#E11D2E"/>
+<text x="596" y="466.9000000000001" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="800" font-size="11" fill="#F5F6F8" text-anchor="middle">64% WR</text>
+<text x="674" y="218" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="11" letter-spacing="3" fill="#5B6573" text-anchor="start">TOP WINNING COMPS</text>
+<rect x="674" y="246" width="302" height="52" rx="8" fill="#222836" stroke="#2A3140" stroke-width="1"/>
+<text x="688" y="266" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="600" font-size="11" fill="#F5F6F8" text-anchor="start">Jett·Sova·KAY/O·Killjoy·Omen</text>
+<rect x="688" y="276" width="222" height="8" rx="2" fill="#3A4150"/>
+<rect x="688" y="276" width="157.62" height="8" rx="2" fill="#E11D2E"/>
+<text x="962" y="284" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="800" font-size="13" fill="#E11D2E" text-anchor="end">71%</text>
+<rect x="674" y="310" width="302" height="52" rx="8" fill="#222836" stroke="#2A3140" stroke-width="1"/>
+<text x="688" y="330" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="600" font-size="11" fill="#F5F6F8" text-anchor="start">Raze·Skye·Breach·Cypher·Brim</text>
+<rect x="688" y="340" width="222" height="8" rx="2" fill="#3A4150"/>
+<rect x="688" y="340" width="146.52" height="8" rx="2" fill="#E11D2E"/>
+<text x="962" y="348" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="800" font-size="13" fill="#E11D2E" text-anchor="end">66%</text>
+<rect x="674" y="374" width="302" height="52" rx="8" fill="#222836" stroke="#2A3140" stroke-width="1"/>
+<text x="688" y="394" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="600" font-size="11" fill="#F5F6F8" text-anchor="start">Neon·Sova·Fade·Killjoy·Brim</text>
+<rect x="688" y="404" width="222" height="8" rx="2" fill="#3A4150"/>
+<rect x="688" y="404" width="137.64" height="8" rx="2" fill="#E11D2E"/>
+<text x="962" y="412" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="800" font-size="13" fill="#E11D2E" text-anchor="end">62%</text>
+<text x="1052" y="1892" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="11" fill="#5B6573" text-anchor="end">VICIOUS  ·  vicious.gg</text></svg>

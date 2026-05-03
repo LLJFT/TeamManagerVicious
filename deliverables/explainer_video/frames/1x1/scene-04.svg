@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080" width="1080" height="1080"><rect width="1080" height="1080" fill="#0E1117"/>
+<text x="80" y="70" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="14" letter-spacing="3" fill="#E11D2E" text-anchor="start">THE SOLUTION</text>
+<text x="80" y="118" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="900" font-size="56" letter-spacing="4" fill="#F5F6F8" text-anchor="start">ONE COMMAND CENTER.</text>
+<text x="80" y="152" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="18" fill="#5B6573" text-anchor="start">for serious esports orgs.</text>
+<rect x="80" y="160" width="920" height="792" rx="12" fill="#1A1F2A" stroke="#2A3140" stroke-width="1"/>
+<rect x="80" y="160" width="160" height="792" rx="12" fill="#222836"/>
+<rect x="228" y="160" width="12" height="792" rx="0" fill="#222836"/>
+<g><path d="M 150.375 187.25 L 155.625 187.25 L 160 199.5 L 164.375 187.25 L 169.625 187.25 L 161.75 206.5 L 158.25 206.5 Z" fill="#E11D2E"/><path d="M 156.5 187.25 L 157.8125 187.25 L 160 193.375 L 162.1875 187.25 L 163.5 187.25 L 160.875 195.125 L 159.125 195.125 Z" fill="#FFFFFF" fill-opacity="0.18"/></g>
+<rect x="94" y="228" width="132" height="28" rx="6" fill="#2A3140"/>
+<text x="108" y="248" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="600" font-size="13" fill="#F5F6F8" text-anchor="start">Today</text>
+<text x="108" y="284" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="13" fill="#5B6573" text-anchor="start">Roster</text>
+<text x="108" y="320" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="13" fill="#5B6573" text-anchor="start">Scrims</text>
+<text x="108" y="356" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="13" fill="#5B6573" text-anchor="start">Opponents</text>
+<text x="108" y="392" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="13" fill="#5B6573" text-anchor="start">Analytics</text>
+<text x="108" y="428" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="13" fill="#5B6573" text-anchor="start">Org</text>
+<rect x="240" y="160" width="760" height="48" rx="0" fill="#1A1F2A"/>
+<line x1="240" y1="208" x2="1000" y2="208" stroke="#2A3140" stroke-width="1"/>
+<text x="260" y="190" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="11" letter-spacing="3" fill="#5B6573" text-anchor="start">TODAY  ·  TUE 14 MAY</text>
+<rect x="870" y="172" width="110" height="24" rx="6" fill="#222836" stroke="#16A34A" stroke-width="1"/><text x="925" y="188" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="600" font-size="11" fill="#16A34A" text-anchor="middle">Roster ready</text>
+<rect x="256" y="224" width="232" height="110" rx="9" fill="#222836" stroke="#2A3140" stroke-width="1"/>
+<text x="272" y="248" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="11" letter-spacing="3" fill="#5B6573" text-anchor="start">WIN RATE</text>
+<text x="272" y="302" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="800" font-size="44" fill="#E11D2E" text-anchor="start">64%</text>
+<rect x="504" y="224" width="232" height="110" rx="9" fill="#222836" stroke="#2A3140" stroke-width="1"/>
+<text x="520" y="248" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="11" letter-spacing="3" fill="#5B6573" text-anchor="start">SCRIMS THIS WEEK</text>
+<text x="520" y="302" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="800" font-size="44" fill="#F5F6F8" text-anchor="start">11</text>
+<rect x="752" y="224" width="232" height="110" rx="9" fill="#222836" stroke="#2A3140" stroke-width="1"/>
+<text x="768" y="248" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="11" letter-spacing="3" fill="#5B6573" text-anchor="start">AVG KD</text>
+<text x="768" y="302" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="800" font-size="44" fill="#F5F6F8" text-anchor="start">1.18</text>
+<rect x="256" y="354" width="728" height="582" rx="9" fill="#222836" stroke="#2A3140" stroke-width="1"/>
+<text x="272" y="378" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="11" letter-spacing="3" fill="#5B6573" text-anchor="start">SCHEDULE  ·  NEXT 7 DAYS</text>
+<rect x="268" y="394" width="91.42857142857143" height="526" rx="6" fill="#1A1F2A" stroke="#2A3140" stroke-width="1"/>
+<text x="278" y="412" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="600" font-size="11" fill="#5B6573" text-anchor="start">Tue</text>
+<rect x="276" y="426" width="75.42857142857143" height="22" rx="4" fill="#E11D2E"/>
+<text x="282" y="441" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="10" fill="#F5F6F8" text-anchor="start">Scrim</text>
+<rect x="367.42857142857144" y="394" width="91.42857142857143" height="526" rx="6" fill="#1A1F2A" stroke="#2A3140" stroke-width="1"/>
+<text x="377.42857142857144" y="412" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="600" font-size="11" fill="#5B6573" text-anchor="start">Wed</text>
+<rect x="466.8571428571429" y="394" width="91.42857142857143" height="526" rx="6" fill="#1A1F2A" stroke="#2A3140" stroke-width="1"/>
+<text x="476.8571428571429" y="412" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="600" font-size="11" fill="#5B6573" text-anchor="start">Thu</text>
+<rect x="474.8571428571429" y="426" width="75.42857142857143" height="22" rx="4" fill="#E11D2E"/>
+<text x="480.8571428571429" y="441" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="10" fill="#F5F6F8" text-anchor="start">Scrim</text>
+<rect x="566.2857142857142" y="394" width="91.42857142857143" height="526" rx="6" fill="#1A1F2A" stroke="#2A3140" stroke-width="1"/>
+<text x="576.2857142857142" y="412" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="600" font-size="11" fill="#5B6573" text-anchor="start">Fri</text>
+<rect x="665.7142857142858" y="394" width="91.42857142857143" height="526" rx="6" fill="#1A1F2A" stroke="#2A3140" stroke-width="1"/>
+<text x="675.7142857142858" y="412" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="600" font-size="11" fill="#5B6573" text-anchor="start">Sat</text>
+<rect x="673.7142857142858" y="426" width="75.42857142857143" height="22" rx="4" fill="#E11D2E"/>
+<text x="679.7142857142858" y="441" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="10" fill="#F5F6F8" text-anchor="start">Scrim</text>
+<rect x="765.1428571428571" y="394" width="91.42857142857143" height="526" rx="6" fill="#1A1F2A" stroke="#2A3140" stroke-width="1"/>
+<text x="775.1428571428571" y="412" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="600" font-size="11" fill="#5B6573" text-anchor="start">Sun</text>
+<rect x="773.1428571428571" y="454" width="75.42857142857143" height="22" rx="4" fill="#5B7FB1"/>
+<text x="779.1428571428571" y="469" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="10" fill="#F5F6F8" text-anchor="start">VOD review</text>
+<rect x="864.5714285714286" y="394" width="91.42857142857143" height="526" rx="6" fill="#1A1F2A" stroke="#2A3140" stroke-width="1"/>
+<text x="874.5714285714286" y="412" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="600" font-size="11" fill="#5B6573" text-anchor="start">Mon</text>
+<text x="1052" y="1052" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="11" fill="#5B6573" text-anchor="end">VICIOUS  ·  vicious.gg</text></svg>

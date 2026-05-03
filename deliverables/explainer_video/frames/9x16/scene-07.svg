@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920"><rect width="1080" height="1920" fill="#0E1117"/>
+<text x="80" y="70" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="14" letter-spacing="3" fill="#E11D2E" text-anchor="start">HOW IT WORKS  ·  03</text>
+<text x="80" y="124" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="900" font-size="48" letter-spacing="4" fill="#F5F6F8" text-anchor="start">PICK YOUR COMP.</text>
+<text x="80" y="156" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="16" fill="#5B6573" text-anchor="start">Maps, heroes, agents — every game you compete in.</text>
+<rect x="80" y="190" width="920" height="1670" rx="12" fill="#1A1F2A" stroke="#2A3140" stroke-width="1"/>
+<text x="104" y="220" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="11" letter-spacing="3" fill="#5B6573" text-anchor="start">MAP POOL  ·  6 SELECTED</text>
+<rect x="104" y="240" width="135.33333333333334" height="80" rx="8" fill="#222836" stroke="#2A3140" stroke-width="1"/>
+<text x="114" y="308" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="12" fill="#F5F6F8" text-anchor="start">Haven</text>
+<rect x="251.33333333333334" y="240" width="135.33333333333334" height="80" rx="8" fill="#222836" stroke="#2A3140" stroke-width="1"/>
+<text x="261.33333333333337" y="308" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="12" fill="#F5F6F8" text-anchor="start">Bind</text>
+<rect x="398.6666666666667" y="240" width="135.33333333333334" height="80" rx="8" fill="#222836" stroke="#E11D2E" stroke-width="2"/>
+<text x="408.6666666666667" y="308" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="12" fill="#F5F6F8" text-anchor="start">Lotus</text>
+<rect x="546" y="240" width="135.33333333333334" height="80" rx="8" fill="#222836" stroke="#2A3140" stroke-width="1"/>
+<text x="556" y="308" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="12" fill="#F5F6F8" text-anchor="start">Ascent</text>
+<rect x="693.3333333333334" y="240" width="135.33333333333334" height="80" rx="8" fill="#222836" stroke="#2A3140" stroke-width="1"/>
+<text x="703.3333333333334" y="308" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="12" fill="#F5F6F8" text-anchor="start">Sunset</text>
+<rect x="840.6666666666667" y="240" width="135.33333333333334" height="80" rx="8" fill="#222836" stroke="#2A3140" stroke-width="1"/>
+<text x="850.6666666666667" y="308" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="12" fill="#F5F6F8" text-anchor="start">Split</text>
+<text x="104" y="346" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="11" letter-spacing="3" fill="#5B6573" text-anchor="start">AGENTS  ·  PICK YOUR COMP  ·  5/5</text>
+<rect x="104" y="370" width="135.33333333333334" height="84" rx="8" fill="#222836" stroke="#E11D2E" stroke-width="2"/>
+<rect x="153.66666666666669" y="384" width="36" height="36" rx="6" fill="#3A4150"/>
+<text x="171.66666666666669" y="440" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="11" fill="#F5F6F8" text-anchor="middle">JETT</text>
+<rect x="251.33333333333334" y="370" width="135.33333333333334" height="84" rx="8" fill="#222836" stroke="#2A3140" stroke-width="1"/>
+<rect x="301" y="384" width="36" height="36" rx="6" fill="#3A4150"/>
+<text x="319" y="440" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="11" fill="#5B6573" text-anchor="middle">RAZE</text>
+<rect x="398.6666666666667" y="370" width="135.33333333333334" height="84" rx="8" fill="#222836" stroke="#E11D2E" stroke-width="2"/>
+<rect x="448.33333333333337" y="384" width="36" height="36" rx="6" fill="#3A4150"/>
+<text x="466.33333333333337" y="440" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="11" fill="#F5F6F8" text-anchor="middle">SOVA</text>
+<rect x="546" y="370" width="135.33333333333334" height="84" rx="8" fill="#222836" stroke="#E11D2E" stroke-width="2"/>
+<rect x="595.6666666666666" y="384" width="36" height="36" rx="6" fill="#3A4150"/>
+<text x="613.6666666666666" y="440" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="11" fill="#F5F6F8" text-anchor="middle">KAY/O</text>
+<rect x="693.3333333333334" y="370" width="135.33333333333334" height="84" rx="8" fill="#222836" stroke="#E11D2E" stroke-width="2"/>
+<rect x="743" y="384" width="36" height="36" rx="6" fill="#3A4150"/>
+<text x="761" y="440" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="11" fill="#F5F6F8" text-anchor="middle">KILLJOY</text>
+<rect x="840.6666666666667" y="370" width="135.33333333333334" height="84" rx="8" fill="#222836" stroke="#E11D2E" stroke-width="2"/>
+<rect x="890.3333333333334" y="384" width="36" height="36" rx="6" fill="#3A4150"/>
+<text x="908.3333333333334" y="440" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="11" fill="#F5F6F8" text-anchor="middle">OMEN</text>
+<rect x="104" y="466" width="135.33333333333334" height="84" rx="8" fill="#222836" stroke="#2A3140" stroke-width="1"/>
+<rect x="153.66666666666669" y="480" width="36" height="36" rx="6" fill="#3A4150"/>
+<text x="171.66666666666669" y="536" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="11" fill="#5B6573" text-anchor="middle">CYPHER</text>
+<rect x="251.33333333333334" y="466" width="135.33333333333334" height="84" rx="8" fill="#222836" stroke="#2A3140" stroke-width="1"/>
+<rect x="301" y="480" width="36" height="36" rx="6" fill="#3A4150"/>
+<text x="319" y="536" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="11" fill="#5B6573" text-anchor="middle">SKYE</text>
+<rect x="398.6666666666667" y="466" width="135.33333333333334" height="84" rx="8" fill="#222836" stroke="#2A3140" stroke-width="1"/>
+<rect x="448.33333333333337" y="480" width="36" height="36" rx="6" fill="#3A4150"/>
+<text x="466.33333333333337" y="536" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="11" fill="#5B6573" text-anchor="middle">BREACH</text>
+<rect x="546" y="466" width="135.33333333333334" height="84" rx="8" fill="#222836" stroke="#2A3140" stroke-width="1"/>
+<rect x="595.6666666666666" y="480" width="36" height="36" rx="6" fill="#3A4150"/>
+<text x="613.6666666666666" y="536" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="11" fill="#5B6573" text-anchor="middle">BRIM</text>
+<rect x="693.3333333333334" y="466" width="135.33333333333334" height="84" rx="8" fill="#222836" stroke="#2A3140" stroke-width="1"/>
+<rect x="743" y="480" width="36" height="36" rx="6" fill="#3A4150"/>
+<text x="761" y="536" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="11" fill="#5B6573" text-anchor="middle">REYNA</text>
+<rect x="840.6666666666667" y="466" width="135.33333333333334" height="84" rx="8" fill="#222836" stroke="#2A3140" stroke-width="1"/>
+<rect x="890.3333333333334" y="480" width="36" height="36" rx="6" fill="#3A4150"/>
+<text x="908.3333333333334" y="536" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="11" fill="#5B6573" text-anchor="middle">NEON</text>
+<text x="1052" y="1892" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="11" fill="#5B6573" text-anchor="end">VICIOUS  ·  vicious.gg</text></svg>

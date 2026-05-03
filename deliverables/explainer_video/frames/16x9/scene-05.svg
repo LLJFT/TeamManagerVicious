@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080"><rect width="1920" height="1080" fill="#0E1117"/>
+<text x="80" y="70" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="14" letter-spacing="3" fill="#E11D2E" text-anchor="start">HOW IT WORKS  ·  01</text>
+<text x="80" y="124" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="900" font-size="52" letter-spacing="4" fill="#F5F6F8" text-anchor="start">ROSTER. SCRIMS. AVAILABILITY.</text>
+<rect x="80" y="170" width="1760" height="850" rx="12" fill="#1A1F2A" stroke="#2A3140" stroke-width="1"/>
+<rect x="80" y="170" width="633" height="850" rx="12" fill="#222836"/>
+<rect x="701" y="170" width="12" height="850" rx="0" fill="#222836"/>
+<text x="100" y="200" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="11" letter-spacing="3" fill="#5B6573" text-anchor="start">ROSTER  ·  VALORANT A</text>
+<rect x="92" y="222" width="609" height="48" rx="8" fill="#2A3140"/>
+<rect x="104" y="230" width="32" height="32" rx="16" fill="#E11D2E"/>
+<text x="120" y="252" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="800" font-size="13" fill="#F5F6F8" text-anchor="middle">KT</text>
+<text x="148" y="244" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="14" fill="#F5F6F8" text-anchor="start">Vortex</text>
+<text x="148" y="260" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="600" font-size="10" fill="#5B6573" text-anchor="start">DUELIST</text>
+<rect x="104" y="286" width="32" height="32" rx="16" fill="#E11D2E"/>
+<text x="120" y="308" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="800" font-size="13" fill="#F5F6F8" text-anchor="middle">MR</text>
+<text x="148" y="300" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="14" fill="#F5F6F8" text-anchor="start">Mira</text>
+<text x="148" y="316" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="600" font-size="10" fill="#5B6573" text-anchor="start">CONTROLLER</text>
+<rect x="104" y="342" width="32" height="32" rx="16" fill="#E11D2E"/>
+<text x="120" y="364" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="800" font-size="13" fill="#F5F6F8" text-anchor="middle">AS</text>
+<text x="148" y="356" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="14" fill="#F5F6F8" text-anchor="start">Asher</text>
+<text x="148" y="372" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="600" font-size="10" fill="#5B6573" text-anchor="start">SENTINEL</text>
+<rect x="104" y="398" width="32" height="32" rx="16" fill="#E11D2E"/>
+<text x="120" y="420" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="800" font-size="13" fill="#F5F6F8" text-anchor="middle">JN</text>
+<text x="148" y="412" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="14" fill="#F5F6F8" text-anchor="start">Juno</text>
+<text x="148" y="428" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="600" font-size="10" fill="#5B6573" text-anchor="start">INITIATOR</text>
+<rect x="104" y="454" width="32" height="32" rx="16" fill="#E11D2E"/>
+<text x="120" y="476" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="800" font-size="13" fill="#F5F6F8" text-anchor="middle">RV</text>
+<text x="148" y="468" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="14" fill="#F5F6F8" text-anchor="start">Rave</text>
+<text x="148" y="484" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="600" font-size="10" fill="#5B6573" text-anchor="start">IGL</text>
+<text x="729" y="200" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="11" letter-spacing="3" fill="#5B6573" text-anchor="start">PLAYER PROFILE</text>
+<text x="729" y="240" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="900" font-size="28" letter-spacing="4" fill="#F5F6F8" text-anchor="start">K. ‘VORTEX’ TANAKA</text>
+<text x="729" y="266" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="13" fill="#5B6573" text-anchor="start">Duelist  ·  3yr  ·  JST</text>
+<rect x="729" y="290" width="116" height="64" rx="8" fill="#222836" stroke="#2A3140" stroke-width="1"/>
+<text x="741" y="308" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="10" letter-spacing="3" fill="#5B6573" text-anchor="start">KD</text>
+<text x="741" y="344" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="800" font-size="24" fill="#E11D2E" text-anchor="start">1.34</text>
+<rect x="859" y="290" width="116" height="64" rx="8" fill="#222836" stroke="#2A3140" stroke-width="1"/>
+<text x="871" y="308" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="10" letter-spacing="3" fill="#5B6573" text-anchor="start">HS%</text>
+<text x="871" y="344" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="800" font-size="24" fill="#F5F6F8" text-anchor="start">29</text>
+<rect x="989" y="290" width="116" height="64" rx="8" fill="#222836" stroke="#2A3140" stroke-width="1"/>
+<text x="1001" y="308" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="10" letter-spacing="3" fill="#5B6573" text-anchor="start">ACS</text>
+<text x="1001" y="344" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="800" font-size="24" fill="#F5F6F8" text-anchor="start">248</text>
+<rect x="1119" y="290" width="116" height="64" rx="8" fill="#222836" stroke="#2A3140" stroke-width="1"/>
+<text x="1131" y="308" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="10" letter-spacing="3" fill="#5B6573" text-anchor="start">AVAIL/WK</text>
+<text x="1131" y="344" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="800" font-size="24" fill="#F5F6F8" text-anchor="start">22h</text>
+<text x="729" y="374" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="11" letter-spacing="3" fill="#5B6573" text-anchor="start">AVAILABILITY  ·  NEXT 7 DAYS</text>
+<rect x="729" y="388" width="146.71428571428572" height="56" rx="6" fill="#222836" stroke="#2A3140" stroke-width="1"/>
+<rect x="733" y="392" width="138.71428571428572" height="48" rx="4" fill="#16A34A"/>
+<text x="737" y="406" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="11" fill="#F5F6F8" text-anchor="start">T</text>
+<rect x="883.7142857142858" y="388" width="146.71428571428572" height="56" rx="6" fill="#222836" stroke="#2A3140" stroke-width="1"/>
+<rect x="887.7142857142858" y="392" width="138.71428571428572" height="48" rx="4" fill="#3A4150"/>
+<text x="891.7142857142858" y="406" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="11" fill="#F5F6F8" text-anchor="start">W</text>
+<rect x="1038.4285714285716" y="388" width="146.71428571428572" height="56" rx="6" fill="#222836" stroke="#2A3140" stroke-width="1"/>
+<rect x="1042.4285714285716" y="392" width="138.71428571428572" height="48" rx="4" fill="#16A34A"/>
+<text x="1046.4285714285716" y="406" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="11" fill="#F5F6F8" text-anchor="start">T</text>
+<rect x="1193.142857142857" y="388" width="146.71428571428572" height="56" rx="6" fill="#222836" stroke="#2A3140" stroke-width="1"/>
+<rect x="1197.142857142857" y="392" width="138.71428571428572" height="48" rx="4" fill="#16A34A"/>
+<text x="1201.142857142857" y="406" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="11" fill="#F5F6F8" text-anchor="start">F</text>
+<rect x="1347.857142857143" y="388" width="146.71428571428572" height="56" rx="6" fill="#222836" stroke="#2A3140" stroke-width="1"/>
+<rect x="1351.857142857143" y="392" width="138.71428571428572" height="48" rx="4" fill="#16A34A"/>
+<text x="1355.857142857143" y="406" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="11" fill="#F5F6F8" text-anchor="start">S</text>
+<rect x="1502.5714285714287" y="388" width="146.71428571428572" height="56" rx="6" fill="#222836" stroke="#2A3140" stroke-width="1"/>
+<rect x="1506.5714285714287" y="392" width="138.71428571428572" height="48" rx="4" fill="#3A4150"/>
+<text x="1510.5714285714287" y="406" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="11" fill="#F5F6F8" text-anchor="start">S</text>
+<rect x="1657.2857142857142" y="388" width="146.71428571428572" height="56" rx="6" fill="#222836" stroke="#2A3140" stroke-width="1"/>
+<rect x="1661.2857142857142" y="392" width="138.71428571428572" height="48" rx="4" fill="#16A34A"/>
+<text x="1665.2857142857142" y="406" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" font-size="11" fill="#F5F6F8" text-anchor="start">M</text>
+<text x="1892" y="1052" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="500" font-size="11" fill="#5B6573" text-anchor="end">VICIOUS  ·  vicious.gg</text></svg>
