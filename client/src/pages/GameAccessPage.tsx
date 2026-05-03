@@ -11,6 +11,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { orgRoleLabels, type OrgRole } from "@shared/schema";
 import type { SupportedGame, Roster } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next";
 
 interface UserData {
   id: string;
@@ -102,6 +103,7 @@ function UserGameRosterCheckboxes({
 }
 
 export default function GameAccessPage() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<string>("");
@@ -173,9 +175,9 @@ export default function GameAccessPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/all-users"] });
-      toast({ title: "Access granted" });
+      toast({ title: t("pages.gameAccess.toasts.granted") });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: t("pages.common.error"), description: e.message, variant: "destructive" }),
   });
 
   const removeAccessMutation = useMutation({
@@ -184,9 +186,9 @@ export default function GameAccessPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/all-users"] });
-      toast({ title: "Access removed" });
+      toast({ title: t("pages.gameAccess.toasts.removed") });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: t("pages.common.error"), description: e.message, variant: "destructive" }),
   });
 
   const bulkAccessMutation = useMutation({
@@ -197,9 +199,9 @@ export default function GameAccessPage() {
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/all-users"] });
       setBulkSelectedRosters(new Set());
-      toast({ title: `Access granted to ${data.users} user(s), ${data.created} new assignment(s)` });
+      toast({ title: t("pages.gameAccess.toasts.bulkGranted", { users: data.users, created: data.created }) });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: t("pages.common.error"), description: e.message, variant: "destructive" }),
   });
 
   const handleAddAccess = () => {
@@ -257,31 +259,31 @@ export default function GameAccessPage() {
   const gamesWithRosters = allGames.filter(g => (allRostersMap[g.id] || []).length > 0);
 
   if (usersLoading) {
-    return <div className="p-6"><p className="text-muted-foreground">Loading...</p></div>;
+    return <div className="p-6"><p className="text-muted-foreground">{t("pages.common.loading")}</p></div>;
   }
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center gap-2">
         <KeyRound className="h-6 w-6" />
-        <h1 className="text-2xl font-bold" data-testid="text-game-access-title">Game Access</h1>
+        <h1 className="text-2xl font-bold" data-testid="text-game-access-title">{t("pages.gameAccess.title")}</h1>
       </div>
 
       <Card className="border-l-2 border-l-primary/40">
         <CardHeader className="pb-3 gap-2">
           <CardTitle className="text-base flex items-center gap-2">
             <UserPlus className="h-4 w-4 text-primary" />
-            Grant Access to a Single User
+            {t("pages.gameAccess.grantSingleTitle")}
           </CardTitle>
-          <p className="text-xs text-muted-foreground">Pick one user and assign them to one specific roster.</p>
+          <p className="text-xs text-muted-foreground">{t("pages.gameAccess.grantSingleDesc")}</p>
         </CardHeader>
         <CardContent>
           <div className="flex items-end gap-3 flex-wrap">
             <div className="space-y-1 flex-1 min-w-[200px]">
-              <label className="text-xs text-muted-foreground">User</label>
+              <label className="text-xs text-muted-foreground">{t("pages.gameAccess.user")}</label>
               <Select value={selectedUserId} onValueChange={setSelectedUserId}>
                 <SelectTrigger data-testid="select-access-user">
-                  <SelectValue placeholder="Select user" />
+                  <SelectValue placeholder={t("pages.gameAccess.selectUser")} />
                 </SelectTrigger>
                 <SelectContent>
                   {allUsers.map(u => (
@@ -291,10 +293,10 @@ export default function GameAccessPage() {
               </Select>
             </div>
             <div className="space-y-1 flex-1 min-w-[200px]">
-              <label className="text-xs text-muted-foreground">Game + Roster</label>
+              <label className="text-xs text-muted-foreground">{t("pages.gameAccess.gameAndRoster")}</label>
               <Select value={selectedRosterOption} onValueChange={setSelectedRosterOption}>
                 <SelectTrigger data-testid="select-access-roster">
-                  <SelectValue placeholder="Select game + roster" />
+                  <SelectValue placeholder={t("pages.gameAccess.selectGameRoster")} />
                 </SelectTrigger>
                 <SelectContent>
                   {rosterOptions.map(r => (
@@ -308,8 +310,8 @@ export default function GameAccessPage() {
               disabled={!selectedUserId || !selectedRosterOption || addAccessMutation.isPending}
               data-testid="button-grant-access"
             >
-              <Plus className="h-4 w-4 mr-2" />
-              Grant Access
+              <Plus className="h-4 w-4 me-2" />
+              {t("pages.gameAccess.grantAccess")}
             </Button>
           </div>
         </CardContent>
@@ -326,9 +328,9 @@ export default function GameAccessPage() {
             <div className="flex flex-col gap-0.5">
               <CardTitle className="text-base flex items-center gap-2">
                 <Users className="h-4 w-4 text-chart-2" />
-                Grant Access by Role (Bulk)
+                {t("pages.gameAccess.bulkTitle")}
               </CardTitle>
-              <p className="text-xs text-muted-foreground">Assign every user with a chosen role to one or more rosters at once.</p>
+              <p className="text-xs text-muted-foreground">{t("pages.gameAccess.bulkDesc")}</p>
             </div>
             {bulkRoleExpanded
               ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -338,10 +340,10 @@ export default function GameAccessPage() {
         {bulkRoleExpanded && (
         <CardContent className="space-y-4">
           <div className="space-y-1 max-w-xs">
-            <label className="text-xs text-muted-foreground">Role</label>
+            <label className="text-xs text-muted-foreground">{t("pages.common.role")}</label>
             <Select value={bulkRole} onValueChange={setBulkRole}>
               <SelectTrigger data-testid="select-bulk-role">
-                <SelectValue placeholder="Select role" />
+                <SelectValue placeholder={t("pages.gameAccess.selectRole")} />
               </SelectTrigger>
               <SelectContent>
                 {(() => {
@@ -353,7 +355,7 @@ export default function GameAccessPage() {
                   }
                   const opts = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
                   if (opts.length === 0) {
-                    return <SelectItem value="__none" disabled>No users found</SelectItem>;
+                    return <SelectItem value="__none" disabled>{t("pages.gameAccess.noUsersFound")}</SelectItem>;
                   }
                   return opts.map(([role, n]) => (
                     <SelectItem key={role} value={role} data-testid={`option-bulk-role-${role}`}>
@@ -367,7 +369,7 @@ export default function GameAccessPage() {
 
           {bulkRole && (
             <>
-              <p className="text-xs text-muted-foreground">Select rosters to grant access to all {orgRoleLabelFor(bulkRole)} users:</p>
+              <p className="text-xs text-muted-foreground">{t("pages.gameAccess.selectRostersFor", { role: orgRoleLabelFor(bulkRole) })}</p>
               <div className="space-y-1">
                 {gamesWithRosters.map(game => {
                   const gameRosters = allRostersMap[game.id] || [];
@@ -385,7 +387,7 @@ export default function GameAccessPage() {
                         {isBulkExpanded ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />}
                         <span className="text-sm font-medium">{game.name}</span>
                         {selectedCount > 0 && (
-                          <Badge variant="secondary" className="text-xs">{selectedCount} selected</Badge>
+                          <Badge variant="secondary" className="text-xs">{t("pages.gameAccess.countSelected", { count: selectedCount })}</Badge>
                         )}
                       </button>
                       {isBulkExpanded && (
@@ -414,8 +416,8 @@ export default function GameAccessPage() {
                 disabled={bulkSelectedRosters.size === 0 || bulkAccessMutation.isPending}
                 data-testid="button-bulk-grant-access"
               >
-                <Plus className="h-4 w-4 mr-2" />
-                Grant Access
+                <Plus className="h-4 w-4 me-2" />
+                {t("pages.gameAccess.grantAccess")}
               </Button>
             </>
           )}
@@ -426,7 +428,7 @@ export default function GameAccessPage() {
       <div className="flex items-center gap-2 flex-wrap">
         <Search className="h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Search users by name..."
+          placeholder={t("pages.gameAccess.searchUsers")}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="max-w-xs"
@@ -437,21 +439,21 @@ export default function GameAccessPage() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Users</SelectItem>
+            <SelectItem value="all">{t("pages.gameAccess.allUsers")}</SelectItem>
             {allGames.map(g => (
-              <SelectItem key={`game-${g.id}`} value={`game:${g.id}`}>Game: {g.name}</SelectItem>
+              <SelectItem key={`game-${g.id}`} value={`game:${g.id}`}>{t("pages.gameAccess.gamePrefix", { name: g.name })}</SelectItem>
             ))}
             {allGames.flatMap(g =>
               (allRostersMap[g.id] || []).map(r => (
                 <SelectItem key={`roster-${g.id}-${r.id}`} value={`roster:${g.id}|${r.id}`}>
-                  Roster: {g.name} — {r.name}
+                  {t("pages.gameAccess.rosterPrefix", { game: g.name, roster: r.name })}
                 </SelectItem>
               ))
             )}
           </SelectContent>
         </Select>
         <span className="text-xs text-muted-foreground" data-testid="text-users-count">
-          {filteredUsers.length} user{filteredUsers.length === 1 ? "" : "s"}
+          {t("pages.gameAccess.usersCount", { count: filteredUsers.length })}
         </span>
       </div>
 
@@ -473,7 +475,7 @@ export default function GameAccessPage() {
                     <span className="font-medium" data-testid={`text-access-user-${user.id}`}>{user.username}</span>
                     <Badge variant="outline" className="text-xs">{orgRoleLabels[user.orgRole as OrgRole] || user.orgRole}</Badge>
                     {assignmentCount > 0 && (
-                      <span className="text-xs text-muted-foreground">{assignmentCount} assignment(s)</span>
+                      <span className="text-xs text-muted-foreground">{t("pages.gameAccess.assignmentsCount", { count: assignmentCount })}</span>
                     )}
                   </div>
                 </button>

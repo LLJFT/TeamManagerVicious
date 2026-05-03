@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -19,6 +20,7 @@ interface RosterCardData {
 }
 
 export default function GamesHome() {
+  const { t } = useTranslation();
   const { hasGameAccess, hasRosterAccess, hasOrgRole } = useAuth();
   const [, navigate] = useLocation();
   const { setRosterId } = useGame();
@@ -40,7 +42,7 @@ export default function GamesHome() {
           <div className="absolute inset-0 rounded-full border-2 border-t-primary border-r-transparent border-b-transparent border-l-transparent animate-spin" />
           <div className="absolute inset-1.5 rounded-full border-2 border-t-transparent border-r-primary/60 border-b-transparent border-l-transparent animate-spin" style={{ animationDirection: "reverse", animationDuration: "1.5s" }} />
         </div>
-        <p className="text-sm text-muted-foreground animate-pulse">Loading games...</p>
+        <p className="text-sm text-muted-foreground animate-pulse">{t("pages.gamesHome.loadingGames")}</p>
       </div>
     );
   }
@@ -98,7 +100,7 @@ export default function GamesHome() {
                         className={`relative transition-opacity ${hasAccess ? "cursor-pointer hover-elevate" : "opacity-50 cursor-not-allowed"}`}
                         data-testid={`card-roster-${game.slug}-${roster.slug}`}
                         onClick={() => hasAccess && handleRosterCardClick(game, roster)}
-                        title={hasAccess ? undefined : "You don't have access to this roster"}
+                        title={hasAccess ? undefined : t("pages.gamesHome.noAccess")}
                         aria-disabled={!hasAccess}
                       >
                         <CardContent className="p-4 flex items-center gap-3">
@@ -126,18 +128,18 @@ export default function GamesHome() {
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold" data-testid="text-page-title">Home</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">Select a roster to manage</p>
+        <h1 className="text-2xl font-bold" data-testid="text-page-title">{t("pages.gamesHome.title")}</h1>
+        <p className="text-muted-foreground text-sm mt-0.5">{t("pages.gamesHome.subtitle")}</p>
       </div>
 
       {showPlanTab ? (
         <Tabs defaultValue="rosters">
           <TabsList data-testid="games-home-tabs">
             <TabsTrigger value="rosters" data-testid="tab-home-rosters">
-              <Gamepad2 className="h-4 w-4 mr-2" /> Rosters
+              <Gamepad2 className="h-4 w-4 me-2" /> {t("pages.gamesHome.rostersTab")}
             </TabsTrigger>
             <TabsTrigger value="plan" data-testid="tab-home-plan">
-              <ShieldCheck className="h-4 w-4 mr-2" /> My Plan
+              <ShieldCheck className="h-4 w-4 me-2" /> {t("pages.gamesHome.planTab")}
             </TabsTrigger>
           </TabsList>
           <TabsContent value="rosters" className="mt-4">{rostersView}</TabsContent>

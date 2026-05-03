@@ -11,6 +11,7 @@ import {
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { SupportedGame } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next";
 
 interface PendingAssignment {
   id: string;
@@ -25,6 +26,7 @@ interface PendingAssignment {
 }
 
 export default function OrgDashboard() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [expandedRosters, setExpandedRosters] = useState<Set<string>>(new Set());
   const [tempPasswords, setTempPasswords] = useState<Record<string, string>>({});
@@ -68,9 +70,9 @@ export default function OrgDashboard() {
       queryClient.invalidateQueries({ queryKey: ["/api/game-assignments/pending"] });
       queryClient.invalidateQueries({ queryKey: ["/api/org-dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["/api/all-users"] });
-      toast({ title: "User approved" });
+      toast({ title: t("pages.orgDashboard.toasts.userApproved") });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: t("pages.common.error"), description: e.message, variant: "destructive" }),
   });
 
   const rejectMutation = useMutation({
@@ -80,9 +82,9 @@ export default function OrgDashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/game-assignments/pending"] });
       queryClient.invalidateQueries({ queryKey: ["/api/org-dashboard"] });
-      toast({ title: "User rejected" });
+      toast({ title: t("pages.orgDashboard.toasts.userRejected") });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: t("pages.common.error"), description: e.message, variant: "destructive" }),
   });
 
   const resolveResetMutation = useMutation({
@@ -96,9 +98,9 @@ export default function OrgDashboard() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/password-reset-requests"] });
-      toast({ title: "Password reset handled" });
+      toast({ title: t("pages.orgDashboard.toasts.pwResetHandled") });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: t("pages.common.error"), description: e.message, variant: "destructive" }),
   });
 
   const toggleRoster = (id: string) => {
@@ -118,7 +120,7 @@ export default function OrgDashboard() {
     <div className="p-6 space-y-6 overflow-y-auto h-full">
       <div className="flex items-center gap-2">
         <LayoutDashboard className="h-6 w-6" />
-        <h1 className="text-2xl font-bold" data-testid="text-dashboard-title">Dashboard</h1>
+        <h1 className="text-2xl font-bold" data-testid="text-dashboard-title">{t("pages.orgDashboard.title")}</h1>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -129,7 +131,7 @@ export default function OrgDashboard() {
             </div>
             <div>
               <p className="text-2xl font-bold" data-testid="text-stat-games">{allGames.length}</p>
-              <p className="text-xs text-muted-foreground">Active Games</p>
+              <p className="text-xs text-muted-foreground">{t("pages.orgDashboard.activeGames")}</p>
             </div>
           </CardContent>
         </Card>
@@ -140,7 +142,7 @@ export default function OrgDashboard() {
             </div>
             <div>
               <p className="text-2xl font-bold" data-testid="text-stat-members">{totalMembers}</p>
-              <p className="text-xs text-muted-foreground">Total Members</p>
+              <p className="text-xs text-muted-foreground">{t("pages.orgDashboard.totalMembers")}</p>
             </div>
           </CardContent>
         </Card>
@@ -151,7 +153,7 @@ export default function OrgDashboard() {
             </div>
             <div>
               <p className="text-2xl font-bold" data-testid="text-stat-rosters">{rosterSummaries.length}</p>
-              <p className="text-xs text-muted-foreground">Rosters</p>
+              <p className="text-xs text-muted-foreground">{t("pages.orgDashboard.rosters")}</p>
             </div>
           </CardContent>
         </Card>
@@ -162,7 +164,7 @@ export default function OrgDashboard() {
             </div>
             <div>
               <p className="text-2xl font-bold" data-testid="text-stat-upcoming">{totalEvents}</p>
-              <p className="text-xs text-muted-foreground">Upcoming Events</p>
+              <p className="text-xs text-muted-foreground">{t("pages.orgDashboard.upcomingEvents")}</p>
             </div>
           </CardContent>
         </Card>
@@ -175,7 +177,7 @@ export default function OrgDashboard() {
               <CardHeader className="pb-3 gap-2">
                 <CardTitle className="text-base flex items-center gap-2">
                   <AlertCircle className="h-4 w-4 text-destructive" />
-                  Pending Registrations
+                  {t("pages.orgDashboard.pendingRegistrations")}
                   <Badge variant="destructive">{pending.length}</Badge>
                 </CardTitle>
               </CardHeader>
@@ -192,12 +194,12 @@ export default function OrgDashboard() {
                     </div>
                     <div className="flex items-center gap-1">
                       <Button size="sm" onClick={() => approveMutation.mutate(p.id)} disabled={approveMutation.isPending} data-testid={`button-approve-${p.id}`}>
-                        <CheckCircle className="h-4 w-4 mr-1" />
-                        Approve
+                        <CheckCircle className="h-4 w-4 me-1" />
+                        {t("pages.orgDashboard.approve")}
                       </Button>
                       <Button size="sm" variant="outline" onClick={() => rejectMutation.mutate(p.id)} disabled={rejectMutation.isPending} data-testid={`button-reject-${p.id}`}>
-                        <XCircle className="h-4 w-4 mr-1" />
-                        Reject
+                        <XCircle className="h-4 w-4 me-1" />
+                        {t("pages.orgDashboard.reject")}
                       </Button>
                     </div>
                   </div>
@@ -211,7 +213,7 @@ export default function OrgDashboard() {
               <CardHeader className="pb-3 gap-2">
                 <CardTitle className="text-base flex items-center gap-2">
                   <KeyRound className="h-4 w-4" />
-                  Password Reset Requests
+                  {t("pages.orgDashboard.passwordResetRequests")}
                   <Badge variant="destructive">{pendingResets.length}</Badge>
                 </CardTitle>
               </CardHeader>
@@ -232,8 +234,8 @@ export default function OrgDashboard() {
                         disabled={resolveResetMutation.isPending}
                         data-testid={`button-resolve-reset-${req.id}`}
                       >
-                        <KeyRound className="h-4 w-4 mr-1" />
-                        Generate Reset
+                        <KeyRound className="h-4 w-4 me-1" />
+                        {t("pages.orgDashboard.generateReset")}
                       </Button>
                     </div>
                   </div>
@@ -248,12 +250,12 @@ export default function OrgDashboard() {
         <CardHeader className="pb-3 gap-2">
           <CardTitle className="text-base flex items-center gap-2">
             <Trophy className="h-4 w-4" />
-            Roster Overview
+            {t("pages.orgDashboard.rosterOverview")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {rosterSummaries.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No roster data available</p>
+            <p className="text-sm text-muted-foreground">{t("pages.orgDashboard.noRosterData")}</p>
           ) : (
             rosterSummaries.map((rs: any) => {
               const game = allGames.find(g => g.id === rs.gameId);
@@ -292,22 +294,22 @@ export default function OrgDashboard() {
                         <div className="grid grid-cols-3 gap-2">
                           <div className="text-center p-2 rounded-md bg-green-500/10">
                             <p className="text-lg font-bold text-green-600 dark:text-green-400">{rs.attendance?.attended || 0}</p>
-                            <p className="text-xs text-muted-foreground">Attended</p>
+                            <p className="text-xs text-muted-foreground">{t("pages.orgDashboard.attended")}</p>
                           </div>
                           <div className="text-center p-2 rounded-md bg-yellow-500/10">
                             <p className="text-lg font-bold text-yellow-600 dark:text-yellow-400">{rs.attendance?.late || 0}</p>
-                            <p className="text-xs text-muted-foreground">Late</p>
+                            <p className="text-xs text-muted-foreground">{t("pages.orgDashboard.late")}</p>
                           </div>
                           <div className="text-center p-2 rounded-md bg-red-500/10">
                             <p className="text-lg font-bold text-red-600 dark:text-red-400">{rs.attendance?.absent || 0}</p>
-                            <p className="text-xs text-muted-foreground">Absent</p>
+                            <p className="text-xs text-muted-foreground">{t("pages.orgDashboard.absent")}</p>
                           </div>
                         </div>
                       )}
 
                       {rs.recentResults && rs.recentResults.length > 0 && (
                         <div>
-                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Recent Results</p>
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">{t("pages.orgDashboard.recentResults")}</p>
                           <div className="space-y-1">
                             {rs.recentResults.map((r: any, i: number) => (
                               <div key={i} className="flex items-center justify-between gap-2 text-sm">
@@ -329,7 +331,7 @@ export default function OrgDashboard() {
 
                       {rs.nextEvents && rs.nextEvents.length > 0 && (
                         <div>
-                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Upcoming Events</p>
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">{t("pages.orgDashboard.upcomingEventsLabel")}</p>
                           <div className="space-y-1">
                             {rs.nextEvents.map((e: any, i: number) => (
                               <div key={i} className="flex items-center justify-between gap-2 text-sm">
@@ -349,12 +351,12 @@ export default function OrgDashboard() {
 
                       {rs.members && rs.members.length > 0 && (
                         <div>
-                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Members</p>
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">{t("pages.orgDashboard.membersLabel")}</p>
                           <div className="grid grid-cols-2 gap-1">
                             {rs.members.map((m: any) => (
                               <div key={m.id} className="flex items-center justify-between gap-2 text-sm p-1.5 rounded-md">
                                 <span className="truncate">{m.name}</span>
-                                <Badge variant="outline" className="text-xs">{m.role || "Member"}</Badge>
+                                <Badge variant="outline" className="text-xs">{m.role || t("pages.common.member")}</Badge>
                               </div>
                             ))}
                           </div>

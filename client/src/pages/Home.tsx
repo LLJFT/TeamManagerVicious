@@ -14,6 +14,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { useGame } from "@/hooks/use-game";
+import { useTranslation } from "react-i18next";
 
 interface StaffMember {
   id: string;
@@ -24,17 +25,18 @@ interface StaffMember {
 }
 
 export default function Home() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const { user, hasPermission } = useAuth();
   const { currentGame, gameId, rosterId, rosters, currentRoster, rostersLoading } = useGame();
   const currentDate = format(new Date(), "MMM dd");
-  const gameName = currentGame?.name || "Team";
+  const gameName = currentGame?.name || t("pages.home.teamFallback");
   const { data: orgNameSetting } = useQuery<string | null>({
     queryKey: ["/api/org-setting/org_name"],
     staleTime: 1000 * 60 * 10,
   });
   const rosterCustomName = ((currentRoster as any)?.customName as string | null | undefined)?.trim();
-  const orgName = (rosterCustomName && rosterCustomName.length > 0) ? rosterCustomName : (orgNameSetting || "Team");
+  const orgName = (rosterCustomName && rosterCustomName.length > 0) ? rosterCustomName : (orgNameSetting || t("pages.home.teamFallback"));
   const canEditAll = hasPermission("edit_all_availability");
   const canEditOwn = hasPermission("edit_own_availability");
   const linkedPlayerId = user?.playerId || null;
@@ -128,7 +130,7 @@ export default function Home() {
       queryClient.invalidateQueries({ queryKey: ["/api/player-availability"] });
     },
     onError: (err: Error) => {
-      toast({ title: "Failed to save availability", description: err.message, variant: "destructive" });
+      toast({ title: t("pages.home.toasts.saveAvail"), description: err.message, variant: "destructive" });
     },
   });
 
@@ -140,7 +142,7 @@ export default function Home() {
       queryClient.invalidateQueries({ queryKey: ["/api/staff-availability"] });
     },
     onError: (err: Error) => {
-      toast({ title: "Failed to save availability", description: err.message, variant: "destructive" });
+      toast({ title: t("pages.home.toasts.saveAvail"), description: err.message, variant: "destructive" });
     },
   });
 
@@ -151,10 +153,10 @@ export default function Home() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/players"] });
-      toast({ title: "Player added" });
+      toast({ title: t("pages.home.toasts.addPlayer") });
     },
     onError: (err: Error) => {
-      toast({ title: "Failed to add player", description: err.message, variant: "destructive" });
+      toast({ title: t("pages.home.toasts.addPlayerFail"), description: err.message, variant: "destructive" });
     },
   });
 
@@ -164,10 +166,10 @@ export default function Home() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/players"] });
-      toast({ title: "Player updated" });
+      toast({ title: t("pages.home.toasts.updatePlayer") });
     },
     onError: (err: Error) => {
-      toast({ title: "Failed to update player", description: err.message, variant: "destructive" });
+      toast({ title: t("pages.home.toasts.updatePlayerFail"), description: err.message, variant: "destructive" });
     },
   });
 
@@ -178,10 +180,10 @@ export default function Home() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/players"] });
       queryClient.invalidateQueries({ queryKey: ["/api/player-availability"] });
-      toast({ title: "Player removed" });
+      toast({ title: t("pages.home.toasts.removePlayer") });
     },
     onError: (err: Error) => {
-      toast({ title: "Failed to remove player", description: err.message, variant: "destructive" });
+      toast({ title: t("pages.home.toasts.removePlayerFail"), description: err.message, variant: "destructive" });
     },
   });
 
@@ -206,7 +208,7 @@ export default function Home() {
 
   const handleRemovePlayer = (playerId: string) => {
     const player = players.find(p => p.id === playerId);
-    if (player && window.confirm(`Remove ${player.name}?`)) {
+    if (player && window.confirm(t("pages.home.confirmRemove", { name: player.name }))) {
       removePlayerMutation.mutate(playerId);
     }
   };
@@ -241,11 +243,11 @@ export default function Home() {
   if (!rosterId || rosters.length === 0) {
     return (
       <div className="p-8 text-center" data-testid="text-no-roster">
-        <h2 className="text-xl font-bold mb-2">No roster available</h2>
+        <h2 className="text-xl font-bold mb-2">{t("pages.home.noRosterTitle")}</h2>
         <p className="text-muted-foreground">
           {rosters.length === 0
-            ? "This game has no rosters yet. Ask an administrator to create one."
-            : "Select a roster to continue."}
+            ? t("pages.home.noRostersForGame")
+            : t("pages.home.selectRoster")}
         </p>
       </div>
     );
@@ -265,7 +267,7 @@ export default function Home() {
                 {gameName}
               </h1>
               <p className="text-lg font-semibold text-primary" data-testid="text-week-range">
-                {orgName} Availability Times ({currentDate})
+                {t("pages.home.availabilityTimes", { org: orgName, date: currentDate })}
               </p>
             </div>
           </div>

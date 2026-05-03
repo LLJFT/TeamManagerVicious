@@ -21,6 +21,7 @@ import type { Event, Game, GameMode, Map as MapType } from "@shared/schema";
 import { StatsSkeleton } from "@/components/PageSkeleton";
 import { useGame } from "@/hooks/use-game";
 import { MultiSelectEventTypeFilter } from "@/components/MultiSelectEventTypeFilter";
+import { useTranslation } from "react-i18next";
 
 interface StatsSummary {
   total: number;
@@ -31,6 +32,7 @@ interface StatsSummary {
 }
 
 export default function Stats() {
+  const { t } = useTranslation();
   const { gameId, rosterId } = useGame();
   const rosterReady = !!(gameId && rosterId);
   const [activeTab, setActiveTab] = useState("overall");
@@ -121,7 +123,7 @@ export default function Stats() {
       const mapGames = filteredGames.filter(g => g.mapId === map.id && g.result);
       const stats = calculateStats(mapGames);
       const mode = gameModes.find(m => m.id === map.gameModeId);
-      return { map, modeName: mode?.name || "Unknown", ...stats };
+      return { map, modeName: mode?.name || t("pages.common.unknown"), ...stats };
     }).filter(s => s.total > 0);
   };
 
@@ -185,12 +187,12 @@ export default function Stats() {
             <Link href="/">
               <Button variant="outline" className="gap-2" data-testid="button-back">
                 <ArrowLeft className="h-4 w-4" />
-                Back
+                {t("pages.stats.back")}
               </Button>
             </Link>
             <div>
-              <h1 className="text-3xl font-bold text-foreground">Team Statistics</h1>
-              <p className="text-muted-foreground">Performance analytics and win rates</p>
+              <h1 className="text-3xl font-bold text-foreground">{t("pages.stats.title")}</h1>
+              <p className="text-muted-foreground">{t("pages.stats.subtitle")}</p>
             </div>
           </div>
         </div>
@@ -208,21 +210,21 @@ export default function Stats() {
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid grid-cols-4 w-full max-w-lg">
-            <TabsTrigger value="overall" data-testid="tab-overall">Overall</TabsTrigger>
-            <TabsTrigger value="event-type" data-testid="tab-event-type">By Type</TabsTrigger>
-            <TabsTrigger value="mode" data-testid="tab-mode">By Mode</TabsTrigger>
-            <TabsTrigger value="map" data-testid="tab-map">By Map</TabsTrigger>
+            <TabsTrigger value="overall" data-testid="tab-overall">{t("pages.stats.tabs.overall")}</TabsTrigger>
+            <TabsTrigger value="event-type" data-testid="tab-event-type">{t("pages.stats.tabs.byType")}</TabsTrigger>
+            <TabsTrigger value="mode" data-testid="tab-mode">{t("pages.stats.tabs.byMode")}</TabsTrigger>
+            <TabsTrigger value="map" data-testid="tab-map">{t("pages.stats.tabs.byMap")}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overall" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <StatCard
-                title="Event Results"
+                title={t("pages.stats.eventResults")}
                 icon={<Trophy className="h-5 w-5 text-yellow-400" />}
                 stats={overallEventStats}
               />
               <StatCard
-                title="Game Results"
+                title={t("pages.stats.gameResults")}
                 icon={<Gamepad2 className="h-5 w-5 text-blue-400" />}
                 stats={overallGameStats}
               />
@@ -232,26 +234,26 @@ export default function Stats() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <BarChart3 className="h-5 w-5 text-primary" />
-                  Quick Summary
+                  {t("pages.stats.quickSummary")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="text-center p-4 rounded-lg bg-muted">
                     <div className="text-3xl font-bold text-foreground">{filteredEvents.length}</div>
-                    <div className="text-sm text-muted-foreground">Total Events</div>
+                    <div className="text-sm text-muted-foreground">{t("pages.stats.totalEvents")}</div>
                   </div>
                   <div className="text-center p-4 rounded-lg bg-muted">
                     <div className="text-3xl font-bold text-foreground">{filteredGames.length}</div>
-                    <div className="text-sm text-muted-foreground">Total Games</div>
+                    <div className="text-sm text-muted-foreground">{t("pages.stats.totalGames")}</div>
                   </div>
                   <div className="text-center p-4 rounded-lg bg-muted">
                     <div className="text-3xl font-bold text-green-400">{overallEventStats.wins}</div>
-                    <div className="text-sm text-muted-foreground">Event Wins</div>
+                    <div className="text-sm text-muted-foreground">{t("pages.stats.eventWins")}</div>
                   </div>
                   <div className="text-center p-4 rounded-lg bg-muted">
                     <div className="text-3xl font-bold text-green-400">{overallGameStats.wins}</div>
-                    <div className="text-sm text-muted-foreground">Game Wins</div>
+                    <div className="text-sm text-muted-foreground">{t("pages.stats.gameWins")}</div>
                   </div>
                 </div>
               </CardContent>
@@ -271,7 +273,7 @@ export default function Stats() {
                   <CardContent>
                     {stats.total === 0 ? (
                       <div className="text-center py-4 text-muted-foreground text-sm">
-                        No data available
+                        {t("pages.stats.noData")}
                       </div>
                     ) : (
                       <div className="space-y-3">
@@ -303,9 +305,9 @@ export default function Stats() {
               <Card>
                 <CardContent className="py-12 text-center">
                   <Gamepad2 className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                  <p className="text-muted-foreground">No game mode statistics available yet.</p>
+                  <p className="text-muted-foreground">{t("pages.stats.noModeStats")}</p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Add game modes and record games to see stats here.
+                    {t("pages.stats.noModeStatsHint")}
                   </p>
                 </CardContent>
               </Card>
@@ -349,9 +351,9 @@ export default function Stats() {
               <Card>
                 <CardContent className="py-12 text-center">
                   <MapIcon className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                  <p className="text-muted-foreground">No map statistics available yet.</p>
+                  <p className="text-muted-foreground">{t("pages.stats.noMapStats")}</p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Add maps and record games to see stats here.
+                    {t("pages.stats.noMapStatsHint")}
                   </p>
                 </CardContent>
               </Card>
@@ -368,7 +370,7 @@ export default function Stats() {
                             <Badge variant="outline" className="text-xs">{modeName}</Badge>
                           </div>
                           <div className="flex items-center gap-4 text-sm">
-                            <span className="text-muted-foreground">{stats.total} games</span>
+                            <span className="text-muted-foreground">{t("pages.stats.gamesLabel", { count: stats.total })}</span>
                             <span className="text-green-400">{stats.wins}W</span>
                             <span className="text-red-400">{stats.losses}L</span>
                             <span className="text-yellow-400">{stats.draws}D</span>

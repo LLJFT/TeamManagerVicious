@@ -29,10 +29,12 @@ import { OpponentAvatar } from "@/components/OpponentAvatar";
 import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied } from "@/components/AccessDenied";
 import { MultiSelectEventTypeFilter } from "@/components/MultiSelectEventTypeFilter";
+import { useTranslation } from "react-i18next";
 
 const ITEMS_PER_PAGE = 10;
 
 export default function History() {
+  const { t } = useTranslation();
   const { hasPermission } = useAuth();
   const { fullSlug, gameId, rosterId } = useGame();
   const rosterReady = !!(gameId && rosterId);
@@ -184,26 +186,26 @@ export default function History() {
   const getResultBadge = (result?: string | null) => {
     switch (result) {
       case "win":
-        return <Badge className="bg-emerald-500 hover:bg-emerald-600">Win</Badge>;
+        return <Badge className="bg-emerald-500 hover:bg-emerald-600">{t("pages.history.result.win")}</Badge>;
       case "loss":
-        return <Badge variant="destructive">Loss</Badge>;
+        return <Badge variant="destructive">{t("pages.history.result.loss")}</Badge>;
       case "draw":
-        return <Badge variant="secondary">Draw</Badge>;
+        return <Badge variant="secondary">{t("pages.history.result.draw")}</Badge>;
       default:
-        return <Badge variant="outline">Pending</Badge>;
+        return <Badge variant="outline">{t("pages.history.result.pending")}</Badge>;
     }
   };
 
   const getEventTypeBadge = (eventType?: string | null) => {
     switch (eventType?.toLowerCase()) {
       case "tournament":
-        return <Badge className="bg-amber-500 hover:bg-amber-600">Tournament</Badge>;
+        return <Badge className="bg-amber-500 hover:bg-amber-600">{t("pages.history.eventType.tournament")}</Badge>;
       case "scrim":
-        return <Badge className="bg-blue-500 hover:bg-blue-600">Scrim</Badge>;
+        return <Badge className="bg-blue-500 hover:bg-blue-600">{t("pages.history.eventType.scrim")}</Badge>;
       case "vod review":
-        return <Badge className="bg-purple-500 hover:bg-purple-600">VOD Review</Badge>;
+        return <Badge className="bg-purple-500 hover:bg-purple-600">{t("pages.history.eventType.vodReview")}</Badge>;
       default:
-        return <Badge variant="outline">{eventType || "Event"}</Badge>;
+        return <Badge variant="outline">{eventType || t("pages.history.eventType.event")}</Badge>;
     }
   };
 
@@ -225,7 +227,7 @@ export default function History() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-3">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="text-muted-foreground">Loading history...</p>
+          <p className="text-muted-foreground">{t("pages.history.loadingHistory")}</p>
         </div>
       </div>
     );
@@ -242,8 +244,8 @@ export default function History() {
               </Button>
             </Link>
             <div>
-              <h1 className="text-3xl font-bold text-foreground">Event History</h1>
-              <p className="text-muted-foreground">Browse and filter past events</p>
+              <h1 className="text-3xl font-bold text-foreground">{t("pages.history.title")}</h1>
+              <p className="text-muted-foreground">{t("pages.history.subtitle")}</p>
             </div>
           </div>
           <div className="flex gap-2">
@@ -252,11 +254,11 @@ export default function History() {
               onClick={() => setShowPastOnly(!showPastOnly)}
               data-testid="toggle-past-only"
             >
-              {showPastOnly ? "Past Only" : "All Events"}
+              {showPastOnly ? t("pages.history.pastOnly") : t("pages.history.allEvents")}
             </Button>
             <Button variant="outline" onClick={resetFilters} data-testid="button-reset-filters">
-              <Filter className="h-4 w-4 mr-2" />
-              Reset Filters
+              <Filter className="h-4 w-4 me-2" />
+              {t("pages.history.resetFilters")}
             </Button>
           </div>
         </div>
@@ -278,19 +280,19 @@ export default function History() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <Filter className="h-4 w-4" />
-              Filters
+              {t("pages.history.filters")}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               <div>
-                <label className="text-sm font-medium mb-2 block">Season</label>
+                <label className="text-sm font-medium mb-2 block">{t("pages.history.season")}</label>
                 <Select value={selectedSeason} onValueChange={(v) => { setSelectedSeason(v); setCurrentPage(1); }}>
                   <SelectTrigger data-testid="filter-season">
-                    <SelectValue placeholder="All Seasons" />
+                    <SelectValue placeholder={t("pages.history.allSeasons")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Seasons</SelectItem>
+                    <SelectItem value="all">{t("pages.history.allSeasons")}</SelectItem>
                     {seasons.map(season => (
                       <SelectItem key={season.id} value={season.id}>
                         {season.name}
@@ -301,13 +303,13 @@ export default function History() {
               </div>
 
               <div>
-                <label className="text-sm font-medium mb-2 block">Month</label>
+                <label className="text-sm font-medium mb-2 block">{t("pages.history.month")}</label>
                 <Select value={selectedMonth} onValueChange={(v) => { setSelectedMonth(v); setCurrentPage(1); }}>
                   <SelectTrigger data-testid="filter-month">
-                    <SelectValue placeholder="All Months" />
+                    <SelectValue placeholder={t("pages.history.allMonths")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Months</SelectItem>
+                    <SelectItem value="all">{t("pages.history.allMonths")}</SelectItem>
                     {availableMonths.map(month => (
                       <SelectItem key={month.value} value={month.value}>
                         {month.label}
@@ -318,13 +320,13 @@ export default function History() {
               </div>
 
               <div>
-                <label className="text-sm font-medium mb-2 block">Game Mode</label>
+                <label className="text-sm font-medium mb-2 block">{t("pages.history.gameMode")}</label>
                 <Select value={selectedMode} onValueChange={(v) => { setSelectedMode(v); setCurrentPage(1); }}>
                   <SelectTrigger data-testid="filter-mode">
-                    <SelectValue placeholder="All Modes" />
+                    <SelectValue placeholder={t("pages.history.allModes")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Modes</SelectItem>
+                    <SelectItem value="all">{t("pages.history.allModes")}</SelectItem>
                     {gameModes.map(mode => (
                       <SelectItem key={mode.id} value={mode.id}>
                         {mode.name}
@@ -335,13 +337,13 @@ export default function History() {
               </div>
 
               <div>
-                <label className="text-sm font-medium mb-2 block">Map</label>
+                <label className="text-sm font-medium mb-2 block">{t("pages.history.map")}</label>
                 <Select value={selectedMap} onValueChange={(v) => { setSelectedMap(v); setCurrentPage(1); }}>
                   <SelectTrigger data-testid="filter-map">
-                    <SelectValue placeholder="All Maps" />
+                    <SelectValue placeholder={t("pages.history.allMaps")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Maps</SelectItem>
+                    <SelectItem value="all">{t("pages.history.allMaps")}</SelectItem>
                     {maps.map(map => (
                       <SelectItem key={map.id} value={map.id}>
                         {map.name}
@@ -352,14 +354,14 @@ export default function History() {
               </div>
 
               <div>
-                <label className="text-sm font-medium mb-2 block">Sort Order</label>
+                <label className="text-sm font-medium mb-2 block">{t("pages.history.sortOrder")}</label>
                 <Select value={sortOrder} onValueChange={(v) => setSortOrder(v as "newest" | "oldest")}>
                   <SelectTrigger data-testid="filter-sort">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="newest">Newest First</SelectItem>
-                    <SelectItem value="oldest">Oldest First</SelectItem>
+                    <SelectItem value="newest">{t("pages.history.newestFirst")}</SelectItem>
+                    <SelectItem value="oldest">{t("pages.history.oldestFirst")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -369,7 +371,7 @@ export default function History() {
 
         <div className="mb-4 flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            Showing {filteredEvents.length} event{filteredEvents.length !== 1 ? "s" : ""}
+            {t("pages.history.showingEvents", { count: filteredEvents.length })}
           </p>
         </div>
 
@@ -377,9 +379,9 @@ export default function History() {
           <Card>
             <CardContent className="py-16 text-center">
               <Calendar className="h-16 w-16 mx-auto mb-4 text-muted-foreground/30" />
-              <h3 className="text-xl font-semibold mb-2">No Events Found</h3>
+              <h3 className="text-xl font-semibold mb-2">{t("pages.history.noEventsTitle")}</h3>
               <p className="text-muted-foreground">
-                No events match the current filter criteria.
+                {t("pages.history.noEventsBody")}
               </p>
             </CardContent>
           </Card>
@@ -411,7 +413,7 @@ export default function History() {
                                 </span>
                               </>
                             ) : (
-                              <span className="text-sm text-muted-foreground">No date</span>
+                              <span className="text-sm text-muted-foreground">{t("pages.history.noDate")}</span>
                             )}
                           </div>
                           <div className="space-y-1">
@@ -425,7 +427,7 @@ export default function History() {
                             {event.opponentName && (
                               <div className="flex items-center gap-2">
                                 <OpponentAvatar name={event.opponentName} opponents={opponentRoster} size="sm" />
-                                <p className="font-medium">vs {event.opponentName}</p>
+                                <p className="font-medium">{t("pages.history.vsOpponent", { name: event.opponentName })}</p>
                               </div>
                             )}
                             {event.time && (
@@ -435,9 +437,9 @@ export default function History() {
                             )}
                             {eventGames.length > 0 && (
                               <p className="text-sm text-muted-foreground">
-                                {eventGames.length} game{eventGames.length !== 1 ? "s" : ""} • 
-                                <span className="text-emerald-500 ml-1">{gameWins}W</span> - 
-                                <span className="text-red-500 ml-1">{gameLosses}L</span>
+                                {t("pages.history.gamesCount", { count: eventGames.length })} • 
+                                <span className="text-emerald-500 ms-1">{gameWins}W</span> - 
+                                <span className="text-red-500 ms-1">{gameLosses}L</span>
                               </p>
                             )}
                           </div>
@@ -445,7 +447,7 @@ export default function History() {
                         <Link href={`/${fullSlug}/events/${event.id}`}>
                           <Button variant="outline" size="sm" className="gap-2" data-testid={`button-view-event-${event.id}`}>
                             <Eye className="h-4 w-4" />
-                            View Details
+                            {t("pages.history.viewDetails")}
                           </Button>
                         </Link>
                       </div>
@@ -467,7 +469,7 @@ export default function History() {
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <span className="text-sm text-muted-foreground px-4">
-                  Page {currentPage} of {totalPages}
+                  {t("pages.history.pageOf", { current: currentPage, total: totalPages })}
                 </span>
                 <Button
                   variant="outline"

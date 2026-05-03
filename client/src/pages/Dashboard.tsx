@@ -37,6 +37,7 @@ import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { useGame } from "@/hooks/use-game";
+import { useTranslation } from "react-i18next";
 import { AccessDenied } from "@/components/AccessDenied";
 import { format } from "date-fns";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -121,6 +122,7 @@ interface ActivityLogEntry {
 }
 
 function ActivityLogPanel({ logType, title }: { logType: string; title: string }) {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { toast } = useToast();
   const [actionFilter, setActionFilter] = useState("all");
@@ -154,9 +156,9 @@ function ActivityLogPanel({ logType, title }: { logType: string; title: string }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/activity-logs", logType] });
-      toast({ title: "Logs cleared" });
+      toast({ title: t("pages.dashboard.activity.logsCleared") });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: t("pages.common.error"), description: e.message, variant: "destructive" }),
   });
 
   const deleteLogEntryMutation = useMutation({
@@ -167,7 +169,7 @@ function ActivityLogPanel({ logType, title }: { logType: string; title: string }
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/activity-logs", logType] });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: t("pages.common.error"), description: e.message, variant: "destructive" }),
   });
 
   const actionLabels: Record<string, string> = {
@@ -261,39 +263,39 @@ function ActivityLogPanel({ logType, title }: { logType: string; title: string }
             </div>
             <div>
               <CardTitle className="text-xl">{title}</CardTitle>
-              <CardDescription>{filteredLogs.length} of {logs.length} entries</CardDescription>
+              <CardDescription>{t("pages.dashboard.activity.entriesOf", { shown: filteredLogs.length, total: logs.length })}</CardDescription>
             </div>
           </div>
           {isOwner && logs.length > 0 && (
             <Button
               size="sm"
               variant="outline"
-              onClick={() => { if (confirm(`Clear all ${title.toLowerCase()} entries?`)) clearLogsMutation.mutate(); }}
+              onClick={() => { if (confirm(t("pages.dashboard.activity.clearConfirm", { name: title.toLowerCase() }))) clearLogsMutation.mutate(); }}
               disabled={clearLogsMutation.isPending}
               data-testid={`button-clear-${logType}-logs`}
             >
-              <Trash2 className="h-4 w-4 mr-1" />
-              Clear
+              <Trash2 className="h-4 w-4 me-1" />
+              {t("pages.dashboard.activity.clear")}
             </Button>
           )}
         </div>
         <div className="flex items-center gap-2 mt-3 flex-wrap">
           <div className="relative min-w-[160px] flex-1 max-w-[250px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search logs..."
+              placeholder={t("pages.dashboard.activity.searchPlaceholder")}
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
-              className="pl-9"
+              className="ps-9"
               data-testid={`input-search-${logType}-activity`}
             />
           </div>
           <Select value={actionFilter} onValueChange={setActionFilter}>
             <SelectTrigger className="w-[160px]" data-testid={`select-${logType}-action-filter`}>
-              <SelectValue placeholder="Action type" />
+              <SelectValue placeholder={t("pages.dashboard.activity.actionType")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Actions</SelectItem>
+              <SelectItem value="all">{t("pages.dashboard.activity.allActions")}</SelectItem>
               {uniqueActions.map(a => (
                 <SelectItem key={a} value={a}>{actionLabels[a] || a}</SelectItem>
               ))}
@@ -377,6 +379,7 @@ function ActivityLogTab() {
 }
 
 export default function Dashboard() {
+  const { t } = useTranslation();
   const { hasPermission, user } = useAuth();
   const { toast } = useToast();
   const { gameId, rosterId } = useGame();
@@ -1263,21 +1266,21 @@ export default function Dashboard() {
   const canViewActivityLog = hasPermission("view_activity_log");
 
   const availableTabs: { value: string; label: string; icon: any; show: boolean }[] = [
-    { value: "game-config", label: "Game Config", icon: Gamepad2, show: canManageGameConfig },
-    { value: "opponents", label: "Opponents", icon: Users, show: canManageGameConfig },
-    { value: "hero-ban", label: "Hero Ban", icon: Ban, show: canManageGameConfig },
-    { value: "map-veto", label: "Map Veto", icon: MapIcon, show: canManageGameConfig },
-    { value: "team", label: "Team", icon: UserCog, show: canViewDashboard },
-    { value: "users", label: "Users", icon: Users, show: canManageUsers },
-    { value: "roles", label: "Roles", icon: Shield, show: canManageRoles },
-    { value: "event-types", label: "Event Types", icon: Calendar, show: canManageGameConfig },
-    { value: "stat-fields", label: "Stat Fields", icon: BarChart3, show: canManageStatFields },
-    { value: "activity", label: "Activity", icon: Clock, show: canViewActivityLog },
-    { value: "subscription", label: "Plan", icon: ShieldCheck, show: canViewDashboard },
-    { value: "reset-roster", label: "Reset Roster", icon: AlertTriangle, show: user?.orgRole === "super_admin" },
+    { value: "game-config", label: t("pages.dashboard.tabs.gameConfig"), icon: Gamepad2, show: canManageGameConfig },
+    { value: "opponents", label: t("pages.dashboard.tabs.opponents"), icon: Users, show: canManageGameConfig },
+    { value: "hero-ban", label: t("pages.dashboard.tabs.heroBan"), icon: Ban, show: canManageGameConfig },
+    { value: "map-veto", label: t("pages.dashboard.tabs.mapVeto"), icon: MapIcon, show: canManageGameConfig },
+    { value: "team", label: t("pages.dashboard.tabs.team"), icon: UserCog, show: canViewDashboard },
+    { value: "users", label: t("pages.dashboard.tabs.users"), icon: Users, show: canManageUsers },
+    { value: "roles", label: t("pages.dashboard.tabs.roles"), icon: Shield, show: canManageRoles },
+    { value: "event-types", label: t("pages.dashboard.tabs.eventTypes"), icon: Calendar, show: canManageGameConfig },
+    { value: "stat-fields", label: t("pages.dashboard.tabs.statFields"), icon: BarChart3, show: canManageStatFields },
+    { value: "activity", label: t("pages.dashboard.tabs.activity"), icon: Clock, show: canViewActivityLog },
+    { value: "subscription", label: t("pages.dashboard.tabs.plan"), icon: ShieldCheck, show: canViewDashboard },
+    { value: "reset-roster", label: t("pages.dashboard.tabs.resetRoster"), icon: AlertTriangle, show: user?.orgRole === "super_admin" },
   ];
 
-  const visibleTabs = availableTabs.filter(t => t.show);
+  const visibleTabs = availableTabs.filter(tab => tab.show);
   const defaultTab = visibleTabs.length > 0 ? visibleTabs[0].value : "game-config";
 
   if (!hasPermission("view_dashboard")) {
@@ -1289,7 +1292,7 @@ export default function Dashboard() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-3">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="text-muted-foreground">Loading dashboard...</p>
+          <p className="text-muted-foreground">{t("pages.dashboard.loadingDashboard")}</p>
         </div>
       </div>
     );
@@ -1310,8 +1313,8 @@ export default function Dashboard() {
                 <Settings className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-foreground" data-testid="text-page-title">Dashboard</h1>
-                <p className="text-muted-foreground">Manage your team configuration</p>
+                <h1 className="text-3xl font-bold text-foreground" data-testid="text-page-title">{t("pages.dashboard.title")}</h1>
+                <p className="text-muted-foreground">{t("pages.dashboard.subtitle")}</p>
               </div>
             </div>
           </div>
@@ -1322,7 +1325,7 @@ export default function Dashboard() {
             <CardHeader className="pb-3 gap-2">
               <CardTitle className="text-base flex items-center gap-2">
                 <Users className="h-4 w-4" />
-                Pending Registrations
+                {t("pages.dashboard.pendingRegistrations")}
                 <Badge variant="destructive">{gamePendingAssignments.length}</Badge>
               </CardTitle>
             </CardHeader>
@@ -1338,11 +1341,11 @@ export default function Dashboard() {
                   </div>
                   <div className="flex items-center gap-1">
                     <Button size="sm" onClick={() => approveGameAssignmentMutation.mutate(p.id)} disabled={approveGameAssignmentMutation.isPending} data-testid={`button-game-approve-${p.id}`}>
-                      <Check className="h-4 w-4 mr-1" />
-                      Approve
+                      <Check className="h-4 w-4 me-1" />
+                      {t("pages.dashboard.approve")}
                     </Button>
                     <Button size="sm" variant="outline" onClick={() => rejectGameAssignmentMutation.mutate(p.id)} disabled={rejectGameAssignmentMutation.isPending} data-testid={`button-game-reject-${p.id}`}>
-                      Reject
+                      {t("pages.dashboard.reject")}
                     </Button>
                   </div>
                 </div>
