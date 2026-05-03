@@ -5,7 +5,8 @@ import connectPgSimple from "connect-pg-simple";
 import { eq, and, sql, isNull, or } from "drizzle-orm";
 import { db, pool } from "./db";
 import { getTeamId } from "./storage";
-import { roles, users, allPermissions, supportedGames, userGameAssignments, SUPPORTED_GAMES_LIST, type Permission } from "@shared/schema";
+import { roles, users, allPermissions, supportedGames, userGameAssignments, subscriptions, SUPPORTED_GAMES_LIST, type Permission, type SubscriptionStatus } from "@shared/schema";
+import { desc } from "drizzle-orm";
 import type { Express, Request, Response, NextFunction } from "express";
 
 declare module "express-session" {
@@ -138,6 +139,23 @@ async function runMigrations() {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_pgs_player_id ON player_game_stats(player_id)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_events_roster_id ON events(roster_id)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_games_roster_id ON games(roster_id)`);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS subscriptions (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        team_id VARCHAR,
+        user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        type TEXT NOT NULL DEFAULT 'trial',
+        start_date TEXT NOT NULL,
+        end_date TEXT NOT NULL,
+        manual_active_override BOOLEAN,
+        notes TEXT,
+        created_at TEXT DEFAULT now(),
+        updated_at TEXT DEFAULT now()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_subscriptions_team_id ON subscriptions(team_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id)`);
 
     console.log("[migrations] Schema migrations applied successfully");
   } catch (e: any) {
@@ -360,6 +378,143 @@ export function requireOrgRole(...allowedRoles: string[]) {
     }
 
     next();
+  };
+}
+
+/**
+ * Compute current subscription status for a user.
+ * - super_admin: always active (bypass)
+ * - manualActiveOverride === true: active
+ * - manualActiveOverride === false: inactive
+ * - else: active iff today <= endDate (date-only comparison, inclusive)
+ */
+export async function getSubscriptionStatus(userId: string, orgRole: string | null | undefined): Promise<SubscriptionStatus> {
+  const isSuperAdmin = orgRole === "super_admin";
+
+  const teamId = getTeamId();
+  const [latest] = await db
+    .select()
+    .from(subscriptions)
+    .where(and(eq(subscriptions.userId, userId), eq(subscriptions.teamId, teamId)))
+    .orderBy(desc(subscriptions.createdAt))
+    .limit(1);
+
+  if (!latest) {
+    return {
+      hasSubscription: false,
+      status: isSuperAdmin ? "active" : "inactive",
+      type: null,
+      startDate: null,
+      endDate: null,
+      manualActiveOverride: null,
+      daysRemaining: null,
+      bypass: isSuperAdmin,
+    };
+  }
+
+  // Day-precision comparison: parse YYYY-MM-DD as a local date (avoid UTC drift
+  // that would make end-date appear off-by-one in non-UTC timezones).
+  const parseLocalDate = (s: string): Date => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+    if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    const d = new Date(s);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const end = parseLocalDate(latest.endDate);
+  end.setHours(0, 0, 0, 0);
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const daysRemaining = Math.round((end.getTime() - today.getTime()) / msPerDay);
+
+  let active: boolean;
+  if (latest.manualActiveOverride === true) active = true;
+  else if (latest.manualActiveOverride === false) active = false;
+  else active = daysRemaining >= 0;
+
+  return {
+    hasSubscription: true,
+    status: isSuperAdmin || active ? "active" : "inactive",
+    type: (latest.type as "trial" | "paid"),
+    startDate: latest.startDate,
+    endDate: latest.endDate,
+    manualActiveOverride: latest.manualActiveOverride ?? null,
+    daysRemaining,
+    bypass: isSuperAdmin,
+  };
+}
+
+/**
+ * Middleware: blocks the request if the user does not have an active subscription.
+ * super_admin always bypasses. All other roles (including org_admin) must have an active sub.
+ */
+export async function requireActiveSubscription(req: Request, res: Response, next: NextFunction) {
+  if (!req.session.userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  const teamId = getTeamId();
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(and(eq(users.id, req.session.userId), eq(users.teamId, teamId)))
+    .limit(1);
+  if (!user) return res.status(401).json({ message: "Unauthorized" });
+
+  if (user.orgRole === "super_admin") return next();
+
+  const status = await getSubscriptionStatus(user.id, user.orgRole);
+  if (status.status !== "active") {
+    return res.status(402).json({
+      message: "Subscription required",
+      subscription: status,
+    });
+  }
+  next();
+}
+
+/**
+ * Routes the subscription gate should NOT block. These cover the auth handshake,
+ * the subscription block screen's own data fetches, branding/preview assets,
+ * and explicit logout/account-management surfaces.
+ */
+const SUBSCRIPTION_GATE_ALLOWLIST = [
+  "/api/auth/me",
+  "/api/auth/login",
+  "/api/auth/logout",
+  "/api/auth/register",
+  "/api/auth/settings",
+  "/api/subscriptions",            // covers /api/subscriptions/me + super-admin CRUD (which is also role-gated)
+  "/api/org-setting",              // org logo / theme / name shown on the block screen
+  "/api/notifications",            // header bell — kept lightweight
+];
+
+/**
+ * Global gate: applied to all /api/* routes. If the user is logged in and
+ * does not have an active subscription, return 402 — except for paths in the
+ * allowlist above (which the block screen still needs to function).
+ */
+export function subscriptionGate() {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.path.startsWith("/api/")) return next();
+    if (!req.session.userId) return next(); // requireAuth handles unauth on each route
+    if (SUBSCRIPTION_GATE_ALLOWLIST.some(p => req.path === p || req.path.startsWith(p + "/"))) {
+      return next();
+    }
+    const teamId = getTeamId();
+    const [user] = await db.select().from(users)
+      .where(and(eq(users.id, req.session.userId), eq(users.teamId, teamId)))
+      .limit(1);
+    if (!user) return next();
+    if (user.orgRole === "super_admin") return next();
+
+    const status = await getSubscriptionStatus(user.id, user.orgRole);
+    if (status.status === "active") return next();
+
+    return res.status(402).json({
+      message: "Subscription required",
+      subscription: status,
+    });
   };
 }
 

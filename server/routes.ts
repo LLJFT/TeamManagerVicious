@@ -5,7 +5,7 @@ import { storage } from "./storage";
 import { db } from "./db";
 import { eq, ne, and, ilike, sql, isNull, inArray, or } from "drizzle-orm";
 import bcrypt from "bcryptjs";
-import { requireAuth, requirePermission, requireOrgRole, requireGameAccess } from "./auth";
+import { requireAuth, requirePermission, requireOrgRole, requireGameAccess, getSubscriptionStatus, subscriptionGate } from "./auth";
 import { getTeamId } from "./storage";
 import {
   insertScheduleSchema, insertEventSchema, insertPlayerSchema, insertAttendanceSchema,
@@ -28,6 +28,7 @@ import {
   statFields as statFieldsTable,
   staff as staffTable,
   supportedGames, userGameAssignments, notifications, rosters,
+  subscriptions, insertSubscriptionSchema,
   eventCategories, eventSubTypes, sides, gameRounds,
   settings,
   mediaFolders, mediaItems, insertMediaFolderSchema, insertMediaItemSchema,
@@ -459,6 +460,11 @@ async function seedRosterDefaults(teamId: string, gameId: string, rosterId: stri
 
 export async function registerRoutes(app: Express): Promise<Server> {
 
+  // Global subscription gate — runs before per-route auth checks. Allowlists
+  // /api/auth/*, /api/subscriptions/*, /api/org-setting, and /api/notifications
+  // so the block screen can still render branding + log out cleanly.
+  app.use(subscriptionGate());
+
   const gameAccessPaths = [
     "/api/players", "/api/events", "/api/attendance", "/api/schedule",
     "/api/staff", "/api/chat", "/api/availability-slots", "/api/roster-roles",
@@ -844,7 +850,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         role = r || null;
       }
       const gameAssignments = await storage.getUserGameAssignments(user.id);
-      res.json({ ...safeUser, role, gameAssignments } as UserWithRole);
+      const subscription = await getSubscriptionStatus(user.id, user.orgRole);
+      res.json({ ...safeUser, role, gameAssignments, subscription } as UserWithRole);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -6580,6 +6587,96 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })),
       }));
       res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ==================== SUBSCRIPTIONS ====================
+  // Current user's status (used by frontend to render the block screen)
+  app.get("/api/subscriptions/me", requireAuth, async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const [u] = await db.select().from(users)
+        .where(and(eq(users.id, req.session.userId!), eq(users.teamId, teamId)))
+        .limit(1);
+      if (!u) return res.status(401).json({ message: "Unauthorized" });
+      const status = await getSubscriptionStatus(u.id, u.orgRole);
+      res.json(status);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Super-admin only: full CRUD
+  app.get("/api/subscriptions", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const subs = await db.select().from(subscriptions)
+        .where(eq(subscriptions.teamId, teamId));
+      const allUsers = await db.select().from(users).where(eq(users.teamId, teamId));
+      const userMap = new Map(allUsers.map(u => [u.id, u]));
+      const enriched = subs.map(s => ({
+        ...s,
+        username: userMap.get(s.userId)?.username || null,
+        displayName: userMap.get(s.userId)?.displayName || null,
+        orgRole: userMap.get(s.userId)?.orgRole || null,
+      }));
+      res.json(enriched);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/subscriptions", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+    try {
+      const data = insertSubscriptionSchema.parse(req.body);
+      const teamId = getTeamId();
+      // Make sure target user exists in this team
+      const [target] = await db.select().from(users)
+        .where(and(eq(users.id, data.userId), eq(users.teamId, teamId)))
+        .limit(1);
+      if (!target) return res.status(404).json({ message: "User not found" });
+      const [created] = await db.insert(subscriptions).values({
+        ...data,
+        teamId,
+      }).returning();
+      res.status(201).json(created);
+    } catch (error: any) {
+      if (error?.name === "ZodError") return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.put("/api/subscriptions/:id", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const partial = insertSubscriptionSchema.partial().parse(req.body);
+      const [existing] = await db.select().from(subscriptions)
+        .where(and(eq(subscriptions.id, req.params.id), eq(subscriptions.teamId, teamId)))
+        .limit(1);
+      if (!existing) return res.status(404).json({ message: "Subscription not found" });
+      const [updated] = await db.update(subscriptions)
+        .set({ ...partial, updatedAt: new Date().toISOString() })
+        .where(and(eq(subscriptions.id, req.params.id), eq(subscriptions.teamId, teamId)))
+        .returning();
+      res.json(updated);
+    } catch (error: any) {
+      if (error?.name === "ZodError") return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/subscriptions/:id", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const [existing] = await db.select().from(subscriptions)
+        .where(and(eq(subscriptions.id, req.params.id), eq(subscriptions.teamId, teamId)))
+        .limit(1);
+      if (!existing) return res.status(404).json({ message: "Subscription not found" });
+      await db.delete(subscriptions)
+        .where(and(eq(subscriptions.id, req.params.id), eq(subscriptions.teamId, teamId)));
+      res.json({ message: "Subscription deleted" });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }

@@ -24,6 +24,7 @@ import {
   Swords, Medal, Crown, Map as MapIcon, Sparkles, TrendingUp,
   Layers as LayersIcon,
 } from "lucide-react";
+import { SiDiscord, SiX } from "react-icons/si";
 import type { Permission, OrgRole } from "@shared/schema";
 import { orgRoleLabels } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
@@ -331,6 +332,30 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-4">
+        <div className="flex items-center justify-center gap-1 pb-2">
+          <Button
+            asChild
+            variant="ghost"
+            size="icon"
+            title="Join our Discord"
+            data-testid="link-sidebar-discord"
+          >
+            <a href="https://discord.gg/HrGFwMxaD" target="_blank" rel="noopener noreferrer">
+              <SiDiscord className="h-4 w-4" />
+            </a>
+          </Button>
+          <Button
+            asChild
+            variant="ghost"
+            size="icon"
+            title="Follow on X"
+            data-testid="link-sidebar-twitter"
+          >
+            <a href="https://x.com/The__BootCamp" target="_blank" rel="noopener noreferrer">
+              <SiX className="h-4 w-4" />
+            </a>
+          </Button>
+        </div>
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
             <p className="text-sm font-medium truncate">{user?.username}</p>

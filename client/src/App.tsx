@@ -14,6 +14,7 @@ import { HelpButton, OnboardingGuide } from "@/components/OnboardingGuide";
 import { useState, useEffect, useCallback, useRef, type CSSProperties } from "react";
 import { Moon } from "lucide-react";
 import { LoadingSpinner } from "@/components/PageSkeleton";
+import { SubscriptionBlock } from "@/components/SubscriptionBlock";
 import Login from "@/pages/Login";
 import GamesHome from "@/pages/GamesHome";
 import Home from "@/pages/Home";
@@ -225,7 +226,7 @@ function DynamicThemeLoader() {
 }
 
 function AuthenticatedApp() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, logout } = useAuth();
 
   if (isLoading) {
     return (
@@ -237,6 +238,23 @@ function AuthenticatedApp() {
 
   if (!user) {
     return <Login />;
+  }
+
+  // Super admin always bypasses; everyone else must have an active subscription.
+  const subStatus = user.subscription;
+  const blocked =
+    user.orgRole !== "super_admin" &&
+    subStatus !== undefined &&
+    subStatus.status !== "active";
+
+  if (blocked) {
+    return (
+      <SubscriptionBlock
+        subscription={subStatus}
+        username={user.username}
+        onLogout={() => { logout(); }}
+      />
+    );
   }
 
   const style = {

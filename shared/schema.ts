@@ -772,6 +772,22 @@ export const userGameAssignments = pgTable("user_game_assignments", {
   index("user_game_assignments_roster_id_idx").on(table.rosterId),
 ]);
 
+export const subscriptions = pgTable("subscriptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  type: text("type").notNull().default("trial"),
+  startDate: text("start_date").notNull(),
+  endDate: text("end_date").notNull(),
+  manualActiveOverride: boolean("manual_active_override"),
+  notes: text("notes"),
+  createdAt: text("created_at").default(sql`now()`),
+  updatedAt: text("updated_at").default(sql`now()`),
+}, (table) => [
+  index("subscriptions_team_id_idx").on(table.teamId),
+  index("subscriptions_user_id_idx").on(table.userId),
+]);
+
 export const notifications = pgTable("notifications", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id"),
@@ -1491,4 +1507,36 @@ export interface ScheduleData {
 export interface UserWithRole extends Omit<User, 'passwordHash'> {
   role: Role | null;
   gameAssignments?: UserGameAssignment[];
+  subscription?: SubscriptionStatus;
 }
+
+export type SubscriptionType = "trial" | "paid";
+
+export interface SubscriptionStatus {
+  hasSubscription: boolean;
+  status: "active" | "inactive";
+  type: SubscriptionType | null;
+  startDate: string | null;
+  endDate: string | null;
+  manualActiveOverride: boolean | null;
+  daysRemaining: number | null;
+  bypass: boolean;
+}
+
+export const subscriptionTypes = ["trial", "paid"] as const;
+
+export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({
+  id: true,
+  teamId: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  type: z.enum(subscriptionTypes),
+  startDate: z.string().min(1),
+  endDate: z.string().min(1),
+  manualActiveOverride: z.boolean().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
+
+export type Subscription = typeof subscriptions.$inferSelect;
+export type InsertSubscription = z.infer<typeof insertSubscriptionSchema>;
