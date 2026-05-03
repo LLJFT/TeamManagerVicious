@@ -8,8 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { UserPlus, LogIn, Clock, Check, Lock } from "lucide-react";
+import { UserPlus, LogIn, Clock, Check, Lock, ArrowRight } from "lucide-react";
 import { VicLogo } from "@/components/VicLogo";
+import { HeroVideo } from "@/components/HeroVideo";
 import type { SupportedGame, Roster } from "@shared/schema";
 import { GAME_ABBREVIATIONS } from "@shared/schema";
 import { LanguageSelector } from "@/components/LanguageSelector";
@@ -216,15 +217,38 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4 relative">
+    <div className="min-h-screen bg-background relative">
       <LangCorner />
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="mx-auto mb-3 flex flex-col items-center gap-2">
-            <VicLogo size={56} className="text-primary" />
-            <span className="text-2xl font-extrabold tracking-[0.18em] lowercase" data-testid="text-brand-bootcamp">the bootcamp</span>
-            <span className="text-[10px] tracking-[0.3em] uppercase text-muted-foreground">Esports · Team Platform</span>
+      <div className="mx-auto max-w-6xl px-4 py-8 lg:py-12 grid gap-8 lg:grid-cols-[1.1fr_minmax(0,28rem)] lg:items-center">
+        <section className="flex flex-col gap-5" data-testid="section-hero">
+          <div className="flex items-center gap-3">
+            <VicLogo size={44} className="text-primary" />
+            <div className="flex flex-col">
+              <span className="text-xl font-extrabold tracking-[0.18em] lowercase" data-testid="text-brand-bootcamp">the bootcamp</span>
+              <span className="text-[10px] tracking-[0.3em] uppercase text-muted-foreground">Esports · Team Platform</span>
+            </div>
           </div>
+          <h1 className="text-3xl sm:text-4xl font-extrabold leading-tight" data-testid="text-hero-title">
+            Run your roster like a pro.
+          </h1>
+          <p className="text-muted-foreground max-w-xl">
+            See how Vicious turns scrim chaos into match-day clarity — attendance, stats, OCR scans, and roster intel in one place.
+          </p>
+          <HeroVideo />
+          <div>
+            <Button
+              asChild
+              size="lg"
+              data-testid="button-hero-cta"
+            >
+              <a href="https://vicious.gg" target="_blank" rel="noopener noreferrer">
+                Visit vicious.gg <ArrowRight className="ms-2 h-4 w-4" />
+              </a>
+            </Button>
+          </div>
+        </section>
+        <Card className="w-full justify-self-center lg:justify-self-end max-w-md">
+        <CardHeader className="text-center">
           <CardTitle data-testid="text-auth-title">
             {mode === "login" ? t("login.signInTitle") : t("login.registerTitle")}
           </CardTitle>
@@ -405,6 +429,7 @@ export default function Login() {
           </div>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }
