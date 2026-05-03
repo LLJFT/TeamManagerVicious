@@ -584,18 +584,29 @@ def build_individuals(out_path):
 
     # 10 Pricing framing
     s = base_slide(prs)
-    add_slide_header(s, "09  ·  Pricing framing",
-                     "One roster. One simple price. Built to pay for itself.")
-    # three pricing concept cards (numbers are framing only)
+    add_slide_header(s, "09  ·  Pricing",
+                     "One price per roster. Pick the plan that matches your game.")
     plans = [
-        ("Single Roster",      "Best for solo competitive players",
-         ["1 roster", "All features included", "Unlimited matches", "Cancel anytime"], False),
-        ("Single Roster + Coach", "For player-coach duos",
-         ["Everything in Single", "Shared access for 1 coach", "Notes & VOD links", "Priority email support"], True),
-        ("Season Pass",        "Pay for the season, not the month",
-         ["Everything in Single", "12-month access", "Locked-in pricing", "Roster archive included"], False),
+        ("Lite",     "Free Fire, Fortnite, Apex, PUBG, EAFC, Rocket League, eFootball, Deadlock, TrackMania, fighting games",
+         "$8 USD / month per roster",
+         ["3 months: $18  (save 25%)",
+          "6 months: $31  (save 35%)",
+          "All features included",
+          "Cancel anytime"], False),
+        ("Standard", "Dota 2, CS:GO, LoL, Mobile Legends, Honor of Kings, TFT, CrossFire, CoD Mobile, The Finals, Brawl Stars",
+         "$20 USD / month per roster",
+         ["3 months: $45  (save 25%)",
+          "6 months: $78  (save 35%)",
+          "All features included",
+          "Cancel anytime"], True),
+        ("Premium",  "Valorant, Overwatch, Rainbow Six Siege, Call of Duty, Marvel Rivals",
+         "$40 USD / month per roster",
+         ["3 months: $90  (save 25%)",
+          "6 months: $156 (save 35%)",
+          "All features included",
+          "Cancel anytime"], False),
     ]
-    for i, (name, sub, feats, hi) in enumerate(plans):
+    for i, (name, sub, price, feats, hi) in enumerate(plans):
         x = Inches(0.6 + i * 4.15)
         h = Inches(4.0)
         add_rect(s, x, Inches(3.0), Inches(4.0), h,
@@ -608,16 +619,17 @@ def build_individuals(out_path):
             add_text(s, x, Inches(2.78), Inches(1.4), Inches(0.3),
                      "MOST POPULAR", size=8, bold=True, color=WHITE,
                      align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
-        add_text(s, x + Inches(0.3), Inches(3.2), Inches(3.4), Inches(0.5),
+        add_text(s, x + Inches(0.3), Inches(3.15), Inches(3.4), Inches(0.45),
                  name, size=16, bold=True, color=TEXT)
-        add_text(s, x + Inches(0.3), Inches(3.7), Inches(3.4), Inches(0.4),
-                 sub, size=10, color=TEXT_MUTED)
-        add_text(s, x + Inches(0.3), Inches(4.25), Inches(3.4), Inches(0.6),
-                 "$ —  / month", size=22, bold=True, color=PRIMARY if hi else TEXT)
-        add_text(s, x + Inches(0.3), Inches(4.85), Inches(3.4), Inches(0.3),
-                 "edit price in Canva", size=9, color=TEXT_DIM)
-        add_bullets(s, x + Inches(0.3), Inches(5.25), Inches(3.4), Inches(1.7),
+        add_text(s, x + Inches(0.3), Inches(3.6), Inches(3.4), Inches(0.7),
+                 sub, size=9, color=TEXT_MUTED, line_spacing=1.2)
+        add_text(s, x + Inches(0.3), Inches(4.35), Inches(3.4), Inches(0.5),
+                 price, size=18, bold=True, color=PRIMARY if hi else TEXT)
+        add_bullets(s, x + Inches(0.3), Inches(4.95), Inches(3.4), Inches(2.0),
                     feats, size=10, gap_pt=2)
+    add_text(s, Inches(0.6), Inches(7.05), Inches(12.1), Inches(0.3),
+             "Website-only access (no roster analytics): $40 USD / month flat.",
+             size=10, color=TEXT_MUTED, align=PP_ALIGN.CENTER)
     add_footer(s, 10, TOTAL)
 
     # 11 Manual vs Platform
@@ -1010,17 +1022,29 @@ def build_organizations(out_path):
 
     # 17 Pricing / adoption framing
     s = base_slide(prs)
-    add_slide_header(s, "14  ·  Pricing & adoption",
-                     "A predictable plan that grows with your org.")
+    add_slide_header(s, "14  ·  Pricing",
+                     "Per-roster pricing tiered by game. Scales linearly across your org.")
     plans = [
-        ("Starter Org",     "1–2 rosters",
-         ["Up to 2 rosters", "Up to 8 staff seats", "Core analytics", "Standard support"], False),
-        ("Pro Org",         "Most multi-roster orgs",
-         ["Up to 6 rosters", "Up to 25 staff seats", "Full analytics & scouting", "Role-based access", "Priority support"], True),
-        ("Enterprise / Pro+","Pro orgs and federations",
-         ["Unlimited rosters", "Unlimited seats", "Org-wide reporting", "SLA & dedicated success", "Custom templates"], False),
+        ("Lite",     "Free Fire, Fortnite, Apex, PUBG, EAFC, Rocket League, eFootball, Deadlock, TrackMania, fighting games",
+         "$8 USD / month per roster",
+         ["3 months: $18  per roster (save 25%)",
+          "6 months: $31  per roster (save 35%)",
+          "Unlimited staff seats per roster",
+          "All org features included"], False),
+        ("Standard", "Dota 2, CS:GO, LoL, Mobile Legends, Honor of Kings, TFT, CrossFire, CoD Mobile, The Finals, Brawl Stars",
+         "$20 USD / month per roster",
+         ["3 months: $45  per roster (save 25%)",
+          "6 months: $78  per roster (save 35%)",
+          "Unlimited staff seats per roster",
+          "All org features included"], True),
+        ("Premium",  "Valorant, Overwatch, Rainbow Six Siege, Call of Duty, Marvel Rivals",
+         "$40 USD / month per roster",
+         ["3 months: $90  per roster (save 25%)",
+          "6 months: $156 per roster (save 35%)",
+          "Unlimited staff seats per roster",
+          "All org features included"], False),
     ]
-    for i, (name, sub, feats, hi) in enumerate(plans):
+    for i, (name, sub, price, feats, hi) in enumerate(plans):
         x = Inches(0.6 + i * 4.15)
         h = Inches(4.0)
         add_rect(s, x, Inches(3.0), Inches(4.0), h,
@@ -1033,16 +1057,17 @@ def build_organizations(out_path):
             add_text(s, x, Inches(2.78), Inches(1.4), Inches(0.3),
                      "RECOMMENDED", size=8, bold=True, color=WHITE,
                      align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
-        add_text(s, x + Inches(0.3), Inches(3.2), Inches(3.4), Inches(0.5),
+        add_text(s, x + Inches(0.3), Inches(3.15), Inches(3.4), Inches(0.45),
                  name, size=16, bold=True, color=TEXT)
-        add_text(s, x + Inches(0.3), Inches(3.7), Inches(3.4), Inches(0.4),
-                 sub, size=10, color=TEXT_MUTED)
-        add_text(s, x + Inches(0.3), Inches(4.25), Inches(3.4), Inches(0.6),
-                 "$ —  / month", size=22, bold=True, color=PRIMARY if hi else TEXT)
-        add_text(s, x + Inches(0.3), Inches(4.85), Inches(3.4), Inches(0.3),
-                 "edit price in Canva", size=9, color=TEXT_DIM)
-        add_bullets(s, x + Inches(0.3), Inches(5.25), Inches(3.4), Inches(1.7),
+        add_text(s, x + Inches(0.3), Inches(3.6), Inches(3.4), Inches(0.7),
+                 sub, size=9, color=TEXT_MUTED, line_spacing=1.2)
+        add_text(s, x + Inches(0.3), Inches(4.35), Inches(3.4), Inches(0.5),
+                 price, size=18, bold=True, color=PRIMARY if hi else TEXT)
+        add_bullets(s, x + Inches(0.3), Inches(4.95), Inches(3.4), Inches(2.0),
                     feats, size=10, gap_pt=2)
+    add_text(s, Inches(0.6), Inches(7.05), Inches(12.1), Inches(0.3),
+             "Website-only access (no roster analytics): $40 USD / month flat, org-wide.",
+             size=10, color=TEXT_MUTED, align=PP_ALIGN.CENTER)
     add_footer(s, 17, TOTAL)
 
     # 18 CTA
