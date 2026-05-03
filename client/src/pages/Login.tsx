@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,10 +11,12 @@ import { useToast } from "@/hooks/use-toast";
 import { Shield, UserPlus, LogIn, Clock, Check, Lock } from "lucide-react";
 import type { SupportedGame, Roster } from "@shared/schema";
 import { GAME_ABBREVIATIONS } from "@shared/schema";
+import { LanguageSelector } from "@/components/LanguageSelector";
 
 type RegisterRole = "player" | "staff" | "management";
 
 export default function Login() {
+  const { t } = useTranslation();
   const { login, register } = useAuth();
   const { toast } = useToast();
   const [mode, setMode] = useState<"login" | "register" | "pending" | "forgot" | "forgot-sent">("login");
@@ -75,7 +78,7 @@ export default function Login() {
         await login(username, password);
       } else if (mode === "register") {
         if (needsGameSelection && selectedGames.length === 0) {
-          toast({ title: "Select at least one game", variant: "destructive" });
+          toast({ title: t("login.toastSelectGame"), variant: "destructive" });
           setLoading(false);
           return;
         }
@@ -83,8 +86,8 @@ export default function Login() {
         setMode("pending");
       }
     } catch (err: any) {
-      const msg = err?.message || "An error occurred";
-      toast({ title: "Error", description: msg, variant: "destructive" });
+      const msg = err?.message || t("login.toastErrorGeneric");
+      toast({ title: t("login.toastError"), description: msg, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -102,48 +105,53 @@ export default function Login() {
       });
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.message || "Failed to submit request");
+        throw new Error(data.message || t("login.toastFailedRequest"));
       }
       setMode("forgot-sent");
     } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: t("login.toastError"), description: err.message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
   };
 
+  const LangCorner = () => (
+    <div className="absolute top-3 end-3">
+      <LanguageSelector />
+    </div>
+  );
+
   if (mode === "forgot") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="min-h-screen flex items-center justify-center bg-background p-4 relative">
+        <LangCorner />
         <Card className="w-full max-w-sm">
           <CardHeader className="text-center">
             <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
               <Lock className="h-6 w-6 text-primary" />
             </div>
-            <CardTitle data-testid="text-forgot-title">Forgot Password</CardTitle>
-            <CardDescription>
-              Enter your username and an admin will reset your password.
-            </CardDescription>
+            <CardTitle data-testid="text-forgot-title">{t("login.forgotTitle")}</CardTitle>
+            <CardDescription>{t("login.forgotDesc")}</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleForgotPassword} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="forgot-username">Username</Label>
+                <Label htmlFor="forgot-username">{t("login.usernameLabel")}</Label>
                 <Input
                   id="forgot-username"
                   data-testid="input-forgot-username"
-                  placeholder="Enter your username"
+                  placeholder={t("login.enterUsernamePh")}
                   value={forgotUsername}
                   onChange={(e) => setForgotUsername(e.target.value)}
                 />
               </div>
               <Button type="submit" className="w-full" disabled={loading || !forgotUsername.trim()} data-testid="button-forgot-submit">
-                {loading ? "Submitting..." : "Request Password Reset"}
+                {loading ? t("login.forgotSubmitting") : t("login.forgotSubmit")}
               </Button>
             </form>
             <div className="mt-4 text-center">
               <button type="button" className="text-sm text-primary underline" onClick={() => setMode("login")} data-testid="button-back-to-login-forgot">
-                Back to Sign In
+                {t("login.backToSignIn")}
               </button>
             </div>
           </CardContent>
@@ -154,20 +162,19 @@ export default function Login() {
 
   if (mode === "forgot-sent") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="min-h-screen flex items-center justify-center bg-background p-4 relative">
+        <LangCorner />
         <Card className="w-full max-w-sm">
           <CardHeader className="text-center">
             <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
               <Check className="h-6 w-6 text-primary" />
             </div>
-            <CardTitle data-testid="text-forgot-sent-title">Request Submitted</CardTitle>
-            <CardDescription>
-              Your password reset request has been submitted. An admin will generate a new temporary password for you.
-            </CardDescription>
+            <CardTitle data-testid="text-forgot-sent-title">{t("login.forgotSentTitle")}</CardTitle>
+            <CardDescription>{t("login.forgotSentDesc")}</CardDescription>
           </CardHeader>
           <CardContent className="text-center">
             <Button variant="outline" onClick={() => { setMode("login"); setForgotUsername(""); }} data-testid="button-back-to-login-after-forgot">
-              Back to Sign In
+              {t("login.backToSignIn")}
             </Button>
           </CardContent>
         </Card>
@@ -177,21 +184,18 @@ export default function Login() {
 
   if (mode === "pending") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="min-h-screen flex items-center justify-center bg-background p-4 relative">
+        <LangCorner />
         <Card className="w-full max-w-sm">
           <CardHeader className="text-center">
             <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
               <Clock className="h-6 w-6 text-primary" />
             </div>
-            <CardTitle data-testid="text-pending-title">Request Under Review</CardTitle>
-            <CardDescription>
-              Your registration has been submitted. An admin or game manager will review your request shortly.
-            </CardDescription>
+            <CardTitle data-testid="text-pending-title">{t("login.pendingTitle")}</CardTitle>
+            <CardDescription>{t("login.pendingDesc")}</CardDescription>
           </CardHeader>
           <CardContent className="text-center">
-            <p className="text-sm text-muted-foreground mb-4">
-              You will be notified once your access is approved.
-            </p>
+            <p className="text-sm text-muted-foreground mb-4">{t("login.pendingNotified")}</p>
             <Button
               variant="outline"
               onClick={() => {
@@ -202,7 +206,7 @@ export default function Login() {
               }}
               data-testid="button-back-to-login"
             >
-              Back to Sign In
+              {t("login.backToSignIn")}
             </Button>
           </CardContent>
         </Card>
@@ -211,41 +215,40 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4 relative">
+      <LangCorner />
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
             <Shield className="h-6 w-6 text-primary" />
           </div>
           <CardTitle data-testid="text-auth-title">
-            {mode === "login" ? "Sign In" : "Create Account"}
+            {mode === "login" ? t("login.signInTitle") : t("login.registerTitle")}
           </CardTitle>
           <CardDescription>
-            {mode === "login"
-              ? "Enter your credentials to access the platform"
-              : "Register for access to the platform"}
+            {mode === "login" ? t("login.signInDesc") : t("login.registerDesc")}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="username">{t("login.usernameLabel")}</Label>
               <Input
                 id="username"
                 data-testid="input-username"
-                placeholder="Username"
+                placeholder={t("login.usernamePh")}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 autoComplete="username"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">{t("login.passwordLabel")}</Label>
               <Input
                 id="password"
                 data-testid="input-password"
                 type="password"
-                placeholder="Password"
+                placeholder={t("login.passwordPh")}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete={mode === "login" ? "current-password" : "new-password"}
@@ -255,15 +258,15 @@ export default function Login() {
             {mode === "register" && (
               <>
                 <div className="space-y-2">
-                  <Label>Role</Label>
+                  <Label>{t("login.roleLabel")}</Label>
                   <Select value={selectedRole} onValueChange={(v) => handleRoleChange(v as RegisterRole)}>
                     <SelectTrigger data-testid="select-role">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="player">Player</SelectItem>
-                      <SelectItem value="staff">Staff</SelectItem>
-                      <SelectItem value="management">Management</SelectItem>
+                      <SelectItem value="player">{t("login.rolePlayer")}</SelectItem>
+                      <SelectItem value="staff">{t("login.roleStaff")}</SelectItem>
+                      <SelectItem value="management">{t("login.roleManagement")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -271,14 +274,14 @@ export default function Login() {
                 {selectedRole === "management" && (
                   <div className="flex items-center gap-2 p-3 rounded-md bg-muted/50 text-sm text-muted-foreground">
                     <Lock className="h-4 w-4 flex-shrink-0" />
-                    <span>Management gets access to all active games after approval.</span>
+                    <span>{t("login.managementNote")}</span>
                   </div>
                 )}
 
                 {needsGameSelection && (
                   <div className="space-y-2">
                     <Label>
-                      {selectedRole === "player" ? "Select Game (choose one)" : "Select Game(s)"}
+                      {selectedRole === "player" ? t("login.selectGameOne") : t("login.selectGames")}
                     </Label>
                     <div className="grid grid-cols-2 gap-1.5 max-h-[200px] overflow-auto border rounded-md p-2">
                       {allGames.map(game => {
@@ -300,17 +303,19 @@ export default function Login() {
                       })}
                     </div>
                     {selectedGames.length > 0 && (
-                      <p className="text-xs text-muted-foreground">{selectedGames.length} game(s) selected</p>
+                      <p className="text-xs text-muted-foreground">
+                        {t("login.gamesSelected", { count: selectedGames.length })}
+                      </p>
                     )}
                   </div>
                 )}
 
                 {needsGameSelection && selectedGames.length > 0 && selectedGameRosters.length > 0 && (
                   <div className="space-y-2">
-                    <Label>Roster</Label>
+                    <Label>{t("login.rosterLabel")}</Label>
                     <Select value={selectedRosterId} onValueChange={setSelectedRosterId}>
                       <SelectTrigger data-testid="select-roster-type">
-                        <SelectValue placeholder="Select a roster" />
+                        <SelectValue placeholder={t("login.rosterPh")} />
                       </SelectTrigger>
                       <SelectContent>
                         {selectedGameRosters.map(roster => (
@@ -324,10 +329,12 @@ export default function Login() {
                 {previewUsername && (
                   <div className="p-3 rounded-md bg-muted/50 text-sm space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-muted-foreground">Display name:</span>
+                      <span className="text-muted-foreground">{t("login.displayName")}</span>
                       <span className="font-medium" data-testid="text-username-preview">{previewUsername}</span>
                     </div>
-                    <p className="text-xs text-muted-foreground">You will log in with your original username: <strong>{username.trim()}</strong></p>
+                    <p className="text-xs text-muted-foreground">
+                      {t("login.loginWithOriginal")} <strong>{username.trim()}</strong>
+                    </p>
                   </div>
                 )}
               </>
@@ -346,11 +353,11 @@ export default function Login() {
               data-testid="button-auth-submit"
             >
               {loading ? (
-                "Please wait..."
+                t("login.pleaseWait")
               ) : mode === "login" ? (
-                <><LogIn className="mr-2 h-4 w-4" /> Sign In</>
+                <><LogIn className="me-2 h-4 w-4" /> {t("login.signInBtn")}</>
               ) : (
-                <><UserPlus className="mr-2 h-4 w-4" /> Register</>
+                <><UserPlus className="me-2 h-4 w-4" /> {t("login.registerBtn")}</>
               )}
             </Button>
           </form>
@@ -358,14 +365,14 @@ export default function Login() {
             {mode === "login" ? (
               <>
                 <div>
-                  Need an account?{" "}
+                  {t("login.needAccount")}{" "}
                   <button
                     type="button"
                     className="text-primary underline"
                     onClick={() => setMode("register")}
                     data-testid="button-switch-register"
                   >
-                    Register
+                    {t("login.registerLink")}
                   </button>
                 </div>
                 <div>
@@ -375,20 +382,20 @@ export default function Login() {
                     onClick={() => setMode("forgot")}
                     data-testid="button-forgot-password"
                   >
-                    Forgot Password?
+                    {t("login.forgotLink")}
                   </button>
                 </div>
               </>
             ) : (
               <>
-                Already have an account?{" "}
+                {t("login.alreadyHave")}{" "}
                 <button
                   type="button"
                   className="text-primary underline"
                   onClick={() => setMode("login")}
                   data-testid="button-switch-login"
                 >
-                  Sign In
+                  {t("login.signInBtn")}
                 </button>
               </>
             )}

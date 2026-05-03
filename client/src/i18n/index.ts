@@ -1,6 +1,7 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import LanguageDetector from "i18next-browser-languagedetector";
+import { extraResources } from "./locales-extra";
 
 export type SupportedLanguage =
   | "en" | "ar" | "fr" | "es" | "de" | "pt" | "tr"
@@ -675,13 +676,16 @@ const sv = {
   language: { select: "Välj språk" },
 };
 
-const resources = {
-  en: { translation: en }, ar: { translation: ar }, fr: { translation: fr },
-  es: { translation: es }, de: { translation: de }, pt: { translation: pt },
-  tr: { translation: tr }, ja: { translation: ja }, ko: { translation: ko },
-  zh: { translation: zh }, ru: { translation: ru }, it: { translation: it },
-  nl: { translation: nl }, pl: { translation: pl }, sv: { translation: sv },
+const baseTranslations: Record<string, any> = {
+  en, ar, fr, es, de, pt, tr, ja, ko, zh, ru, it, nl, pl, sv,
 };
+
+const resources: Record<string, { translation: any }> = {};
+for (const code of Object.keys(baseTranslations)) {
+  resources[code] = {
+    translation: { ...baseTranslations[code], ...(extraResources[code] || {}) },
+  };
+}
 
 i18n
   .use(LanguageDetector)
