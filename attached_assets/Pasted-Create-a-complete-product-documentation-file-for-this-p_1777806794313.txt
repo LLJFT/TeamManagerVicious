@@ -1,0 +1,142 @@
+Create a complete product documentation file for this project and generate it as a PDF-ready document.
+
+GOAL
+I want a professional, polished document that explains the project clearly for new visitors, team members, admins, potential customers, or anyone who wants to understand the platform quickly.
+
+IMPORTANT
+- Generate the document content in a structured, professional format
+- The final deliverable should be a PDF-ready document
+- It should be clear, useful, and polished
+- It should explain the project in real terms based on the ACTUAL app
+- Do not invent fake features
+- Do not write generic filler text
+- Base it on the real current system and what actually exists in the codebase
+
+DOCUMENT PURPOSE
+This file will be placed in the docs / site / project materials so that anyone can open it and understand:
+- what the project is
+- who it is for
+- what problems it solves
+- what the main features are
+- how to use it
+- what each major area does
+- how different roles use it
+- how the workflow works
+- what analytics/statistics/features exist
+- what makes this platform valuable
+
+INCLUDE THESE SECTIONS
+
+1) Project Overview
+- Project name
+- What the platform is
+- Who it is built for
+- The main purpose of the platform
+- The product vision in clear simple language
+
+2) Problem It Solves
+- What problems teams / users / admins face without this platform
+- Why this system is useful
+- Why it matters in esports/team management/statistics workflows
+
+3) Main Features
+Explain the real main features currently in the product, such as:
+- dashboard
+- rosters
+- players
+- opponents
+- maps
+- heroes / hero roles
+- game templates
+- events / match records
+- analytics
+- draft stats
+- leaderboards
+- media library
+- subscription / access management
+- help / guide
+- admin capabilities
+Only include what truly exists.
+
+4) How the Platform Works
+Explain the high-level workflow from a user perspective, for example:
+- create account / access platform
+- create or manage roster
+- configure game templates
+- manage players and opponents
+- enter events / results
+- use analytics and scouting pages
+- use media / assets if relevant
+- use subscriptions / plan access if relevant
+
+5) Page-by-Page Guide
+Give a structured explanation of each major page/section:
+- what the page is for
+- what the user can do there
+- why it is important
+- key actions available there
+
+6) Roles / User Types
+If the system has different roles or access levels, explain:
+- who uses what
+- what admins can do
+- what normal users can do
+- what management flows exist
+
+7) Analytics / Statistics Value
+Explain what kind of analytics or statistics the platform provides and why they are useful:
+- roster analysis
+- draft / map / ban insights
+- opponent scouting
+- team or player trends
+- linked historical context where relevant
+
+8) Usage Guide / Getting Started
+Add a simple practical “how to start using the platform” guide:
+- first steps
+- basic setup
+- where to go first
+- recommended workflow for new users
+
+9) Strengths of the Platform
+Explain what makes this platform valuable or different:
+- organization
+- scouting support
+- analytics depth
+- roster/game structure
+- operational usefulness
+- planning / preparation advantages
+
+10) Notes / Limitations / Future Growth
+If appropriate, include a professional section on:
+- current scope
+- practical constraints
+- where the platform can grow in the future
+Keep this realistic and useful, not speculative fluff.
+
+11) Conclusion
+End with a strong summary of what the platform is and why it matters.
+
+DESIGN / WRITING QUALITY
+- Make the document feel premium and professional
+- Clear headings
+- Good structure
+- Strong readability
+- Good for both technical and non-technical readers
+- No unnecessary repetition
+- No generic AI-style fluff
+- No fake marketing hype
+- No fake roadmap unless clearly marked as future direction
+
+TECHNICAL REQUIREMENTS
+- Generate the document from the REAL current project structure
+- Review the actual app areas before writing
+- If there is existing documentation, use it where useful but improve it
+- The final output should be suitable for exporting or generating as PDF
+- If possible, also save a source markdown/document version in the repo for future edits
+
+DELIVERABLES
+After completion provide:
+1. The generated PDF/document
+2. A short summary of what sections were included
+3. Confirmation that the content reflects the actual current platform
