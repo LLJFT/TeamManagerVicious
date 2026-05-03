@@ -4,3 +4,6 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+# Explainer video build artifacts
+deliverables/explainer_video/_tmp/
+deliverables/explainer_video/_tmp_anim/
