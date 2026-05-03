@@ -91,6 +91,51 @@ const ALLOWED_EXTENSIONS = new Set([
   ".pdf", ".zip", ".rar", ".7z", ".doc", ".docx", ".xls", ".xlsx", ".txt", ".csv",
 ]);
 
+// Maps every allowed extension to a canonical MIME type so the server never
+// trusts the client-supplied multipart Content-Type header. Centralised here
+// so the upload handler and any future callers stay in sync with ALLOWED_EXTENSIONS.
+const EXT_TO_MIME: Readonly<Record<string, string>> = {
+  ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+  ".png": "image/png", ".gif": "image/gif",
+  ".webp": "image/webp", ".bmp": "image/bmp",
+  ".ico": "image/x-icon",
+  ".mp4": "video/mp4", ".mov": "video/quicktime",
+  ".webm": "video/webm", ".avi": "video/x-msvideo",
+  ".mp3": "audio/mpeg", ".m4a": "audio/mp4",
+  ".ogg": "audio/ogg", ".wav": "audio/wav",
+  ".aac": "audio/aac", ".opus": "audio/opus",
+  ".pdf": "application/pdf",
+  ".zip": "application/zip", ".rar": "application/x-rar-compressed",
+  ".7z": "application/x-7z-compressed",
+  ".doc": "application/msword",
+  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".xls": "application/vnd.ms-excel",
+  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ".txt": "text/plain", ".csv": "text/csv",
+};
+
+// Magic-byte signatures for image types that could otherwise be exploited via
+// polyglot payloads (e.g. an SVG disguised as a PNG). Each entry lists one or
+// more accepted byte sequences that must appear at offset 0 of the file buffer.
+// Non-image extensions are not checked here — they rely on extension allowlisting alone.
+const IMAGE_MAGIC: Readonly<Record<string, readonly (readonly number[])[]>> = {
+  ".jpg":  [[0xFF, 0xD8, 0xFF]],
+  ".jpeg": [[0xFF, 0xD8, 0xFF]],
+  ".png":  [[0x89, 0x50, 0x4E, 0x47]],
+  ".gif":  [[0x47, 0x49, 0x46, 0x38]],
+  ".webp": [[0x52, 0x49, 0x46, 0x46]], // "RIFF"
+  ".bmp":  [[0x42, 0x4D]],
+  ".ico":  [[0x00, 0x00, 0x01, 0x00], [0x00, 0x00, 0x02, 0x00]],
+};
+
+/** Returns true when the buffer's leading bytes match at least one known
+ *  signature for the given extension, or when the extension has no magic rule. */
+function hasValidMagicBytes(ext: string, buf: Buffer): boolean {
+  const sigs = IMAGE_MAGIC[ext];
+  if (!sigs) return true; // no magic rule for this extension type
+  return sigs.some((sig) => sig.every((byte, i) => buf[i] === byte));
+}
+
 // Kept for reference only – the upload filter now uses the ALLOWED_EXTENSIONS allowlist above.
 // Any extension absent from ALLOWED_EXTENSIONS is rejected, making this list redundant.
 // const BLOCKED_EXTENSIONS = [...];
@@ -4706,10 +4751,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No file uploaded" });
       }
       const ext = path.extname(req.file.originalname).toLowerCase() || "";
-      const mime = req.file.mimetype || "application/octet-stream";
+      // Derive MIME from the validated extension (module-level EXT_TO_MIME),
+      // never from req.file.mimetype which is attacker-controlled.
+      const mime = EXT_TO_MIME[ext] || "application/octet-stream";
+
+      // Reject image uploads whose leading bytes do not match their declared
+      // extension. This catches polyglot payloads such as SVG content renamed
+      // to .png. Non-image extensions have no magic rule and are passed through.
+      if (!hasValidMagicBytes(ext, req.file.buffer)) {
+        return res.status(400).json({ error: "File content does not match the declared file type." });
+      }
+
       const allowedImageMimes = new Set([
         "image/png", "image/jpeg", "image/jpg", "image/gif",
-        "image/webp", "image/bmp", "image/svg+xml",
+        "image/webp", "image/bmp",
         "image/x-icon", "image/vnd.microsoft.icon",
       ]);
 
@@ -4778,13 +4833,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!filename || filename.includes("/") || filename.includes("..")) {
         return res.status(400).json({ error: "Invalid object path" });
       }
-      // Allowlist of MIME types we render inline (images only). Anything
-      // else gets forced to attachment to prevent stored-XSS-style abuse
-      // via crafted content-type metadata. Always set nosniff so the
-      // browser cannot upgrade an arbitrary blob to HTML/JS.
+      // Allowlist of MIME types we render inline (raster images only). SVG is
+      // intentionally excluded: an SVG served inline on the same origin can
+      // execute arbitrary JavaScript, enabling stored-XSS. All SVG (and any
+      // other non-listed type) is forced to Content-Disposition: attachment so
+      // the browser downloads it rather than rendering it in-page.
       const INLINE_OK = new Set([
         "image/png", "image/jpeg", "image/jpg", "image/gif",
-        "image/webp", "image/bmp", "image/svg+xml",
+        "image/webp", "image/bmp",
         "image/x-icon", "image/vnd.microsoft.icon",
       ]);
       const { ObjectStorageService, ObjectNotFoundError } = await import("./objectStorage");
