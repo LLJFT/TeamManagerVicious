@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, jsonb, index, boolean, integer, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, jsonb, index, boolean, integer, uniqueIndex, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -350,6 +350,8 @@ export const events = pgTable("events", {
   opponentId: varchar("opponent_id").references(() => opponents.id, { onDelete: "set null" }),
   notes: text("notes"),
   seasonId: varchar("season_id"),
+  resultSource: text("result_source").default("pending"),
+  lastGameChangeAt: timestamp("last_game_change_at"),
 }, (table) => [
   index("events_team_id_idx").on(table.teamId),
   index("events_game_id_idx").on(table.gameId),

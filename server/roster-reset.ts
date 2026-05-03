@@ -324,9 +324,73 @@ const FALLBACK_OPPONENTS: RealOpponent[] = [
   { name: "Sentinels", shortName: "SEN", region: "NA" },
 ];
 
-// Opponent-player roles for fallback generation (one Tank, two DPS, two Support
-// — a standard 5-stack composition that matches the analytics expectations).
-const FALLBACK_OPP_ROLES = ["Tank", "DPS", "DPS", "Support", "Support"];
+// Opponent-player roles for fallback generation. Six players (2-2-2 standard
+// 6-stack composition) so a full Marvel Rivals opponent side is always
+// represented in the seeded games and the analytics pages have a complete
+// opposing roster to compare against.
+const FALLBACK_OPP_ROLES = ["Tank", "Tank", "DPS", "DPS", "Support", "Support"];
+
+// Maps a free-form role string (Tank/DPS/Support/Flex from our roster, or
+// Vanguard/Duelist/Strategist from a Marvel Rivals template) to a normalized
+// bucket used by the role-aware stat range generator below.
+type RoleBucket = "Tank" | "DPS" | "Support" | "Flex";
+function normalizeRole(role: string | null | undefined): RoleBucket {
+  const r = (role || "").toLowerCase();
+  if (r.includes("tank") || r.includes("vanguard")) return "Tank";
+  if (r.includes("dps") || r.includes("duelist")) return "DPS";
+  if (r.includes("support") || r.includes("strategist") || r.includes("heal")) return "Support";
+  if (r.includes("flex")) return "Flex";
+  return "Flex";
+}
+
+// Returns a [min, max] range for a stat field name based on the player's
+// role. Field names are matched case-insensitively by substring so this
+// works for both the generic fallback fields ("Kill"/"Death"/"Assist") and
+// the canonical Marvel Rivals fields (Final Hits / Damage / Damage Blocked /
+// Healing). Order matters: most specific patterns first.
+function roleStatRange(role: RoleBucket, statName: string): [number, number] {
+  const n = (statName || "").toLowerCase();
+  // Damage Blocked — heavily skewed to Tanks.
+  if (/block/.test(n)) {
+    if (role === "Tank") return [30000, 80000];
+    if (role === "Flex") return [8000, 25000];
+    return [2000, 10000];
+  }
+  // Healing — Support-only signal.
+  if (/heal/.test(n)) {
+    if (role === "Support") return [25000, 60000];
+    if (role === "Flex") return [4000, 18000];
+    return [0, 4000];
+  }
+  // Deaths — fairly flat, Tanks die slightly more, Supports slightly less.
+  if (/death/.test(n)) {
+    if (role === "Tank") return [5, 12];
+    if (role === "Support") return [3, 8];
+    return [4, 10];
+  }
+  // Damage — DPS-heavy.
+  if (/damage|dmg/.test(n)) {
+    if (role === "DPS") return [25000, 50000];
+    if (role === "Flex") return [15000, 35000];
+    if (role === "Tank") return [12000, 25000];
+    return [8000, 18000];
+  }
+  // Assists — Support-heavy, Tanks also rack them up via enabling.
+  if (/assist/.test(n)) {
+    if (role === "Support") return [10, 25];
+    if (role === "Tank") return [6, 18];
+    return [5, 15];
+  }
+  // Kills / Final Hits / Eliminations — DPS-heavy.
+  if (/kill|final|elim/.test(n)) {
+    if (role === "DPS") return [8, 20];
+    if (role === "Flex") return [6, 16];
+    if (role === "Tank") return [4, 12];
+    return [2, 8];
+  }
+  // Generic numeric (plant, defuse, goal, time, etc).
+  return [0, 12];
+}
 
 const ROLE_DEFS = [
   { role: "Tank", labels: ["Tank1", "Tank2"] },
@@ -701,7 +765,7 @@ export async function loadExampleData(rosterId: string, jobId?: string): Promise
   // (templateConfig was loaded earlier so it could drive game-config seeding too)
   phase(usedTemplate
     ? `Seeding opponents from template "${templateName}"…`
-    : "Seeding 15 fallback opponents with 5-player rosters each…");
+    : `Seeding 15 fallback opponents with ${FALLBACK_OPP_ROLES.length}-player rosters each…`);
 
   type OppSeed = { name: string; shortName: string | null; logoUrl: string | null; region: string | null };
   let oppSeeds: OppSeed[] = [];
@@ -732,7 +796,7 @@ export async function loadExampleData(rosterId: string, jobId?: string): Promise
     for (let i = 0; i < oppSeeds.length; i++) {
       if (oppsWithPlayers.has(i)) continue;
       const short = oppSeeds[i].shortName || oppSeeds[i].name.slice(0, 4).toUpperCase();
-      for (let n = 0; n < 5; n++) {
+      for (let n = 0; n < FALLBACK_OPP_ROLES.length; n++) {
         oppPlayerSeeds.push({ oppIdx: i, name: `${short} P${n + 1}`, role: FALLBACK_OPP_ROLES[n] });
       }
     }
@@ -752,10 +816,10 @@ export async function loadExampleData(rosterId: string, jobId?: string): Promise
       logoUrl: null,
       region: o.region ?? null,
     }));
-    // 5 generated players per opponent.
+    // 6 generated players per opponent (full Marvel Rivals opposing side).
     oppSeeds.forEach((o, idx) => {
       const short = o.shortName || o.name.slice(0, 4).toUpperCase();
-      for (let n = 0; n < 5; n++) {
+      for (let n = 0; n < FALLBACK_OPP_ROLES.length; n++) {
         oppPlayerSeeds.push({ oppIdx: idx, name: `${short} P${n + 1}`, role: FALLBACK_OPP_ROLES[n] });
       }
     });
@@ -767,6 +831,9 @@ export async function loadExampleData(rosterId: string, jobId?: string): Promise
     oppSeeds.map((o, i) => [teamId, gameId, rosterId, o.name, o.shortName, o.logoUrl, o.region, true, i]),
   );
   const opponentPlayerIdsByOpp: string[][] = opponentIds.map(() => []);
+  // Track each opponent player's role so the role-aware stat generator can
+  // produce realistic numbers for the opposing side too.
+  const oppPlayerRoleById: Record<string, string> = {};
   // Insert opponent players grouped by opponent so we know which ids belong where.
   // Single bulk insert with ordered RETURNING; map back via insertion order per opponent.
   if (oppPlayerSeeds.length > 0) {
@@ -780,6 +847,7 @@ export async function loadExampleData(rosterId: string, jobId?: string): Promise
     );
     oppPlayerIds.forEach((id, i) => {
       opponentPlayerIdsByOpp[oppPlayerSeeds[i].oppIdx].push(id);
+      oppPlayerRoleById[id] = oppPlayerSeeds[i].role;
     });
   }
 
@@ -1097,13 +1165,18 @@ export async function loadExampleData(rosterId: string, jobId?: string): Promise
   }
 
   // ---------- Bulk insert: player_game_stats (us) ----------
-  phase(`Inserting player stats for ${gameIds.length} games…`);
+  // Role-aware ranges so analytics surfaces (Player Leaderboard, Statistics,
+  // Hero Insights) show believable numbers — Tanks block damage, DPS get
+  // the kills, Supports do the healing.
+  phase(`Inserting role-aware player stats for ${gameIds.length} games…`);
   const statRows: any[][] = [];
   for (let gi = 0; gi < gamePlans.length; gi++) {
     const matchId = gameIds[gi];
     for (const pl of players) {
+      const role = normalizeRole(pl.role);
       for (const f of gamePlans[gi].fields) {
-        statRows.push([teamId, gameId, matchId, pl.id, f.id, randInt(0, 25).toString()]);
+        const [lo, hi] = roleStatRange(role, f.name);
+        statRows.push([teamId, gameId, matchId, pl.id, f.id, randInt(lo, hi).toString()]);
       }
     }
   }
@@ -1114,15 +1187,17 @@ export async function loadExampleData(rosterId: string, jobId?: string): Promise
   );
 
   // ---------- Bulk insert: opponent_player_game_stats ----------
-  phase(`Inserting opponent stats for ${gameIds.length} games…`);
+  phase(`Inserting role-aware opponent stats for ${gameIds.length} games…`);
   const oppStatRows: any[][] = [];
   for (let gi = 0; gi < gamePlans.length; gi++) {
     const matchId = gameIds[gi];
     const oppIdx = oppSeeds.findIndex((_, idx) => opponentIds[idx] === gamePlans[gi].opponentId);
     const oppPlayerIds = oppIdx >= 0 ? opponentPlayerIdsByOpp[oppIdx] : [];
     for (const oppPid of oppPlayerIds) {
+      const role = normalizeRole(oppPlayerRoleById[oppPid]);
       for (const f of gamePlans[gi].fields) {
-        oppStatRows.push([teamId, gameId, matchId, oppPid, f.id, randInt(0, 25).toString()]);
+        const [lo, hi] = roleStatRange(role, f.name);
+        oppStatRows.push([teamId, gameId, matchId, oppPid, f.id, randInt(lo, hi).toString()]);
       }
     }
   }
@@ -1199,6 +1274,8 @@ export async function loadExampleData(rosterId: string, jobId?: string): Promise
     mapVetoRows: mapVetoRowsCount,
     sides: sideIds.length,
     rounds: roundRows.length,
+    playerStatsRows: statRows.length,
+    opponentStatsRows: oppStatRows.length,
     usedTemplate,
     templateName,
   } as any;

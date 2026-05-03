@@ -1,0 +1,109 @@
+Two separate improvements needed. Please implement both.
+
+═══════════════════════════════════════════
+IMPROVEMENT 1 — Load Example Data must include full player stats + opponent stats + team comps
+═══════════════════════════════════════════
+
+Currently "Load Example Data (this roster only)" does not seed realistic player stats for our players or opponent players, and Team Comps has no data.
+
+REQUIRED CHANGES:
+
+1) When Load Example Data runs, it must generate a complete dataset including:
+
+   OUR PLAYERS (player_game_stats):
+   - For each roster player, generate realistic per-game stats across the seeded games
+   - Stats must include: kills, deaths, assists, final hits, damage, damage blocked, healing
+   - Each player should have different stat profiles based on their role (Tank/DPS/Support/Flex)
+   - Each game should have a different hero played per player (use heroes from the roster's configured hero pool)
+   - Values must be realistic for Marvel Rivals (not random noise — use role-appropriate ranges):
+     - DPS: high kills (8-20), moderate deaths (4-10), high damage (25000-50000)
+     - Tank: moderate kills (4-12), high damage blocked (30000-80000), moderate damage
+     - Support: low kills (2-8), high healing (25000-60000), low damage
+
+   OPPONENT PLAYERS (opponent_player_game_stats):
+   - For each opponent linked to the seeded events/games, generate per-game stats
+   - Same stat fields as our players
+   - Use realistic values for opponent roles too
+   - At minimum seed 1 full opponent roster with 6 players across all seeded games
+
+   HEROES PER GAME:
+   - Each player must have at least 1 hero linked per game (player_game_heroes or equivalent junction table)
+   - Use heroes already configured in the roster's hero pool
+   - Vary heroes across games (don't always play the same hero)
+
+   TEAM COMPS:
+   - Each seeded game must have a team comp entry with the 6 heroes used in that game
+   - Our comp and opponent comp must both be seeded
+   - Cover at least 2 different comp archetypes across the seeded games
+
+2) The seeded events must have:
+   - At least 5 games total across 2-3 events
+   - Mix of W/L/D results
+   - Different maps and game modes used
+
+3) After seeding, all of the following pages must show data:
+   - Player Leaderboard → Our players AND Opponents
+   - Player Stats
+   - Statistics (overall)
+   - Team Comps
+   - Hero Insights
+   - History
+
+4) Safety:
+   - Only run if roster has no existing stats (preserve the "no overwrite" contract)
+   - Still scoped to this roster only
+   - Show a toast with what was seeded: "Seeded X games, Y player stat rows, Z opponent stat rows"
+
+═══════════════════════════════════════════
+IMPROVEMENT 2 — Event Result auto-compute with 5-minute settle timer
+═══════════════════════════════════════════
+
+CURRENT BEHAVIOR:
+The Event Result field shows "Pending — Auto-computed from the games below. Stays Pending until every game has a recorded result."
+But it never actually auto-sets even when games have results, and there is no way to manually set it either.
+
+REQUIRED BEHAVIOR:
+
+1) Auto-compute logic (same as before but clarified):
+   - Count wins, losses, draws from all games in the event
+   - If wins > losses → Event Result = Win
+   - If losses > wins → Event Result = Loss
+   - If wins === losses → Event Result = Draw
+   - If no games have results → stay Pending
+
+2) NEW: 5-minute settle timer
+   - Every time a game result is added or changed inside an event, start (or restart) a 5-minute timer for that event
+   - After 5 minutes of no changes to game results in that event, auto-compute and set the event result
+   - If another game result is added before the 5 minutes expire, reset the timer
+   - This prevents the event result from flipping back and forth while games are still being entered
+
+3) Manual override:
+   - The Event Result dropdown must always be editable (not locked/disabled)
+   - If the user manually sets the event result, respect it — do NOT auto-overwrite a manual selection
+   - Only auto-compute if the current value is still "Pending" OR if it was last set by the auto-compute (not manually)
+   - Add a small indicator: "Auto-computed" vs "Manually set" next to the result
+
+4) Implementation approach:
+   - Use a server-side timer/debounce (not client-side) so it persists across browser refreshes
+   - OR use a database column like event_result_locked_at and a background job / cron that runs every minute
+   - The simplest reliable approach: store last_game_change_at on the event, and compute result when last_game_change_at is more than 5 minutes ago and result is still auto-pending
+   - A cron job or setInterval on server startup (every 60 seconds) scans events where result = 'pending_auto' and last_game_change_at < now - 5 minutes, then computes and saves
+
+5) Edge cases:
+   - Event with 0 games → stay Pending
+   - Event with games but all results are empty → stay Pending
+   - Event result already manually set → do not overwrite
+   - Games added after auto-compute fired → re-evaluate after next 5-minute window
+
+6) UI changes:
+   - Show "Will auto-set in ~X min" countdown hint when timer is active
+   - After auto-set, show "Auto-computed from games" as a subtitle under the result
+   - Allow manual edit at any time without losing the dropdown
+
+REPORT BACK:
+After implementing both improvements:
+- Confirm Load Example Data now populates player stats, opponent stats, heroes, and team comps
+- List which pages now show data after seeding
+- Confirm the 5-minute event result timer is working
+- Confirm manual override is respected and not overwritten by auto-compute
+- List all files changed

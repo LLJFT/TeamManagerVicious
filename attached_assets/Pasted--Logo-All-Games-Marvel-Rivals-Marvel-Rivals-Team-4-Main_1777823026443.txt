@@ -1,0 +1,382 @@
+
+Logo
+All Games
+Marvel Rivals
+Marvel Rivals
+Team 4
+Main
+Schedule
+Events
+Results
+Players
+Analytics
+Statistics
+Player Stats
+History
+Compare
+Opponents
+Draft Stats
+Map Insights
+Hero Insights
+Trends
+Team Leaderboard
+Player Leaderboard
+Team Comps
+Management
+Dashboard
+Staff
+Chat
+Boss
+
+Super Admin
+
+
+Toggle Sidebar
+
+
+
+Change Style
+Scan failed: image.jpg: Failed query: insert into "scoreboard_ocr_scans" ("id", "team_id", "game_id", "roster_id", "match_id", "image_object_path", "raw_ocr", "parsed_candidate", "edited_candidate", "status", "uploader_user_id", "error_message", "created_at", "updated_at") values (default, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, default, default) returning "id", "team_id", "game_id", "roster_id", "match_id", "image_object_path", "raw_ocr", "parsed_candidate", "edited_candidate", "status", "uploader_user_id", "error_message", "created_at", "updated_at" params: 9ae96acf-6ae9-40b4-945b-86651991bfc3,f05081a0-55cb-4396-ac5e-1e1c30b0f622,6cc0711e-6909-4391-8d0d-0ed5e0978de4,ade1c943-b887-4c31-92e5-2e332cc762d4,/objects/uploads/b1dd0e56-768c-4112-9c4b-d92d0925287f.jpg,{"text":"BE s = EMPIRE OF ETERIALIGHT-CENTRAL PARK $70 8\na | y CONVERGENCE son 4\nJj A ly 01:34 TENUNTISON 5%\n{ / n I /\n- vl 5\n/ AP FEE ~~ AE A\ny J ! o\nY/\nVi Player Name xX © & Medals C € amag k H: racy p5lzES\nYJ) er |\nbd Ca =< LOIRD 15 10 2 5 15,848 21.928 43546 40%\n7 @ 5 gy shio un ou 3 » 5 26,651 61532 1,662 49%\n{ 8a = —\n/ ao WE / > parasail 18 12 4 6 21.471 38,204 2,128 56%\n/| aE\n! 5 | Li > Mikey 7 14 1 4 26,137 22413 198 43%\ncull 5 WES\nSVE F< Ere Ry nox 27 9 5 2) 14 35768 12419 2,267 56%\n= So > Catnipdealer67 5 9 2 + 4 20,450 28,982 53,061 66%\nM0 <= TY /\nFa\nPATE Luminrk 2 6 8 3 8 32922 53,152 0 65%\nESA FN HH Sa ’\npe re J” A Cekkos 7 5 18 8 29.453 44271 3,955 53%\ni : A deeweas “ 9 15 x4 2 27.877 25,562 0 29%\nPo) gy =\n- TB y/ Dimi 31 11 40 g 1 21870 18523 25,085 58%\nHZ NEGO\na\n1) wl )/ atx 2B 4 3 6 13.970 12643 37.356 66%\na/P og) 3) y/ Jakeingit 2 3 » 9 20,89 23912 42,947 63%\nI [| [C2 reptoy io: 360235905 | [T HIDE REPLAY]\n{> Your faction has entered the next round. >\n7\nEF ocx\nA EHTS | EAE) | SELES\n"},{"ourScore":1,"opponentScore":34,"rawMap":"BE s = EMPIRE OF ETERIALIGHT-CENTRAL PARK $70 8","matchedMapId":"97735d9e-f3da-4d00-8757-98f06e84871e","rawSide":null,"matchedSideId":null,"rows":[{"rawName":"s","matchedPlayerId":"61c10495-fcf5-4462-880d-3487b76d6bf5","matchedOpponentPlayerId":null,"rawHero":"PARK","matchedHeroId":"a29bffe6-216c-4642-a2fe-501e9a67434b","side":"us","stats":{"04d1028a-c830-469e-8f58-c4645885408f":"8"},"confidence":0.9},{"rawName":"a","matchedPlayerId":"69c36ee5-dfbe-4b4f-84a6-aaba2adc1ceb","matchedOpponentPlayerId":null,"rawHero":"y","matchedHeroId":"f8aa39c5-ff02-4d41-baec-920149ee4e4b","side":"us","stats":{"04d1028a-c830-469e-8f58-c4645885408f":"4"},"confidence":0.9},{"rawName":"A","matchedPlayerId":"69c36ee5-dfbe-4b4f-84a6-aaba2adc1ceb","matchedOpponentPlayerId":null,"rawHero":null,"matchedHeroId":null,"side":"us","stats":{},"confidence":0.9},{"rawName":"AP","matchedPlayerId":null,"matchedOpponentPlayerId":null,"rawHero":"A","matchedHeroId":"34a68dc6-563d-4cd1-bd12-9b82aeff4f42","side":"unknown","stats":{},"confidence":0.9},{"rawName":"Vi","matchedPlayerId":null,"matchedOpponentPlayerId":null,"rawHero":"Name","matchedHeroId":"012dce31-c624-41f3-9d8e-5b0e973a6937","side":"unknown","stats":{},"confidence":0.9},{"rawName":"YJ)","matchedPlayerId":null,"matchedOpponentPlayerId":null,"rawHero":"er","matchedHeroId":"d0cfb633-9af2-4ff5-b220-1e210b5c6397","side":"unknown","stats":{},"confidence":0.9},{"rawName":"bd","matchedPlayerId":null,"matchedOpponentPlayerId":null,"rawHero":"Ca","matchedHeroId":"cfed4b03-58bc-4931-8b40-46645fca2166","side":"unknown","stats":{"04d1028a-c830-469e-8f58-c4645885408f":"15","a795c74b-1782-4a1c-99ae-24b1f1909c36":"10","761430f5-5d52-425e-9269-85aead0882c2":"2","6186bb2d-2e83-49c7-a9c7-b5bd86ab5784":"5","6376c693-5367-4ebf-a3c3-860604cf10b2":"43546"},"confidence":0.9},{"rawName":"gy","matchedPlayerId":null,"matchedOpponentPlayerId":null,"rawHero":"un","matchedHeroId":"6a262b51-9c9e-4782-8590-8bc50617531a","side":"unknown","stats":{"04d1028a-c830-469e-8f58-c4645885408f":"7","a795c74b-1782-4a1c-99ae-24b1f1909c36":"5","761430f5-5d52-425e-9269-85aead0882c2":"3","6186bb2d-2e83-49c7-a9c7-b5bd86ab5784":"5","6376c693-5367-4ebf-a3c3-860604cf10b2":"61532"},"confidence":0.9},{"rawName":"ao","matchedPlayerId":null,"matchedOpponentPlayerId":null,"rawHero":null,"matchedHeroId":null,"side":"unknown","stats":{"04d1028a-c830-469e-8f58-c4645885408f":"18","a795c74b-1782-4a1c-99ae-24b1f1909c36":"12","761430f5-5d52-425e-9269-85aead0882c2":"4","6186bb2d-2e83-49c7-a9c7-b5bd86ab5784":"6"},"confidence":0},{"rawName":"Li","matchedPlayerId":null,"matchedOpponentPlayerId":null,"rawHero":null,"matchedHeroId":null,"side":"unknown","stats":{"04d1028a-c830-469e-8f58-c4645885408f":"5","a795c74b-1782-4a1c-99ae-24b1f1909c36":"7","761430f5-5d52-425e-9269-85aead0882c2":"14","6186bb2d-2e83-49c7-a9c7-b5bd86ab5784":"1","6376c693-5367-4ebf-a3c3-860604cf10b2":"4","b9990f7e-3da1-44a8-8e8b-caec2f85450c":"22413","7777c2ea-0f14-4122-a116-5a1464b9065e":"198"},"confidence":0},{"rawName":"F<","matchedPlayerId":"fb51e860-7497-49d9-9801-6d3db02dda08","matchedOpponentPlayerId":null,"rawHero":null,"matchedHeroId":null,"side":"us","stats":{"04d1028a-c830-469e-8f58-c4645885408f":"27","a795c74b-1782-4a1c-99ae-24b1f1909c36":"9","761430f5-5d52-425e-9269-85aead0882c2":"5","6186bb2d-2e83-49c7-a9c7-b5bd86ab5784":"14","6376c693-5367-4ebf-a3c3-860604cf10b2":"35768","b9990f7e-3da1-44a8-8e8b-caec2f85450c":"12419"},"confidence":0.9},{"rawName":"So","matchedPlayerId":null,"matchedOpponentPlayerId":null,"rawHero":null,"matchedHeroId":null,"side":"unknown","stats":{"04d1028a-c830-469e-8f58-c4645885408f":"5","a795c74b-1782-4a1c-99ae-24b1f1909c36":"9","761430f5-5d52-425e-9269-85aead0882c2":"2","6186bb2d-2e83-49c7-a9c7-b5bd86ab5784":"4"},"confidence":0},{"rawName":"PATE","matchedPlayerId":null,"matchedOpponentPlayerId":null,"rawHero":null,"matchedHeroId":null,"side":"unknown","stats":{"04d1028a-c830-469e-8f58-c4645885408f":"2","a795c74b-1782-4a1c-99ae-24b1f1909c36":"6","761430f5-5d52-425e-9269-85aead0882c2":"8","6186bb2d-2e83-49c7-a9c7-b5bd86ab5784":"3","6376c693-5367-4ebf-a3c3-860604cf10b2":"8","b9990f7e-3da1-44a8-8e8b-caec2f85450c":"32922","7777c2ea-0f14-4122-a116-5a1464b9065e":"0"},"confidence":0},{"rawName":"ESA","matchedPlayerId":null,"matchedOpponentPlayerId":null,"rawHero":"Sa","matchedHeroId":"37b4bc06-b5bf-4184-b390-6bc37c742a7c","side":"unknown","stats":{},"confidence":0.9},{"rawName":"pe","matchedPlayerId":null,"matchedOpponentPlayerId":null,"rawHero":"re","matchedHeroId":"15525a20-4aed-4f9a-81ab-2bc7c7e75e6e","side":"unknown","stats":{"04d1028a-c830-469e-8f58-c4645885408f":"7","a795c74b-1782-4a1c-99ae-24b1f1909c36":"5","761430f5-5d52-425e-9269-85aead0882c2":"18","6186bb2d-2e83-49c7-a9c7-b5bd86ab5784":"8","6376c693-5367-4ebf-a3c3-860604cf10b2":"44271"},"confidence":0.9},{"rawName":"i","matchedPlayerId":null,"matchedOpponentPlayerId":"f1d92183-1ded-41ab-9bc7-299b54e7a102","rawHero":"A","matchedHeroId":"34a68dc6-563d-4cd1-bd12-9b82aeff4f42","side":"opponent","stats":{"04d1028a-c830-469e-8f58-c4645885408f":"9","a795c74b-1782-4a1c-99ae-24b1f1909c36":"15","761430f5-5d52-425e-9269-85aead0882c2":"2","6186bb2d-2e83-49c7-a9c7-b5bd86ab5784":"0"},"confidence":0.9},{"rawName":"TB","matchedPlayerId":null,"matchedOpponentPlayerId":null,"rawHero":"y/","matchedHeroId":"f8aa39c5-ff02-4d41-baec-920149ee4e4b","side":"unknown","stats":{"04d1028a-c830-469e-8f58-c4645885408f":"31","a795c74b-1782-4a1c-99ae-24b1f1909c36":"11","761430f5-5d52-425e-9269-85aead0882c2":"40","6186bb2d-2e83-49c7-a9c7-b5bd86ab5784":"1","6376c693-5367-4ebf-a3c3-860604cf10b2":"21870","b9990f7e-3da1-44a8-8e8b-caec2f85450c":"18523"},"confidence":0.9},{"rawName":"1)","matchedPlayerId":"69c36ee5-dfbe-4b4f-84a6-aaba2adc1ceb","matchedOpponentPlayerId":null,"rawHero":null,"matchedHeroId":null,"side":"us","stats":{"04d1028a-c830-469e-8f58-c4645885408f":"4","a795c74b-1782-4a1c-99ae-24b1f1909c36":"3","761430f5-5d52-425e-9269-85aead0882c2":"6","6186bb2d-2e83-49c7-a9c7-b5bd86ab5784":"12643"},"confidence":0.9},{"rawName":"a/P","matchedPlayerId":null,"matchedOpponentPlayerId":null,"rawHero":"og)","matchedHeroId":"1e9268b5-9a15-46fb-97c5-2dc7443c6f9e","side":"unknown","stats":{"04d1028a-c830-469e-8f58-c4645885408f":"2","a795c74b-1782-4a1c-99ae-24b1f1909c36":"3","761430f5-5d52-425e-9269-85aead0882c2":"9","6186bb2d-2e83-49c7-a9c7-b5bd86ab5784":"23912"},"confidence":0.9},{"rawName":"I","matchedPlayerId":null,"matchedOpponentPlayerId":"f1d92183-1ded-41ab-9bc7-299b54e7a102","rawHero":"[T","matchedHeroId":"5bdc5f88-60c5-4262-a090-0cc6e79ea04c","side":"opponent","stats":{"04d1028a-c830-469e-8f58-c4645885408f":"360235905"},"confidence":0.9},{"rawName":"{>","matchedPlayerId":null,"matchedOpponentPlayerId":null,"rawHero":"the","matchedHeroId":"6a262b51-9c9e-4782-8590-8bc50617531a","side":"unknown","stats":{},"confidence":0.9},{"rawName":"A","matchedPlayerId":"69c36ee5-dfbe-4b4f-84a6-aaba2adc1ceb","matchedOpponentPlayerId":null,"rawHero":null,"matchedHeroId":null,"side":"us","stats":{},"confidence":0.9}],"validation":{"isScoreboard":true,"confidence":1,"reason":"ok","partial":false,"signals":{"wordCount":266,"numericTokens":67,"hasScorePattern":true,"matchedPlayers":6,"matchedOpponents":2,"matchedHeroes":14,"matchedMap":true,"matchedSide":false,"rowCount":22}}},{"ourScore":1,"opponentScore":34,"rawMap":"BE s = EMPIRE OF ETERIALIGHT-CENTRAL PARK $70 8","matchedMapId":"97735d9e-f3da-4d00-8757-98f06e84871e","rawSide":null,"matchedSideId":null,"rows":[{"rawName":"s","matchedPlayerId":"61c10495-fcf5-4462-880d-3487b76d6bf5","matchedOpponentPlayerId":null,"rawHero":"PARK","matchedHeroId":"a29bffe6-216c-4642-a2fe-501e9a67434b","side":"us","stats":{"04d1028a-c830-469e-8f58-c4645885408f":"8"},"confidence":0.9},{"rawName":"a","matchedPlayerId":"69c36ee5-dfbe-4b4f-84a6-aaba2adc1ceb","matchedOpponentPlayerId":null,"rawHero":"y","matchedHeroId":"f8aa39c5-ff02-4d41-baec-920149ee4e4b","side":"us","stats":{"04d1028a-c830-469e-8f58-c4645885408f":"4"},"confidence":0.9},{"rawName":"A","matchedPlayerId":"69c36ee5-dfbe-4b4f-84a6-aaba2adc1ceb","matchedOpponentPlayerId":null,"rawHero":null,"matchedHeroId":null,"side":"us","stats":{},"confidence":0.9},{"rawName":"AP","matchedPlayerId":null,"matchedOpponentPlayerId":null,"rawHero":"A","matchedHeroId":"34a68dc6-563d-4cd1-bd12-9b82aeff4f42","side":"unknown","stats":{},"confidence":0.9},{"rawName":"Vi","matchedPlayerId":null,"matchedOpponentPlayerId":null,"rawHero":"Name","matchedHeroId":"012dce31-c624-41f3-9d8e-5b0e973a6937","side":"unknown","stats":{},"confidence":0.9},{"rawName":"YJ)","matchedPlayerId":null,"matchedOpponentPlayerId":null,"rawHero":"er","matchedHeroId":"d0cfb633-9af2-4ff5-b220-1e210b5c6397","side":"unknown","stats":{},"confidence":0.9},{"rawName":"bd","matchedPlayerId":null,"matchedOpponentPlayerId":null,"rawHero":"Ca","matchedHeroId":"cfed4b03-58bc-4931-8b40-46645fca2166","side":"unknown","stats":{"04d1028a-c830-469e-8f58-c4645885408f":"15","a795c74b-1782-4a1c-99ae-24b1f1909c36":"10","761430f5-5d52-425e-9269-85aead0882c2":"2","6186bb2d-2e83-49c7-a9c7-b5bd86ab5784":"5","6376c693-5367-4ebf-a3c3-860604cf10b2":"43546"},"confidence":0.9},{"rawName":"gy","matchedPlayerId":null,"matchedOpponentPlayerId":null,"rawHero":"un","matchedHeroId":"6a262b51-9c9e-4782-8590-8bc50617531a","side":"unknown","stats":{"04d1028a-c830-469e-8f58-c4645885408f":"7","a795c74b-1782-4a1c-99ae-24b1f1909c36":"5","761430f5-5d52-425e-9269-85aead0882c2":"3","6186bb2d-2e83-49c7-a9c7-b5bd86ab5784":"5","6376c693-5367-4ebf-a3c3-860604cf10b2":"61532"},"confidence":0.9},{"rawName":"ao","matchedPlayerId":null,"matchedOpponentPlayerId":null,"rawHero":null,"matchedHeroId":null,"side":"unknown","stats":{"04d1028a-c830-469e-8f58-c4645885408f":"18","a795c74b-1782-4a1c-99ae-24b1f1909c36":"12","761430f5-5d52-425e-9269-85aead0882c2":"4","6186bb2d-2e83-49c7-a9c7-b5bd86ab5784":"6"},"confidence":0},{"rawName":"Li","matchedPlayerId":null,"matchedOpponentPlayerId":null,"rawHero":null,"matchedHeroId":null,"side":"unknown","stats":{"04d1028a-c830-469e-8f58-c4645885408f":"5","a795c74b-1782-4a1c-99ae-24b1f1909c36":"7","761430f5-5d52-425e-9269-85aead0882c2":"14","6186bb2d-2e83-49c7-a9c7-b5bd86ab5784":"1","6376c693-5367-4ebf-a3c3-860604cf10b2":"4","b9990f7e-3da1-44a8-8e8b-caec2f85450c":"22413","7777c2ea-0f14-4122-a116-5a1464b9065e":"198"},"confidence":0},{"rawName":"F<","matchedPlayerId":"fb51e860-7497-49d9-9801-6d3db02dda08","matchedOpponentPlayerId":null,"rawHero":null,"matchedHeroId":null,"side":"us","stats":{"04d1028a-c830-469e-8f58-c4645885408f":"27","a795c74b-1782-4a1c-99ae-24b1f1909c36":"9","761430f5-5d52-425e-9269-85aead0882c2":"5","6186bb2d-2e83-49c7-a9c7-b5bd86ab5784":"14","6376c693-5367-4ebf-a3c3-860604cf10b2":"35768","b9990f7e-3da1-44a8-8e8b-caec2f85450c":"12419"},"confidence":0.9},{"rawName":"So","matchedPlayerId":null,"matchedOpponentPlayerId":null,"rawHero":null,"matchedHeroId":null,"side":"unknown","stats":{"04d1028a-c830-469e-8f58-c4645885408f":"5","a795c74b-1782-4a1c-99ae-24b1f1909c36":"9","761430f5-5d52-425e-9269-85aead0882c2":"2","6186bb2d-2e83-49c7-a9c7-b5bd86ab5784":"4"},"confidence":0},{"rawName":"PATE","matchedPlayerId":null,"matchedOpponentPlayerId":null,"rawHero":null,"matchedHeroId":null,"side":"unknown","stats":{"04d1028a-c830-469e-8f58-c4645885408f":"2","a795c74b-1782-4a1c-99ae-24b1f1909c36":"6","761430f5-5d52-425e-9269-85aead0882c2":"8","6186bb2d-2e83-49c7-a9c7-b5bd86ab5784":"3","6376c693-5367-4ebf-a3c3-860604cf10b2":"8","b9990f7e-3da1-44a8-8e8b-caec2f85450c":"32922","7777c2ea-0f14-4122-a116-5a1464b9065e":"0"},"confidence":0},{"rawName":"ESA","matchedPlayerId":null,"matchedOpponentPlayerId":null,"rawHero":"Sa","matchedHeroId":"37b4bc06-b5bf-4184-b390-6bc37c742a7c","side":"unknown","stats":{},"confidence":0.9},{"rawName":"pe","matchedPlayerId":null,"matchedOpponentPlayerId":null,"rawHero":"re","matchedHeroId":"15525a20-4aed-4f9a-81ab-2bc7c7e75e6e","side":"unknown","stats":{"04d1028a-c830-469e-8f58-c4645885408f":"7","a795c74b-1782-4a1c-99ae-24b1f1909c36":"5","761430f5-5d52-425e-9269-85aead0882c2":"18","6186bb2d-2e83-49c7-a9c7-b5bd86ab5784":"8","6376c693-5367-4ebf-a3c3-860604cf10b2":"44271"},"confidence":0.9},{"rawName":"i","matchedPlayerId":null,"matchedOpponentPlayerId":"f1d92183-1ded-41ab-9bc7-299b54e7a102","rawHero":"A","matchedHeroId":"34a68dc6-563d-4cd1-bd12-9b82aeff4f42","side":"opponent","stats":{"04d1028a-c830-469e-8f58-c4645885408f":"9","a795c74b-1782-4a1c-99ae-24b1f1909c36":"15","761430f5-5d52-425e-9269-85aead0882c2":"2","6186bb2d-2e83-49c7-a9c7-b5bd86ab5784":"0"},"confidence":0.9},{"rawName":"TB","matchedPlayerId":null,"matchedOpponentPlayerId":null,"rawHero":"y/","matchedHeroId":"f8aa39c5-ff02-4d41-baec-920149ee4e4b","side":"unknown","stats":{"04d1028a-c830-469e-8f58-c4645885408f":"31","a795c74b-1782-4a1c-99ae-24b1f1909c36":"11","761430f5-5d52-425e-9269-85aead0882c2":"40","6186bb2d-2e83-49c7-a9c7-b5bd86ab5784":"1","6376c693-5367-4ebf-a3c3-860604cf10b2":"21870","b9990f7e-3da1-44a8-8e8b-caec2f85450c":"18523"},"confidence":0.9},{"rawName":"1)","matchedPlayerId":"69c36ee5-dfbe-4b4f-84a6-aaba2adc1ceb","matchedOpponentPlayerId":null,"rawHero":null,"matchedHeroId":null,"side":"us","stats":{"04d1028a-c830-469e-8f58-c4645885408f":"4","a795c74b-1782-4a1c-99ae-24b1f1909c36":"3","761430f5-5d52-425e-9269-85aead0882c2":"6","6186bb2d-2e83-49c7-a9c7-b5bd86ab5784":"12643"},"confidence":0.9},{"rawName":"a/P","matchedPlayerId":null,"matchedOpponentPlayerId":null,"rawHero":"og)","matchedHeroId":"1e9268b5-9a15-46fb-97c5-2dc7443c6f9e","side":"unknown","stats":{"04d1028a-c830-469e-8f58-c4645885408f":"2","a795c74b-1782-4a1c-99ae-24b1f1909c36":"3","761430f5-5d52-425e-9269-85aead0882c2":"9","6186bb2d-2e83-49c7-a9c7-b5bd86ab5784":"23912"},"confidence":0.9},{"rawName":"I","matchedPlayerId":null,"matchedOpponentPlayerId":"f1d92183-1ded-41ab-9bc7-299b54e7a102","rawHero":"[T","matchedHeroId":"5bdc5f88-60c5-4262-a090-0cc6e79ea04c","side":"opponent","stats":{"04d1028a-c830-469e-8f58-c4645885408f":"360235905"},"confidence":0.9},{"rawName":"{>","matchedPlayerId":null,"matchedOpponentPlayerId":null,"rawHero":"the","matchedHeroId":"6a262b51-9c9e-4782-8590-8bc50617531a","side":"unknown","stats":{},"confidence":0.9},{"rawName":"A","matchedPlayerId":"69c36ee5-dfbe-4b4f-84a6-aaba2adc1ceb","matchedOpponentPlayerId":null,"rawHero":null,"matchedHeroId":null,"side":"us","stats":{},"confidence":0.9}],"validation":{"isScoreboard":true,"confidence":1,"reason":"ok","partial":false,"signals":{"wordCount":266,"numericTokens":67,"hasScorePattern":true,"matchedPlayers":6,"matchedOpponents":2,"matchedHeroes":14,"matchedMap":true,"matchedSide":false,"rowCount":22}}},pending_review,ce572dc7-04ef-488a-8f23-a7731f2f11d9,
+Back to Events
+Elite 3000$ Cup vs Spacestation
+Tournament
+Apr 26, 2026
+19:00
+Win (from games)
+Event Result
+
+Pending
+Auto-computed from the games below. Stays "Pending" until every game has a recorded result.
+
+Opponent
+Linked
+Spacestation
+[SSG]
+Edit on the event itself to change.
+Notes
+Enter any notes about the event...
+Save Details
+Games & Scoreboard
+Add New Game
+Game Code
+Select a Game Mode to enter the score
+
+Game Result
+
+Game Mode
+
+Select Mode First
+VOD Link (optional)
+Rounds (1/40)
+Round
+#1
+
+— No side —
+0
+0
+
+Upload Scoreboard
+Add Game
+
+Hero Ban — New Game
+(optional, configure before adding)
+
+Map Veto — New Game
+(optional, configure before adding)
+Game	Mode / Map	Score	Game Result	Media	Actions
+G2	
+Convergence
+Heart of heaven
+16-8	L	
+—
+Edit
+Rounds
+
+
+Hero Ban — G2
+
+Map Veto — G2
+
+Match Stats — G2(Convergence)
+G5	
+Convergence
+Hall Of Dijalia
+13-11	D	
+—
+Edit
+Rounds
+
+
+Hero Ban — G5
+
+Map Veto — G5
+
+Match Stats — G5(Convergence)
+G3	
+Domination
+Royal Palace
+4-1	D	
+—
+Edit
+Rounds
+
+
+Hero Ban — G3
+
+Map Veto — G3
+
+Match Stats — G3(Domination )
+G1	
+Convoy
+Arakko
+9-4	W	
+—
+Edit
+Rounds
+
+
+Hero Ban — G1
+
+Map Veto — G1
+
+Match Stats — G1(Convoy)
+
+Import from scoreboard
+Save Match
+Our Team
+Player	Played	Heroes	Kills	Deaths	Assists	Final Hits	Damage	Damage Blocked	Healing
+MR_T4_Tank1
+Tank
+
+
+Select heroes...
+0
+0
+0
+0
+0
+0
+0
+MR_T4_Tank2
+Tank
+
+
+Select heroes...
+0
+0
+0
+0
+0
+0
+0
+MR_T4_DPS1
+DPS
+
+
+Select heroes...
+0
+0
+0
+0
+0
+0
+0
+MR_T4_DPS2
+DPS
+
+
+Select heroes...
+0
+0
+0
+0
+0
+0
+0
+MR_T4_Sup1
+Support
+
+
+Select heroes...
+0
+0
+0
+0
+0
+0
+0
+MR_T4_Sup2
+Support
+
+
+Select heroes...
+0
+0
+0
+0
+0
+0
+0
+MR_T4_Flex1
+Flex
+
+
+Select heroes...
+0
+0
+0
+0
+0
+0
+0
+MR_T4_Flex2
+Flex
+
+
+Select heroes...
+0
+0
+0
+0
+0
+0
+0
+Opponent Team
+Player	Played	Heroes	Kills	Deaths	Assists	Final Hits	Damage	Damage Blocked	Healing
+nectar
+Duelist
+
+
+Select heroes...
+0
+0
+0
+0
+0
+0
+0
+Doomed
+Duelist
+
+
+Select heroes...
+0
+0
+0
+0
+0
+0
+0
+blur
+Vanguard
+
+
+Select heroes...
+0
+0
+0
+0
+0
+0
+0
+Necrize
+Vanguard
+
+
+Select heroes...
+0
+0
+0
+0
+0
+0
+0
+Fidel
+Strategist
+
+
+Select heroes...
+0
+0
+0
+0
+0
+0
+0
+month
+Strategist
+
+
+Select heroes...
+0
+0
+0
+0
+0
+0
+0
+G4	
+Convoy
+Midtown
+15-12	W	
+—
+Edit
+Rounds
+
+
+Hero Ban — G4
+
+Map Veto — G4
+
+Match Stats — G4(Convoy)
+Attendance
+Players
+MR_T4_Tank1
+Present
+Late
+Absent
+MR_T4_Tank2
+Present
+Late
+Absent
+MR_T4_DPS1
+Present
+Late
+Absent
+MR_T4_DPS2
+Present
+Late
+Absent
+MR_T4_Sup1
+Present
+Late
+Absent
+MR_T4_Sup2
+Present
+Late
+Absent
+MR_T4_Flex1
+Present
+Late
+Absent
+MR_T4_Flex2
+Present
+Late
+Absent
+Staff
+Head Coach
+Present
+Late
+Absent
+Assistant Coach
+Present
+Late
+Absent
+Analyst
+Present
+Late
+Absent
+Manager
+Present
+Late
+Absent

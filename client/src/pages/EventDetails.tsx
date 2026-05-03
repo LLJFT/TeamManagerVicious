@@ -474,14 +474,21 @@ export default function EventDetails() {
   };
 
   const handleSaveEventDetails = () => {
-    // Event result is auto-computed server-side from the linked games on every
-    // game add/update/delete (storage.recomputeEventResult). The Result field
-    // is intentionally omitted from this payload so manual edits never
-    // overwrite the canonical, game-derived value.
-    updateEventMutation.mutate({
+    // Event result is auto-computed server-side after a 5-minute settle
+    // window, but the operator can override it here. When the operator picks
+    // a value the server flips result_source to 'manual' and the scheduler
+    // stops touching it. To clear the override, pick the auto-derived value
+    // again or change a game result.
+    const payload: any = {
       opponentName: opponentName,
       notes: eventNotes,
-    });
+    };
+    // Always send result. The server uses 'pending' to clear a manual
+    // override and revert the event to auto-compute mode; a real value
+    // (win/loss/draw) that differs from the existing one becomes a manual
+    // override; matching values are no-ops handled server-side.
+    payload.result = eventResult || "pending";
+    updateEventMutation.mutate(payload);
   };
 
   const handleAddGame = () => {
@@ -909,13 +916,12 @@ export default function EventDetails() {
           <CardContent className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-2">{t("events.eventResult")}</label>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Select
-                  value={event.result || "pending"}
-                  disabled
-                  onValueChange={() => { /* auto-computed from games */ }}
+                  value={eventResult || "pending"}
+                  onValueChange={(v) => setEventResult(v === "pending" ? "" : (v as EventResult))}
                 >
-                  <SelectTrigger data-testid="select-result" className="flex-1">
+                  <SelectTrigger data-testid="select-result" className="flex-1 min-w-[200px]">
                     <SelectValue placeholder={t("events.pending")} />
                   </SelectTrigger>
                   <SelectContent>
@@ -925,10 +931,47 @@ export default function EventDetails() {
                     <SelectItem value="draw">{t("events.result_draw")}</SelectItem>
                   </SelectContent>
                 </Select>
+                {(() => {
+                  const src = (event as any).resultSource as string | undefined;
+                  if (src === "manual") {
+                    return <Badge variant="default" data-testid="badge-result-source">Manually set</Badge>;
+                  }
+                  if (src === "auto") {
+                    return <Badge variant="secondary" data-testid="badge-result-source">Auto-computed</Badge>;
+                  }
+                  return <Badge variant="outline" data-testid="badge-result-source">Pending</Badge>;
+                })()}
               </div>
-              <p className="text-xs text-muted-foreground mt-1.5" data-testid="text-result-auto-hint">
-                Auto-computed from the games below. Stays "Pending" until every game has a recorded result.
-              </p>
+              {(() => {
+                const src = (event as any).resultSource as string | undefined;
+                const lgcaRaw = (event as any).lastGameChangeAt as string | null | undefined;
+                if (src === "manual") {
+                  return (
+                    <p className="text-xs text-muted-foreground mt-1.5" data-testid="text-result-auto-hint">
+                      Manually set — pick a different value to update, or choose "Pending" and Save to revert to auto-compute from the games below.
+                    </p>
+                  );
+                }
+                if (lgcaRaw) {
+                  const lgca = new Date(lgcaRaw).getTime();
+                  const dueAt = lgca + 5 * 60 * 1000;
+                  const remainingMs = dueAt - Date.now();
+                  if (remainingMs > 0) {
+                    const m = Math.floor(remainingMs / 60000);
+                    const s = Math.floor((remainingMs % 60000) / 1000);
+                    return (
+                      <p className="text-xs text-muted-foreground mt-1.5" data-testid="text-result-auto-hint">
+                        Will auto-set in ~{m}m {s.toString().padStart(2, "0")}s from the games below. Pick a value above to override.
+                      </p>
+                    );
+                  }
+                }
+                return (
+                  <p className="text-xs text-muted-foreground mt-1.5" data-testid="text-result-auto-hint">
+                    Auto-computed from the games below after a 5-minute settle window. Pick a value above to override.
+                  </p>
+                );
+              })()}
             </div>
 
             <div>

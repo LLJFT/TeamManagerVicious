@@ -125,6 +125,15 @@ app.use((req, res, next) => {
           migrateBase64Images().catch(err => {
             console.error("[boot-bg] migrate-base64-images error:", err?.message || err);
           });
+          // Add events.result_source / events.last_game_change_at columns
+          // (idempotent), then start the 60s settle-timer scheduler.
+          import("./migrations/add-event-result-source")
+            .then(m => m.addEventResultSource())
+            .then(() => import("./event-result-scheduler"))
+            .then(m => m.startEventResultScheduler())
+            .catch(err => {
+              console.error("[boot-bg] event-result-scheduler setup error:", err?.message || err);
+            });
         })
         .catch(err => {
           const msg = err?.message || String(err);

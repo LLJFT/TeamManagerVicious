@@ -2551,10 +2551,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!existing) return res.status(404).json({ error: "Event not found" });
       if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
       const validatedData = await sanitizeScopeFields(req, insertEventSchema.partial().parse(req.body));
-      // Event result is auto-computed from the linked games via
-      // storage.recomputeEventResult; reject any client-supplied override so
-      // the value can never drift from the games it summarizes.
-      if ("result" in validatedData) delete (validatedData as any).result;
+      // Strip resultSource from the client payload — the source is a
+      // server-controlled flag and a malicious client must not be able to
+      // flip a manual lock back to 'auto' just by including the field.
+      if ("resultSource" in validatedData) delete (validatedData as any).resultSource;
+      // Event result has two modes: auto (computed from linked games after a
+      // 5-minute settle window) and manual (operator override). The route
+      // interprets the client's intent like this:
+      //   - result: 'pending'  → revert to auto; clear last_game_change_at
+      //                          so the scheduler won't immediately re-flip
+      //                          it (the next game change will re-arm it).
+      //   - result: win|loss|draw and ≠ existing → manual override, lock it.
+      //   - result: same as existing → no-op (don't oscillate the source).
+      if ("result" in validatedData) {
+        const submitted = (validatedData as any).result;
+        if (submitted === "pending") {
+          (validatedData as any).resultSource = "pending";
+          (validatedData as any).lastGameChangeAt = null;
+        } else if (submitted && submitted !== existing.result) {
+          (validatedData as any).resultSource = "manual";
+        } else if (submitted === existing.result) {
+          delete (validatedData as any).result;
+        }
+      }
       const event = await storage.updateEvent(id, validatedData, existing.gameId, existing.rosterId);
       if (!event) return res.status(404).json({ error: "Event not found" });
       // Cascade opponentId change to child games whose opponentId is null OR matches the prior event opponentId

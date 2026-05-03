@@ -414,7 +414,7 @@ export class DbStorage implements IStorage {
     const teamId = getTeamId();
     const inserted = await db.insert(games).values({ ...insertGame, teamId, gameId, rosterId }).returning();
     if (inserted[0]?.eventId) {
-      try { await this.recomputeEventResult(inserted[0].eventId); } catch (e) { console.error("recomputeEventResult after addGame failed:", e); }
+      try { await this.bumpEventLastGameChange(inserted[0].eventId); } catch (e) { console.error("bumpEventLastGameChange after addGame failed:", e); }
     }
     return inserted[0];
   }
@@ -426,7 +426,7 @@ export class DbStorage implements IStorage {
     if (rosterId) conditions.push(eq(games.rosterId, rosterId));
     const updated = await db.update(games).set(updateData).where(and(...conditions)).returning();
     if (updated[0]?.eventId) {
-      try { await this.recomputeEventResult(updated[0].eventId); } catch (e) { console.error("recomputeEventResult after updateGame failed:", e); }
+      try { await this.bumpEventLastGameChange(updated[0].eventId); } catch (e) { console.error("bumpEventLastGameChange after updateGame failed:", e); }
     }
     return updated[0];
   }
@@ -439,10 +439,27 @@ export class DbStorage implements IStorage {
     const deleted = await db.delete(games).where(and(...conditions)).returning();
     for (const row of deleted) {
       if (row.eventId) {
-        try { await this.recomputeEventResult(row.eventId); } catch (e) { console.error("recomputeEventResult after removeGame failed:", e); }
+        try { await this.bumpEventLastGameChange(row.eventId); } catch (e) { console.error("bumpEventLastGameChange after removeGame failed:", e); }
       }
     }
     return deleted.length > 0;
+  }
+
+  // Stamps the event's last_game_change_at to now and ensures result_source
+  // is 'auto' (unless the user has explicitly set it to 'manual', in which
+  // case we leave it alone). The actual result recompute runs later, after
+  // the 5-minute settle window elapses, via runDueEventResultAutoComputes().
+  async bumpEventLastGameChange(eventId: string): Promise<void> {
+    const teamId = getTeamId();
+    await db.execute(sql`
+      UPDATE events
+      SET last_game_change_at = NOW(),
+          result_source = CASE
+            WHEN result_source = 'manual' THEN 'manual'
+            ELSE 'auto'
+          END
+      WHERE id = ${eventId} AND team_id = ${teamId}
+    `);
   }
 
   // Auto-computes events.result from the linked games:
@@ -451,8 +468,19 @@ export class DbStorage implements IStorage {
   //   - LOSS when losses > wins
   //   - DRAW when wins == losses (and at least one game has a recorded result)
   // Strictly team-scoped via team_id; never crosses event/team boundaries.
-  async recomputeEventResult(eventId: string): Promise<"win" | "loss" | "draw" | "pending"> {
-    const teamId = getTeamId();
+  // Honors result_source='manual' by skipping any update when the operator
+  // has explicitly fixed the result.
+  async recomputeEventResult(eventId: string, opts?: { teamId?: string; respectManual?: boolean }): Promise<"win" | "loss" | "draw" | "pending"> {
+    const teamId = opts?.teamId ?? getTeamId();
+    const respectManual = opts?.respectManual ?? true;
+    const [existing] = await db.select({ resultSource: events.resultSource, result: events.result })
+      .from(events)
+      .where(and(eq(events.id, eventId), eq(events.teamId, teamId)))
+      .limit(1);
+    if (!existing) return "pending";
+    if (respectManual && existing.resultSource === "manual") {
+      return (existing.result as any) || "pending";
+    }
     const rows = await db.select({ result: games.result })
       .from(games)
       .where(and(eq(games.eventId, eventId), eq(games.teamId, teamId)));
@@ -472,9 +500,46 @@ export class DbStorage implements IStorage {
         else next = "draw";
       }
     }
-    await db.update(events).set({ result: next })
+    await db.update(events).set({ result: next, resultSource: "auto" })
       .where(and(eq(events.id, eventId), eq(events.teamId, teamId)));
     return next;
+  }
+
+  // Called by the background scheduler. Finds events whose 5-minute settle
+  // window has elapsed since the last game change, computes the result, and
+  // bypasses the per-request team-scoping (the scheduler runs without a
+  // request context). Skips manual-source events.
+  async runDueEventResultAutoComputes(): Promise<number> {
+    // FOR UPDATE SKIP LOCKED ensures multi-instance deployments (e.g. an
+    // Autoscale rollout where the previous revision overlaps the new one)
+    // don't double-process the same event. Each instance grabs a disjoint
+    // slice; rows held by another tx are silently skipped.
+    const dueRes: any = await db.execute(sql`
+      SELECT id, team_id FROM events
+      WHERE last_game_change_at IS NOT NULL
+        AND last_game_change_at < NOW() - INTERVAL '5 minutes'
+        AND (result_source IS NULL OR result_source IN ('pending', 'auto'))
+      ORDER BY last_game_change_at ASC
+      LIMIT 500
+      FOR UPDATE SKIP LOCKED
+    `);
+    const due: Array<{ id: string; team_id: string }> = dueRes.rows ?? [];
+    let count = 0;
+    for (const row of due) {
+      try {
+        await this.recomputeEventResult(row.id, { teamId: row.team_id, respectManual: true });
+        // Clear the trigger so we don't recompute the same event next tick
+        // until another game change happens.
+        await db.execute(sql`
+          UPDATE events SET last_game_change_at = NULL
+          WHERE id = ${row.id} AND team_id = ${row.team_id}
+        `);
+        count++;
+      } catch (err) {
+        console.error(`[event-scheduler] recompute failed for event ${row.id}:`, err);
+      }
+    }
+    return count;
   }
 
   async getAllGameModes(gameId?: string | null, _rosterId?: string | null): Promise<GameMode[]> {

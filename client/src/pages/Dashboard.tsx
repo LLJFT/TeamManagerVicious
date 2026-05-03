@@ -3305,7 +3305,7 @@ function ResetRosterTab() {
       const r = jobStatus.result || {};
       toast({
         title: "Example data loaded",
-        description: `Example data loaded successfully. ${r.events ?? 0} events, ${r.games ?? 0} games, ${r.players ?? 0} players, ${r.staff ?? 0} staff.`,
+        description: `Loaded ${r.events ?? 0} events, ${r.games ?? 0} games, ${r.players ?? 0} players, ${r.opponents ?? 0} opponents (${r.opponentPlayers ?? 0} opp. players), ${r.heroes ?? 0} heroes, ${r.heroPicks ?? 0} hero picks, ${r.playerStatsRows ?? 0} player stat rows, ${r.opponentStatsRows ?? 0} opp. stat rows.`,
       });
       setLoadJobId(null);
       setLoadOpen(false);
