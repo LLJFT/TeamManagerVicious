@@ -1,0 +1,82 @@
+Fix two analytics/UI issues.
+
+==================================================
+1) SCROLL BUG ACROSS THE APP
+==================================================
+
+There is a scroll bug in the UI.
+
+Observed behavior:
+- In places like the match list popover / drilldown panels / dropdown-style overlays, I cannot scroll the inner content
+- This is not only one page — I am seeing the same kind of problem in multiple places
+- The content is visibly taller than the container, but scrolling inside it does not work correctly
+
+What to do:
+- Audit all relevant UI patterns used across the app:
+  - popovers
+  - dropdowns
+  - command/search menus
+  - dialogs/modals
+  - side panels
+  - hover cards / drilldown cards
+  - any floating analytics details panels
+- Find the root cause of the scroll issue
+- Fix it properly across the app, not just for one single instance
+- Make inner overflow areas scroll correctly while preserving page scroll behavior
+- Make sure the fix works with mouse wheel, trackpad, and touchpad scrolling
+- Make sure overlays do not trap scroll incorrectly or block inner scrolling
+- Do not break layout, focus handling, or click behavior
+
+Verification:
+- Test the specific analytics drilldown/popover case
+- Test at least a few other overlay/scrollable UI surfaces to confirm the fix is general
+- Report the real root cause
+
+==================================================
+2) PLAYER STATS SHOULD INCLUDE OPPONENT PLAYERS TOO
+==================================================
+
+In Player Leaderboard / Player Stats style pages, I want statistics for ALL players that exist in the data, not only our team players.
+
+What I want:
+- Show our players and opponent players in the statistics when their data exists
+- Use the seeded opponent player stats that now exist
+- Make the page useful for comparing all players involved in the dataset
+
+Requirements:
+- Include opponent players in stat leaderboards when opponent player stats exist
+- Visually distinguish our players from opponent players clearly
+- Highlight our own players’ names so they stand out immediately
+- For opponent players, show their team identity clearly
+- Instead of the default first-letter avatar/logo, use the opponent team logo for opponent players whenever that logo exists
+- If no logo exists, then fall back gracefully
+
+UI expectations:
+- Our team players should remain easy to identify at a glance
+- Opponent players should show team context clearly
+- Team logos should be used where available
+- Do not make the page confusing or cluttered
+- Keep the existing analytics style and permissions conventions
+
+Data expectations:
+- Use real roster-scoped data only
+- Pull opponent player stats from the existing seeded/real opponent stats tables
+- Make sure opponent players are linked to the correct opponent/team
+- Do not duplicate or inflate rows
+- Preserve correct aggregation and dedupe rules
+
+Also:
+- If needed, add filters/toggles such as:
+  - Our players only
+  - Opponents only
+  - All players
+- But the important part is that all existing player data can be surfaced
+
+After implementation report:
+1. Root cause of the scroll bug
+2. Where the scroll fix was applied
+3. Which pages/components now support proper inner scrolling
+4. How opponent players were added to stats pages
+5. How our players are highlighted
+6. How opponent team logos are shown
+7. Any fallback behavior when opponent logos are missing

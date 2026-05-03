@@ -8,19 +8,20 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-  Medal, Users, ExternalLink, ChevronRight, Activity, BarChart3, Swords, ArrowLeft,
+  Medal, Users, ExternalLink, ChevronRight, Activity, BarChart3, Swords, ArrowLeft, Shield,
 } from "lucide-react";
 import { useGame } from "@/hooks/use-game";
 import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied } from "@/components/AccessDenied";
 import { StatsSkeleton } from "@/components/PageSkeleton";
 import type {
-  Event, Game, Hero, Opponent, Player, StatField,
-  MatchParticipant, PlayerGameStat, GameHero,
+  Event, Game, Hero, Opponent, OpponentPlayer, Player, StatField,
+  MatchParticipant, PlayerGameStat, OpponentPlayerGameStat, GameHero,
 } from "@shared/schema";
 
 interface MatchRef {
@@ -32,8 +33,18 @@ interface MatchRef {
   gameCode: string;
 }
 
+type UnifiedPlayer = {
+  id: string;
+  name: string;
+  role: string | null;
+  isOurs: boolean;
+  opponentId: string | null;
+  opponentName: string | null;
+  opponentLogoUrl: string | null;
+};
+
 interface PlayerStatRow {
-  player: Player;
+  player: UnifiedPlayer;
   total: number;
   matchesPlayed: number;
   avg: number;
@@ -41,7 +52,7 @@ interface PlayerStatRow {
 }
 
 interface PlayerAttendanceRow {
-  player: Player;
+  player: UnifiedPlayer;
   matchesPlayed: number;
   wins: number;
   losses: number;
@@ -50,7 +61,7 @@ interface PlayerAttendanceRow {
 }
 
 interface PlayerHeroRow {
-  player: Player;
+  player: UnifiedPlayer;
   hero: Hero;
   picks: number;
   wins: number;
@@ -58,6 +69,8 @@ interface PlayerHeroRow {
   draws: number;
   matches: MatchRef[];
 }
+
+type SideFilter = "all" | "ours" | "opponents";
 
 function pct(n: number, d: number): number {
   if (!d) return 0;
@@ -77,51 +90,67 @@ function MatchDrillPopover({
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 p-0">
-        <div className="p-2 border-b text-xs font-semibold">Matches: {label}</div>
-        <ScrollArea className="max-h-72">
-          <div className="p-1 space-y-1">
-            {refs.map((m, i) => {
-              const resColor =
-                m.result === "win" ? "text-emerald-500" :
-                m.result === "loss" ? "text-red-500" :
-                m.result === "draw" ? "text-amber-500" : "text-muted-foreground";
-              const resLabel = m.result === "win" ? "W" : m.result === "loss" ? "L" : m.result === "draw" ? "D" : "—";
-              return (
-                <Link
-                  key={`${m.matchId}-${i}`}
-                  href={fullSlug ? `/${fullSlug}/events/${m.eventId}` : "#"}
-                  data-testid={`link-drill-event-${m.eventId}`}
-                >
-                  <div className="flex items-center gap-2 px-2 py-1.5 rounded text-xs hover-elevate cursor-pointer">
-                    <Badge variant="outline" className={`shrink-0 w-6 justify-center ${resColor}`}>{resLabel}</Badge>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate font-medium">{m.opponentName || "Unknown opponent"}</div>
-                      <div className="text-[10px] text-muted-foreground">
-                        {m.date ? new Date(m.date).toLocaleDateString() : ""} · Map {m.gameCode}
-                      </div>
+        <div className="p-2 border-b text-xs font-semibold sticky top-0 bg-popover z-10">Matches: {label}</div>
+        <div className="p-1 space-y-1">
+          {refs.map((m, i) => {
+            const resColor =
+              m.result === "win" ? "text-emerald-500" :
+              m.result === "loss" ? "text-red-500" :
+              m.result === "draw" ? "text-amber-500" : "text-muted-foreground";
+            const resLabel = m.result === "win" ? "W" : m.result === "loss" ? "L" : m.result === "draw" ? "D" : "—";
+            return (
+              <Link
+                key={`${m.matchId}-${i}`}
+                href={fullSlug ? `/${fullSlug}/events/${m.eventId}` : "#"}
+                data-testid={`link-drill-event-${m.eventId}`}
+              >
+                <div className="flex items-center gap-2 px-2 py-1.5 rounded text-xs hover-elevate cursor-pointer">
+                  <Badge variant="outline" className={`shrink-0 w-6 justify-center ${resColor}`}>{resLabel}</Badge>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-medium">{m.opponentName || "Unknown opponent"}</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {m.date ? new Date(m.date).toLocaleDateString() : ""} · Map {m.gameCode}
                     </div>
-                    <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
                   </div>
-                </Link>
-              );
-            })}
-          </div>
-        </ScrollArea>
+                  <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                </div>
+              </Link>
+            );
+          })}
+        </div>
       </PopoverContent>
     </Popover>
   );
 }
 
-function PlayerChip({ player }: { player: Player }) {
+function PlayerChip({ player }: { player: UnifiedPlayer }) {
+  const initials = player.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
+  const opponentInitial = (player.opponentName || "?").charAt(0).toUpperCase();
   return (
     <div className="flex items-center gap-2 min-w-0">
-      <Avatar className="h-7 w-7 shrink-0">
-        <AvatarFallback className="text-[10px] bg-muted">
-          {player.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+      <Avatar className={`h-7 w-7 shrink-0 ${player.isOurs ? "ring-2 ring-primary" : ""}`}>
+        {player.isOurs ? null : (player.opponentLogoUrl ? <AvatarImage src={player.opponentLogoUrl} alt={player.opponentName || ""} /> : null)}
+        <AvatarFallback className={`text-[10px] ${player.isOurs ? "bg-primary/15 text-primary" : "bg-muted"}`}>
+          {player.isOurs ? initials : opponentInitial}
         </AvatarFallback>
       </Avatar>
-      <span className="text-sm truncate font-medium">{player.name}</span>
-      {player.role && <span className="text-[10px] text-muted-foreground shrink-0">{player.role}</span>}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span
+            className={`text-sm truncate ${player.isOurs ? "font-bold text-primary" : "font-medium"}`}
+            data-testid={`text-player-name-${player.id}`}
+          >
+            {player.name}
+          </span>
+          {player.role && <span className="text-[10px] text-muted-foreground shrink-0">{player.role}</span>}
+        </div>
+        {!player.isOurs && player.opponentName && (
+          <div className="flex items-center gap-1 text-[10px] text-muted-foreground truncate">
+            <Shield className="h-2.5 w-2.5 shrink-0" />
+            <span className="truncate">{player.opponentName}</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -131,6 +160,7 @@ export default function PlayerLeaderboard() {
   const { fullSlug, gameId, rosterId } = useGame();
   const rosterReady = !!(gameId && rosterId);
   const [opponentFilter, setOpponentFilter] = useState<string>("__all__");
+  const [sideFilter, setSideFilter] = useState<SideFilter>("all");
 
   const opponentParam = opponentFilter === "__all__" ? undefined : opponentFilter;
 
@@ -150,6 +180,10 @@ export default function PlayerLeaderboard() {
     queryKey: ["/api/opponents", { gameId, rosterId }],
     enabled: rosterReady,
   });
+  const { data: opponentPlayers = [] } = useQuery<OpponentPlayer[]>({
+    queryKey: ["/api/opponent-players", { gameId, rosterId }],
+    enabled: rosterReady,
+  });
   const { data: statFields = [] } = useQuery<StatField[]>({
     queryKey: ["/api/stat-fields", { gameId, rosterId }],
     enabled: rosterReady,
@@ -166,6 +200,10 @@ export default function PlayerLeaderboard() {
     queryKey: ["/api/player-game-stats", { gameId, rosterId, opponentId: opponentParam }],
     enabled: rosterReady,
   });
+  const { data: oppStats = [] } = useQuery<OpponentPlayerGameStat[]>({
+    queryKey: ["/api/opponent-player-stats", { gameId, rosterId, opponentId: opponentParam }],
+    enabled: rosterReady,
+  });
   const { data: gameHeroes = [] } = useQuery<GameHero[]>({
     queryKey: ["/api/game-heroes", { gameId, rosterId, opponentId: opponentParam }],
     enabled: rosterReady,
@@ -173,9 +211,30 @@ export default function PlayerLeaderboard() {
 
   // ===== All hooks (incl. useMemo) MUST run before any early return =====
   const eventById = useMemo(() => new Map(events.map(e => [e.id, e])), [events]);
-  const playerById = useMemo(() => new Map(players.map(p => [p.id, p])), [players]);
-  const heroById = useMemo(() => new Map(heroes.map(h => [h.id, h])), [heroes]);
   const opponentById = useMemo(() => new Map(opponents.map(o => [o.id, o])), [opponents]);
+
+  const unifiedById = useMemo(() => {
+    const map = new Map<string, UnifiedPlayer>();
+    for (const p of players) {
+      map.set(p.id, {
+        id: p.id, name: p.name, role: p.role ?? null,
+        isOurs: true, opponentId: null, opponentName: null, opponentLogoUrl: null,
+      });
+    }
+    for (const op of opponentPlayers) {
+      const opp = op.opponentId ? opponentById.get(op.opponentId) : undefined;
+      map.set(op.id, {
+        id: op.id, name: op.name, role: op.role ?? null,
+        isOurs: false,
+        opponentId: op.opponentId,
+        opponentName: opp?.name ?? null,
+        opponentLogoUrl: opp?.logoUrl ?? null,
+      });
+    }
+    return map;
+  }, [players, opponentPlayers, opponentById]);
+
+  const heroById = useMemo(() => new Map(heroes.map(h => [h.id, h])), [heroes]);
   const filteredGames = useMemo(() => allGames.filter(g => opponentFilter === "__all__" || g.opponentId === opponentFilter), [allGames, opponentFilter]);
   const matchById = useMemo(() => new Map(filteredGames.map(g => [g.id, g])), [filteredGames]);
 
@@ -193,6 +252,7 @@ export default function PlayerLeaderboard() {
     };
   }, [matchById, eventById, opponentById]);
 
+  // Attendance: ours only (we don't track opponent attendance / result is from our POV)
   const attendance: PlayerAttendanceRow[] = useMemo(() => {
     const seenPair = new Set<string>();
     const buckets = new Map<string, PlayerAttendanceRow>();
@@ -205,7 +265,7 @@ export default function PlayerLeaderboard() {
       seenPair.add(key);
       const g = matchById.get(part.matchId);
       if (!g) continue;
-      const player = playerById.get(part.playerId);
+      const player = unifiedById.get(part.playerId);
       if (!player) continue;
       let row = buckets.get(part.playerId);
       if (!row) {
@@ -220,63 +280,74 @@ export default function PlayerLeaderboard() {
       else if (g.result === "draw") row.draws++;
     }
     return Array.from(buckets.values()).sort((a, b) => b.matchesPlayed - a.matchesPlayed);
-  }, [participants, matchById, playerById, refOf]);
+  }, [participants, matchById, unifiedById, refOf]);
 
+  // Stat leaderboards: merge our players + opponent players
   const statLeaderboards = useMemo(() => {
     const byField = new Map<string, Map<string, PlayerStatRow>>();
     const seenTriples = new Set<string>();
-    for (const s of pgStats) {
-      if (!s.playerId || !s.statFieldId) continue;
-      if (!matchById.has(s.matchId)) continue;
-      const triple = `${s.matchId}::${s.playerId}::${s.statFieldId}`;
-      if (seenTriples.has(triple)) continue;
+
+    const addStat = (matchId: string, playerKey: string, statFieldId: string, valueRaw: string | number) => {
+      if (!matchById.has(matchId)) return;
+      const triple = `${matchId}::${playerKey}::${statFieldId}`;
+      if (seenTriples.has(triple)) return;
       seenTriples.add(triple);
-      const player = playerById.get(s.playerId);
-      if (!player) continue;
-      const numeric = Number(s.value);
-      if (!Number.isFinite(numeric)) continue;
-      let perPlayer = byField.get(s.statFieldId);
-      if (!perPlayer) {
-        perPlayer = new Map();
-        byField.set(s.statFieldId, perPlayer);
-      }
-      let row = perPlayer.get(s.playerId);
-      if (!row) {
-        row = { player, total: 0, matchesPlayed: 0, avg: 0, matches: [] };
-        perPlayer.set(s.playerId, row);
-      }
+      const player = unifiedById.get(playerKey);
+      if (!player) return;
+      const numeric = Number(valueRaw);
+      if (!Number.isFinite(numeric)) return;
+      let perPlayer = byField.get(statFieldId);
+      if (!perPlayer) { perPlayer = new Map(); byField.set(statFieldId, perPlayer); }
+      let row = perPlayer.get(playerKey);
+      if (!row) { row = { player, total: 0, matchesPlayed: 0, avg: 0, matches: [] }; perPlayer.set(playerKey, row); }
       row.total += numeric;
       row.matchesPlayed++;
-      const ref = refOf(s.matchId);
+      const ref = refOf(matchId);
       if (ref) row.matches.push(ref);
+    };
+
+    for (const s of pgStats) {
+      if (!s.playerId || !s.statFieldId) continue;
+      addStat(s.matchId, s.playerId, s.statFieldId, s.value);
     }
+    for (const s of oppStats) {
+      if (!s.opponentPlayerId || !s.statFieldId) continue;
+      addStat(s.matchId, s.opponentPlayerId, s.statFieldId, s.value);
+    }
+
     const out = new Map<string, PlayerStatRow[]>();
     for (const [fieldId, perPlayer] of Array.from(byField.entries())) {
-      const rows = Array.from(perPlayer.values()).map(r => ({
+      let rows = Array.from(perPlayer.values()).map(r => ({
         ...r,
         avg: r.matchesPlayed > 0 ? r.total / r.matchesPlayed : 0,
       }));
+      if (sideFilter === "ours") rows = rows.filter(r => r.player.isOurs);
+      else if (sideFilter === "opponents") rows = rows.filter(r => !r.player.isOurs);
       rows.sort((a, b) => b.total - a.total);
       out.set(fieldId, rows);
     }
     return out;
-  }, [pgStats, matchById, playerById, refOf]);
+  }, [pgStats, oppStats, matchById, unifiedById, refOf, sideFilter]);
 
+  // Hero perf: merge our + opponent picks
   const heroPerformance: PlayerHeroRow[] = useMemo(() => {
     const seen = new Set<string>();
     const buckets = new Map<string, PlayerHeroRow>();
     for (const gh of gameHeroes) {
-      // playerId presence implies "us" side (opponents use opponentPlayerId)
-      if (!gh.playerId || !gh.heroId) continue;
+      if (!gh.heroId) continue;
+      const playerKey = gh.playerId || gh.opponentPlayerId;
+      if (!playerKey) continue;
       if (!matchById.has(gh.matchId)) continue;
-      const triple = `${gh.matchId}::${gh.playerId}::${gh.heroId}`;
+      const triple = `${gh.matchId}::${playerKey}::${gh.heroId}`;
       if (seen.has(triple)) continue;
       seen.add(triple);
-      const player = playerById.get(gh.playerId);
+      const player = unifiedById.get(playerKey);
       const hero = heroById.get(gh.heroId);
       if (!player || !hero) continue;
+      if (sideFilter === "ours" && !player.isOurs) continue;
+      if (sideFilter === "opponents" && player.isOurs) continue;
       const g = matchById.get(gh.matchId)!;
-      const key = `${gh.playerId}::${gh.heroId}`;
+      const key = `${playerKey}::${gh.heroId}`;
       let row = buckets.get(key);
       if (!row) {
         row = { player, hero, picks: 0, wins: 0, losses: 0, draws: 0, matches: [] };
@@ -285,12 +356,15 @@ export default function PlayerLeaderboard() {
       row.picks++;
       const ref = refOf(gh.matchId);
       if (ref) row.matches.push(ref);
-      if (g.result === "win") row.wins++;
-      else if (g.result === "loss") row.losses++;
-      else if (g.result === "draw") row.draws++;
+      // Result is from our POV; flip for opponent rows so "wins" = times this opponent player won.
+      const r = g.result;
+      const winLabel = player.isOurs ? r : (r === "win" ? "loss" : r === "loss" ? "win" : r);
+      if (winLabel === "win") row.wins++;
+      else if (winLabel === "loss") row.losses++;
+      else if (winLabel === "draw") row.draws++;
     }
     return Array.from(buckets.values()).sort((a, b) => b.picks - a.picks);
-  }, [gameHeroes, matchById, playerById, heroById, refOf]);
+  }, [gameHeroes, matchById, unifiedById, heroById, refOf, sideFilter]);
 
   // ===== Early returns AFTER all hooks =====
   if (!hasPermission("view_statistics")) {
@@ -307,7 +381,7 @@ export default function PlayerLeaderboard() {
     return <StatsSkeleton />;
   }
 
-  const hasAnyData = participants.length + pgStats.length + gameHeroes.length > 0;
+  const hasAnyData = participants.length + pgStats.length + oppStats.length + gameHeroes.length > 0;
 
   return (
     <ScrollArea className="h-full">
@@ -325,7 +399,7 @@ export default function PlayerLeaderboard() {
                 <h1 className="text-3xl font-bold text-foreground" data-testid="text-page-title">Player Leaderboard</h1>
               </div>
               <p className="text-muted-foreground">
-                Roster-wide player performance, attendance, and hero specialization.
+                Roster-wide performance for our players and opponents.
               </p>
             </div>
           </div>
@@ -348,9 +422,23 @@ export default function PlayerLeaderboard() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">Show:</span>
+              <ToggleGroup
+                type="single"
+                value={sideFilter}
+                onValueChange={(v) => v && setSideFilter(v as SideFilter)}
+                className="gap-1"
+                data-testid="toggle-side-filter"
+              >
+                <ToggleGroupItem value="all" size="sm" data-testid="toggle-all">All</ToggleGroupItem>
+                <ToggleGroupItem value="ours" size="sm" data-testid="toggle-ours">Our players</ToggleGroupItem>
+                <ToggleGroupItem value="opponents" size="sm" data-testid="toggle-opponents">Opponents</ToggleGroupItem>
+              </ToggleGroup>
+            </div>
             <div className="flex items-center gap-2 ml-auto" data-testid="text-coverage">
               <Badge variant="outline" className="font-mono text-xs">{participants.length} part.</Badge>
-              <Badge variant="outline" className="font-mono text-xs">{pgStats.length} stat rows</Badge>
+              <Badge variant="outline" className="font-mono text-xs">{pgStats.length + oppStats.length} stat rows</Badge>
               <Badge variant="outline" className="font-mono text-xs">{gameHeroes.length} hero plays</Badge>
             </div>
           </CardContent>
@@ -387,7 +475,7 @@ export default function PlayerLeaderboard() {
                 <CardTitle className="text-base flex items-center gap-2">
                   <Activity className="h-4 w-4 text-primary" /> Matches Played
                 </CardTitle>
-                <CardDescription>Players ranked by participation, with personal record</CardDescription>
+                <CardDescription>Our roster's participation and personal record. Opponent attendance is not tracked.</CardDescription>
               </CardHeader>
               <CardContent>
                 {attendance.length === 0 ? (
@@ -452,7 +540,7 @@ export default function PlayerLeaderboard() {
                         <CardTitle className="text-base flex items-center gap-2">
                           <BarChart3 className="h-4 w-4 text-primary" /> {field.name}
                         </CardTitle>
-                        <CardDescription>Total · average per match</CardDescription>
+                        <CardDescription>Total · average per match · all rostered players</CardDescription>
                       </CardHeader>
                       <CardContent>
                         {rows.length === 0 ? (
@@ -462,7 +550,7 @@ export default function PlayerLeaderboard() {
                             {rows.slice(0, 10).map((r, i) => (
                               <div
                                 key={r.player.id}
-                                className="flex items-center gap-2 px-2 py-1.5 rounded border border-border bg-card"
+                                className={`flex items-center gap-2 px-2 py-1.5 rounded border ${r.player.isOurs ? "border-primary/40 bg-primary/5" : "border-border bg-card"}`}
                                 data-testid={`row-stat-${field.id}-${r.player.id}`}
                               >
                                 <span className="text-xs text-muted-foreground w-5 text-right">{i + 1}.</span>
@@ -494,7 +582,7 @@ export default function PlayerLeaderboard() {
                 <CardTitle className="text-base flex items-center gap-2">
                   <Swords className="h-4 w-4 text-primary" /> Most-Picked Hero by Player
                 </CardTitle>
-                <CardDescription>Pairings ranked by picks, with that pairing's win rate</CardDescription>
+                <CardDescription>Pairings ranked by picks, with that pairing's win rate (from each player's POV)</CardDescription>
               </CardHeader>
               <CardContent>
                 {heroPerformance.length === 0 ? (
@@ -507,7 +595,7 @@ export default function PlayerLeaderboard() {
                       return (
                         <div
                           key={`${row.player.id}-${row.hero.id}`}
-                          className="flex items-center gap-2 px-2 py-1.5 rounded border border-border bg-card"
+                          className={`flex items-center gap-2 px-2 py-1.5 rounded border ${row.player.isOurs ? "border-primary/40 bg-primary/5" : "border-border bg-card"}`}
                           data-testid={`row-hero-${row.player.id}-${row.hero.id}`}
                         >
                           <span className="text-xs text-muted-foreground w-5 text-right">{i + 1}.</span>

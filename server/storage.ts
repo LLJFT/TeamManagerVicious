@@ -99,6 +99,8 @@ export interface IStorage {
   updateOpponent(id: string, opp: Partial<InsertOpponent>, gameId?: string | null, rosterId?: string | null): Promise<Opponent | undefined>;
   removeOpponent(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean>;
   getOpponentPlayersByOpponentId(opponentId: string): Promise<OpponentPlayer[]>;
+  getOpponentPlayersByRoster(gameId: string, rosterId: string): Promise<OpponentPlayer[]>;
+  getOpponentPlayerGameStatsByRoster(gameId: string, rosterId: string, opponentId?: string): Promise<OpponentPlayerGameStat[]>;
   getOpponentPlayer(id: string): Promise<OpponentPlayer | undefined>;
   addOpponentPlayer(p: InsertOpponentPlayer, gameId?: string | null, rosterId?: string | null): Promise<OpponentPlayer>;
   updateOpponentPlayer(id: string, p: Partial<InsertOpponentPlayer>): Promise<OpponentPlayer | undefined>;
@@ -1269,6 +1271,31 @@ export class DbStorage implements IStorage {
     const teamId = getTeamId();
     return await db.select().from(opponentPlayers)
       .where(and(eq(opponentPlayers.opponentId, opponentId), eq(opponentPlayers.teamId, teamId)));
+  }
+
+  async getOpponentPlayersByRoster(gameId: string, rosterId: string): Promise<OpponentPlayer[]> {
+    const teamId = getTeamId();
+    return await db.select().from(opponentPlayers)
+      .where(and(
+        eq(opponentPlayers.teamId, teamId),
+        eq(opponentPlayers.gameId, gameId),
+        eq(opponentPlayers.rosterId, rosterId),
+      ));
+  }
+
+  async getOpponentPlayerGameStatsByRoster(gameId: string, rosterId: string, opponentId?: string): Promise<OpponentPlayerGameStat[]> {
+    const teamId = getTeamId();
+    const conditions: any[] = [
+      eq(opponentPlayerGameStats.teamId, teamId),
+      eq(opponentPlayerGameStats.gameId, gameId),
+      eq(games.rosterId, rosterId),
+    ];
+    if (opponentId) conditions.push(eq(games.opponentId, opponentId));
+    const rows = await db.select({ s: opponentPlayerGameStats })
+      .from(opponentPlayerGameStats)
+      .innerJoin(games, eq(opponentPlayerGameStats.matchId, games.id))
+      .where(and(...conditions));
+    return rows.map(r => r.s);
   }
 
   async getOpponentPlayer(id: string): Promise<OpponentPlayer | undefined> {

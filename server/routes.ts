@@ -3841,6 +3841,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/opponent-players", requireAuth, async (req, res) => {
+    try {
+      const gameId = getGameId(req);
+      const rosterId = getRosterId(req);
+      if (!gameId || !rosterId) return res.json([]);
+      const rows = await storage.getOpponentPlayersByRoster(gameId, rosterId);
+      res.json(rows);
+    } catch (error: any) {
+      console.error('Error in GET /api/opponent-players:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.get("/api/opponent-player-stats", requireAuth, requirePermission("view_statistics"), async (req, res) => {
+    try {
+      const gameId = getGameId(req);
+      const rosterId = getRosterId(req);
+      const opponentId = (req.query.opponentId as string | undefined) || undefined;
+      if (!gameId || !rosterId) return res.json([]);
+      const rows = await storage.getOpponentPlayerGameStatsByRoster(gameId, rosterId, opponentId);
+      res.json(rows);
+    } catch (error: any) {
+      console.error('Error in GET /api/opponent-player-stats:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
   app.get("/api/match-participants", requireAuth, requirePermission("view_statistics"), async (req, res) => {
     try {
       const gameId = getGameId(req);
