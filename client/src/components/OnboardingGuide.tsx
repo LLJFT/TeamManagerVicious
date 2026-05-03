@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
+import { useLocation } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Calendar, BarChart3, Users, Settings, MessageSquare, ClipboardList, HelpCircle, ChevronRight, ChevronLeft } from "lucide-react";
 
 const ONBOARDING_KEY = "vicious_onboarding_seen";
@@ -136,14 +138,21 @@ export function OnboardingGuide() {
 }
 
 export function HelpButton() {
+  const [, navigate] = useLocation();
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      onClick={() => window.dispatchEvent(new Event("vicious_show_help"))}
-      data-testid="button-help"
-    >
-      <HelpCircle className="h-4 w-4" />
-    </Button>
+    <Tooltip delayDuration={200}>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => navigate("/help")}
+          data-testid="button-help"
+          aria-label="Help & Guide"
+        >
+          <HelpCircle className="h-4 w-4" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">Help & Guide</TooltipContent>
+    </Tooltip>
   );
 }

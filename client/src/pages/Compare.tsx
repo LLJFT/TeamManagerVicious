@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Hint } from "@/components/Hint";
 import {
   Select,
   SelectContent,
@@ -233,11 +234,13 @@ export default function Compare() {
       <div className="container mx-auto px-4 py-6 max-w-7xl">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 pb-4 border-b border-border">
           <div className="flex items-center gap-4">
-            <Link href="/">
-              <Button variant="outline" size="icon" data-testid="button-back">
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-            </Link>
+            <Hint label="Back to home">
+              <Link href="/">
+                <Button variant="outline" size="icon" data-testid="button-back" aria-label="Back to home">
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+              </Link>
+            </Hint>
             <div>
               <div className="flex items-center gap-2">
                 <Scale className="h-6 w-6 text-primary" />

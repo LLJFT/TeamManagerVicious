@@ -21,6 +21,7 @@ import {
 import { Plus, Trash2, Pencil } from "lucide-react";
 import type { Player } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
+import { Hint } from "@/components/Hint";
 
 interface PlayerManagerProps {
   players: Player[];
@@ -160,22 +161,28 @@ export function PlayerManager({ players, roleOptions, onAddPlayer, onRemovePlaye
                         <span className="text-sm font-medium">{player.name}</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEditClick(player)}
-                          data-testid={`button-edit-player-${player.id}`}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => onRemovePlayer(player.id)}
-                          data-testid={`button-remove-player-${player.id}`}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                        <Hint label="Edit player">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEditClick(player)}
+                            data-testid={`button-edit-player-${player.id}`}
+                            aria-label="Edit player"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </Hint>
+                        <Hint label="Remove player from roster">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => onRemovePlayer(player.id)}
+                            data-testid={`button-remove-player-${player.id}`}
+                            aria-label="Remove player"
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </Hint>
                       </div>
                     </div>
                   );

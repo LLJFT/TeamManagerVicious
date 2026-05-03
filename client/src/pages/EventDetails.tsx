@@ -19,6 +19,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Plus, Trash2, Save, Upload, Eye, ExternalLink, Gamepad2, Map as MapIcon, BarChart3, UserCheck, Clock as ClockIcon, UserX, ChevronDown, ChevronUp, Ban } from "lucide-react";
 import { GameHeroBanPanel, type HeroBanDraftRow } from "@/components/GameHeroBanPanel";
+import { Hint } from "@/components/Hint";
 import { GameMapVetoPanel, type MapVetoDraftRow } from "@/components/GameMapVetoPanel";
 import { ShareButton } from "@/components/ShareButton";
 import { useState, useEffect, Fragment } from "react";
@@ -698,16 +699,19 @@ export default function EventDetails() {
                 />
               </div>
               <div className="col-span-1 flex justify-end">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeRound(idx)}
-                  disabled={rounds.length <= 1}
-                  data-testid={`button-remove-round-${keyPrefix}-${idx}`}
-                >
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
+                <Hint label="Remove this round">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeRound(idx)}
+                    disabled={rounds.length <= 1}
+                    data-testid={`button-remove-round-${keyPrefix}-${idx}`}
+                    aria-label="Remove round"
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </Hint>
               </div>
             </div>
           ))}

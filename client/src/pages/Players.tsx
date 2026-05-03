@@ -13,6 +13,7 @@ import { Plus, Pencil, Trash2, ArrowLeft, Check, X, Clock, UserPlus, Users, Send
 import { format, formatDistanceToNow } from "date-fns";
 import type { Player, Attendance, AttendanceStatus, TeamNotes as TeamNotesType, RosterRole, Staff, Event } from "@shared/schema";
 import { useGame } from "@/hooks/use-game";
+import { Hint } from "@/components/Hint";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -600,22 +601,28 @@ export default function Players() {
                         <td className="p-2 text-foreground">{attendance.ringer || "—"}</td>
                         <td className="p-2 text-right">
                           <div className="flex justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleEditAttendance(attendance)}
-                              data-testid={`button-edit-attendance-${attendance.id}`}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => deleteAttendanceMutation.mutate(attendance.id)}
-                              data-testid={`button-delete-attendance-${attendance.id}`}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
+                            <Hint label="Edit attendance">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleEditAttendance(attendance)}
+                                data-testid={`button-edit-attendance-${attendance.id}`}
+                                aria-label="Edit attendance"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            </Hint>
+                            <Hint label="Delete attendance record">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => deleteAttendanceMutation.mutate(attendance.id)}
+                                data-testid={`button-delete-attendance-${attendance.id}`}
+                                aria-label="Delete attendance"
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </Hint>
                           </div>
                         </td>
                       </tr>
@@ -771,14 +778,17 @@ export default function Players() {
                           <div className="text-xs">{format(new Date(note.timestamp), "hh:mm:ss a")}</div>
                         </td>
                         <td className="p-3 text-right">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => deleteTeamNoteMutation.mutate(note.id)}
-                            data-testid={`button-delete-note-${note.id}`}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
+                          <Hint label="Delete team note">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => deleteTeamNoteMutation.mutate(note.id)}
+                              data-testid={`button-delete-note-${note.id}`}
+                              aria-label="Delete team note"
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </Hint>
                         </td>
                       </tr>
                     ))
@@ -853,22 +863,28 @@ export default function Players() {
                     <div className="flex items-center gap-3 flex-wrap">
                       <h3 className="text-xl font-bold text-primary">{player.name}</h3>
                       {getRoleBadge(player.role)}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleEditPlayer(player)}
-                        data-testid={`button-edit-player-${player.id}`}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDeletePlayer(player)}
-                        data-testid={`button-delete-player-${player.id}`}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      <Hint label="Edit player details">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEditPlayer(player)}
+                          data-testid={`button-edit-player-${player.id}`}
+                          aria-label="Edit player"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </Hint>
+                      <Hint label="Delete player (history is preserved)">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeletePlayer(player)}
+                          data-testid={`button-delete-player-${player.id}`}
+                          aria-label="Delete player"
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </Hint>
                     </div>
                     <Button
                       onClick={() => handleAddAttendance(player.id)}

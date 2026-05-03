@@ -50,6 +50,7 @@ import GameTemplatesPage from "@/pages/GameTemplates";
 import GameTemplateEditorPage from "@/pages/GameTemplateEditor";
 import MediaLibraryPage from "@/pages/MediaLibrary";
 import SubscriptionsPage from "@/pages/SubscriptionsPage";
+import HelpPage from "@/pages/HelpPage";
 import NotFound from "@/pages/not-found";
 
 function GameRoutes({ slug }: { slug: string }) {
@@ -156,6 +157,7 @@ function MainContent() {
       <Route path="/game-templates/:id" component={GameTemplateEditorPage} />
       <Route path="/media-library" component={MediaLibraryPage} />
       <Route path="/subscriptions" component={SubscriptionsPage} />
+      <Route path="/help" component={HelpPage} />
       <Route path="/account" component={AccountSettings} />
       <Route>
         {() => {
