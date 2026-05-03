@@ -4,7 +4,7 @@ import { users, supportedGames, rosters, events, players, games, playerGameStats
 
 export async function runHealthCheck() {
   console.log("\n========================================");
-  console.log("  HEALTH CHECK — The Vicious Platform");
+  console.log("  HEALTH CHECK — the bootcamp Platform");
   console.log("========================================\n");
 
   const results: { name: string; status: "PASS" | "FAIL"; detail: string }[] = [];

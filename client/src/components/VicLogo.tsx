@@ -1,3 +1,5 @@
+import logoUrl from "@assets/4_1777809074757.png";
+
 interface VicLogoProps {
   className?: string;
   withWordmark?: boolean;
@@ -7,29 +9,31 @@ interface VicLogoProps {
 export function VicLogo({ className, withWordmark = false, size = 24 }: VicLogoProps) {
   if (!withWordmark) {
     return (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 64 64"
+      <img
+        src={logoUrl}
         width={size}
         height={size}
-        className={className}
-        aria-label="Vicious"
-        data-testid="img-vicious-logo"
-      >
-        <path d="M6 8 L20 8 L32 42 L44 8 L58 8 L36 58 L28 58 Z" fill="currentColor" />
-      </svg>
+        className={`rounded object-contain ${className ?? ""}`}
+        alt="the bootcamp"
+        data-testid="img-bootcamp-logo"
+      />
     );
   }
   return (
-    <span className={`inline-flex items-center gap-2 ${className ?? ""}`} data-testid="img-vicious-logo">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width={size} height={size} aria-hidden="true">
-        <path d="M6 8 L20 8 L32 42 L44 8 L58 8 L36 58 L28 58 Z" fill="hsl(var(--primary))" />
-      </svg>
+    <span className={`inline-flex items-center gap-2 ${className ?? ""}`} data-testid="img-bootcamp-logo">
+      <img
+        src={logoUrl}
+        width={size}
+        height={size}
+        className="rounded object-contain"
+        alt=""
+        aria-hidden="true"
+      />
       <span
-        className="font-extrabold tracking-[0.18em]"
+        className="font-extrabold tracking-[0.18em] lowercase"
         style={{ fontSize: size * 0.7, lineHeight: 1 }}
       >
-        VICIOUS
+        the bootcamp
       </span>
     </span>
   );

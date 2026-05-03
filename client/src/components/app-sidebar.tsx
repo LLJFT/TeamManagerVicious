@@ -123,7 +123,7 @@ export function AppSidebar() {
             ) : (
               <VicLogo size={24} className="text-primary flex-shrink-0" />
             )}
-            <span className="text-lg font-extrabold tracking-[0.18em] uppercase truncate">{orgName || "Vicious"}</span>
+            <span className="text-lg font-extrabold tracking-[0.18em] lowercase truncate">{orgName || "the bootcamp"}</span>
           </div>
         )}
       </SidebarHeader>

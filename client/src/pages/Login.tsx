@@ -221,8 +221,8 @@ export default function Login() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mx-auto mb-3 flex flex-col items-center gap-2">
-            <VicLogo size={40} className="text-primary" />
-            <span className="text-2xl font-extrabold tracking-[0.22em] uppercase" data-testid="text-brand-vicious">Vicious</span>
+            <VicLogo size={56} className="text-primary" />
+            <span className="text-2xl font-extrabold tracking-[0.18em] lowercase" data-testid="text-brand-bootcamp">the bootcamp</span>
             <span className="text-[10px] tracking-[0.3em] uppercase text-muted-foreground">Esports · Team Platform</span>
           </div>
           <CardTitle data-testid="text-auth-title">

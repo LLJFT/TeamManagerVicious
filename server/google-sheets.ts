@@ -483,7 +483,7 @@ export function convertScheduleToSheetData(scheduleData: any, weekStart: string,
   const currentDate = new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit' });
 
   return [
-    [`The Vicious Availability Times (${currentDate})`],
+    [`the bootcamp Availability Times (${currentDate})`],
     [],
     headerRow,
     ...dataRows
