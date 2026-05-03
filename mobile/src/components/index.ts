@@ -24,3 +24,7 @@ export { Text } from './Text';
 export { ToastProvider, useToast } from './Toast';
 export { ActionMenu } from './ActionMenu';
 export type { ActionMenuItem } from './ActionMenu';
+export { WinRateBadge, wrTone } from './WinRateBadge';
+export { RankRow } from './RankRow';
+export { ScopePicker } from './ScopePicker';
+export { AnalyticsFiltersBar } from './AnalyticsFiltersBar';
