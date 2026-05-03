@@ -1,0 +1,39 @@
+Yes — run the admin backfill action now.
+
+IMPORTANT:
+- Run this on LIVE / production, not preview
+- Keep all data strictly roster-scoped
+- Every roster must only get its own opponent linkage backfilled
+- Do NOT cross-contaminate opponent data between rosters
+- Do NOT cross-contaminate opponent data between different games/teams
+
+Backfill rules:
+- For each game that has games.opponent_id = NULL
+- Look at the event that game belongs to (via game.eventId)
+- If that event has event.opponent_id set, copy it to games.opponent_id
+- If that event has event.opponentName (text only, no FK), try to match it to an opponents record by name and set games.opponent_id if unambiguous
+- If ambiguous or no match found, skip and log it — do not guess
+- This must be idempotent — running it twice must produce the same result
+- Do NOT overwrite any games.opponent_id that is already correctly set
+
+Roster isolation rules:
+- Each roster's games must only link to opponents that belong to that roster's game/team context
+- Do not allow opponent rows from Roster A to bleed into Roster B
+- The backfill must respect the game → event → roster → team chain fully
+
+After running on LIVE:
+1. Report how many games were backfilled (opponent_id set from event FK)
+2. Report how many games were backfilled (opponent_id set from event text name match)
+3. Report how many games were skipped due to ambiguity
+4. Report how many games were skipped because opponent_id already existed
+5. Verify that the Opponents analytics page now shows real data for the affected rosters
+6. Verify that Player Stats "vs Opponents" buckets now populate for the affected rosters
+7. Verify that Player Leaderboard opponent filter now returns real data
+8. Verify that the per-game editor now consistently shows the opponent slot for affected games
+9. Confirm that no data crossed between rosters
+10. Confirm that the fallback analytics logic (event FK → event text name) is still in place
+
+Do not remove the three-way fallback logic from the storage layer.
+Keep chat roster-scoping intact.
+Keep all recent analytics fixes intact.
+Do not break availability or template propagation.

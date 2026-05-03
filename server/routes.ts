@@ -1283,6 +1283,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==================== ROSTER RESET / EXAMPLE DATA ====================
+  app.post("/api/admin/backfill-game-opponents", requireAuth, requireOrgRole("super_admin"), async (req: any, res) => {
+    try {
+      const dryRun = req.body?.dryRun === true;
+      const { getTeamId } = await import("./storage");
+      const teamId = getTeamId();
+      const { pool } = await import("./db");
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        // Pass A: counts (always computed)
+        const fkCount = await client.query(`
+          SELECT count(*)::int AS n FROM games g
+          INNER JOIN events e ON e.id=g.event_id
+          WHERE g.team_id=$1 AND g.opponent_id IS NULL AND e.opponent_id IS NOT NULL
+            AND e.team_id=g.team_id AND e.roster_id IS NOT DISTINCT FROM g.roster_id
+            AND EXISTS (SELECT 1 FROM opponents o WHERE o.id=e.opponent_id
+              AND o.team_id=g.team_id
+              AND (o.roster_id IS NULL OR o.roster_id=g.roster_id)
+              AND (o.game_id   IS NULL OR o.game_id  =g.game_id))`, [teamId]);
+        const textCounts = await client.query(`
+          WITH cand AS (
+            SELECT g.id AS gid, (SELECT count(*) FROM opponents o
+              WHERE o.team_id=g.team_id
+                AND (o.roster_id IS NULL OR o.roster_id=g.roster_id)
+                AND (o.game_id   IS NULL OR o.game_id  =g.game_id)
+                AND lower(o.name)=lower(e.opponent_name)) AS m
+            FROM games g INNER JOIN events e ON e.id=g.event_id
+            WHERE g.team_id=$1 AND g.opponent_id IS NULL AND e.opponent_id IS NULL
+              AND e.opponent_name IS NOT NULL AND e.opponent_name<>''
+              AND e.team_id=g.team_id AND e.roster_id IS NOT DISTINCT FROM g.roster_id)
+          SELECT
+            count(*) FILTER (WHERE m=1)::int AS unambiguous,
+            count(*) FILTER (WHERE m>1)::int AS ambiguous,
+            count(*) FILTER (WHERE m=0 OR m IS NULL)::int AS no_match
+          FROM cand`, [teamId]);
+        const already = await client.query(
+          `SELECT count(*)::int AS n FROM games WHERE team_id=$1 AND opponent_id IS NOT NULL`, [teamId]);
+
+        let backfilledFk = 0, backfilledText = 0;
+        if (!dryRun) {
+          const r1 = await client.query(`
+            WITH cand AS (
+              SELECT g.id AS gid, e.opponent_id AS oid FROM games g
+              INNER JOIN events e ON e.id=g.event_id
+              WHERE g.team_id=$1 AND g.opponent_id IS NULL AND e.opponent_id IS NOT NULL
+                AND e.team_id=g.team_id AND e.roster_id IS NOT DISTINCT FROM g.roster_id
+                AND EXISTS (SELECT 1 FROM opponents o WHERE o.id=e.opponent_id
+                  AND o.team_id=g.team_id
+                  AND (o.roster_id IS NULL OR o.roster_id=g.roster_id)
+                  AND (o.game_id   IS NULL OR o.game_id  =g.game_id)))
+            UPDATE games SET opponent_id=c.oid FROM cand c WHERE games.id=c.gid`, [teamId]);
+          backfilledFk = r1.rowCount ?? 0;
+          const r2 = await client.query(`
+            WITH cand AS (
+              SELECT DISTINCT ON (g.id) g.id AS gid, o.id AS oid
+              FROM games g
+              INNER JOIN events e ON e.id=g.event_id
+              INNER JOIN opponents o ON o.team_id=g.team_id
+                AND (o.roster_id IS NULL OR o.roster_id=g.roster_id)
+                AND (o.game_id   IS NULL OR o.game_id  =g.game_id)
+                AND lower(o.name)=lower(e.opponent_name)
+              WHERE g.team_id=$1 AND g.opponent_id IS NULL AND e.opponent_id IS NULL
+                AND e.opponent_name IS NOT NULL AND e.opponent_name<>''
+                AND e.team_id=g.team_id AND e.roster_id IS NOT DISTINCT FROM g.roster_id
+              ORDER BY g.id,
+                (CASE WHEN o.roster_id IS NOT NULL THEN 0 ELSE 1 END),
+                (CASE WHEN o.game_id   IS NOT NULL THEN 0 ELSE 1 END),
+                o.id)
+            UPDATE games SET opponent_id=c.oid FROM cand c WHERE games.id=c.gid`, [teamId]);
+          backfilledText = r2.rowCount ?? 0;
+        }
+        await client.query("COMMIT");
+        res.json({
+          ok: true, dryRun, teamId,
+          counts: {
+            wouldBackfillFromEventFk: fkCount.rows[0].n,
+            wouldBackfillFromTextName: textCounts.rows[0].unambiguous,
+            skippedAmbiguous: textCounts.rows[0].ambiguous,
+            skippedNoMatch: textCounts.rows[0].no_match,
+            alreadySetSkipped: already.rows[0].n,
+            ...(dryRun ? {} : { backfilledFromEventFk: backfilledFk, backfilledFromTextName: backfilledText }),
+          },
+        });
+      } catch (e) {
+        await client.query("ROLLBACK");
+        throw e;
+      } finally {
+        client.release();
+      }
+    } catch (err: any) {
+      res.status(500).json({ ok: false, message: err.message });
+    }
+  });
+
   app.post("/api/admin/fix-broken-events", requireAuth, requireOrgRole("super_admin", "org_admin"), async (_req, res) => {
     try {
       const { fixBrokenEventsAprilMay } = await import("./roster-reset");
