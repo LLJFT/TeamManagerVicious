@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/theme/ThemeProvider';
-import { AppHeader, StatCard, Text, EventCard, EmptyState, SkeletonList } from '@/components';
+import { AppHeader, StatCard, Text, EventCard, EmptyState, ErrorState, SkeletonList } from '@/components';
 import { useAuth } from '@/auth/AuthContext';
 
 type DashboardData = {
@@ -17,25 +17,30 @@ export function DashboardScreen() {
   const { t } = useTranslation();
   const { colors, spacing } = useTheme();
   const { user } = useAuth();
-  const { data, isLoading, refetch, isRefetching } = useQuery<DashboardData>({
+  const { data, isLoading, isError, refetch, isRefetching } = useQuery<DashboardData>({
     queryKey: ['/api/dashboard'],
   });
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.background }}>
-      <AppHeader title={t('dashboard.title')} subtitle={user?.username} />
+      <AppHeader
+        title={t('dashboard.title')}
+        subtitle={user?.username ? `${t('dashboard.welcome')}, ${user.username}` : undefined}
+      />
       <ScrollView
         contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
       >
         {isLoading ? (
           <SkeletonList rows={3} />
+        ) : isError ? (
+          <ErrorState description={t('dashboard.errorLoading')} onRetry={() => refetch()} />
         ) : (
           <>
             <View style={{ flexDirection: 'row', gap: spacing.md, flexWrap: 'wrap' }}>
               <StatCard label={t('roster.players')} value={data?.stats?.totalPlayers ?? '—'} testID="stat-players" />
               <StatCard
-                label={t('events.win') + ' %'}
+                label={t('stats.kpi.winRate')}
                 value={data?.stats?.winRate !== undefined ? `${data.stats.winRate}%` : '—'}
                 tone="success"
                 testID="stat-winrate"

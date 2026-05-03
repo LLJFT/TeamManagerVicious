@@ -12,7 +12,7 @@ export function AdminRolesScreen() {
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.background }}>
       <AppHeader title={t('more.roles')} onBack={() => nav.goBack()} />
-      <EmptyState title={t('common.noData')} description="Role management coming soon." />
+      <EmptyState title={t('common.noData')} description={t('admin.rolesComingSoon')} />
     </SafeAreaView>
   );
 }

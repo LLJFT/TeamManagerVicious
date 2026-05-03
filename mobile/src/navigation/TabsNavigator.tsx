@@ -1,6 +1,5 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Text as RNText } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/theme/ThemeProvider';
 import { DashboardStack } from './stacks/DashboardStack';
@@ -8,14 +7,14 @@ import { TeamsStack } from './stacks/TeamsStack';
 import { EventsStack } from './stacks/EventsStack';
 import { StatsStack } from './stacks/StatsStack';
 import { MoreStack } from './stacks/MoreStack';
+import { HomeIcon, UsersIcon, CalendarIcon, BarChartIcon, MenuIcon } from '@/components/icons';
 
 const Tab = createBottomTabNavigator();
 
-function tabIcon(label: string) {
-  return ({ color }: { color: string }) => (
-    <RNText style={{ color, fontSize: 18, fontWeight: '700' }}>{label}</RNText>
-  );
-}
+type IconC = (p: { size?: number; color?: string }) => JSX.Element;
+const tabIcon = (Icon: IconC) =>
+  ({ color, size }: { color: string; size: number }) =>
+    <Icon color={color} size={size} />;
 
 export function TabsNavigator() {
   const { t } = useTranslation();
@@ -32,27 +31,27 @@ export function TabsNavigator() {
       <Tab.Screen
         name="DashboardTab"
         component={DashboardStack}
-        options={{ title: t('tabs.dashboard'), tabBarIcon: tabIcon('◉'), tabBarTestID: 'tab-dashboard' }}
+        options={{ title: t('tabs.dashboard'), tabBarIcon: tabIcon(HomeIcon), tabBarTestID: 'tab-dashboard' }}
       />
       <Tab.Screen
         name="TeamsTab"
         component={TeamsStack}
-        options={{ title: t('tabs.teams'), tabBarIcon: tabIcon('◍'), tabBarTestID: 'tab-teams' }}
+        options={{ title: t('tabs.teams'), tabBarIcon: tabIcon(UsersIcon), tabBarTestID: 'tab-teams' }}
       />
       <Tab.Screen
         name="EventsTab"
         component={EventsStack}
-        options={{ title: t('tabs.events'), tabBarIcon: tabIcon('▦'), tabBarTestID: 'tab-events' }}
+        options={{ title: t('tabs.events'), tabBarIcon: tabIcon(CalendarIcon), tabBarTestID: 'tab-events' }}
       />
       <Tab.Screen
         name="StatsTab"
         component={StatsStack}
-        options={{ title: t('tabs.stats'), tabBarIcon: tabIcon('▥'), tabBarTestID: 'tab-stats' }}
+        options={{ title: t('tabs.stats'), tabBarIcon: tabIcon(BarChartIcon), tabBarTestID: 'tab-stats' }}
       />
       <Tab.Screen
         name="MoreTab"
         component={MoreStack}
-        options={{ title: t('tabs.more'), tabBarIcon: tabIcon('☰'), tabBarTestID: 'tab-more' }}
+        options={{ title: t('tabs.more'), tabBarIcon: tabIcon(MenuIcon), tabBarTestID: 'tab-more' }}
       />
     </Tab.Navigator>
   );

@@ -22,7 +22,7 @@ export function RecordCard({
 }) {
   const { spacing } = useTheme();
   return (
-    <Card testID={testID}>
+    <Card testID={testID} onPress={onPress} accessibilityLabel={title}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
         <View style={{ flex: 1 }}>
           <Text variant="heading" numberOfLines={1}>{title}</Text>

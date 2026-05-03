@@ -12,7 +12,7 @@ export function AdminGameTemplatesScreen() {
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.background }}>
       <AppHeader title={t('more.gameTemplates')} onBack={() => nav.goBack()} />
-      <EmptyState title={t('common.noData')} description="Game template editor coming soon." />
+      <EmptyState title={t('common.noData')} description={t('admin.templatesComingSoon')} />
     </SafeAreaView>
   );
 }

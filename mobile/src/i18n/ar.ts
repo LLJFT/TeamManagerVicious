@@ -14,6 +14,8 @@ export const ar: Translation = {
     signOut: 'تسجيل الخروج',
     noData: 'لا توجد بيانات بعد',
     error: 'حدث خطأ ما',
+    comingSoon: 'قريبًا.',
+    back: 'رجوع',
   },
   auth: {
     signInTitle: 'تسجيل الدخول',
@@ -37,6 +39,7 @@ export const ar: Translation = {
     upcoming: 'الأحداث القادمة',
     recentResults: 'النتائج الأخيرة',
     rosterAvailability: 'توفر التشكيلة',
+    errorLoading: 'تعذّر تحميل بيانات لوحة التحكم.',
   },
   roster: {
     title: 'التشكيلة',
@@ -52,6 +55,10 @@ export const ar: Translation = {
     stats: 'الإحصاءات',
     history: 'السجل',
     notes: 'الملاحظات',
+  },
+  opponent: {
+    matches: 'مباريات',
+    wr: 'نسبة الفوز',
   },
   events: {
     title: 'الأحداث',
@@ -82,6 +89,12 @@ export const ar: Translation = {
     heroes: 'الأبطال',
     maps: 'الخرائط',
     trends: 'المؤشرات',
+    breakdownComingSoon: 'التفاصيل التفصيلية قادمة قريبًا.',
+    kpi: {
+      winRate: 'نسبة الفوز',
+      matches: 'المباريات',
+      kd: 'القتل/الموت',
+    },
   },
   subscriptions: {
     title: 'الاشتراك',
@@ -89,6 +102,25 @@ export const ar: Translation = {
     expired: 'منتهي',
     renew: 'تجديد',
     plan: 'الخطة',
+    current: 'الحالي',
+    choose: 'اختيار',
+    plans: {
+      starter: {
+        name: 'البداية',
+        price: '٠ ر.س / شهر',
+        features: ['تشكيلة أساسية', 'فريق واحد كحد أقصى', 'دعم بالبريد الإلكتروني'],
+      },
+      pro: {
+        name: 'الاحترافي',
+        price: '٢٩ ر.س / شهر',
+        features: ['عدد غير محدود من الفرق', 'تحليلات متقدمة', 'دعم ذو أولوية'],
+      },
+      org: {
+        name: 'المنظمات',
+        price: 'تواصل معنا',
+        features: ['الدخول الموحد SSO', 'مدير حساب مخصص', 'اتفاقية SLA وتدريب'],
+      },
+    },
   },
   settings: {
     title: 'الإعدادات',
@@ -107,6 +139,20 @@ export const ar: Translation = {
     title: 'المساعدة والدليل',
     intro: 'نصائح وأسئلة شائعة وجهات الاتصال للدعم.',
     contact: 'تواصل مع الدعم',
+    sections: {
+      gettingStarted: {
+        title: 'البدء',
+        body: 'سجّل الدخول باستخدام البيانات المقدمة من مسؤول مؤسستك.',
+      },
+      roles: {
+        title: 'الأدوار والصلاحيات',
+        body: 'تتحكم أدوار المسؤول الأعلى ومسؤول المؤسسة ومدير اللعبة والمدرب/المحلل واللاعب في ما يمكنك رؤيته وتعديله.',
+      },
+      languages: {
+        title: 'اللغات وRTL',
+        body: 'يتطلب التحويل إلى العربية إعادة تشغيل سريعة حتى ينعكس اتجاه التخطيط.',
+      },
+    },
   },
   more: {
     title: 'المزيد',
@@ -121,6 +167,12 @@ export const ar: Translation = {
     roles: 'الأدوار',
     gameTemplates: 'قوالب الألعاب',
     gameAccess: 'صلاحيات الألعاب',
+  },
+  admin: {
+    usersComingSoon: 'إدارة المستخدمين قريبًا.',
+    rolesComingSoon: 'إدارة الأدوار قريبًا.',
+    templatesComingSoon: 'محرّر قوالب الألعاب قريبًا.',
+    accessComingSoon: 'ضوابط الوصول إلى الألعاب قريبًا.',
   },
   errors: {
     network: 'فشل الاتصال بالشبكة. تحقق من الاتصال وحاول مرة أخرى.',

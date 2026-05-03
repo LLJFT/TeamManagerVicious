@@ -12,7 +12,7 @@ export function AdminUsersScreen() {
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.background }}>
       <AppHeader title={t('more.users')} onBack={() => nav.goBack()} />
-      <EmptyState title={t('common.noData')} description="User management coming soon." />
+      <EmptyState title={t('common.noData')} description={t('admin.usersComingSoon')} />
     </SafeAreaView>
   );
 }

@@ -1,5 +1,6 @@
 import React from 'react';
 import { View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Card } from './Card';
 import { Text } from './Text';
 import { Badge } from './Badge';
@@ -22,6 +23,7 @@ export function SubscriptionPlanCard({
   testID?: string;
 }) {
   const { spacing } = useTheme();
+  const { t } = useTranslation();
   return (
     <Card testID={testID}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
@@ -29,7 +31,7 @@ export function SubscriptionPlanCard({
           <Text variant="title">{name}</Text>
           <Text variant="caption" tone="secondary">{price}</Text>
         </View>
-        {active ? <Badge label="Current" tone="success" /> : null}
+        {active ? <Badge label={t('subscriptions.current')} tone="success" /> : null}
       </View>
       <View style={{ marginTop: spacing.md, gap: spacing.xs }}>
         {features.map((f) => (
@@ -39,7 +41,7 @@ export function SubscriptionPlanCard({
         ))}
       </View>
       {!active && onSelect ? (
-        <Button title="Choose" onPress={onSelect} fullWidth style={{ marginTop: spacing.md }} />
+        <Button title={t('subscriptions.choose')} onPress={onSelect} fullWidth style={{ marginTop: spacing.md }} />
       ) : null}
     </Card>
   );

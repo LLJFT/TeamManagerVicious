@@ -7,34 +7,34 @@ import { useTheme } from '@/theme/ThemeProvider';
 import { AppHeader, SubscriptionPlanCard } from '@/components';
 import { useAuth } from '@/auth/AuthContext';
 
-const PLANS = [
-  { id: 'starter', name: 'Starter', price: '$0 / month', features: ['Basic roster', 'Up to 1 team', 'Email support'] },
-  { id: 'pro', name: 'Pro', price: '$29 / month', features: ['Unlimited teams', 'Advanced analytics', 'Priority support'] },
-  { id: 'org', name: 'Organisation', price: 'Contact us', features: ['SSO', 'Dedicated CSM', 'SLA & training'] },
-];
+const PLAN_KEYS = ['starter', 'pro', 'org'] as const;
+type PlanKey = (typeof PLAN_KEYS)[number];
 
 export function SubscriptionsScreen() {
   const { t } = useTranslation();
   const { colors, spacing } = useTheme();
   const nav = useNavigation();
   const { user } = useAuth();
-  const activePlan = user?.subscription?.status === 'active' ? 'pro' : null;
+  const activePlan: PlanKey | null = user?.subscription?.status === 'active' ? 'pro' : null;
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.background }}>
       <AppHeader title={t('subscriptions.title')} onBack={nav.canGoBack() ? () => nav.goBack() : undefined} />
       <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}>
         <View style={{ gap: spacing.md }}>
-          {PLANS.map((p) => (
-            <SubscriptionPlanCard
-              key={p.id}
-              testID={`plan-${p.id}`}
-              name={p.name}
-              price={p.price}
-              features={p.features}
-              active={activePlan === p.id}
-              onSelect={() => {}}
-            />
-          ))}
+          {PLAN_KEYS.map((key) => {
+            const features = t(`subscriptions.plans.${key}.features`, { returnObjects: true }) as string[];
+            return (
+              <SubscriptionPlanCard
+                key={key}
+                testID={`plan-${key}`}
+                name={t(`subscriptions.plans.${key}.name`)}
+                price={t(`subscriptions.plans.${key}.price`)}
+                features={Array.isArray(features) ? features : []}
+                active={activePlan === key}
+                onSelect={() => {}}
+              />
+            );
+          })}
         </View>
       </ScrollView>
     </SafeAreaView>

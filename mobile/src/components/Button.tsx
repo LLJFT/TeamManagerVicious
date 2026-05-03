@@ -15,6 +15,7 @@ export function Button({
   fullWidth,
   style,
   testID,
+  accessibilityLabel,
 }: {
   title: string;
   onPress?: () => void;
@@ -25,8 +26,10 @@ export function Button({
   fullWidth?: boolean;
   style?: ViewStyle;
   testID?: string;
+  accessibilityLabel?: string;
 }) {
   const { colors, radii, spacing } = useTheme();
+  // Touch target ≥44 on md/lg per spec § 8 ("Hard rules"). sm reserved for dense rows.
   const heights = { sm: 36, md: 44, lg: 52 } as const;
   const paddings = { sm: spacing.sm, md: spacing.md, lg: spacing.lg } as const;
 
@@ -49,6 +52,9 @@ export function Button({
       testID={testID}
       onPress={onPress}
       disabled={disabled || loading}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? title}
+      accessibilityState={{ disabled: !!disabled, busy: !!loading }}
       style={({ pressed }) => [
         styles.base,
         {

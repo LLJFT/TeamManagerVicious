@@ -17,14 +17,14 @@ export function HelpScreen() {
         <Card>
           <Text variant="body" tone="secondary">{t('help.intro')}</Text>
         </Card>
-        <ExpandableSection title="Getting started" defaultOpen>
-          <Text variant="body" tone="secondary">Sign in with the credentials provided by your organization admin.</Text>
+        <ExpandableSection title={t('help.sections.gettingStarted.title')} defaultOpen>
+          <Text variant="body" tone="secondary">{t('help.sections.gettingStarted.body')}</Text>
         </ExpandableSection>
-        <ExpandableSection title="Roles & permissions">
-          <Text variant="body" tone="secondary">Super admin, org admin, game manager, coach/analyst and player roles control what you can see and edit.</Text>
+        <ExpandableSection title={t('help.sections.roles.title')}>
+          <Text variant="body" tone="secondary">{t('help.sections.roles.body')}</Text>
         </ExpandableSection>
-        <ExpandableSection title="Languages & RTL">
-          <Text variant="body" tone="secondary">Switching to Arabic requires a quick restart so the layout direction can flip.</Text>
+        <ExpandableSection title={t('help.sections.languages.title')}>
+          <Text variant="body" tone="secondary">{t('help.sections.languages.body')}</Text>
         </ExpandableSection>
         <Button title={t('help.contact')} variant="outline" onPress={() => {}} />
       </ScrollView>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Card } from './Card';
 import { Text } from './Text';
 import { Badge } from './Badge';
@@ -19,9 +20,10 @@ export function PlayerCard({
   testID?: string;
 }) {
   const { colors, spacing, radii } = useTheme();
+  const { t } = useTranslation();
   const initials = name.split(/\s+/).map((s) => s[0]).join('').slice(0, 2).toUpperCase();
   return (
-    <Card testID={testID}>
+    <Card testID={testID} onPress={onPress} accessibilityLabel={name}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
         <View
           style={{
@@ -40,7 +42,10 @@ export function PlayerCard({
           {role ? <Text variant="caption" tone="secondary">{role}</Text> : null}
         </View>
         {available !== undefined ? (
-          <Badge label={available ? 'Available' : 'Unavailable'} tone={available ? 'success' : 'danger'} />
+          <Badge
+            label={available ? t('roster.available') : t('roster.unavailable')}
+            tone={available ? 'success' : 'danger'}
+          />
         ) : null}
       </View>
     </Card>

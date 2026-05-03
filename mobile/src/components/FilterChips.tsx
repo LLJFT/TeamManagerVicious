@@ -30,6 +30,9 @@ export function FilterChips({
             key={o.value}
             onPress={() => onChange(o.value)}
             testID={`${testIdPrefix}-${o.value}`}
+            accessibilityRole="button"
+            accessibilityState={{ selected: active }}
+            hitSlop={8}
             style={[
               styles.chip,
               {
@@ -51,5 +54,5 @@ export function FilterChips({
 }
 
 const styles = StyleSheet.create({
-  chip: { height: 32, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  chip: { height: 36, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
 });

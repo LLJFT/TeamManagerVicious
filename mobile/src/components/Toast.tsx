@@ -1,5 +1,5 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import React, { createContext, useCallback, useContext, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from './Text';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -36,7 +36,11 @@ function ToastViewport({ toasts }: { toasts: Toast[] }) {
   const insets = useSafeAreaInsets();
   if (!toasts.length) return null;
   return (
-    <View pointerEvents="none" style={[styles.wrap, { top: insets.top + spacing.md }]}>
+    <View
+      pointerEvents="none"
+      accessibilityLiveRegion="polite"
+      style={[styles.wrap, { top: insets.top + spacing.md }]}
+    >
       {toasts.map((t) => {
         const bg =
           t.tone === 'success' ? colors.success
@@ -46,6 +50,7 @@ function ToastViewport({ toasts }: { toasts: Toast[] }) {
         return (
           <View
             key={t.id}
+            accessibilityRole="alert"
             style={{
               backgroundColor: bg,
               paddingHorizontal: spacing.lg,

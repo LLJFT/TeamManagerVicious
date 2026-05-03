@@ -29,6 +29,7 @@ export function SearchBar({
     >
       <TextInput
         testID={testID ?? 'input-search'}
+        accessibilityLabel={placeholder ?? t('common.search')}
         style={[styles.input, { color: colors.text }]}
         value={value}
         onChangeText={onChange}
@@ -40,6 +41,6 @@ export function SearchBar({
 }
 
 const styles = StyleSheet.create({
-  wrap: { height: 40, justifyContent: 'center' },
-  input: { fontSize: 14 },
+  wrap: { height: 44, justifyContent: 'center' },
+  input: { fontSize: 16 },
 });

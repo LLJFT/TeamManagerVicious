@@ -1,5 +1,6 @@
 import React from 'react';
 import { View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Card } from './Card';
 import { Text } from './Text';
 import { Badge } from './Badge';
@@ -23,8 +24,9 @@ const resultTone: Record<NonNullable<EventCardData['result']>, React.ComponentPr
 
 export function EventCard({ event, onPress, testID }: { event: EventCardData; onPress?: () => void; testID?: string }) {
   const { spacing } = useTheme();
+  const { t } = useTranslation();
   return (
-    <Card testID={testID}>
+    <Card testID={testID} onPress={onPress} accessibilityLabel={event.title}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
         <View style={{ flex: 1 }}>
           <Text variant="heading" numberOfLines={1}>{event.title}</Text>
@@ -32,7 +34,12 @@ export function EventCard({ event, onPress, testID }: { event: EventCardData; on
             {[event.type, event.opponent, event.startsAt].filter(Boolean).join(' · ')}
           </Text>
         </View>
-        {event.result ? <Badge label={event.result.toUpperCase()} tone={resultTone[event.result]} /> : null}
+        {event.result ? (
+          <Badge
+            label={t(`events.${event.result}`)}
+            tone={resultTone[event.result]}
+          />
+        ) : null}
       </View>
     </Card>
   );

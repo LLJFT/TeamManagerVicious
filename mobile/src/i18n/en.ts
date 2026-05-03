@@ -12,6 +12,8 @@ export const en = {
     signOut: 'Sign out',
     noData: 'No data yet',
     error: 'Something went wrong',
+    comingSoon: 'Coming soon.',
+    back: 'Back',
   },
   auth: {
     signInTitle: 'Sign in',
@@ -35,6 +37,7 @@ export const en = {
     upcoming: 'Upcoming events',
     recentResults: 'Recent results',
     rosterAvailability: 'Roster availability',
+    errorLoading: 'Could not load dashboard data.',
   },
   roster: {
     title: 'Roster',
@@ -50,6 +53,10 @@ export const en = {
     stats: 'Stats',
     history: 'History',
     notes: 'Notes',
+  },
+  opponent: {
+    matches: 'matches',
+    wr: 'WR',
   },
   events: {
     title: 'Events',
@@ -80,6 +87,12 @@ export const en = {
     heroes: 'Heroes',
     maps: 'Maps',
     trends: 'Trends',
+    breakdownComingSoon: 'Detailed breakdown coming soon.',
+    kpi: {
+      winRate: 'Win rate',
+      matches: 'Matches',
+      kd: 'K/D',
+    },
   },
   subscriptions: {
     title: 'Subscription',
@@ -87,6 +100,25 @@ export const en = {
     expired: 'Expired',
     renew: 'Renew',
     plan: 'Plan',
+    current: 'Current',
+    choose: 'Choose',
+    plans: {
+      starter: {
+        name: 'Starter',
+        price: '$0 / month',
+        features: ['Basic roster', 'Up to 1 team', 'Email support'],
+      },
+      pro: {
+        name: 'Pro',
+        price: '$29 / month',
+        features: ['Unlimited teams', 'Advanced analytics', 'Priority support'],
+      },
+      org: {
+        name: 'Organisation',
+        price: 'Contact us',
+        features: ['SSO', 'Dedicated CSM', 'SLA & training'],
+      },
+    },
   },
   settings: {
     title: 'Settings',
@@ -105,6 +137,20 @@ export const en = {
     title: 'Help & guide',
     intro: 'Tips, FAQs and contact for support.',
     contact: 'Contact support',
+    sections: {
+      gettingStarted: {
+        title: 'Getting started',
+        body: 'Sign in with the credentials provided by your organization admin.',
+      },
+      roles: {
+        title: 'Roles & permissions',
+        body: 'Super admin, org admin, game manager, coach/analyst and player roles control what you can see and edit.',
+      },
+      languages: {
+        title: 'Languages & RTL',
+        body: 'Switching to Arabic requires a quick restart so the layout direction can flip.',
+      },
+    },
   },
   more: {
     title: 'More',
@@ -119,6 +165,12 @@ export const en = {
     roles: 'Roles',
     gameTemplates: 'Game templates',
     gameAccess: 'Game access',
+  },
+  admin: {
+    usersComingSoon: 'User management coming soon.',
+    rolesComingSoon: 'Role management coming soon.',
+    templatesComingSoon: 'Game template editor coming soon.',
+    accessComingSoon: 'Game access controls coming soon.',
   },
   errors: {
     network: 'Network request failed. Check your connection and try again.',

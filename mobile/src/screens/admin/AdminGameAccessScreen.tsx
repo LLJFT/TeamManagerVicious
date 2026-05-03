@@ -12,7 +12,7 @@ export function AdminGameAccessScreen() {
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.background }}>
       <AppHeader title={t('more.gameAccess')} onBack={() => nav.goBack()} />
-      <EmptyState title={t('common.noData')} description="Game access controls coming soon." />
+      <EmptyState title={t('common.noData')} description={t('admin.accessComingSoon')} />
     </SafeAreaView>
   );
 }

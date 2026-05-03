@@ -17,7 +17,7 @@ export function StatBreakdownScreen() {
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.background }}>
       <AppHeader title={t(labelKey)} onBack={() => nav.goBack()} />
       <ScrollView contentContainerStyle={{ padding: spacing.lg }}>
-        <EmptyState title={t('common.noData')} description="Detailed breakdown coming soon." />
+        <EmptyState title={t('common.noData')} description={t('stats.breakdownComingSoon')} />
       </ScrollView>
     </SafeAreaView>
   );

@@ -19,8 +19,9 @@ export function AppHeader({
 }) {
   const { colors, spacing } = useTheme();
   const insets = useSafeAreaInsets();
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation();
   const rtl = isRtl(i18n.language);
+  // Glyphs aren't auto-mirrored; pick the visually correct chevron per direction.
   const back = rtl ? '›' : '‹';
 
   return (
@@ -39,13 +40,19 @@ export function AppHeader({
       <View style={styles.row}>
         <View style={[styles.side, { alignItems: 'flex-start' }]}>
           {onBack ? (
-            <Pressable onPress={onBack} hitSlop={12} testID="header-back">
+            <Pressable
+              onPress={onBack}
+              hitSlop={12}
+              testID="header-back"
+              accessibilityRole="button"
+              accessibilityLabel={t('common.close')}
+            >
               <Text variant="title">{back}</Text>
             </Pressable>
           ) : null}
         </View>
         <View style={styles.center}>
-          <Text variant="heading" numberOfLines={1}>
+          <Text variant="heading" numberOfLines={1} accessibilityRole="header">
             {title}
           </Text>
           {subtitle ? (

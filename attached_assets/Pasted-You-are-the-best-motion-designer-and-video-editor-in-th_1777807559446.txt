@@ -1,0 +1,154 @@
+You are the best motion designer and video editor in the world.
+
+Create a premium motion video / explainer video that introduces my product and explains how it works in a visually stunning, high-retention way.
+
+IMPORTANT
+- Act like the world’s best editor and motion designer
+- Make the video feel cinematic, premium, modern, and highly polished
+- Do not make it look generic or template-like
+- Do not overload the viewer with too much text
+- Keep the story simple, clear, and powerful
+- Every scene must have a purpose
+- The visuals should explain the product, not just decorate it
+- Use smooth motion, elegant transitions, strong typography, and clean pacing
+- The video should work as a brand video and product explainer
+
+PRODUCT CONTEXT
+The product is an esports roster / team management / analytics platform.
+It helps with:
+- rosters
+- players
+- opponents
+- maps
+- heroes / agents
+- events / match results
+- draft stats
+- scouting
+- analytics
+- team comps
+- subscriptions / access
+- admin / organization workflows
+
+VIDEO GOAL
+I want a motion video that explains the website clearly and makes people understand:
+- what the platform is
+- why it matters
+- how it works
+- what problems it solves
+- why they should care
+- why it is better than manual work or scattered tools
+
+VIDEO STYLE
+- premium motion graphics
+- modern SaaS / esports feel
+- clean typography
+- polished transitions
+- smooth kinetic text
+- UI screen animations
+- subtle zooms and parallax
+- strong pacing
+- not too flashy
+- not childish
+- not overcomplicated
+- not generic stock video style
+
+TONE
+- confident
+- tactical
+- professional
+- high-end
+- competitive
+- smart
+- clean
+- persuasive
+
+OUTPUT FORMAT
+Please create:
+1) a full video concept
+2) a scene-by-scene storyboard
+3) narration / script
+4) on-screen text
+5) visual direction for each scene
+6) motion / transition ideas
+7) recommended duration
+8) recommended aspect ratio versions
+9) a final CTA scene
+10) editable production notes so it can be built in After Effects / Premiere / Canva / CapCut / similar tools
+
+VIDEO STRUCTURE
+Follow a clear narrative:
+- Hook
+- Problem
+- Why it matters
+- Solution
+- How the platform works
+- Key features
+- Real benefits
+- Final CTA
+
+Make the story easy to follow and emotionally strong.
+
+REQUIRED SCENES
+Include scenes that show:
+- the problem of managing everything manually
+- the platform dashboard
+- roster management
+- player / opponent / map / hero workflows
+- analytics and scouting
+- team / organization value
+- clean closing brand scene
+
+If relevant, include:
+- animated UI mockups
+- callouts
+- data highlights
+- motion charts
+- product feature zoom-ins
+- screen-to-screen transitions
+- subtle branding moments
+
+MOTION DIRECTION
+Use:
+- kinetic typography
+- smooth entrance/exit transitions
+- scale, fade, slide, blur, and mask reveals
+- screen flows
+- cursor / tap interactions if useful
+- elegant motion hierarchy
+- audio-aware pacing
+
+DO NOT
+- make random flashy transitions
+- use cheesy templates
+- overuse effects
+- clutter the composition
+- add unnecessary scenes
+- use too much text on one screen
+
+DURATION
+Give me a version for:
+- a short version (30–45 seconds)
+- a standard version (60–90 seconds)
+
+ASPECT RATIOS
+Also prepare for:
+- 16:9
+- 9:16
+- 1:1 if possible
+
+BRAND REQUIREMENTS
+The video should visually match a premium esports / analytics / team management brand.
+If possible, make it feel like it belongs on:
+- the homepage hero
+- social media ads
+- product launch pages
+- investor / sales / onboarding presentations
+
+QUALITY BAR
+- This should feel like top-tier motion design
+- Every frame should feel intentional
+- The product should be easy to understand in under a minute
+- The final output should be ready for production
+
+DELIVERABLE
+Give me a complete production-ready plan that a motion editor can build directly.

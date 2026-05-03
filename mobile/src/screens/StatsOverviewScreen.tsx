@@ -24,9 +24,9 @@ export function StatsOverviewScreen() {
       <AppHeader title={t('stats.title')} />
       <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}>
         <View style={{ flexDirection: 'row', gap: spacing.md, flexWrap: 'wrap' }}>
-          <StatCard label="Win rate" value="—" tone="success" />
-          <StatCard label="Matches" value="—" />
-          <StatCard label="K/D" value="—" />
+          <StatCard label={t('stats.kpi.winRate')} value="—" tone="success" />
+          <StatCard label={t('stats.kpi.matches')} value="—" />
+          <StatCard label={t('stats.kpi.kd')} value="—" />
         </View>
         <View>
           {sections.map((s) => (
