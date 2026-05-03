@@ -1,0 +1,196 @@
+You are a senior brand designer and product identity system designer.
+
+I need a complete visual identity for my software product.
+This is not just a logo request — I need a full brand system that can be used across the website, app UI, pitch decks, docs, headers, banners, social posts, and marketing pages.
+
+IMPORTANT
+- Do not give a generic logo only
+- Do not give random branding ideas
+- Build a full identity system that feels premium, consistent, and production-ready
+- The identity should fit a serious esports / team management / analytics platform
+- Keep the brand modern, tactical, trustworthy, and professional
+- Avoid childish gaming aesthetics, neon clutter, and generic startup visuals
+- The result must work in real product UI and in external marketing assets
+
+BRAND GOALS
+The brand should communicate:
+- trust
+- competitive edge
+- clarity
+- control
+- performance
+- tactical intelligence
+- premium product quality
+- professionalism for teams and organizations
+
+WHAT I NEED
+
+1) BRAND STRATEGY
+Start by defining:
+- brand personality
+- brand tone
+- target audience
+- emotional positioning
+- visual direction
+- what the product should feel like
+- what it should NOT feel like
+
+2) FULL VISUAL IDENTITY SYSTEM
+Create a complete identity system including:
+- logo
+- icon mark
+- wordmark
+- symbol-only version
+- horizontal version
+- stacked version
+- favicon/app icon version
+- header logo version
+- dark background version
+- light background version
+- small-size version for compact UI
+- usage rules for each version
+
+3) BRAND NAME PRESENTATION
+Create a branded visual treatment for:
+- the product name
+- short subtitle / descriptor
+- bio text for social profiles
+- header / navbar version
+- footer version
+- login screen version
+- app loading / splash version
+
+4) COLOR SYSTEM
+Define a full brand palette with:
+- primary color
+- secondary color
+- accent color
+- neutral palette
+- background/surface colors
+- dark mode palette
+- text colors
+- border colors
+- success / warning / error colors
+- chart/analytics colors if needed
+
+Include:
+- hex values
+- usage rules
+- what each color is for
+- what not to use colors for
+- light mode and dark mode behavior
+
+5) TYPOGRAPHY SYSTEM
+Define:
+- headline font
+- body font
+- UI font if different
+- font pairing rules
+- hierarchy
+- sizes
+- weights
+- line-height guidance
+- usage for headers, buttons, labels, cards, dashboards, and presentation material
+
+Keep the typography premium and readable.
+It must work well in both desktop and mobile UI.
+
+6) GRAPHIC STYLE
+Define the overall graphic language:
+- shapes
+- lines
+- borders
+- card style
+- icon style
+- UI corner radius direction
+- shadows
+- illustration style
+- data visualization style
+- motion / interaction feel
+
+7) BRAND APPLICATIONS
+Show how the identity should look in:
+- website header
+- website hero
+- login screen
+- dashboard top bar
+- sidebar
+- mobile app icon
+- social profile avatar
+- presentation cover
+- pitch deck slide cover
+- document cover
+- watermarked brand usage
+- small footer usage
+
+8) BRAND GUIDELINES
+Provide rules for:
+- logo clear space
+- minimum size
+- color restrictions
+- background restrictions
+- incorrect usage examples
+- do / don’t rules
+- accessibility / contrast rules
+- consistency rules
+
+9) EXTENSIONS
+Create supporting brand elements such as:
+- patterns
+- textures
+- separators
+- badges
+- UI highlights
+- section dividers
+- subtle background motifs
+- brand asset system for future use
+
+10) OUTPUT FILES
+If possible, generate:
+- logo concepts
+- brand board / identity board
+- a clean brand guideline document
+- a social bio version
+- a short website header tagline
+- a one-line product description
+- export-ready assets or SVG where appropriate
+
+STYLE DIRECTION
+The style should feel:
+- premium
+- confident
+- clean
+- strategic
+- tactical
+- modern
+- not too colorful
+- not overdesigned
+- suitable for esports organizations, coaches, managers, and serious users
+
+AVOID
+- cartoonish gaming style
+- cheap neon gradients
+- generic SaaS look
+- overused startup branding
+- random shapes with no system
+- cluttered logos
+- overly complex marks that fail at small sizes
+
+DELIVERABLE FORMAT
+Please structure the answer as:
+1. Brand strategy
+2. Logo system
+3. Color palette
+4. Typography
+5. Graphic style
+6. Brand applications
+7. Brand guidelines
+8. Extensions
+9. Bio / tagline / short copy
+10. Export / implementation notes
+
+QUALITY BAR
+- Must feel like a real identity package from a professional brand studio
+- Must be usable in actual product UI and external marketing
+- Must be consistent across all touchpoints
+- Must be distinctive and memorable
