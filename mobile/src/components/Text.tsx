@@ -1,9 +1,9 @@
 import React from 'react';
 import { Text as RNText, TextProps, TextStyle } from 'react-native';
 import { useTheme } from '@/theme/ThemeProvider';
-import { typography } from '@/theme/tokens';
+import type { Typography } from '@/theme/tokens';
 
-type Variant = keyof typeof typography;
+type Variant = keyof Typography;
 type Tone = 'default' | 'secondary' | 'tertiary' | 'primary' | 'danger' | 'success' | 'warning' | 'inverse';
 
 export function Text({
@@ -13,7 +13,7 @@ export function Text({
   children,
   ...rest
 }: TextProps & { variant?: Variant; tone?: Tone }) {
-  const { colors } = useTheme();
+  const { colors, typography } = useTheme();
   const colorByTone: Record<Tone, string> = {
     default: colors.text,
     secondary: colors.textSecondary,

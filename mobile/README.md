@@ -18,7 +18,13 @@ on a physical device, point it at your machine's LAN IP, e.g.
 
 ## Architecture
 
-- **Theme** (`src/theme`): light/dark tokens persisted in AsyncStorage.
+- **Theme** (`src/theme`): six-theme system (Light, Dark Default, Ocean Blue,
+  Ruby Red, Minimal Dark, Carbon Black) keyed off `design/DESIGN_SYSTEM.md §
+  2.1`. The user preference (or `'system'`) is persisted in AsyncStorage and
+  the provider also subscribes to OS appearance changes so `'system'` stays
+  live. Inter is loaded with `@expo-google-fonts/inter` + `expo-font`; until
+  the family resolves the app renders with the system font and silently swaps
+  in Inter once ready (no flash, no blocking splash).
 - **i18n** (`src/i18n`): English + Arabic, with `I18nManager.forceRTL` toggling
   for Arabic. Switching across the RTL boundary prompts a one-tap restart via
   `expo-updates` so the native layout direction flips correctly.
@@ -29,9 +35,10 @@ on a physical device, point it at your machine's LAN IP, e.g.
   and exposes `hasOrgRole` / `hasPermission` helpers used to gate admin
   screens.
 - **Navigation** (`src/navigation`): bottom tabs (Dashboard, Teams, Events,
-  Stats, More) with native-stack children per tab. Admin destinations live in
-  the More stack and are shown only to `super_admin`, `org_admin`, and
-  `game_manager`.
+  Stats, More) with native-stack children per tab. Tab icons come from
+  `lucide-react-native` so they match the web client's Lucide glyph set
+  exactly. Admin destinations live in the More stack and are shown only to
+  `super_admin`, `org_admin`, and `game_manager`.
 - **Components** (`src/components`): reusable building blocks — Button, Card,
   Text, Badge, AppHeader, SearchBar, FilterChips, StatCard, ListItem,
   PlayerCard, EventCard, OpponentCard, RecordCard, SubscriptionPlanCard,
