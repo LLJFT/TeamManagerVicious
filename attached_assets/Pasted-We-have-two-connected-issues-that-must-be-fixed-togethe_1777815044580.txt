@@ -1,0 +1,91 @@
+We have two connected issues that must be fixed together.
+
+ISSUE 1 — OCR import is still too dependent on player-name matching
+For some scoreboard screenshots, the stats are clearly visible, but OCR name matching is weak. Right now this causes failed imports or rows with null player matches.
+
+ISSUE 2 — Our players / team players stats are not appearing correctly in Player Leaderboard
+In Player Leaderboard, the "Our players" view is not showing our team players' stats correctly, while opponent stats are appearing. This suggests a deeper ownership / side / roster-player mapping problem, not just an OCR recognition problem.
+
+I want a full fix that addresses BOTH the OCR import flow and the downstream analytics visibility.
+
+GOAL
+Make OCR able to extract scoreboard stats first, then let the user assign rows manually when names are unclear.
+Also make sure our players' imported stats actually appear in Player Leaderboard and related analytics views.
+
+REQUIREMENTS
+
+1) EXTRACT FIRST, MAP LATER
+- OCR should extract all visible scoreboard rows and stats even if player names are weak or unmatched.
+- Do not fail the scan just because matchedPlayerId is null.
+- Preserve all raw OCR row data for review.
+
+2) INTERACTIVE ROW ASSIGNMENT
+- In the OCR review UI, for each unmatched or low-confidence row, ask the user who the row belongs to.
+- Show:
+  - raw OCR name
+  - extracted stats
+  - detected hero if any
+  - detected side if any
+  - confidence
+- Let the user assign:
+  - one of our roster players, OR
+  - one opponent player, OR
+  - mark side first if side is unclear
+- If side is unclear, require the user to choose "our player" or "opponent" before final save.
+
+3) DO NOT LOSE GOOD STAT DATA
+- If the numeric stats are good but the OCR name is weak, keep the row alive in review.
+- Do not discard useful stats just because name matching is imperfect.
+
+4) HERO HANDLING
+- Keep current safety behavior:
+  - only add hero data if hero stats are not already present
+  - never duplicate hero rows
+- Allow manual correction of hero assignment when OCR confidence is weak.
+
+5) FINAL SAVE MUST USE USER MAPPING
+- When the user manually assigns a row, use the selected player/opponent identity for final save.
+- Preserve merge as default.
+- Overwrite must remain explicit and destructive-only.
+
+6) FIX THE REAL ANALYTICS BUG
+- Audit why "Our players" stats are not appearing in Player Leaderboard while opponents do appear.
+- Check all relevant queries, filters, joins, ownership mapping, side mapping, importedViaOcrScanId usage, roster-player linking, and any assumptions about playerId vs opponentPlayerId.
+- Make sure imported rows for our side are saved in the correct shape so analytics pages treat them as our roster players.
+- Verify that Player Leaderboard, Player Stats, Team Leaderboard, and any related analytics views can correctly show our players after OCR import.
+
+7) SIDE / OWNERSHIP CORRECTNESS
+- Ensure OCR rows for our team are not accidentally saved as opponent rows.
+- Ensure side values are normalized consistently across OCR parsing, review editing, confirm merge, and analytics queries.
+- If the OCR parser is uncertain about side, defer to the manual review step instead of guessing wrong.
+
+8) UX IMPROVEMENT
+- Replace hard failure with a review state such as:
+  "Stats were extracted, but some players could not be matched automatically. Please assign them manually."
+- Make the review UI practical for real scoreboard screenshots with imperfect OCR names.
+
+9) SAFETY
+- Keep scoreboard-only gating
+- Keep merge as default
+- Keep overwrite explicit only
+- Do not affect unrelated admin or analytics areas beyond fixing the actual ownership / visibility bug
+
+10) VERIFICATION
+After implementation, verify all of the following:
+- a screenshot with weak OCR names but clear stats still reaches review
+- unmatched rows can be assigned manually
+- side-unclear rows can be assigned correctly
+- our players' rows save as our players, not opponents
+- Player Leaderboard "Our players" view shows imported stats correctly
+- opponent views still work
+- repeated imports remain idempotent
+- hero rows are still not duplicated
+
+11) REPORT BACK
+After finishing, report:
+- root cause of why our players were not appearing
+- how unmatched OCR rows are now handled
+- how manual assignment works
+- how side ownership is enforced
+- what files changed
+- what limitations still remain

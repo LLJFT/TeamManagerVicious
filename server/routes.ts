@@ -3857,67 +3857,118 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const [game] = await db.select().from(games).where(and(eq(games.id, scan.matchId), eq(games.teamId, teamId))).limit(1);
       if (!game) return res.status(404).json({ error: "Game not found" });
 
-      // Build the ideal set of rows from the candidate.
+      // EXTRACT-FIRST / MAP-LATER gate: refuse to confirm if any candidate
+      // row is still unassigned. Previously rows with side="unknown" or
+      // side="us" + no matchedPlayerId (or side="opponent" + no
+      // matchedOpponentPlayerId) were silently dropped here, which is how
+      // weak-OCR-name rows lost their stats. Now we force the coach back
+      // to the review UI to map the row to a player + side.
+      const unassignedRowIdx: number[] = [];
+      (candidate.rows || []).forEach((row: any, idx: number) => {
+        if (row.side === "unknown") { unassignedRowIdx.push(idx); return; }
+        if (row.side === "us" && !row.matchedPlayerId) { unassignedRowIdx.push(idx); return; }
+        if (row.side === "opponent" && !row.matchedOpponentPlayerId) { unassignedRowIdx.push(idx); return; }
+      });
+      if (unassignedRowIdx.length > 0) {
+        return res.status(400).json({
+          error: "unassigned_rows",
+          message: `${unassignedRowIdx.length} row(s) still need a side and player assigned in review before importing.`,
+          unassignedRowIdx,
+        });
+      }
+
+      // Build the ideal set of rows from the candidate. Both sides write
+      // participants + heroes + stats so analytics treat them symmetrically.
+      // Our-side stats land in player_game_stats (joined to players);
+      // opponent-side stats land in opponent_player_game_stats (joined to
+      // opponent_players). Player Leaderboard reads both tables and
+      // unifies them by id.
       const allParticipantRows: any[] = [];
       const allHeroRows: any[] = [];
       const allStatRows: any[] = [];
+      const allOppStatRows: any[] = [];
       let sortIdx = existingHeroes.length; // append-after-existing on merge
       for (const row of candidate.rows || []) {
         if (row.side === "us") {
-          if (row.matchedPlayerId) {
-            allParticipantRows.push({
+          allParticipantRows.push({
+            gameId: game.gameId, rosterId: game.rosterId,
+            side: "us", playerId: row.matchedPlayerId, opponentPlayerId: null,
+            played: true, importedViaOcrScanId: scan.id,
+          });
+          if (row.matchedHeroId) {
+            allHeroRows.push({
               gameId: game.gameId, rosterId: game.rosterId,
               side: "us", playerId: row.matchedPlayerId, opponentPlayerId: null,
-              played: true, importedViaOcrScanId: scan.id,
+              heroId: row.matchedHeroId, roundNumber: null, sortOrder: sortIdx++,
+              importedViaOcrScanId: scan.id,
             });
-            if (row.matchedHeroId) {
-              allHeroRows.push({
-                gameId: game.gameId, rosterId: game.rosterId,
-                side: "us", playerId: row.matchedPlayerId, opponentPlayerId: null,
-                heroId: row.matchedHeroId, roundNumber: null, sortOrder: sortIdx++,
-                importedViaOcrScanId: scan.id,
-              });
-            }
-            for (const [statFieldId, value] of Object.entries(row.stats || {})) {
-              if (value === "" || value === null || value === undefined) continue;
-              allStatRows.push({
-                gameId: game.gameId,
-                playerId: row.matchedPlayerId,
-                statFieldId,
-                value: String(value),
-                importedViaOcrScanId: scan.id,
-              });
-            }
+          }
+          for (const [statFieldId, value] of Object.entries(row.stats || {})) {
+            if (value === "" || value === null || value === undefined) continue;
+            allStatRows.push({
+              gameId: game.gameId,
+              playerId: row.matchedPlayerId,
+              statFieldId,
+              value: String(value),
+              importedViaOcrScanId: scan.id,
+            });
           }
         } else if (row.side === "opponent") {
-          if (row.matchedOpponentPlayerId) {
-            allParticipantRows.push({
+          allParticipantRows.push({
+            gameId: game.gameId, rosterId: game.rosterId,
+            side: "opponent", playerId: null, opponentPlayerId: row.matchedOpponentPlayerId,
+            played: true, importedViaOcrScanId: scan.id,
+          });
+          if (row.matchedHeroId) {
+            allHeroRows.push({
               gameId: game.gameId, rosterId: game.rosterId,
               side: "opponent", playerId: null, opponentPlayerId: row.matchedOpponentPlayerId,
-              played: true, importedViaOcrScanId: scan.id,
+              heroId: row.matchedHeroId, roundNumber: null, sortOrder: sortIdx++,
+              importedViaOcrScanId: scan.id,
             });
-            if (row.matchedHeroId) {
-              allHeroRows.push({
-                gameId: game.gameId, rosterId: game.rosterId,
-                side: "opponent", playerId: null, opponentPlayerId: row.matchedOpponentPlayerId,
-                heroId: row.matchedHeroId, roundNumber: null, sortOrder: sortIdx++,
-                importedViaOcrScanId: scan.id,
-              });
-            }
+          }
+          for (const [statFieldId, value] of Object.entries(row.stats || {})) {
+            if (value === "" || value === null || value === undefined) continue;
+            allOppStatRows.push({
+              opponentPlayerId: row.matchedOpponentPlayerId,
+              statFieldId,
+              value: String(value),
+            });
           }
         }
       }
 
-      let participantRows = allParticipantRows;
-      let heroRows = allHeroRows;
-      let statRows = allStatRows;
-      let mergeSkipped = { participants: 0, heroes: 0, stats: 0 };
+      const existingOppStats = await storage.getOpponentPlayerGameStats(scan.matchId);
+
+      // Intra-import dedup: collapse duplicate tuples within THIS candidate
+      // before we hand off to the storage layer. Without this, a candidate
+      // with two rows for the same (side, owner) — which can happen if a
+      // coach manually maps two OCR rows to the same player — would insert
+      // duplicate participant / hero / stat rows.
+      const dedupBy = <T,>(arr: T[], keyOf: (r: T) => string): T[] => {
+        const seen = new Set<string>();
+        const out: T[] = [];
+        for (const r of arr) {
+          const k = keyOf(r);
+          if (seen.has(k)) continue;
+          seen.add(k);
+          out.push(r);
+        }
+        return out;
+      };
+      const ownerKey = (r: any) => `${r.side}::${r.playerId || ""}::${r.opponentPlayerId || ""}`;
+      let participantRows = dedupBy(allParticipantRows, ownerKey);
+      let heroRows = dedupBy(allHeroRows, ownerKey);
+      let statRows = dedupBy(allStatRows, (r) => `${r.playerId}::${r.statFieldId}`);
+      let oppStatRows = dedupBy(allOppStatRows, (r) => `${r.opponentPlayerId}::${r.statFieldId}`);
+      let mergeSkipped = { participants: 0, heroes: 0, stats: 0, opponentStats: 0 };
 
       if (overwrite) {
         // Legacy replace-all: wipe & insert. Caller asked for it explicitly.
         await storage.replaceMatchParticipants(scan.matchId, participantRows, game.gameId, game.rosterId);
         await storage.replaceGameHeroes(scan.matchId, heroRows, game.gameId, game.rosterId);
         await storage.savePlayerGameStats(scan.matchId, statRows, game.gameId, game.rosterId);
+        await storage.saveOpponentPlayerGameStats(scan.matchId, oppStatRows, game.gameId);
       } else {
         // MERGE mode — idempotent.
         // Participants: skip if (side, playerId|opponentPlayerId) already exists.
@@ -3941,6 +3992,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const mergedStats = statRows.filter((r) => !existingStatKeys.has(statKey(r)));
         mergeSkipped.stats = statRows.length - mergedStats.length;
 
+        // Opponent stats: skip if (opponentPlayerId, statFieldId) already has a value.
+        const oppStatKey = (r: any) => `${r.opponentPlayerId}::${r.statFieldId}`;
+        const existingOppStatKeys = new Set(existingOppStats.map(oppStatKey));
+        const mergedOppStats = oppStatRows.filter((r) => !existingOppStatKeys.has(oppStatKey(r)));
+        mergeSkipped.opponentStats = oppStatRows.length - mergedOppStats.length;
+
         // Append-only inserts. We use the existing storage methods by passing
         // the union (existing kept-rows + new merged-rows) into the replace
         // helpers, so referential bookkeeping (teamId/gameId/rosterId) stays
@@ -3960,14 +4017,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           gameId: s.gameId, playerId: s.playerId, statFieldId: s.statFieldId,
           value: s.value, importedViaOcrScanId: s.importedViaOcrScanId,
         }));
+        const keptOppStats = existingOppStats.map((s: any) => ({
+          opponentPlayerId: s.opponentPlayerId, statFieldId: s.statFieldId,
+          value: s.value,
+        }));
 
         await storage.replaceMatchParticipants(scan.matchId, [...keptParts, ...mergedParts], game.gameId, game.rosterId);
         await storage.replaceGameHeroes(scan.matchId, [...keptHeroes, ...mergedHeroes], game.gameId, game.rosterId);
         await storage.savePlayerGameStats(scan.matchId, [...keptStats, ...mergedStats], game.gameId, game.rosterId);
+        await storage.saveOpponentPlayerGameStats(scan.matchId, [...keptOppStats, ...mergedOppStats], game.gameId);
 
         participantRows = mergedParts;
         heroRows = mergedHeroes;
         statRows = mergedStats;
+        oppStatRows = mergedOppStats;
       }
 
       // Update score on the game itself if provided AND not already set
@@ -3989,6 +4052,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         participants: participantRows.length,
         heroes: heroRows.length,
         stats: statRows.length,
+        opponentStats: oppStatRows.length,
       }, skipped: mergeSkipped });
       } finally {
         // Always release the advisory lock — even on error — so the next

@@ -9,11 +9,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, CheckCircle2, AlertTriangle, Save, Trash2, Sparkles, ShieldCheck, ShieldAlert, XCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Save, Trash2, Sparkles, ShieldCheck, ShieldAlert, XCircle, HelpCircle } from "lucide-react";
 import type {
   ScoreboardOcrScan, OcrParsedCandidate, OcrPlayerRow,
   Player, OpponentPlayer, Hero, StatField, Map as MapType, Side, Game,
 } from "@shared/schema";
+
+type RowSide = "us" | "opponent" | "unknown";
 
 export default function OcrScanReview() {
   const [, params] = useRoute("/:gameSlug/:rosterCode/ocr-scans/:id");
@@ -88,21 +90,29 @@ export default function OcrScanReview() {
         body: JSON.stringify({ overwrite }),
       });
       const body = await res.json();
-      if (!res.ok) throw Object.assign(new Error(body.error || "Confirm failed"), { status: res.status, body });
+      if (!res.ok) throw Object.assign(new Error(body.message || body.error || "Confirm failed"), { status: res.status, body });
       return body;
     },
     onSuccess: (body: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/ocr-scans", scanId] });
+      // Invalidate every analytics surface that reads from the tables we
+      // just wrote (player_game_stats / opponent_player_game_stats /
+      // match_participants / game_heroes) so Player Leaderboard, Player
+      // Stats and Team Leaderboard refresh immediately on import.
       queryClient.invalidateQueries({ queryKey: ["/api/games"] });
       queryClient.invalidateQueries({ queryKey: ["/api/games", matchId, "heroes"] });
       queryClient.invalidateQueries({ queryKey: ["/api/games", matchId, "participation"] });
       queryClient.invalidateQueries({ queryKey: ["/api/games", matchId, "player-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/player-game-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/opponent-player-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/match-participants"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/game-heroes"] });
       const counts = body?.counts || {};
       const skipped = body?.skipped || {};
-      const skippedTotal = (skipped.participants || 0) + (skipped.heroes || 0) + (skipped.stats || 0);
+      const skippedTotal = (skipped.participants || 0) + (skipped.heroes || 0) + (skipped.stats || 0) + (skipped.opponentStats || 0);
       const desc = body?.mode === "overwrite"
-        ? `Replaced existing data with ${counts.participants ?? 0} players, ${counts.heroes ?? 0} heroes, ${counts.stats ?? 0} stats.`
-        : `Added ${counts.participants ?? 0} players, ${counts.heroes ?? 0} heroes, ${counts.stats ?? 0} stats.${skippedTotal ? ` Preserved ${skippedTotal} existing rows.` : ""}`;
+        ? `Replaced existing data with ${counts.participants ?? 0} players, ${counts.heroes ?? 0} heroes, ${(counts.stats ?? 0) + (counts.opponentStats ?? 0)} stat rows.`
+        : `Added ${counts.participants ?? 0} players, ${counts.heroes ?? 0} heroes, ${(counts.stats ?? 0) + (counts.opponentStats ?? 0)} stat rows.${skippedTotal ? ` Preserved ${skippedTotal} existing rows.` : ""}`;
       toast({ title: "Imported", description: desc });
       if (game?.eventId) navigate(`/${fullSlug}/events/${game.eventId}`);
     },
@@ -125,6 +135,17 @@ export default function OcrScanReview() {
     const next = { ...draft, rows: draft.rows.map((r, i) => i === idx ? { ...r, ...patch } : r) };
     setDraft(next);
   };
+  // When the user flips a row's side, clear the matched id of the *other*
+  // side so we never end up with both ids set at the same time.
+  const setRowSide = (idx: number, side: RowSide) => {
+    if (!draft) return;
+    const row = draft.rows[idx];
+    const patch: Partial<OcrPlayerRow> = { side };
+    if (side === "us") patch.matchedOpponentPlayerId = null;
+    else if (side === "opponent") patch.matchedPlayerId = null;
+    else { patch.matchedPlayerId = null; patch.matchedOpponentPlayerId = null; }
+    updateRow(idx, { ...row, ...patch });
+  };
   const removeRow = (idx: number) => {
     if (!draft) return;
     setDraft({ ...draft, rows: draft.rows.filter((_, i) => i !== idx) });
@@ -136,8 +157,33 @@ export default function OcrScanReview() {
     updateRow(idx, { stats });
   };
 
-  const ourRows = useMemo(() => draft?.rows.map((r, i) => ({ r, i })).filter(x => x.r.side === "us") ?? [], [draft]);
-  const oppRows = useMemo(() => draft?.rows.map((r, i) => ({ r, i })).filter(x => x.r.side === "opponent") ?? [], [draft]);
+  const indexedRows = useMemo(
+    () => draft?.rows.map((r, i) => ({ r, i })) ?? [],
+    [draft],
+  );
+  const ourRows = useMemo(
+    () => indexedRows.filter(x => x.r.side === "us"),
+    [indexedRows],
+  );
+  const oppRows = useMemo(
+    () => indexedRows.filter(x => x.r.side === "opponent"),
+    [indexedRows],
+  );
+  const unknownRows = useMemo(
+    () => indexedRows.filter(x => x.r.side === "unknown"),
+    [indexedRows],
+  );
+
+  // A row is "unassigned" if its side is unknown OR its side is set but the
+  // corresponding player id is missing. Confirm is blocked while any row is
+  // unassigned (server enforces the same rule with a 400 — this is just a
+  // friendlier client-side gate).
+  const unassignedCount = useMemo(() => indexedRows.filter(({ r }) => {
+    if (r.side === "unknown") return true;
+    if (r.side === "us" && !r.matchedPlayerId) return true;
+    if (r.side === "opponent" && !r.matchedOpponentPlayerId) return true;
+    return false;
+  }).length, [indexedRows]);
 
   if (isLoading || !scan || !draft) {
     return <div className="p-6 text-muted-foreground" data-testid="text-loading">Loading scan…</div>;
@@ -147,10 +193,18 @@ export default function OcrScanReview() {
     const conf = typeof row.confidence === "number" ? row.confidence : 0;
     const confTone: "default" | "secondary" | "destructive" =
       conf >= 0.8 ? "default" : conf >= 0.5 ? "secondary" : "destructive";
+    const isUnassigned =
+      row.side === "unknown" ||
+      (row.side === "us" && !row.matchedPlayerId) ||
+      (row.side === "opponent" && !row.matchedOpponentPlayerId);
     return (
-    <Card key={idx} className="p-3" data-testid={`row-ocr-${idx}`}>
+    <Card
+      key={idx}
+      className={`p-3 ${isUnassigned ? "border-destructive/50" : ""}`}
+      data-testid={`row-ocr-${idx}`}
+    >
       <div className="flex items-start gap-2 flex-wrap">
-        <div className="flex-1 min-w-[200px]">
+        <div className="flex-1 min-w-[240px]">
           <div className="text-xs text-muted-foreground mb-1 flex items-center gap-2 flex-wrap">
             <Badge variant="outline" className="gap-1" data-testid={`badge-source-${idx}`}>
               <Sparkles className="h-3 w-3" /> OCR
@@ -158,8 +212,29 @@ export default function OcrScanReview() {
             <Badge variant={confTone} data-testid={`badge-confidence-${idx}`}>
               {conf >= 0.8 ? "High" : conf >= 0.5 ? "Medium" : "Low"} · {Math.round(conf * 100)}%
             </Badge>
+            {isUnassigned && (
+              <Badge variant="destructive" className="gap-1" data-testid={`badge-needs-assignment-${idx}`}>
+                <HelpCircle className="h-3 w-3" /> Needs assignment
+              </Badge>
+            )}
             <span>Detected: <span className="font-mono">{row.rawName}</span></span>
             {row.rawHero && <span className="font-mono">· {row.rawHero}</span>}
+          </div>
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Side</span>
+            <Select
+              value={row.side}
+              onValueChange={(v) => setRowSide(idx, v as RowSide)}
+            >
+              <SelectTrigger className="w-[140px]" data-testid={`select-side-${idx}`}>
+                <SelectValue placeholder="Pick side" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="us">Our team</SelectItem>
+                <SelectItem value="opponent">Opponent</SelectItem>
+                <SelectItem value="unknown">Unknown</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           {row.side === "us" ? (
             <Select
@@ -171,7 +246,7 @@ export default function OcrScanReview() {
                 {players.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
               </SelectContent>
             </Select>
-          ) : (
+          ) : row.side === "opponent" ? (
             <Select
               value={row.matchedOpponentPlayerId || ""}
               onValueChange={(v) => updateRow(idx, { matchedOpponentPlayerId: v || null, matchedPlayerId: null })}
@@ -181,6 +256,10 @@ export default function OcrScanReview() {
                 {opponentPlayers.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
               </SelectContent>
             </Select>
+          ) : (
+            <p className="text-xs text-muted-foreground italic" data-testid={`text-pick-side-first-${idx}`}>
+              Pick a side above to assign a player.
+            </p>
           )}
         </div>
         <div className="min-w-[180px]">
@@ -221,6 +300,11 @@ export default function OcrScanReview() {
     | { isScoreboard: boolean; confidence: number; reason: string }
     | undefined;
   const lowConfidenceRows = draft?.rows.filter((r) => (r.confidence ?? 0) < 0.5).length ?? 0;
+  const confirmDisabled =
+    confirmMutation.isPending ||
+    saveMutation.isPending ||
+    scan.status === "confirmed" ||
+    unassignedCount > 0;
 
   return (
     <div className="p-4 space-y-4 max-w-7xl mx-auto" data-testid="page-ocr-review">
@@ -277,20 +361,53 @@ export default function OcrScanReview() {
             {saveMutation.isPending ? "Saving…" : "Save draft"}
           </Button>
           <Button
-            onClick={() => draft && saveMutation.mutateAsync(draft).then(() => confirmMutation.mutate(overwriteMode))}
-            disabled={confirmMutation.isPending || saveMutation.isPending || scan.status === "confirmed"}
+            onClick={async () => {
+              if (!draft) return;
+              try {
+                // Persist the latest in-flight edits before we attempt the
+                // confirm. If save fails we surface the save error toast
+                // (raised inside saveMutation.onError) and stop — confirm
+                // is never fired against stale data.
+                await saveMutation.mutateAsync(draft);
+              } catch {
+                return;
+              }
+              confirmMutation.mutate(overwriteMode);
+            }}
+            disabled={confirmDisabled}
             data-testid="button-confirm-import"
             variant={overwriteMode ? "destructive" : "default"}
           >
             <CheckCircle2 className="h-4 w-4 mr-1" />
             {confirmMutation.isPending
               ? "Importing…"
-              : overwriteMode
-                ? "Replace & import"
-                : "Confirm import (merge)"}
+              : unassignedCount > 0
+                ? `Assign ${unassignedCount} row${unassignedCount === 1 ? "" : "s"} first`
+                : overwriteMode
+                  ? "Replace & import"
+                  : "Confirm import (merge)"}
           </Button>
         </div>
       </div>
+
+      {unassignedCount > 0 && (
+        <div
+          className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm"
+          data-testid="banner-unassigned"
+        >
+          <HelpCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+          <div>
+            <div className="font-semibold">
+              Stats were extracted, but {unassignedCount} row{unassignedCount === 1 ? "" : "s"} need to be assigned manually.
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Pick a side (Our team / Opponent) and a player for each row in the &ldquo;Needs assignment&rdquo;
+              section below before confirming the import. The numeric stats you see were captured from the
+              scoreboard — they will not be lost.
+            </div>
+          </div>
+        </div>
+      )}
 
       {lowConfidenceRows > 0 && (
         <div
@@ -367,7 +484,7 @@ export default function OcrScanReview() {
                 value={draft.matchedSideId || ""}
                 onValueChange={(v) => setDraft({ ...draft, matchedSideId: v || null })}
               >
-                <SelectTrigger data-testid="select-side"><SelectValue placeholder="Pick side" /></SelectTrigger>
+                <SelectTrigger data-testid="select-map-side"><SelectValue placeholder="Pick side" /></SelectTrigger>
                 <SelectContent>
                   {sides.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                 </SelectContent>
@@ -376,6 +493,20 @@ export default function OcrScanReview() {
           </CardContent>
         </Card>
       </div>
+
+      {unknownRows.length > 0 && (
+        <Card className="border-destructive/40">
+          <CardHeader>
+            <CardTitle className="text-sm flex items-center gap-2">
+              <HelpCircle className="h-4 w-4 text-destructive" />
+              Needs assignment ({unknownRows.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {unknownRows.map(({ r, i }) => renderRow(i, r))}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>

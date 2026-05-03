@@ -899,7 +899,11 @@ export interface OcrPlayerRow {
   matchedOpponentPlayerId?: string | null;
   rawHero?: string | null;
   matchedHeroId?: string | null;
-  side: "us" | "opponent";
+  // "unknown" is used when OCR could not confidently determine which team
+  // the row belongs to. The review UI treats unknown rows as needing manual
+  // assignment, and the confirm route refuses to import them until the
+  // coach picks a side + player.
+  side: "us" | "opponent" | "unknown";
   stats: Record<string, string | number>;
   confidence?: number;
 }
@@ -929,7 +933,7 @@ export const ocrPlayerRowSchema = z.object({
   matchedOpponentPlayerId: z.string().nullable().optional(),
   rawHero: z.string().nullable().optional(),
   matchedHeroId: z.string().nullable().optional(),
-  side: z.enum(["us", "opponent"]),
+  side: z.enum(["us", "opponent", "unknown"]),
   stats: z.record(z.string(), z.union([z.string(), z.number()])).default({}),
   confidence: z.number().min(0).max(1).optional(),
 });

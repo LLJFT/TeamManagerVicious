@@ -196,26 +196,25 @@ export function parseScoreboardText(rawText: string, inputs: OcrInputs): OcrPars
     const denom = (matchedPlayerId || matchedOpponentPlayerId ? 1 : 0) + (matchedHeroId ? 1 : 0);
     const confidence = denom === 0 ? 0 : Number(((nameScore + heroScore) / denom).toFixed(2));
 
+    // Side assignment is EXTRACT-FIRST / MAP-LATER: only commit a side
+    // when we actually matched the IGN against our roster or against an
+    // opponent player. Unmatched rows are parked as "unknown" so the
+    // review UI can prompt the coach to assign them manually instead of
+    // us guessing wrong (the previous half-split heuristic mis-labelled
+    // our players as opponents and silently dropped their stats on
+    // confirm).
+    const detectedSide: "us" | "opponent" | "unknown" =
+      matchedPlayerId ? "us" : matchedOpponentPlayerId ? "opponent" : "unknown";
+
     rows.push({
       rawName: nameToken,
       matchedPlayerId,
       matchedOpponentPlayerId,
       rawHero,
       matchedHeroId,
-      side: matchedPlayerId ? "us" : matchedOpponentPlayerId ? "opponent" : "us",
+      side: detectedSide,
       stats,
       confidence,
-    });
-  }
-
-  // If we couldn't classify any opponent rows, split the rows in half so
-  // the reviewer at least sees both sides populated.
-  const ourCount = rows.filter((r) => r.side === "us").length;
-  const oppCount = rows.filter((r) => r.side === "opponent").length;
-  if (rows.length >= 2 && (ourCount === 0 || oppCount === 0)) {
-    const half = Math.ceil(rows.length / 2);
-    rows.forEach((r, i) => {
-      r.side = i < half ? "us" : "opponent";
     });
   }
 
