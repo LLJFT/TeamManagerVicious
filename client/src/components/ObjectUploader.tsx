@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 interface ObjectUploaderProps {
   uploadUrl?: string;
   accept?: string;
-  onUploaded?: (result: { url: string; path: string; file?: File }) => void;
+  onUploaded?: (result: { url: string; path: string; file?: File; index: number; total: number }) => void;
   onError?: (error: string) => void;
   buttonClassName?: string;
   buttonVariant?: "default" | "outline" | "ghost" | "secondary";
@@ -70,7 +70,7 @@ export function ObjectUploader({
         }
         const data = await res.json();
         completed.push(data);
-        onUploaded?.({ ...data, file });
+        onUploaded?.({ ...data, file, index: i, total: picked.length });
       } catch (err: any) {
         console.error("Upload error:", err);
         onError?.(`${file.name}: ${err.message || "Upload failed"}`);

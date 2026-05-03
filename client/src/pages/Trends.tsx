@@ -21,6 +21,9 @@ import { useGame } from "@/hooks/use-game";
 import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied } from "@/components/AccessDenied";
 import { StatsSkeleton } from "@/components/PageSkeleton";
+import {
+  AnalyticsFilterBar, useAnalyticsFilters, applyAnalyticsFilters,
+} from "@/components/analytics-filters";
 import type { Event, Game, Opponent, Side, GameRound } from "@shared/schema";
 
 function pct(n: number, d: number) {
@@ -46,6 +49,7 @@ export default function Trends() {
   const { fullSlug, gameId, rosterId } = useGame();
   const rosterReady = !!(gameId && rosterId);
   const [opponentFilter, setOpponentFilter] = useState<string>("__all__");
+  const { filters, setFilters } = useAnalyticsFilters();
 
   const { data: events = [], isLoading: evLoading } = useQuery<Event[]>({
     queryKey: ["/api/events", { gameId, rosterId }], enabled: rosterReady,
@@ -78,16 +82,22 @@ export default function Trends() {
     return m;
   }, [sides]);
 
+  const allowedEventIds = useMemo(
+    () => applyAnalyticsFilters(events, filters),
+    [events, filters],
+  );
+
   const scopedGames = useMemo(() => {
-    const filtered = opponentFilter === "__all__"
+    const filtered = (opponentFilter === "__all__"
       ? allGames
-      : allGames.filter(g => g.opponentId === opponentFilter);
+      : allGames.filter(g => g.opponentId === opponentFilter)
+    ).filter(g => g.eventId && allowedEventIds.has(g.eventId));
     // Sort by event date asc for chronological streak / chart logic
     return filtered
       .map(g => ({ g, ev: g.eventId ? eventById.get(g.eventId) : null }))
       .filter(x => x.ev?.date)
       .sort((a, b) => (a.ev!.date || "").localeCompare(b.ev!.date || ""));
-  }, [allGames, opponentFilter, eventById]);
+  }, [allGames, opponentFilter, eventById, allowedEventIds]);
 
   // Monthly aggregation
   const monthlySeries = useMemo(() => {
@@ -281,6 +291,12 @@ export default function Trends() {
             </SelectContent>
           </Select>
         </div>
+        <AnalyticsFilterBar
+          filters={filters}
+          setFilters={setFilters}
+          matchesCount={scopedGames.length}
+          totalCount={allGames.length}
+        />
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Card data-testid="card-summary-games">

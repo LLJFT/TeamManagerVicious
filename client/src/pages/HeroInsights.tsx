@@ -18,6 +18,9 @@ import { useGame } from "@/hooks/use-game";
 import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied } from "@/components/AccessDenied";
 import { StatsSkeleton } from "@/components/PageSkeleton";
+import {
+  AnalyticsFilterBar, useAnalyticsFilters, applyAnalyticsFilters,
+} from "@/components/analytics-filters";
 import type {
   Event, Game, Hero, Opponent, Player,
   GameHero, GameHeroBanAction,
@@ -54,6 +57,7 @@ export default function HeroInsights() {
   const { fullSlug, gameId, rosterId } = useGame();
   const rosterReady = !!(gameId && rosterId);
   const [opponentFilter, setOpponentFilter] = useState<string>("__all__");
+  const { filters, setFilters } = useAnalyticsFilters();
 
   const { data: events = [], isLoading: evLoading } = useQuery<Event[]>({
     queryKey: ["/api/events", { gameId, rosterId }], enabled: rosterReady,
@@ -93,10 +97,16 @@ export default function HeroInsights() {
 
   const playerIds = useMemo(() => new Set(players.map(p => p.id)), [players]);
 
+  const allowedEventIds = useMemo(
+    () => applyAnalyticsFilters(events, filters),
+    [events, filters],
+  );
   const scopedGames = useMemo(() => {
-    if (opponentFilter === "__all__") return allGames;
-    return allGames.filter(g => g.opponentId === opponentFilter);
-  }, [allGames, opponentFilter]);
+    return allGames.filter(g =>
+      (opponentFilter === "__all__" || g.opponentId === opponentFilter) &&
+      g.eventId && allowedEventIds.has(g.eventId),
+    );
+  }, [allGames, opponentFilter, allowedEventIds]);
   const scopedMatchIds = useMemo(() => new Set(scopedGames.map(g => g.id)), [scopedGames]);
   const totalScopedMatches = scopedGames.length;
 
@@ -366,6 +376,12 @@ export default function HeroInsights() {
             </SelectContent>
           </Select>
         </div>
+        <AnalyticsFilterBar
+          filters={filters}
+          setFilters={setFilters}
+          matchesCount={scopedGames.length}
+          totalCount={allGames.length}
+        />
 
         <Tabs defaultValue="priority">
           <TabsList className="grid grid-cols-2 sm:grid-cols-5 w-full">

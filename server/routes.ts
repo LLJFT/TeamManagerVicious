@@ -1351,6 +1351,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Team-wide variant: loads example data for every roster in the team in
+  // sequence inside a single background job. DESTRUCTIVE — wipes each roster
+  // first via the same `loadExampleData` flow used by the per-roster button.
+  // Body: { password: string, rosterIds?: string[] } — when rosterIds is
+  // omitted, all rosters in the team are processed.
+  app.post("/api/admin/load-example-data", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+    try {
+      const { LOAD_EXAMPLE_PASSWORD, loadExampleData, startJob } = await import("./roster-reset");
+      const password = (req.body?.password ?? "").toString();
+      if (password !== LOAD_EXAMPLE_PASSWORD) {
+        return res.status(403).json({ message: "Invalid admin password" });
+      }
+      const teamId = getTeamId();
+      // Subset path: caller passed an explicit non-empty rosterIds list.
+      // Team-wide path: caller passed `allRosters: true` to confirm intent.
+      // An empty rosterIds array is rejected to avoid an accidental
+      // wipe-everything fallback.
+      const requested = Array.isArray(req.body?.rosterIds) ? req.body.rosterIds.map(String) : null;
+      const allFlag = req.body?.allRosters === true;
+      if (requested && requested.length === 0) {
+        return res.status(400).json({ message: "rosterIds was empty — pass allRosters:true to seed every roster" });
+      }
+      if (!requested && !allFlag) {
+        return res.status(400).json({ message: "Pass rosterIds or allRosters:true" });
+      }
+      const rosterRows = await db.select().from(rosters).where(eq(rosters.teamId, teamId));
+      const targets = requested
+        ? rosterRows.filter(r => requested.includes(r.id))
+        : rosterRows;
+      if (targets.length === 0) {
+        return res.status(400).json({ message: "No rosters found to seed" });
+      }
+      const job = startJob(`load-example-all:${teamId}:${targets.length}`, async () => {
+        const results: { rosterId: string; ok: boolean; events?: number; error?: string }[] = [];
+        for (const r of targets) {
+          try {
+            const out = await loadExampleData(r.id);
+            results.push({ rosterId: r.id, ok: true, events: out.events });
+          } catch (e: any) {
+            console.error(`[load-example-all] roster ${r.id} failed:`, e);
+            results.push({ rosterId: r.id, ok: false, error: e?.message || "Unknown error" });
+          }
+        }
+        const ok = results.filter(r => r.ok).length;
+        const totalEvents = results.reduce((s, r) => s + (r.events || 0), 0);
+        return { rosters: targets.length, ok, failed: targets.length - ok, totalEvents, results };
+      });
+      res.json({ ok: true, jobId: job.id, status: job.status, rosters: targets.length });
+    } catch (err: any) {
+      console.error("[load-example-all] failed to start job:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   app.get("/api/admin/jobs/:jobId", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
     try {
       const { getJob } = await import("./roster-reset");

@@ -1,12 +1,16 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Settings, Upload, Palette, Activity, Shield, Gamepad2, Plus, Trash2, Pencil, Save, X, Image, ShieldCheck } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Settings, Upload, Palette, Activity, Shield, Gamepad2, Plus, Trash2, Pencil, Save, X, Image, ShieldCheck, Database, Loader2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { SupportedGame, Roster, Permission } from "@shared/schema";
 import { allPermissions } from "@shared/schema";
@@ -41,6 +45,123 @@ const PERMISSION_GROUPS: Record<string, string[]> = {
   "Staff": ["view_staff", "manage_staff"],
   "Dashboard": ["view_dashboard", "manage_users", "manage_roles", "manage_game_config", "manage_stat_fields", "view_activity_log"],
 };
+
+function SuperAdminExampleDataCard() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [password, setPassword] = useState("");
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [rosterCount, setRosterCount] = useState<number>(0);
+
+  // Poll the job until it completes.
+  const { data: job } = useQuery<any>({
+    queryKey: ["/api/admin/jobs", jobId],
+    enabled: !!jobId,
+    refetchInterval: (query) => {
+      const status = (query.state.data as any)?.status;
+      return status === "completed" || status === "failed" ? false : 1500;
+    },
+  });
+
+  useEffect(() => {
+    if (!job || !jobId) return;
+    if (job.status === "completed") {
+      const r = job.result || {};
+      toast({
+        title: "Example data loaded",
+        description: `${r.ok ?? 0}/${r.rosters ?? 0} rosters seeded · ${r.totalEvents ?? 0} events created`,
+      });
+      setJobId(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/games"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/players"] });
+    } else if (job.status === "failed") {
+      toast({ title: "Load failed", description: job.error || "Unknown error", variant: "destructive" });
+      setJobId(null);
+    }
+  }, [job, jobId, toast]);
+
+  const start = useMutation({
+    mutationFn: async () => apiRequest("POST", "/api/admin/load-example-data", { password, allRosters: true }),
+    onSuccess: async (res: any) => {
+      const data = await res.json();
+      setJobId(data.jobId);
+      setRosterCount(data.rosters || 0);
+      setConfirmOpen(false);
+      setPassword("");
+      toast({ title: "Loading example data…", description: `Processing ${data.rosters} rosters in the background.` });
+    },
+    onError: (e: any) => {
+      toast({ title: "Failed to start", description: e.message || "Unknown error", variant: "destructive" });
+    },
+  });
+
+  if (user?.orgRole !== "super_admin") return null;
+  const running = !!jobId && job?.status !== "completed" && job?.status !== "failed";
+
+  return (
+    <Card data-testid="card-example-data">
+      <CardHeader className="pb-3 gap-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Database className="h-4 w-4" />
+          Example Data
+        </CardTitle>
+        <CardDescription>
+          Super-admin only. Wipes every roster in this team and reseeds it with realistic example
+          events, players, staff, and matches. Use this to populate analytics on a fresh
+          environment or when you want clean demo data.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="text-xs text-muted-foreground">
+          This is destructive. Each roster's existing events, games, and stats will be replaced.
+        </div>
+        <Button
+          variant="outline"
+          onClick={() => setConfirmOpen(true)}
+          disabled={running || start.isPending}
+          data-testid="button-load-example-data"
+        >
+          {running ? (
+            <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Loading… ({rosterCount} rosters)</>
+          ) : (
+            <><Database className="h-4 w-4 mr-2" /> Load Example Data (all rosters)</>
+          )}
+        </Button>
+      </CardContent>
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Load example data into every roster?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will wipe every roster's events, games, players, staff, and stats and replace them
+              with example data. There is no undo. Enter the boss password to confirm.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Input
+            type="password"
+            placeholder="Boss password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            data-testid="input-example-data-password"
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-example-data-cancel">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!password || start.isPending}
+              onClick={(e) => { e.preventDefault(); start.mutate(); }}
+              data-testid="button-example-data-confirm"
+            >
+              {start.isPending ? "Starting…" : "Wipe and load"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Card>
+  );
+}
 
 export default function SettingsPage() {
   const { toast } = useToast();
@@ -550,6 +671,8 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <SuperAdminExampleDataCard />
 
       <Card>
         <CardHeader className="pb-3 gap-2">

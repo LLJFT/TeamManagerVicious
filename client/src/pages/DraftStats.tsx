@@ -21,6 +21,9 @@ import { useGame } from "@/hooks/use-game";
 import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied } from "@/components/AccessDenied";
 import { StatsSkeleton } from "@/components/PageSkeleton";
+import {
+  AnalyticsFilterBar, useAnalyticsFilters, applyAnalyticsFilters,
+} from "@/components/analytics-filters";
 import type {
   Event, Game, Hero, Map as MapType, GameMode, Opponent,
   GameHeroBanAction, GameMapVetoRow, GameHero, OpponentPlayer, Player,
@@ -181,6 +184,7 @@ export default function DraftStats() {
   const { fullSlug, gameId, rosterId } = useGame();
   const rosterReady = !!(gameId && rosterId);
   const [opponentFilter, setOpponentFilter] = useState<string>("__all__");
+  const { filters, setFilters } = useAnalyticsFilters();
 
   const { data: events = [], isLoading: evLoading } = useQuery<Event[]>({
     queryKey: ["/api/events", { gameId, rosterId }],
@@ -252,11 +256,18 @@ export default function DraftStats() {
 
   const playerIds = useMemo(() => new Set(players.map(p => p.id)), [players]);
 
-  // Filter scope: which match IDs are in scope (after opponent filter)
+  const allowedEventIds = useMemo(
+    () => applyAnalyticsFilters(events, filters),
+    [events, filters],
+  );
+
+  // Filter scope: which match IDs are in scope (after opponent + analytics filters)
   const scopedGames = useMemo(() => {
-    if (opponentFilter === "__all__") return allGames;
-    return allGames.filter(g => g.opponentId === opponentFilter);
-  }, [allGames, opponentFilter]);
+    return allGames.filter(g =>
+      (opponentFilter === "__all__" || g.opponentId === opponentFilter) &&
+      g.eventId && allowedEventIds.has(g.eventId),
+    );
+  }, [allGames, opponentFilter, allowedEventIds]);
 
   const scopedMatchIds = useMemo(() => new Set(scopedGames.map(g => g.id)), [scopedGames]);
 
@@ -555,6 +566,13 @@ export default function DraftStats() {
                 </SelectContent>
               </Select>
             </div>
+            <AnalyticsFilterBar
+              filters={filters}
+              setFilters={setFilters}
+              matchesCount={scopedGames.length}
+              totalCount={allGames.length}
+              className="w-full"
+            />
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground ml-auto" data-testid="text-coverage">
               <Badge variant="outline" className="font-mono">{summary.totalMatches} maps</Badge>
               <Badge variant="outline" className="font-mono">{summary.matchesWithVeto} w/ veto</Badge>

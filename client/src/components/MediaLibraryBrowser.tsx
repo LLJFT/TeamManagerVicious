@@ -446,15 +446,16 @@ function CustomFolderCard({
                 // are actually identifiable when batch-uploading.
                 const original = r.file?.name?.replace(/\.[^.]+$/, "");
                 const fallback = url.split("/").pop()?.replace(/\.[^.]+$/, "") || "image";
-                // Each call inside a batch needs a distinct sortOrder
-                // (otherwise N concurrent items all land on the same slot
-                // and ordering becomes nondeterministic). Stamp with
-                // Date.now() so back-to-back uploads stay in pick order.
+                // Use a small monotonic increment per batch so files keep
+                // their pick order. NEVER stamp with Date.now() — the
+                // sort_order column is a Postgres int4 and overflows past
+                // 2^31-1 (2147483647), which trips drizzle-zod validation
+                // and rejects the upload as "too_big".
                 addItem.mutate({
                   folderId: folder.id,
                   name: original || fallback,
                   url,
-                  sortOrder: folder.items.length + Date.now(),
+                  sortOrder: folder.items.length + r.index,
                 });
               }}
               onError={(msg) => toast({ title: "Upload failed", description: msg, variant: "destructive" })}

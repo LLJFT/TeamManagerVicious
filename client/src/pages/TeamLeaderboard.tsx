@@ -18,6 +18,9 @@ import {
 import { useGame } from "@/hooks/use-game";
 import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied } from "@/components/AccessDenied";
+import {
+  AnalyticsFilterBar, useAnalyticsFilters, applyAnalyticsFilters,
+} from "@/components/analytics-filters";
 import { StatsSkeleton } from "@/components/PageSkeleton";
 import type {
   Event, Game, Map as MapType, GameMode, Opponent,
@@ -150,6 +153,7 @@ export default function TeamLeaderboard() {
   const { fullSlug, gameId, rosterId } = useGame();
   const rosterReady = !!(gameId && rosterId);
   const [opponentFilter, setOpponentFilter] = useState<string>("__all__");
+  const { filters, setFilters } = useAnalyticsFilters();
 
   const { data: events = [], isLoading: evLoading } = useQuery<Event[]>({
     queryKey: ["/api/events", { gameId, rosterId }],
@@ -178,10 +182,16 @@ export default function TeamLeaderboard() {
   const modeById = useMemo(() => new Map(gameModes.map(m => [m.id, m])), [gameModes]);
   const opponentById = useMemo(() => new Map(opponents.map(o => [o.id, o])), [opponents]);
 
+  const allowedEventIds = useMemo(
+    () => applyAnalyticsFilters(events, filters),
+    [events, filters],
+  );
+
   const filteredGames = useMemo(() => allGames.filter(g => {
-    if (opponentFilter === "__all__") return true;
-    return g.opponentId === opponentFilter;
-  }), [allGames, opponentFilter]);
+    if (opponentFilter !== "__all__" && g.opponentId !== opponentFilter) return false;
+    if (!g.eventId || !allowedEventIds.has(g.eventId)) return false;
+    return true;
+  }), [allGames, opponentFilter, allowedEventIds]);
 
   const refOf = useMemo(() => (g: typeof allGames[number]): MatchRef => {
     const ev = eventById.get(g.eventId);
@@ -307,6 +317,13 @@ export default function TeamLeaderboard() {
                 </SelectContent>
               </Select>
             </div>
+            <AnalyticsFilterBar
+              filters={filters}
+              setFilters={setFilters}
+              matchesCount={filteredGames.length}
+              totalCount={allGames.length}
+              className="w-full"
+            />
             <div className="flex items-center gap-2 ml-auto" data-testid="text-coverage">
               <Badge variant="secondary" className="text-sm tabular-nums" data-testid="badge-overall-record">
                 {overall.wins}W · {overall.losses}L{overall.draws ? ` · ${overall.draws}D` : ""}

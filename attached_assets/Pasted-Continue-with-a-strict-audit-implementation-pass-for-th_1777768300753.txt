@@ -1,0 +1,223 @@
+Continue with a strict audit + implementation pass for three areas:
+
+1) Media Library image upload reliability
+2) Shared analytics filtering expansion
+3) Comprehensive example-data / load-test coverage
+
+This is not a quick patch task.
+I want a real audit first, then correct implementation, then verification.
+
+==================================================
+PRIORITY 1 — FIX MEDIA LIBRARY IMAGE UPLOAD
+==================================================
+
+There is a real bug in Media Library uploads.
+
+Observed failures:
+- Uploading 24 images at once fails
+- Uploading even a single image can fail
+- The UI error includes:
+  400: {"error":"Invalid item data","details":[{"code":"too_big","maximum":2147483647,...}]}
+
+What this means:
+- Do not assume this is just a frontend multi-upload issue
+- Audit the entire upload flow end-to-end:
+  - client payload creation
+  - request body shape
+  - validation schema
+  - API route
+  - DB insert/update shape
+  - object storage metadata
+  - any numeric field parsing / coercion / order index / size / timestamp / bytes / dimensions / ids
+- Find the exact field causing the overflow / validation failure
+- Fix the true root cause, not just the symptom
+
+Requirements:
+- Single image upload must work
+- Batch upload must work reliably for larger sets like 24 images
+- Existing folders and existing images must remain untouched
+- Existing auth/gating must remain unchanged
+- Add clear user-facing errors for invalid uploads
+- Preserve current Media Library structure and UX unless a small UX improvement is needed for clarity
+
+Verification required:
+- Test 1 image upload
+- Test multi-upload with many files
+- Confirm uploaded images appear correctly in Media Library
+- Confirm no regression for existing images/folders
+
+==================================================
+PRIORITY 2 — SHARED ANALYTICS FILTERING SYSTEM
+==================================================
+
+Now expand analytics filtering properly across the statistics pages.
+
+I want a unified filtering system across analytics pages, not ad-hoc per page.
+
+Add a shared analytics filter bar / shared state / shared component if needed.
+
+Required filter coverage:
+
+A) EVENT TYPE FILTER
+Support filtering by real event types already in the system, including:
+- Scrim
+- Practice
+- Warmup
+- Match
+- Tournament / Official
+- Any other real event types that already exist in DB / templates
+
+B) DATE FILTERS
+Support useful date scopes such as:
+- This season
+- This month
+- Last month
+- Last 30 days
+- Last 60 days
+- Specific month buckets where useful
+- Custom date range if it fits the current architecture cleanly
+
+C) STATS MODE / SCOPE STYLE FILTERING
+If there is already a concept similar to Stats Mode, extend and standardize it.
+If not, create a clean equivalent that controls what data is included in analytics.
+
+Requirements:
+- Apply consistently across relevant analytics pages
+- Keep all analytics roster-scoped only
+- Do not break any existing analytics pages
+- Keep dedupe correctness intact
+- Empty states must remain clear and helpful
+- You are allowed to improve the UI/UX and layout of the analytics header/filter area
+- You may add new shared components or reorganize analytics pages if that makes the experience clearer
+- All analytics pages must still follow existing permission gating (view_statistics)
+
+Goal:
+A coach/analyst should be able to quickly switch between:
+- all data
+- only scrims
+- only practice
+- only officials
+- only this month
+- only current season
+etc.
+without confusion
+
+==================================================
+PRIORITY 3 — COMPREHENSIVE EXAMPLE DATA / PLATFORM DATA TEST
+==================================================
+
+I want a serious example-data / stress-test pass for the whole platform.
+
+Goal:
+Every game that has a Game Template should be able to get rich usable example data so the app can be tested properly and analytics pages are meaningfully populated.
+
+What I want covered:
+- rosters
+- events
+- results / matches
+- opponents
+- opponent players where supported
+- player stats where supported
+- map / hero / ban / draft related data where supported
+- enough time spread to make trends useful
+
+Data shape expectations:
+- Spread example events roughly one month back and one month forward
+- Add 100+ events total across the system
+- Use each game’s real template/default structure where available
+- Include meaningful stats for opponents if the game/template supports that
+- Populate enough data so pages like Trends / Map Insights / Hero Insights / Draft Stats / Leaderboards actually look useful
+
+Preferred implementation:
+- Add a safe super_admin-only action like “Load Example Data”
+- It should be intentional and explicit, not something that runs automatically
+- It should use the proper game template/default logic for each supported game
+- It must avoid damaging or overwriting real data
+- If needed, scope it to example/test games/rosters only, or make it idempotent and clearly safe
+
+Important safety rules:
+- Do not break or overwrite existing real rosters
+- Do not alter existing URL formats
+- Do not remove current data
+- Do not touch forbidden files:
+  - vite.config.ts
+  - server/vite.ts
+  - package.json
+  - drizzle.config.ts
+
+==================================================
+AUDIT-FIRST REQUIREMENT
+==================================================
+
+Before coding, audit and report internally:
+- what currently exists
+- what is broken
+- what is incomplete
+- what data structures already exist in templates/defaults
+- what analytics pages need the new shared filters
+- what example-data support already exists and what is missing
+
+Then implement based on the audit.
+
+==================================================
+IMPLEMENTATION QUALITY RULES
+==================================================
+
+- Use real roster-scoped and game-scoped logic only
+- No fake UI-only placeholders
+- No hacks that bypass validation
+- No breaking changes to existing working analytics pages
+- Keep super_admin gating where it already exists
+- If new endpoints are added for analytics filters/data loading, wire them correctly into access-control/game-scope systems
+- Follow the same conventions used in Draft Stats and the newer analytics pages
+- Dedupe correctly anywhere repeated joins can inflate counts
+- Keep empty states clear
+- Keep the UI clean and consistent
+
+==================================================
+REQUIRED VERIFICATION
+==================================================
+
+You must verify the result, not just code it.
+
+At minimum:
+1. Media upload:
+- single upload test
+- batch upload test
+- confirm images render and persist
+
+2. Analytics filters:
+- confirm filters affect the relevant pages
+- confirm different event types/date scopes produce expected results
+- confirm empty states still behave correctly
+
+3. Example data:
+- confirm the loader/action works
+- confirm data gets created for supported games/templates
+- confirm analytics pages actually become populated and useful
+- confirm existing real data is not broken
+
+4. Code quality:
+- check for TS/LSP issues in touched files
+- run targeted verification for the changed flows
+- if architect/code review tooling is available, use it
+
+==================================================
+AFTER IMPLEMENTATION REPORT
+==================================================
+
+When done, report clearly:
+
+1. Root cause of the Media Library upload bug
+2. Exact fix applied for single and batch image upload
+3. Which analytics pages now support the shared filters
+4. What filters were added (event type, date scopes, etc.)
+5. What example-data / load-example-data capability was added
+6. Which games/templates are covered
+7. Any DB/template limitations that prevented richer example data for some games
+8. Verification results
+9. Any edge cases or remaining risks
+
+IMPORTANT:
+Do not stop at a partial fix.
+Finish all three areas completely and verify them properly.

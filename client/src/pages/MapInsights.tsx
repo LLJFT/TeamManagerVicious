@@ -18,6 +18,9 @@ import { useGame } from "@/hooks/use-game";
 import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied } from "@/components/AccessDenied";
 import { StatsSkeleton } from "@/components/PageSkeleton";
+import {
+  AnalyticsFilterBar, useAnalyticsFilters, applyAnalyticsFilters,
+} from "@/components/analytics-filters";
 import type {
   Event, Game, Map as MapType, Opponent, Side, GameRound,
 } from "@shared/schema";
@@ -102,6 +105,7 @@ export default function MapInsights() {
   const { fullSlug, gameId, rosterId } = useGame();
   const rosterReady = !!(gameId && rosterId);
   const [opponentFilter, setOpponentFilter] = useState<string>("__all__");
+  const { filters, setFilters } = useAnalyticsFilters();
 
   const { data: events = [], isLoading: evLoading } = useQuery<Event[]>({
     queryKey: ["/api/events", { gameId, rosterId }], enabled: rosterReady,
@@ -143,10 +147,16 @@ export default function MapInsights() {
     return m;
   }, [sides]);
 
+  const allowedEventIds = useMemo(
+    () => applyAnalyticsFilters(events, filters),
+    [events, filters],
+  );
   const scopedGames = useMemo(() => {
-    if (opponentFilter === "__all__") return allGames;
-    return allGames.filter(g => g.opponentId === opponentFilter);
-  }, [allGames, opponentFilter]);
+    return allGames.filter(g =>
+      (opponentFilter === "__all__" || g.opponentId === opponentFilter) &&
+      g.eventId && allowedEventIds.has(g.eventId),
+    );
+  }, [allGames, opponentFilter, allowedEventIds]);
 
   const matchRefById = useMemo(() => {
     const m = new Map<string, MatchRef>();
@@ -313,6 +323,12 @@ export default function MapInsights() {
             </SelectContent>
           </Select>
         </div>
+        <AnalyticsFilterBar
+          filters={filters}
+          setFilters={setFilters}
+          matchesCount={scopedGames.length}
+          totalCount={allGames.length}
+        />
 
         <Tabs defaultValue="overview">
           <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full">
