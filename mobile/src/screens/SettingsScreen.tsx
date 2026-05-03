@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import * as Updates from 'expo-updates';
 import { useTheme } from '@/theme/ThemeProvider';
+import { ALL_THEMES, ThemeName } from '@/theme/tokens';
 import { AppHeader, SettingsRow, BottomSheet, ListItem, Button, Text, useToast } from '@/components';
 import { useAuth } from '@/auth/AuthContext';
 import { changeLanguage, isRtl, SUPPORTED_LANGUAGES, SupportedLanguage } from '@/i18n';
@@ -12,7 +13,7 @@ import { getOptIn, setPushEnabled } from '@/push/registerPush';
 
 export function SettingsScreen() {
   const { t, i18n } = useTranslation();
-  const { colors, spacing, scheme, setScheme } = useTheme();
+  const { colors, spacing, themeName, preference, setScheme } = useTheme();
   const nav = useNavigation();
   const { user, signOut } = useAuth();
   const toast = useToast();
@@ -32,7 +33,7 @@ export function SettingsScreen() {
       setPushEnabledState(next);
       toast.show(next ? t('push.enabledToast') : t('push.disabledToast'), 'success');
     } catch {
-      toast.show(t('common.error'), 'error');
+      toast.show(t('common.error'), 'danger');
     } finally {
       setPushBusy(false);
     }
@@ -53,7 +54,9 @@ export function SettingsScreen() {
     }
   };
 
-  const themeLabel = scheme === 'dark' ? t('settings.dark') : t('settings.light');
+  const themeLabelKey =
+    preference === 'system' ? 'settings.system' : (`settings.themes.${themeName}` as const);
+  const themeLabel = t(themeLabelKey);
   const langLabel = SUPPORTED_LANGUAGES.find((l) => l.code === i18n.language)?.nativeLabel ?? i18n.language;
 
   return (
@@ -87,9 +90,19 @@ export function SettingsScreen() {
       </ScrollView>
 
       <BottomSheet visible={themeOpen} onClose={() => setThemeOpen(false)} title={t('settings.theme')}>
-        <ListItem title={t('settings.light')} onPress={() => { setScheme('light'); setThemeOpen(false); }} testID="theme-light" />
-        <ListItem title={t('settings.dark')} onPress={() => { setScheme('dark'); setThemeOpen(false); }} testID="theme-dark" />
-        <ListItem title={t('settings.system')} onPress={() => { setScheme('system'); setThemeOpen(false); }} testID="theme-system" />
+        <ListItem
+          title={t('settings.system')}
+          onPress={() => { setScheme('system'); setThemeOpen(false); }}
+          testID="theme-system"
+        />
+        {ALL_THEMES.map(({ name }: { name: ThemeName }) => (
+          <ListItem
+            key={name}
+            title={t(`settings.themes.${name}` as const)}
+            onPress={() => { setScheme(name); setThemeOpen(false); }}
+            testID={`theme-${name}`}
+          />
+        ))}
       </BottomSheet>
 
       <BottomSheet visible={langOpen} onClose={() => setLangOpen(false)} title={t('settings.language')}>

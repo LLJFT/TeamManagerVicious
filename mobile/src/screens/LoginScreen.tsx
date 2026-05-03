@@ -32,7 +32,7 @@ export function LoginScreen() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg, flexGrow: 1, justifyContent: 'center' }}>
           <View style={{ alignItems: 'center', gap: spacing.sm }}>
-            <Text variant="display">Esports HQ</Text>
+            <Text variant="display">{t('auth.brandName')}</Text>
             <Text variant="caption" tone="secondary">{t('auth.signInDesc')}</Text>
           </View>
           <Card>

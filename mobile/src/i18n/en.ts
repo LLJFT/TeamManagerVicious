@@ -16,6 +16,7 @@ export const en = {
     back: 'Back',
   },
   auth: {
+    brandName: 'Esports HQ',
     signInTitle: 'Sign in',
     signInDesc: 'Enter your credentials to access the platform',
     username: 'Username',
@@ -127,6 +128,14 @@ export const en = {
     light: 'Light',
     dark: 'Dark',
     system: 'System',
+    themes: {
+      light: 'Light',
+      darkDefault: 'Dark — Default',
+      oceanBlue: 'Ocean Blue',
+      rubyRed: 'Ruby Red',
+      minimalDark: 'Minimal Dark',
+      carbonBlack: 'Carbon Black',
+    },
     language: 'Language',
     account: 'Account',
     about: 'About',

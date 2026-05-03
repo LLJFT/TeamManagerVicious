@@ -18,6 +18,7 @@ export const ar: Translation = {
     back: 'رجوع',
   },
   auth: {
+    brandName: 'إسبورتس HQ',
     signInTitle: 'تسجيل الدخول',
     signInDesc: 'أدخل بياناتك للوصول إلى المنصة',
     username: 'اسم المستخدم',
@@ -129,6 +130,14 @@ export const ar: Translation = {
     light: 'فاتح',
     dark: 'داكن',
     system: 'النظام',
+    themes: {
+      light: 'فاتح',
+      darkDefault: 'داكن — افتراضي',
+      oceanBlue: 'الأزرق المحيطي',
+      rubyRed: 'الياقوتي',
+      minimalDark: 'داكن مينيمال',
+      carbonBlack: 'أسود كربوني',
+    },
     language: 'اللغة',
     account: 'الحساب',
     about: 'حول',

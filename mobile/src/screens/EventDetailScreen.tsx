@@ -42,7 +42,7 @@ export function EventDetailScreen() {
                   <Text variant="overline" tone="tertiary">{t('events.type')}</Text>
                   <Text variant="title">{data?.type ?? '—'}</Text>
                 </View>
-                {data?.result ? <Badge label={data.result.toUpperCase()} tone={data.result === 'win' ? 'success' : data.result === 'loss' ? 'danger' : 'neutral'} /> : null}
+                {data?.result ? <Badge label={t(`events.${data.result}`)} tone={data.result === 'win' ? 'success' : data.result === 'loss' ? 'danger' : data.result === 'draw' ? 'warning' : 'neutral'} /> : null}
               </View>
               <View style={{ marginTop: spacing.md }}>
                 <Text variant="caption" tone="secondary">{t('events.opponent')}: {data?.opponent ?? '—'}</Text>
