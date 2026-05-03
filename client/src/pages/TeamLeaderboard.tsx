@@ -250,6 +250,26 @@ export default function TeamLeaderboard() {
     return Array.from(buckets.values()).sort((a, b) => (b.wins + b.losses + b.draws) - (a.wins + a.losses + a.draws));
   }, [filteredGames, eventById, refOf]);
 
+  const byEventSubType = useMemo(() => {
+    const buckets = new Map<string, { item: { name: string }; matches: MatchRef[]; wins: number; losses: number; draws: number }>();
+    for (const g of filteredGames) {
+      const ev = eventById.get(g.eventId);
+      const sub = (ev?.eventSubType || "").trim();
+      if (!sub) continue;
+      const key = sub.toLowerCase();
+      let bucket = buckets.get(key);
+      if (!bucket) {
+        bucket = { item: { name: sub }, matches: [], wins: 0, losses: 0, draws: 0 };
+        buckets.set(key, bucket);
+      }
+      bucket.matches.push(refOf(g));
+      if (g.result === "win") bucket.wins++;
+      else if (g.result === "loss") bucket.losses++;
+      else if (g.result === "draw") bucket.draws++;
+    }
+    return Array.from(buckets.values()).sort((a, b) => (b.wins + b.losses + b.draws) - (a.wins + a.losses + a.draws));
+  }, [filteredGames, eventById, refOf]);
+
   const overall = useMemo(() => {
     let wins = 0, losses = 0, draws = 0;
     for (const g of filteredGames) {
@@ -370,6 +390,9 @@ export default function TeamLeaderboard() {
             <TabsTrigger value="event-type" data-testid="tab-event-type">
               <CalendarDays className="h-4 w-4 mr-2" />By Event Type
             </TabsTrigger>
+            <TabsTrigger value="event-sub-type" data-testid="tab-event-sub-type">
+              <CalendarDays className="h-4 w-4 mr-2" />By Event Sub Type
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="opponents" className="mt-4">
@@ -478,6 +501,31 @@ export default function TeamLeaderboard() {
                   )}
                   fullSlug={fullSlug}
                   labelOf={(t) => `Event · ${t.name}`}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="event-sub-type" className="mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <CalendarDays className="h-4 w-4 text-primary" /> Event Sub Type Records
+                </CardTitle>
+                <CardDescription>Performance breakdown by sub-categories like Best of 3, Best of 5, Group Stage, etc.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <RankList
+                  rows={byEventSubType}
+                  max={20}
+                  renderItem={(t) => (
+                    <div className="flex items-center gap-2 min-w-0">
+                      <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span className="text-sm truncate font-medium capitalize">{t.name.replace(/_/g, " ")}</span>
+                    </div>
+                  )}
+                  fullSlug={fullSlug}
+                  labelOf={(t) => `Sub · ${t.name}`}
                 />
               </CardContent>
             </Card>

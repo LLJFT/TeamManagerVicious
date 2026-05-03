@@ -101,7 +101,14 @@ export function ScheduleTable({
       if (!grouped[role]) grouped[role] = [];
       grouped[role].push(player);
     }
-    const order = roleOptions.length > 0 ? roleOptions : Object.keys(grouped);
+    // Start with the configured role order, then APPEND any player roles
+    // that aren't in the configured list (legacy / template-mismatch roles
+    // and the "Unassigned" bucket). Otherwise those players render to
+    // nothing because the iteration is keyed off roleOrder.
+    const baseOrder = roleOptions.length > 0 ? roleOptions.slice() : [];
+    const extras = Object.keys(grouped).filter(r => !baseOrder.includes(r));
+    extras.sort((a, b) => a === "Unassigned" ? 1 : b === "Unassigned" ? -1 : a.localeCompare(b));
+    const order = baseOrder.length > 0 ? [...baseOrder, ...extras] : Object.keys(grouped);
     const colors = Array.from(new Set([...roleOptions, ...Object.keys(grouped)]));
     return { groupedByRole: grouped, roleOrder: order, allRolesForColor: colors };
   }, [players, roleOptions]);

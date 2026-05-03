@@ -37,6 +37,22 @@ export default function EventDetails() {
   const [toastType, setToastType] = useState<"success" | "error">("success");
 
   const [eventResult, setEventResult] = useState<EventResult | "">("");
+
+  // Derive an overall result from a list of games. Used as a fallback display
+  // and as the seed for the "Use game results" button when the user hasn't
+  // manually set an Event Result yet.
+  const deriveResultFromGames = (gs: { result?: string | null }[]): EventResult | null => {
+    let w = 0, l = 0, d = 0;
+    for (const g of gs) {
+      if (g.result === "win") w++;
+      else if (g.result === "loss") l++;
+      else if (g.result === "draw") d++;
+    }
+    if (w + l + d === 0) return null;
+    if (w > l) return "win";
+    if (l > w) return "loss";
+    return "draw";
+  };
   const [opponentName, setOpponentName] = useState("");
   const [eventNotes, setEventNotes] = useState("");
 
@@ -854,6 +870,15 @@ export default function EventDetails() {
                   {getResultText(event.result)}
                 </Badge>
               )}
+              {(!event.result || event.result === "pending") && (() => {
+                const derived = deriveResultFromGames(games);
+                if (!derived) return null;
+                return (
+                  <Badge variant={getResultBadgeVariant(derived)} data-testid="badge-derived-result" title="Derived from game results">
+                    {getResultText(derived)} (from games)
+                  </Badge>
+                );
+              })()}
               {event.result && event.result !== "pending" && (() => {
                 const rosterName = `${currentGame?.name || ""} ${currentRoster?.name || ""}`.trim();
                 const gameWins = games.filter(g => g.result === "win").length;
@@ -875,20 +900,39 @@ export default function EventDetails() {
           <CardContent className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-2">Event Result</label>
-              <Select
-                value={eventResult}
-                onValueChange={(value) => setEventResult(value as EventResult)}
-              >
-                <SelectTrigger data-testid="select-result">
-                  <SelectValue placeholder="Select result" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="win">Win</SelectItem>
-                  <SelectItem value="loss">Loss</SelectItem>
-                  <SelectItem value="draw">Draw</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2">
+                <Select
+                  value={eventResult}
+                  onValueChange={(value) => setEventResult(value as EventResult)}
+                >
+                  <SelectTrigger data-testid="select-result" className="flex-1">
+                    <SelectValue placeholder="Select result" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="win">Win</SelectItem>
+                    <SelectItem value="loss">Loss</SelectItem>
+                    <SelectItem value="draw">Draw</SelectItem>
+                  </SelectContent>
+                </Select>
+                {(() => {
+                  const derived = deriveResultFromGames(games);
+                  if (!derived) return null;
+                  if (eventResult === derived) return null;
+                  return (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setEventResult(derived)}
+                      data-testid="button-use-game-results"
+                      title={`Set Event Result to ${getResultText(derived)} based on game results`}
+                    >
+                      Use game results ({getResultText(derived)})
+                    </Button>
+                  );
+                })()}
+              </div>
             </div>
 
             <div>

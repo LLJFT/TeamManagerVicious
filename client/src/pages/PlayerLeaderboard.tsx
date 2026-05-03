@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Medal, Users, ExternalLink, ChevronRight, Activity, BarChart3, Swords, ArrowLeft, Shield,
+  Map as MapIcon, Layers, UserCircle,
 } from "lucide-react";
 import { useGame } from "@/hooks/use-game";
 import { useAuth } from "@/hooks/use-auth";
@@ -22,6 +23,7 @@ import { StatsSkeleton } from "@/components/PageSkeleton";
 import type {
   Event, Game, Hero, Opponent, OpponentPlayer, Player, StatField,
   MatchParticipant, PlayerGameStat, OpponentPlayerGameStat, GameHero,
+  Map as MapType, GameMode,
 } from "@shared/schema";
 
 interface MatchRef {
@@ -161,6 +163,9 @@ export default function PlayerLeaderboard() {
   const rosterReady = !!(gameId && rosterId);
   const [opponentFilter, setOpponentFilter] = useState<string>("__all__");
   const [sideFilter, setSideFilter] = useState<SideFilter>("all");
+  const [modeFilter, setModeFilter] = useState<string>("__all__");
+  const [mapFilter, setMapFilter] = useState<string>("__all__");
+  const [roleFilter, setRoleFilter] = useState<string>("__all__");
 
   const opponentParam = opponentFilter === "__all__" ? undefined : opponentFilter;
 
@@ -208,6 +213,14 @@ export default function PlayerLeaderboard() {
     queryKey: ["/api/game-heroes", { gameId, rosterId, opponentId: opponentParam }],
     enabled: rosterReady,
   });
+  const { data: maps = [] } = useQuery<MapType[]>({
+    queryKey: ["/api/maps", { gameId, rosterId }],
+    enabled: rosterReady,
+  });
+  const { data: gameModes = [] } = useQuery<GameMode[]>({
+    queryKey: ["/api/game-modes", { gameId, rosterId }],
+    enabled: rosterReady,
+  });
 
   // ===== All hooks (incl. useMemo) MUST run before any early return =====
   const eventById = useMemo(() => new Map(events.map(e => [e.id, e])), [events]);
@@ -235,8 +248,26 @@ export default function PlayerLeaderboard() {
   }, [players, opponentPlayers, opponentById]);
 
   const heroById = useMemo(() => new Map(heroes.map(h => [h.id, h])), [heroes]);
-  const filteredGames = useMemo(() => allGames.filter(g => opponentFilter === "__all__" || g.opponentId === opponentFilter), [allGames, opponentFilter]);
+  const filteredGames = useMemo(() => allGames.filter(g => {
+    if (opponentFilter !== "__all__" && g.opponentId !== opponentFilter) return false;
+    if (modeFilter !== "__all__" && g.gameModeId !== modeFilter) return false;
+    if (mapFilter !== "__all__" && g.mapId !== mapFilter) return false;
+    return true;
+  }), [allGames, opponentFilter, modeFilter, mapFilter]);
   const matchById = useMemo(() => new Map(filteredGames.map(g => [g.id, g])), [filteredGames]);
+
+  // All distinct roles across our players + opponent players, used to populate the role filter.
+  const allPlayerRoles = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of players) if (p.role) set.add(p.role);
+    for (const op of opponentPlayers) if (op.role) set.add(op.role);
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [players, opponentPlayers]);
+
+  const passesRoleFilter = (role: string | null | undefined) => {
+    if (roleFilter === "__all__") return true;
+    return (role || "") === roleFilter;
+  };
 
   const refOf = useMemo(() => (matchId: string): MatchRef | null => {
     const g = matchById.get(matchId);
@@ -267,6 +298,7 @@ export default function PlayerLeaderboard() {
       if (!g) continue;
       const player = unifiedById.get(part.playerId);
       if (!player) continue;
+      if (!passesRoleFilter(player.role)) continue;
       let row = buckets.get(part.playerId);
       if (!row) {
         row = { player, matchesPlayed: 0, wins: 0, losses: 0, draws: 0, matches: [] };
@@ -280,7 +312,7 @@ export default function PlayerLeaderboard() {
       else if (g.result === "draw") row.draws++;
     }
     return Array.from(buckets.values()).sort((a, b) => b.matchesPlayed - a.matchesPlayed);
-  }, [participants, matchById, unifiedById, refOf]);
+  }, [participants, matchById, unifiedById, refOf, roleFilter]);
 
   // Stat leaderboards: merge our players + opponent players
   const statLeaderboards = useMemo(() => {
@@ -294,6 +326,7 @@ export default function PlayerLeaderboard() {
       seenTriples.add(triple);
       const player = unifiedById.get(playerKey);
       if (!player) return;
+      if (!passesRoleFilter(player.role)) return;
       const numeric = Number(valueRaw);
       if (!Number.isFinite(numeric)) return;
       let perPlayer = byField.get(statFieldId);
@@ -327,7 +360,7 @@ export default function PlayerLeaderboard() {
       out.set(fieldId, rows);
     }
     return out;
-  }, [pgStats, oppStats, matchById, unifiedById, refOf, sideFilter]);
+  }, [pgStats, oppStats, matchById, unifiedById, refOf, sideFilter, roleFilter]);
 
   // Hero perf: merge our + opponent picks
   const heroPerformance: PlayerHeroRow[] = useMemo(() => {
@@ -346,6 +379,7 @@ export default function PlayerLeaderboard() {
       if (!player || !hero) continue;
       if (sideFilter === "ours" && !player.isOurs) continue;
       if (sideFilter === "opponents" && player.isOurs) continue;
+      if (!passesRoleFilter(player.role)) continue;
       const g = matchById.get(gh.matchId)!;
       const key = `${playerKey}::${gh.heroId}`;
       let row = buckets.get(key);
@@ -364,7 +398,7 @@ export default function PlayerLeaderboard() {
       else if (winLabel === "draw") row.draws++;
     }
     return Array.from(buckets.values()).sort((a, b) => b.picks - a.picks);
-  }, [gameHeroes, matchById, unifiedById, heroById, refOf, sideFilter]);
+  }, [gameHeroes, matchById, unifiedById, heroById, refOf, sideFilter, roleFilter]);
 
   // ===== Early returns AFTER all hooks =====
   if (!hasPermission("view_statistics")) {
@@ -435,6 +469,51 @@ export default function PlayerLeaderboard() {
                 <ToggleGroupItem value="ours" size="sm" data-testid="toggle-ours">Our players</ToggleGroupItem>
                 <ToggleGroupItem value="opponents" size="sm" data-testid="toggle-opponents">Opponents</ToggleGroupItem>
               </ToggleGroup>
+            </div>
+            <div className="flex items-center gap-2">
+              <Layers className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Mode:</span>
+              <Select value={modeFilter} onValueChange={setModeFilter}>
+                <SelectTrigger className="w-[180px]" data-testid="select-mode-filter">
+                  <SelectValue placeholder="All modes" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All modes</SelectItem>
+                  {gameModes.slice().sort((a, b) => a.name.localeCompare(b.name)).map(m => (
+                    <SelectItem key={m.id} value={m.id} data-testid={`option-mode-${m.id}`}>{m.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <MapIcon className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Map:</span>
+              <Select value={mapFilter} onValueChange={setMapFilter}>
+                <SelectTrigger className="w-[180px]" data-testid="select-map-filter">
+                  <SelectValue placeholder="All maps" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All maps</SelectItem>
+                  {maps.slice().sort((a, b) => a.name.localeCompare(b.name)).map(m => (
+                    <SelectItem key={m.id} value={m.id} data-testid={`option-map-${m.id}`}>{m.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <UserCircle className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Role:</span>
+              <Select value={roleFilter} onValueChange={setRoleFilter}>
+                <SelectTrigger className="w-[160px]" data-testid="select-role-filter">
+                  <SelectValue placeholder="All roles" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All roles</SelectItem>
+                  {allPlayerRoles.map(r => (
+                    <SelectItem key={r} value={r} data-testid={`option-role-${r}`}>{r}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex items-center gap-2 ml-auto" data-testid="text-coverage">
               <Badge variant="outline" className="font-mono text-xs">{participants.length} part.</Badge>

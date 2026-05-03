@@ -1,0 +1,115 @@
+There are still several important gaps after the latest fixes. Please use the attached screenshots and fix each issue completely.
+
+Do not stop at partial fixes.
+Reproduce each screenshot issue one-by-one and close them fully.
+
+==================================================
+1) AVAILABILITY PAGE — PLAYERS ARE STILL MISSING
+==================================================
+
+Observed issue:
+- The availability slots/columns now appear
+- Staff rows appear
+- But roster players are still missing from the player availability matrix
+- I need the actual roster players to appear there, not just staff
+
+This means the problem is not only seeding availability slots.
+Please audit the full player-availability flow:
+- are roster players seeded correctly?
+- are player availability rows seeded correctly?
+- is the page querying/rendering the players correctly?
+- is there any filtering or role logic excluding players from the availability table?
+
+Fix requirements:
+- Roster players must appear in the real availability schedule
+- The schedule must use the real roster availability slots/times
+- If template/config availability exists, it must carry through correctly
+- Do not break staff availability
+
+==================================================
+2) TEAM LEADERBOARD — ADD EVENT SUB TYPE
+==================================================
+
+Right now the Team Leaderboard has:
+- By Opponent
+- By Map
+- By Mode
+- By Event Type
+
+I also want:
+- By Event Sub Type
+
+Requirements:
+- Add Event Sub Type as another leaderboard breakdown
+- It must use the actual roster/event data
+- It must work with the existing analytics filters (opponent / event type / date scope etc. where relevant)
+- Keep the UI consistent with the existing tabs/cards
+- Handle empty states cleanly
+
+==================================================
+3) PLAYER LEADERBOARD / OPPONENT PLAYER STATS ARE STILL TOO SHALLOW
+==================================================
+
+The current Opponents view in Player Leaderboard is still not enough.
+
+I want the opponent player stats to be much more complete and useful.
+
+What I want added or fixed:
+- Opponent player stats should not just be one flat list
+- Add deeper breakdowns such as:
+  - by game mode
+  - by map
+  - by role
+- If useful, add grouping, tabs, or filters to make this readable
+- Keep our players highlighted and opponents clearly identified
+
+Also verify:
+- Opponent player stat rows are really joining to the correct games/opponents
+- Aggregation is correct
+- Filters still work properly
+- Opponent logos/team identity still show properly
+
+==================================================
+4) EVENT RESULT SHOULD REFLECT GAME RESULTS
+==================================================
+
+Another real issue from the screenshots:
+an event can have multiple game results filled in, but the Event Result field still looks unset / not properly derived.
+
+Please audit this carefully.
+
+I need you to verify:
+- how Event Result is currently stored
+- whether it should be manually entered, auto-derived, or both
+- whether the event should show a computed overall result based on its games when game results exist
+
+What I want:
+- If an event has game results, the overall Event Result should not behave like it has no result
+- Make the event result logic consistent and clear
+- If there is already a derived result path, fix the bug
+- If there is no derived result path, add one cleanly without breaking existing behavior
+
+==================================================
+GENERAL RULES
+==================================================
+
+- Use the attached screenshots to reproduce the exact failures
+- Audit first, then fix
+- Do not break the recent dataset/template-fidelity work
+- Do not break roster scoping
+- Do not touch forbidden files
+- Keep permissions/gating intact
+- Keep the UI consistent with the existing analytics structure
+
+==================================================
+AFTER IMPLEMENTATION REPORT
+==================================================
+
+Report clearly:
+1. Why roster players were missing from the availability page
+2. What was fixed in player availability
+3. How Event Sub Type was added to Team Leaderboard
+4. What improvements were made to opponent player analytics
+5. Whether player/opponent stats now support deeper breakdowns
+6. How Event Result now works when game results exist
+7. Any edge cases found
