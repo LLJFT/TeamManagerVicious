@@ -3632,9 +3632,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ===== OCR Scoreboard Scans =====
+  // Restrict OCR uploads to scoreboard screenshots only. We enforce three
+  // gates before we even invoke Tesseract:
+  //   1. Extension allowlist (jpg/jpeg/png/webp/bmp).
+  //   2. Magic-byte check that the file content matches the extension.
+  //   3. After OCR, a `evaluateScoreboardSignal` heuristic that requires
+  //      enough text + at least one strong scoreboard anchor.
+  // If the third gate fails the request returns 422 and NO scan record is
+  // persisted — random images, posters, logos and UI screenshots never
+  // pollute the review queue or the stats tables.
+  const OCR_ALLOWED_EXTS = new Set([".jpg", ".jpeg", ".png", ".webp", ".bmp"]);
   const ocrUpload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      if (!OCR_ALLOWED_EXTS.has(ext)) {
+        return cb(new Error(`Unsupported image type ${ext || "(none)"}. Use JPG, PNG, WebP or BMP.`));
+      }
+      cb(null, true);
+    },
   });
 
   app.post(
@@ -3646,17 +3663,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const { matchId } = req.params;
         if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
+        // Magic-byte verification — block polyglot files (e.g. an SVG renamed
+        // to .png) before they ever reach OCR or object storage.
+        const ext = path.extname(req.file.originalname).toLowerCase() || ".png";
+        if (!hasValidMagicBytes(ext, req.file.buffer)) {
+          return res.status(400).json({
+            error: "not_an_image",
+            message: "Upload does not appear to be a valid image file.",
+          });
+        }
+
         const teamId = getTeamId();
         const [game] = await db.select().from(games).where(and(eq(games.id, matchId), eq(games.teamId, teamId))).limit(1);
         if (!game) return res.status(404).json({ error: "Game not found" });
         if (!await verifyObjectScope(req, res, game.gameId, game.rosterId)) return;
-
-        // Persist source image to object storage so we can show it on review.
-        const { ObjectStorageService } = await import("./objectStorage");
-        const svc = new ObjectStorageService();
-        const ext = path.extname(req.file.originalname).toLowerCase() || ".png";
-        const mime = req.file.mimetype || "image/png";
-        const url = await svc.uploadBuffer(req.file.buffer, mime, ext);
 
         // Pre-load candidate inputs for fuzzy matching.
         const [our, opps, hs, sf, mps, sds] = await Promise.all([
@@ -3673,25 +3694,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ? await storage.getOpponentPlayersByOpponentId(oppId)
           : (await Promise.all(opps.map(o => storage.getOpponentPlayersByOpponentId(o.id)))).flat();
 
-        const { runOcr, parseScoreboardText } = await import("./ocr");
+        const { runOcr, parseScoreboardText, evaluateScoreboardSignal } = await import("./ocr");
         const ocrResult = await runOcr(req.file.buffer);
-        const parsed = parseScoreboardText(ocrResult.text, {
+        const inputs = {
           players: our,
           opponentPlayers: oppPlayers as any,
           heroes: hs,
           statFields: sf,
           maps: mps,
           sides: sds,
-        });
+        };
+        const parsed = parseScoreboardText(ocrResult.text, inputs);
+        const validation = evaluateScoreboardSignal(ocrResult.text, parsed, inputs);
 
+        // Hard gate: if it's not a scoreboard, refuse without persisting any
+        // scan or stats. The client gets a structured 422 explaining why.
+        if (!validation.isScoreboard) {
+          const reasonMessage = ({
+            ocr_too_little_text: "We couldn't find enough text in this image. Please upload a clear scoreboard screenshot.",
+            ocr_no_numeric_grid: "This image doesn't look like a scoreboard — we couldn't see the stats grid.",
+            no_scoreboard_anchors: "We couldn't recognise any players, heroes, scores or maps in this image.",
+            low_confidence: "This image doesn't appear to be a scoreboard with enough confidence to import.",
+          } as Record<string, string>)[validation.reason] || "Image rejected: not recognised as a scoreboard screenshot.";
+          return res.status(422).json({
+            error: "not_a_scoreboard",
+            reason: validation.reason,
+            confidence: validation.confidence,
+            signals: validation.signals,
+            message: reasonMessage,
+          });
+        }
+
+        // Persist source image to object storage only after we accept it.
+        const { ObjectStorageService } = await import("./objectStorage");
+        const svc = new ObjectStorageService();
+        const mime = req.file.mimetype || "image/png";
+        const url = await svc.uploadBuffer(req.file.buffer, mime, ext);
+
+        const candidate = { ...parsed, validation } as any;
         const scan = await storage.createOcrScan({
           gameId: game.gameId,
           rosterId: game.rosterId,
           matchId,
           imageObjectPath: url,
           rawOcr: { text: ocrResult.text } as any,
-          parsedCandidate: parsed as any,
-          editedCandidate: parsed as any,
+          parsedCandidate: candidate,
+          editedCandidate: candidate,
           status: "pending_review",
           uploaderUserId: req.session.userId!,
           errorMessage: ocrResult.text ? null : "OCR returned no text",
@@ -3721,14 +3769,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const scan = await storage.getOcrScan(req.params.id);
       if (!scan) return res.status(404).json({ error: "Scan not found" });
       if (!await verifyObjectScope(req, res, scan.gameId, scan.rosterId)) return;
-      const editedCandidate = req.body?.editedCandidate;
-      if (!editedCandidate || typeof editedCandidate !== "object") {
-        return res.status(400).json({ error: "Missing editedCandidate" });
+      // Strict zod validation prevents the review UI from saving a draft
+      // with the wrong shape (e.g. unknown side, non-string stat keys, etc).
+      const { ocrParsedCandidateSchema } = await import("@shared/schema");
+      const parsed = ocrParsedCandidateSchema.safeParse(req.body?.editedCandidate);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid editedCandidate", details: parsed.error.flatten() });
       }
-      const updated = await storage.updateOcrScan(scan.id, { editedCandidate } as any);
+      const updated = await storage.updateOcrScan(scan.id, { editedCandidate: parsed.data } as any);
       res.json(updated);
     } catch (error: any) {
       console.error("Error in PATCH /api/ocr-scans/:id:", error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  // Discard a scan without writing any stats. Used by the review UI when a
+  // coach decides the scan isn't useful. The image stays in object storage
+  // for audit; the scan row is marked "discarded" rather than deleted so we
+  // never lose the evidence trail.
+  app.delete("/api/ocr-scans/:id", requireAuth, requirePermission("edit_events"), async (req, res) => {
+    try {
+      const scan = await storage.getOcrScan(req.params.id);
+      if (!scan) return res.status(404).json({ error: "Scan not found" });
+      if (!await verifyObjectScope(req, res, scan.gameId, scan.rosterId)) return;
+      const updated = await storage.updateOcrScan(scan.id, { status: "discarded" } as any);
+      res.json({ ok: true, scan: updated });
+    } catch (error: any) {
+      console.error("Error in DELETE /api/ocr-scans/:id:", error);
       res.status(500).json({ error: error.message || "Internal server error" });
     }
   });
@@ -3744,40 +3812,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const candidate = (scan.editedCandidate || scan.parsedCandidate) as any;
       if (!candidate) return res.status(400).json({ error: "No parsed candidate to confirm" });
 
-      // Conflict detection: if any existing rows are not from this scan, refuse
-      // unless overwrite was explicitly requested. We check the three target tables.
+      // Concurrency guard: serialize confirms for the same match using a
+      // Postgres advisory lock keyed on the matchId hash. Two coaches
+      // confirming different scans for the same match at once would
+      // otherwise read stale snapshots and lose each other's writes. The
+      // lock is held only for the duration of this request handler.
+      const lockKey = `ocr-confirm:${scan.matchId}`;
+      const acquired = await db.execute(
+        sql`SELECT pg_try_advisory_lock(hashtext(${lockKey})) AS got`
+      );
+      const got = (acquired as any).rows?.[0]?.got ?? (acquired as any)[0]?.got;
+      if (got !== true) {
+        return res.status(409).json({
+          error: "concurrent_confirm",
+          message: "Another import is in progress for this match. Please retry in a moment.",
+        });
+      }
+      try {
+      // Re-read the scan now that we hold the lock — another writer may
+      // have confirmed it while we were queuing.
+      const fresh = await storage.getOcrScan(req.params.id);
+      if (fresh && fresh.status === "confirmed") {
+        return res.json({
+          ok: true, mode: "noop", scan: fresh,
+          counts: { participants: 0, heroes: 0, stats: 0 },
+          skipped: { participants: 0, heroes: 0, stats: 0 },
+          message: "Scan already confirmed",
+        });
+      }
+
+      // Two write modes:
+      //   - merge (default): only insert rows that don't already exist for the
+      //     same (player, side) tuple. Heroes are NEVER duplicated and existing
+      //     heroes/stats/participants are preserved. Re-confirming the same
+      //     scan is a no-op. Re-uploading a second scan for the same match
+      //     only fills in heroes/stats that are still missing.
+      //   - overwrite (explicit opt-in): wipe + replace, the legacy behaviour.
+      //     Used when a coach knows the previous data was wrong.
       const teamId = getTeamId();
       const existingHeroes = await storage.getGameHeroesByMatchId(scan.matchId);
       const existingParts = await storage.getMatchParticipants(scan.matchId);
       const existingStats = await storage.getPlayerGameStats(scan.matchId, scan.gameId, scan.rosterId);
-      const conflicts = {
-        gameHeroes: existingHeroes.filter((r: any) => r.importedViaOcrScanId !== scan.id).map((r: any) => r.id),
-        matchParticipants: existingParts.filter((r: any) => r.importedViaOcrScanId !== scan.id).map((r: any) => r.id),
-        playerGameStats: existingStats.filter((r: any) => r.importedViaOcrScanId !== scan.id).map((r: any) => r.id),
-      };
-      const hasConflicts = conflicts.gameHeroes.length || conflicts.matchParticipants.length || conflicts.playerGameStats.length;
-      if (hasConflicts && !overwrite) {
-        return res.status(409).json({ error: "Existing data would be overwritten", conflicts });
-      }
 
       const [game] = await db.select().from(games).where(and(eq(games.id, scan.matchId), eq(games.teamId, teamId))).limit(1);
       if (!game) return res.status(404).json({ error: "Game not found" });
 
-      // Build participants, heroes, and per-player stats from the candidate.
-      const participantRows: any[] = [];
-      const heroRows: any[] = [];
-      const statRows: any[] = [];
-      let sortIdx = 0;
+      // Build the ideal set of rows from the candidate.
+      const allParticipantRows: any[] = [];
+      const allHeroRows: any[] = [];
+      const allStatRows: any[] = [];
+      let sortIdx = existingHeroes.length; // append-after-existing on merge
       for (const row of candidate.rows || []) {
         if (row.side === "us") {
           if (row.matchedPlayerId) {
-            participantRows.push({
+            allParticipantRows.push({
               gameId: game.gameId, rosterId: game.rosterId,
               side: "us", playerId: row.matchedPlayerId, opponentPlayerId: null,
               played: true, importedViaOcrScanId: scan.id,
             });
             if (row.matchedHeroId) {
-              heroRows.push({
+              allHeroRows.push({
                 gameId: game.gameId, rosterId: game.rosterId,
                 side: "us", playerId: row.matchedPlayerId, opponentPlayerId: null,
                 heroId: row.matchedHeroId, roundNumber: null, sortOrder: sortIdx++,
@@ -3785,7 +3879,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               });
             }
             for (const [statFieldId, value] of Object.entries(row.stats || {})) {
-              statRows.push({
+              if (value === "" || value === null || value === undefined) continue;
+              allStatRows.push({
                 gameId: game.gameId,
                 playerId: row.matchedPlayerId,
                 statFieldId,
@@ -3796,13 +3891,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         } else if (row.side === "opponent") {
           if (row.matchedOpponentPlayerId) {
-            participantRows.push({
+            allParticipantRows.push({
               gameId: game.gameId, rosterId: game.rosterId,
               side: "opponent", playerId: null, opponentPlayerId: row.matchedOpponentPlayerId,
               played: true, importedViaOcrScanId: scan.id,
             });
             if (row.matchedHeroId) {
-              heroRows.push({
+              allHeroRows.push({
                 gameId: game.gameId, rosterId: game.rosterId,
                 side: "opponent", playerId: null, opponentPlayerId: row.matchedOpponentPlayerId,
                 heroId: row.matchedHeroId, roundNumber: null, sortOrder: sortIdx++,
@@ -3813,24 +3908,93 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      await storage.replaceMatchParticipants(scan.matchId, participantRows, game.gameId, game.rosterId);
-      await storage.replaceGameHeroes(scan.matchId, heroRows, game.gameId, game.rosterId);
-      await storage.savePlayerGameStats(scan.matchId, statRows, game.gameId, game.rosterId);
+      let participantRows = allParticipantRows;
+      let heroRows = allHeroRows;
+      let statRows = allStatRows;
+      let mergeSkipped = { participants: 0, heroes: 0, stats: 0 };
 
-      // Update score on the game itself if provided.
+      if (overwrite) {
+        // Legacy replace-all: wipe & insert. Caller asked for it explicitly.
+        await storage.replaceMatchParticipants(scan.matchId, participantRows, game.gameId, game.rosterId);
+        await storage.replaceGameHeroes(scan.matchId, heroRows, game.gameId, game.rosterId);
+        await storage.savePlayerGameStats(scan.matchId, statRows, game.gameId, game.rosterId);
+      } else {
+        // MERGE mode — idempotent.
+        // Participants: skip if (side, playerId|opponentPlayerId) already exists.
+        const partKey = (r: any) => `${r.side}::${r.playerId || ""}::${r.opponentPlayerId || ""}`;
+        const existingPartKeys = new Set(existingParts.map(partKey));
+        const mergedParts = participantRows.filter((r) => !existingPartKeys.has(partKey(r)));
+        mergeSkipped.participants = participantRows.length - mergedParts.length;
+
+        // Heroes: skip if a hero already exists for the same (side, player|opp).
+        // This is the explicit "do not duplicate heroes; preserve existing" rule.
+        const heroOwnerKey = (r: any) => `${r.side}::${r.playerId || ""}::${r.opponentPlayerId || ""}`;
+        const existingHeroOwnerKeys = new Set(
+          existingHeroes.map((h: any) => `${h.side}::${h.playerId || ""}::${h.opponentPlayerId || ""}`),
+        );
+        const mergedHeroes = heroRows.filter((r) => !existingHeroOwnerKeys.has(heroOwnerKey(r)));
+        mergeSkipped.heroes = heroRows.length - mergedHeroes.length;
+
+        // Stats: skip if (playerId, statFieldId) already has a value.
+        const statKey = (r: any) => `${r.playerId}::${r.statFieldId}`;
+        const existingStatKeys = new Set(existingStats.map(statKey));
+        const mergedStats = statRows.filter((r) => !existingStatKeys.has(statKey(r)));
+        mergeSkipped.stats = statRows.length - mergedStats.length;
+
+        // Append-only inserts. We use the existing storage methods by passing
+        // the union (existing kept-rows + new merged-rows) into the replace
+        // helpers, so referential bookkeeping (teamId/gameId/rosterId) stays
+        // consistent without leaking a new code path.
+        const keptParts = existingParts.map((p: any) => ({
+          gameId: p.gameId, rosterId: p.rosterId, side: p.side,
+          playerId: p.playerId, opponentPlayerId: p.opponentPlayerId,
+          played: p.played, importedViaOcrScanId: p.importedViaOcrScanId,
+        }));
+        const keptHeroes = existingHeroes.map((h: any) => ({
+          gameId: h.gameId, rosterId: h.rosterId, side: h.side,
+          playerId: h.playerId, opponentPlayerId: h.opponentPlayerId,
+          heroId: h.heroId, roundNumber: h.roundNumber, sortOrder: h.sortOrder,
+          importedViaOcrScanId: h.importedViaOcrScanId,
+        }));
+        const keptStats = existingStats.map((s: any) => ({
+          gameId: s.gameId, playerId: s.playerId, statFieldId: s.statFieldId,
+          value: s.value, importedViaOcrScanId: s.importedViaOcrScanId,
+        }));
+
+        await storage.replaceMatchParticipants(scan.matchId, [...keptParts, ...mergedParts], game.gameId, game.rosterId);
+        await storage.replaceGameHeroes(scan.matchId, [...keptHeroes, ...mergedHeroes], game.gameId, game.rosterId);
+        await storage.savePlayerGameStats(scan.matchId, [...keptStats, ...mergedStats], game.gameId, game.rosterId);
+
+        participantRows = mergedParts;
+        heroRows = mergedHeroes;
+        statRows = mergedStats;
+      }
+
+      // Update score on the game itself if provided AND not already set
+      // (or the caller asked to overwrite).
       if (typeof candidate.ourScore === "number" || typeof candidate.opponentScore === "number") {
-        await db.update(games).set({
-          ourScore: typeof candidate.ourScore === "number" ? candidate.ourScore : (game as any).ourScore,
-          opponentScore: typeof candidate.opponentScore === "number" ? candidate.opponentScore : (game as any).opponentScore,
-        } as any).where(and(eq(games.id, scan.matchId), eq(games.teamId, teamId)));
+        const curOur = (game as any).ourScore;
+        const curOpp = (game as any).opponentScore;
+        const shouldWriteScores = overwrite || (curOur == null && curOpp == null);
+        if (shouldWriteScores) {
+          await db.update(games).set({
+            ourScore: typeof candidate.ourScore === "number" ? candidate.ourScore : curOur,
+            opponentScore: typeof candidate.opponentScore === "number" ? candidate.opponentScore : curOpp,
+          } as any).where(and(eq(games.id, scan.matchId), eq(games.teamId, teamId)));
+        }
       }
 
       const updated = await storage.updateOcrScan(scan.id, { status: "confirmed" } as any);
-      res.json({ ok: true, scan: updated, counts: {
+      res.json({ ok: true, mode: overwrite ? "overwrite" : "merge", scan: updated, counts: {
         participants: participantRows.length,
         heroes: heroRows.length,
         stats: statRows.length,
-      } });
+      }, skipped: mergeSkipped });
+      } finally {
+        // Always release the advisory lock — even on error — so the next
+        // confirm for this match can proceed.
+        await db.execute(sql`SELECT pg_advisory_unlock(hashtext(${lockKey}))`).catch(() => {});
+      }
     } catch (error: any) {
       console.error("Error in POST /api/ocr-scans/:id/confirm:", error);
       res.status(500).json({ error: error.message || "Internal server error" });

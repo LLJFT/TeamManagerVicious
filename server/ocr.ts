@@ -185,6 +185,17 @@ export function parseScoreboardText(rawText: string, inputs: OcrInputs): OcrPars
       continue;
     }
 
+    // Per-row confidence: average of name + hero match scores. A row whose
+    // player and hero were both fuzzy-matched scores ~1.0; an unmatched row
+    // (header noise that survived the filter) scores low and gets badged in
+    // the review UI so coaches know to look harder.
+    let nameScore = 0;
+    if (matchedPlayerId) nameScore = fuzzyMatch(nameToken, inputs.players, 0.6).score;
+    else if (matchedOpponentPlayerId) nameScore = fuzzyMatch(nameToken, inputs.opponentPlayers as any, 0.6).score;
+    const heroScore = matchedHeroId && rawHero ? fuzzyMatch(rawHero, inputs.heroes, 0.65).score : 0;
+    const denom = (matchedPlayerId || matchedOpponentPlayerId ? 1 : 0) + (matchedHeroId ? 1 : 0);
+    const confidence = denom === 0 ? 0 : Number(((nameScore + heroScore) / denom).toFixed(2));
+
     rows.push({
       rawName: nameToken,
       matchedPlayerId,
@@ -193,6 +204,7 @@ export function parseScoreboardText(rawText: string, inputs: OcrInputs): OcrPars
       matchedHeroId,
       side: matchedPlayerId ? "us" : matchedOpponentPlayerId ? "opponent" : "us",
       stats,
+      confidence,
     });
   }
 
@@ -244,4 +256,96 @@ export async function runOcr(buffer: Buffer): Promise<{ text: string; words: any
     console.error("[ocr] Tesseract failed:", err?.message || err);
     return { text: "", words: [] };
   }
+}
+
+export interface ScoreboardSignal {
+  isScoreboard: boolean;
+  confidence: number; // 0..1
+  reason: string;
+  signals: {
+    wordCount: number;
+    numericTokens: number;
+    hasScorePattern: boolean;
+    matchedPlayers: number;
+    matchedOpponents: number;
+    matchedHeroes: number;
+    matchedMap: boolean;
+    matchedSide: boolean;
+    rowCount: number;
+  };
+}
+
+/**
+ * Decide whether the OCR output looks like a scoreboard at all. We require
+ * a minimum amount of textual signal AND at least one strong domain anchor
+ * (matched player IGN, matched hero, matched map/side, or a score pattern).
+ * Logos, posters, plain UI screenshots and random photos fail this gate
+ * because they yield few words and zero domain matches. The result is also
+ * stored on the scan so the review UI can surface "low confidence" warnings.
+ */
+export function evaluateScoreboardSignal(
+  rawText: string,
+  parsed: OcrParsedCandidate,
+  inputs: OcrInputs,
+): ScoreboardSignal {
+  const text = rawText || "";
+  const tokens = text.split(/\s+/).filter(Boolean);
+  const wordCount = tokens.length;
+  const numericTokens = tokens.filter((t) => /^-?\d+$/.test(t)).length;
+  const hasScorePattern = typeof parsed.ourScore === "number" && typeof parsed.opponentScore === "number";
+  const matchedPlayers = parsed.rows.filter((r) => r.matchedPlayerId).length;
+  const matchedOpponents = parsed.rows.filter((r) => r.matchedOpponentPlayerId).length;
+  const matchedHeroes = parsed.rows.filter((r) => r.matchedHeroId).length;
+  const matchedMap = !!parsed.matchedMapId;
+  const matchedSide = !!parsed.matchedSideId;
+  const rowCount = parsed.rows.length;
+
+  const signals = {
+    wordCount, numericTokens, hasScorePattern,
+    matchedPlayers, matchedOpponents, matchedHeroes,
+    matchedMap, matchedSide, rowCount,
+  };
+
+  // Hard rejects. These are the patterns we see for non-scoreboard images:
+  // empty OCR (logo / opaque image), almost no text (posters), no numbers
+  // at all (text-only graphics).
+  if (wordCount < 8) {
+    return { isScoreboard: false, confidence: 0, reason: "ocr_too_little_text", signals };
+  }
+  if (numericTokens < 4) {
+    return { isScoreboard: false, confidence: 0.1, reason: "ocr_no_numeric_grid", signals };
+  }
+
+  // Domain anchors. We weight them so a single matched IGN + a few numbers
+  // is not enough on its own — we want either a score pattern, or two
+  // independent domain hits, before we accept.
+  const anchorScore =
+    (hasScorePattern ? 1.0 : 0) +
+    (matchedPlayers >= 2 ? 0.8 : matchedPlayers === 1 ? 0.3 : 0) +
+    (matchedOpponents >= 2 ? 0.5 : matchedOpponents === 1 ? 0.2 : 0) +
+    (matchedHeroes >= 2 ? 0.7 : matchedHeroes === 1 ? 0.3 : 0) +
+    (matchedMap ? 0.4 : 0) +
+    (matchedSide ? 0.2 : 0) +
+    (rowCount >= 3 ? 0.4 : rowCount >= 2 ? 0.2 : 0);
+
+  // Density boost: scoreboards are number-heavy.
+  const numericDensity = wordCount > 0 ? numericTokens / wordCount : 0;
+  const densityBoost = Math.min(0.4, numericDensity * 0.8);
+
+  const confidence = Math.min(1, Number((anchorScore * 0.55 + densityBoost).toFixed(2)));
+
+  // Threshold: we require BOTH some confidence AND at least one anchor that
+  // is unmistakably scoreboard-shaped (score, ≥2 players matched, ≥2 heroes
+  // matched, or matched map name).
+  const hasStrongAnchor =
+    hasScorePattern || matchedPlayers >= 2 || matchedHeroes >= 2 || matchedMap;
+  if (!hasStrongAnchor || confidence < 0.45) {
+    return {
+      isScoreboard: false,
+      confidence,
+      reason: !hasStrongAnchor ? "no_scoreboard_anchors" : "low_confidence",
+      signals,
+    };
+  }
+  return { isScoreboard: true, confidence, reason: "ok", signals };
 }

@@ -904,6 +904,13 @@ export interface OcrPlayerRow {
   confidence?: number;
 }
 
+export interface OcrScoreboardValidation {
+  isScoreboard: boolean;
+  confidence: number;
+  reason: string;
+  signals?: Record<string, number | boolean>;
+}
+
 export interface OcrParsedCandidate {
   ourScore?: number | null;
   opponentScore?: number | null;
@@ -913,7 +920,36 @@ export interface OcrParsedCandidate {
   matchedSideId?: string | null;
   rows: OcrPlayerRow[];
   notes?: string;
+  validation?: OcrScoreboardValidation;
 }
+
+export const ocrPlayerRowSchema = z.object({
+  rawName: z.string(),
+  matchedPlayerId: z.string().nullable().optional(),
+  matchedOpponentPlayerId: z.string().nullable().optional(),
+  rawHero: z.string().nullable().optional(),
+  matchedHeroId: z.string().nullable().optional(),
+  side: z.enum(["us", "opponent"]),
+  stats: z.record(z.string(), z.union([z.string(), z.number()])).default({}),
+  confidence: z.number().min(0).max(1).optional(),
+});
+
+export const ocrParsedCandidateSchema = z.object({
+  ourScore: z.number().int().nullable().optional(),
+  opponentScore: z.number().int().nullable().optional(),
+  rawMap: z.string().nullable().optional(),
+  matchedMapId: z.string().nullable().optional(),
+  rawSide: z.string().nullable().optional(),
+  matchedSideId: z.string().nullable().optional(),
+  rows: z.array(ocrPlayerRowSchema).default([]),
+  notes: z.string().optional(),
+  validation: z.object({
+    isScoreboard: z.boolean(),
+    confidence: z.number().min(0).max(1),
+    reason: z.string(),
+    signals: z.record(z.string(), z.union([z.number(), z.boolean()])).optional(),
+  }).optional(),
+});
 
 export const mediaFolders = pgTable("media_folders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

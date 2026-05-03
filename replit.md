@@ -32,3 +32,9 @@ The backend uses Node.js 20 with PostgreSQL 16.
 -   **Shadcn UI**: Frontend component library.
 -   **multer**: For file uploads.
 -   **emoji-picker-react**: For emoji support.
+## OCR Scoreboard Ingestion (hardened May 2026)
+- Upload pipeline at `POST /api/games/:matchId/ocr-scans` enforces three gates before any persistence: (1) extension allowlist (jpg/jpeg/png/webp/bmp) via multer fileFilter, (2) magic-byte check via `hasValidMagicBytes`, (3) post-OCR `evaluateScoreboardSignal()` heuristic in `server/ocr.ts` — requires enough words/numerics AND a strong scoreboard anchor (score pattern, ≥2 matched players, ≥2 heroes, or matched map) at confidence ≥0.45. Rejected uploads return 422 with structured `{error,reason,confidence,signals,message}` and do NOT persist any scan or upload to object storage.
+- `POST /api/ocr-scans/:id/confirm` now defaults to **merge** mode: only inserts heroes/participants/stats whose `(side, player, …)` tuple isn't already present, preserving existing rows; re-confirming the same scan or re-uploading the same match is idempotent. Pass `{overwrite:true}` for legacy wipe-and-replace. Game scores are written only when missing OR `overwrite=true`. Response shape: `{ok, mode, scan, counts, skipped}`.
+- `PATCH /api/ocr-scans/:id` zod-validates the `editedCandidate` payload via `ocrParsedCandidateSchema` from `shared/schema.ts`.
+- `DELETE /api/ocr-scans/:id` marks a scan as `discarded` (image kept for audit) — surfaced as a "Discard scan" button in `client/src/pages/OcrScanReview.tsx`.
+- Review UI shows a per-row OCR + confidence badge (High/Med/Low based on fuzzy-match avg), a scan-level scoreboard-validation badge, a low-confidence banner when any row is below 50%, and an explicit "Replace existing" toggle that switches the confirm button to a destructive-styled "Replace & import".

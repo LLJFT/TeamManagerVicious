@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, CheckCircle2, AlertTriangle, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, AlertTriangle, Save, Trash2, Sparkles, ShieldCheck, ShieldAlert, XCircle } from "lucide-react";
 import type {
   ScoreboardOcrScan, OcrParsedCandidate, OcrPlayerRow,
   Player, OpponentPlayer, Hero, StatField, Map as MapType, Side, Game,
@@ -60,6 +60,7 @@ export default function OcrScanReview() {
   });
 
   const [draft, setDraft] = useState<OcrParsedCandidate | null>(null);
+  const [overwriteMode, setOverwriteMode] = useState(false);
   useEffect(() => {
     if (scan && !draft) {
       const c = (scan.editedCandidate || scan.parsedCandidate) as OcrParsedCandidate | null;
@@ -90,26 +91,33 @@ export default function OcrScanReview() {
       if (!res.ok) throw Object.assign(new Error(body.error || "Confirm failed"), { status: res.status, body });
       return body;
     },
-    onSuccess: () => {
+    onSuccess: (body: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ocr-scans", scanId] });
       queryClient.invalidateQueries({ queryKey: ["/api/games"] });
       queryClient.invalidateQueries({ queryKey: ["/api/games", matchId, "heroes"] });
       queryClient.invalidateQueries({ queryKey: ["/api/games", matchId, "participation"] });
       queryClient.invalidateQueries({ queryKey: ["/api/games", matchId, "player-stats"] });
-      toast({ title: "Imported", description: "Scoreboard data saved." });
-      // Bounce back to the event the game belongs to.
+      const counts = body?.counts || {};
+      const skipped = body?.skipped || {};
+      const skippedTotal = (skipped.participants || 0) + (skipped.heroes || 0) + (skipped.stats || 0);
+      const desc = body?.mode === "overwrite"
+        ? `Replaced existing data with ${counts.participants ?? 0} players, ${counts.heroes ?? 0} heroes, ${counts.stats ?? 0} stats.`
+        : `Added ${counts.participants ?? 0} players, ${counts.heroes ?? 0} heroes, ${counts.stats ?? 0} stats.${skippedTotal ? ` Preserved ${skippedTotal} existing rows.` : ""}`;
+      toast({ title: "Imported", description: desc });
       if (game?.eventId) navigate(`/${fullSlug}/events/${game.eventId}`);
     },
     onError: (err: any) => {
-      if (err.status === 409) {
-        toast({
-          title: "Existing data found",
-          description: "Match already has stats. Click Overwrite to replace.",
-          variant: "destructive",
-        });
-      } else {
-        toast({ title: "Import failed", description: err.message, variant: "destructive" });
-      }
+      toast({ title: "Import failed", description: err.message, variant: "destructive" });
     },
+  });
+
+  const discardMutation = useMutation({
+    mutationFn: async () => apiRequest("DELETE", `/api/ocr-scans/${scanId}`),
+    onSuccess: () => {
+      toast({ title: "Scan discarded" });
+      if (game?.eventId) navigate(`/${fullSlug}/events/${game.eventId}`);
+    },
+    onError: (e: any) => toast({ title: "Discard failed", description: e.message, variant: "destructive" }),
   });
 
   const updateRow = (idx: number, patch: Partial<OcrPlayerRow>) => {
@@ -135,13 +143,23 @@ export default function OcrScanReview() {
     return <div className="p-6 text-muted-foreground" data-testid="text-loading">Loading scan…</div>;
   }
 
-  const renderRow = (idx: number, row: OcrPlayerRow) => (
+  const renderRow = (idx: number, row: OcrPlayerRow) => {
+    const conf = typeof row.confidence === "number" ? row.confidence : 0;
+    const confTone: "default" | "secondary" | "destructive" =
+      conf >= 0.8 ? "default" : conf >= 0.5 ? "secondary" : "destructive";
+    return (
     <Card key={idx} className="p-3" data-testid={`row-ocr-${idx}`}>
       <div className="flex items-start gap-2 flex-wrap">
         <div className="flex-1 min-w-[200px]">
-          <div className="text-xs text-muted-foreground mb-1">
-            Detected: <span className="font-mono">{row.rawName}</span>
-            {row.rawHero && <> · <span className="font-mono">{row.rawHero}</span></>}
+          <div className="text-xs text-muted-foreground mb-1 flex items-center gap-2 flex-wrap">
+            <Badge variant="outline" className="gap-1" data-testid={`badge-source-${idx}`}>
+              <Sparkles className="h-3 w-3" /> OCR
+            </Badge>
+            <Badge variant={confTone} data-testid={`badge-confidence-${idx}`}>
+              {conf >= 0.8 ? "High" : conf >= 0.5 ? "Medium" : "Low"} · {Math.round(conf * 100)}%
+            </Badge>
+            <span>Detected: <span className="font-mono">{row.rawName}</span></span>
+            {row.rawHero && <span className="font-mono">· {row.rawHero}</span>}
           </div>
           {row.side === "us" ? (
             <Select
@@ -196,12 +214,18 @@ export default function OcrScanReview() {
         </div>
       </div>
     </Card>
-  );
+    );
+  };
+
+  const validation = (draft as any)?.validation as
+    | { isScoreboard: boolean; confidence: number; reason: string }
+    | undefined;
+  const lowConfidenceRows = draft?.rows.filter((r) => (r.confidence ?? 0) < 0.5).length ?? 0;
 
   return (
     <div className="p-4 space-y-4 max-w-7xl mx-auto" data-testid="page-ocr-review">
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {game?.eventId && (
             <Link href={`/${fullSlug}/events/${game.eventId}`}>
               <Button variant="ghost" size="sm" data-testid="button-back">
@@ -213,8 +237,36 @@ export default function OcrScanReview() {
           <Badge variant={scan.status === "confirmed" ? "default" : "secondary"} data-testid="status-scan">
             {scan.status}
           </Badge>
+          {validation && (
+            <Badge
+              variant={validation.confidence >= 0.7 ? "default" : "secondary"}
+              className="gap-1"
+              data-testid="badge-scoreboard-validation"
+            >
+              <ShieldCheck className="h-3 w-3" />
+              Scoreboard {Math.round(validation.confidence * 100)}%
+            </Badge>
+          )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <label className="flex items-center gap-1 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={overwriteMode}
+              onChange={(e) => setOverwriteMode(e.target.checked)}
+              data-testid="checkbox-overwrite-mode"
+            />
+            Replace existing
+          </label>
+          <Button
+            variant="ghost"
+            onClick={() => discardMutation.mutate()}
+            disabled={discardMutation.isPending || scan.status === "confirmed"}
+            data-testid="button-discard-scan"
+          >
+            <XCircle className="h-4 w-4 mr-1" />
+            {discardMutation.isPending ? "Discarding…" : "Discard scan"}
+          </Button>
           <Button
             variant="outline"
             onClick={() => draft && saveMutation.mutate(draft)}
@@ -225,24 +277,36 @@ export default function OcrScanReview() {
             {saveMutation.isPending ? "Saving…" : "Save draft"}
           </Button>
           <Button
-            onClick={() => draft && saveMutation.mutateAsync(draft).then(() => confirmMutation.mutate(false))}
+            onClick={() => draft && saveMutation.mutateAsync(draft).then(() => confirmMutation.mutate(overwriteMode))}
             disabled={confirmMutation.isPending || saveMutation.isPending || scan.status === "confirmed"}
             data-testid="button-confirm-import"
+            variant={overwriteMode ? "destructive" : "default"}
           >
             <CheckCircle2 className="h-4 w-4 mr-1" />
-            {confirmMutation.isPending ? "Importing…" : "Confirm import"}
+            {confirmMutation.isPending
+              ? "Importing…"
+              : overwriteMode
+                ? "Replace & import"
+                : "Confirm import (merge)"}
           </Button>
-          {confirmMutation.isError && (confirmMutation.error as any)?.status === 409 && (
-            <Button
-              variant="destructive"
-              onClick={() => confirmMutation.mutate(true)}
-              data-testid="button-overwrite-import"
-            >
-              <AlertTriangle className="h-4 w-4 mr-1" /> Overwrite
-            </Button>
-          )}
         </div>
       </div>
+
+      {lowConfidenceRows > 0 && (
+        <div
+          className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm"
+          data-testid="banner-low-confidence"
+        >
+          <ShieldAlert className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+          <div>
+            <div className="font-semibold">Some rows have low OCR confidence.</div>
+            <div className="text-xs text-muted-foreground">
+              {lowConfidenceRows} row(s) under 50%. Review the highlighted rows below before confirming — values shown
+              came from OCR; any selection you change is treated as a manual correction.
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
