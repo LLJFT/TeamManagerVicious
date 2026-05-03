@@ -1337,13 +1337,24 @@ export class DbStorage implements IStorage {
   }
 
   async getOpponentPlayersByRoster(gameId: string, rosterId: string): Promise<OpponentPlayer[]> {
+    // Scope is derived from the joined `opponents` table so rows whose
+    // denormalized gameId / rosterId columns were never written (legacy /
+    // pre-migration inserts) still surface as long as their parent opponent
+    // belongs to this game/roster. The per-opponent endpoint already only
+    // filters on opponent_id+team_id, so this keeps the two read paths in
+    // agreement.
     const teamId = getTeamId();
-    return await db.select().from(opponentPlayers)
+    const rows = await db
+      .select({ p: opponentPlayers })
+      .from(opponentPlayers)
+      .innerJoin(opponents, eq(opponents.id, opponentPlayers.opponentId))
       .where(and(
         eq(opponentPlayers.teamId, teamId),
-        eq(opponentPlayers.gameId, gameId),
-        eq(opponentPlayers.rosterId, rosterId),
+        eq(opponents.teamId, teamId),
+        eq(opponents.gameId, gameId),
+        eq(opponents.rosterId, rosterId),
       ));
+    return rows.map(r => r.p);
   }
 
   async getOpponentPlayerGameStatsByRoster(gameId: string, rosterId: string, opponentId?: string): Promise<OpponentPlayerGameStat[]> {
