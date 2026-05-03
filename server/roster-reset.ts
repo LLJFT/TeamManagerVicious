@@ -663,18 +663,44 @@ export async function loadExampleData(rosterId: string, jobId?: string): Promise
     });
   }
 
-  // ---------- Heroes (template-only — needed for hero-ban analytics) ----------
+  // ---------- Heroes (template if present, else 12-hero fallback) ----------
+  // Heroes are required for Hero Insights, hero-ban actions, hero-pick analytics
+  // and Player Leaderboard hero specialization. Always seed at least a usable
+  // pool so analytics pages light up even without a template.
   let heroIds: string[] = [];
+  let heroRolesById: Record<string, string> = {};
+  let heroSeed: Array<{ name: string; role: string; imageUrl: string | null }>;
   if (templateConfig?.heroes?.length) {
     phase(`Seeding ${templateConfig.heroes.length} heroes from template…`);
-    heroIds = await bulkInsertWithIds(
-      "heroes",
-      ["team_id", "game_id", "roster_id", "name", "role", "image_url", "is_active", "sort_order"],
-      templateConfig.heroes.map((h, i) => [
-        teamId, gameId, rosterId, h.name, h.role || "Flex", h.imageUrl ?? null, h.isActive !== false, h.sortOrder ?? i,
-      ]),
-    );
+    heroSeed = templateConfig.heroes.map(h => ({
+      name: h.name, role: h.role || "Flex", imageUrl: h.imageUrl ?? null,
+    }));
+  } else {
+    phase("Seeding 12 fallback heroes (4 Tank / 4 DPS / 4 Support)…");
+    heroSeed = [];
+    (["Tank", "DPS", "Support"] as const).forEach(role => {
+      for (let i = 1; i <= 4; i++) heroSeed.push({ name: `${role} Hero ${i}`, role, imageUrl: null });
+    });
   }
+  heroIds = await bulkInsertWithIds(
+    "heroes",
+    ["team_id", "game_id", "roster_id", "name", "role", "image_url", "is_active", "sort_order"],
+    heroSeed.map((h, i) => [teamId, gameId, rosterId, h.name, h.role, h.imageUrl, true, i]),
+  );
+  heroIds.forEach((id, i) => { heroRolesById[id] = heroSeed[i].role; });
+
+  // ---------- Sides (template if present, else Attack/Defense) ----------
+  // sides was wiped earlier — game_rounds.sideId and game_map_veto_rows.sideId
+  // both reference this table, so we must always reseed.
+  phase("Seeding sides…");
+  const sideSeed = (templateConfig?.sides?.length
+    ? templateConfig.sides.map((s, i) => ({ name: s.name, sortOrder: s.sortOrder ?? String(i) }))
+    : [{ name: "Attack", sortOrder: "0" }, { name: "Defense", sortOrder: "1" }]);
+  const sideIds = await bulkInsertWithIds(
+    "sides",
+    ["team_id", "game_id", "roster_id", "name", "sort_order"],
+    sideSeed.map(s => [teamId, gameId, rosterId, s.name, s.sortOrder]),
+  );
 
   // ---------- Hero-Ban + Map-Veto Systems (one each, roster-scoped) ----------
   phase("Seeding hero-ban + map-veto systems…");
@@ -845,6 +871,67 @@ export async function loadExampleData(rosterId: string, jobId?: string): Promise
     participantRows,
   );
 
+  // ---------- Bulk insert: game_rounds (3 rounds per game with side rotation) ----------
+  // Powers Map Insights → Side WR and Trends → By Side.
+  phase(`Inserting rounds for ${gameIds.length} games…`);
+  const roundRows: any[][] = [];
+  for (let gi = 0; gi < gamePlans.length; gi++) {
+    const matchId = gameIds[gi];
+    for (let rn = 1; rn <= 3; rn++) {
+      // Alternate sides per round so per-side win rates have meaningful spread.
+      const sideId = sideIds[(rn - 1) % sideIds.length];
+      roundRows.push([
+        teamId, gameId, rosterId, matchId, rn, sideId,
+        randInt(0, 13), randInt(0, 13),
+      ]);
+    }
+  }
+  await bulkInsertChunked(
+    "game_rounds",
+    ["team_id", "game_id", "roster_id", "match_id", "round_number", "side_id", "team_score", "opponent_score"],
+    roundRows,
+  );
+
+  // ---------- Bulk insert: game_heroes (per-match hero picks for both sides) ----------
+  // Powers Hero Insights pick%, Player Leaderboard hero specialization,
+  // Draft Stats hero tab, and Hero Pool by Player.
+  let heroPicksCount = 0;
+  if (heroIds.length > 0) {
+    phase(`Inserting hero picks for ${gameIds.length} games…`);
+    // Pull a hero per slot; prefer unique within a side, but allow repeats
+    // when the hero pool is smaller than the side size (e.g. template with
+    // <5 heroes) — sampling-with-replacement keeps analytics populated.
+    const pickPool = (size: number): string[] => {
+      if (heroIds.length >= size) {
+        return [...heroIds].sort(() => Math.random() - 0.5).slice(0, size);
+      }
+      const out: string[] = [];
+      for (let i = 0; i < size; i++) out.push(heroIds[Math.floor(Math.random() * heroIds.length)]);
+      return out;
+    };
+    const heroPickRows: any[][] = [];
+    for (let gi = 0; gi < gamePlans.length; gi++) {
+      const matchId = gameIds[gi];
+      const oppIdx = oppSeeds.findIndex((_, idx) => opponentIds[idx] === gamePlans[gi].opponentId);
+      const oppPlayerIds = oppIdx >= 0 ? opponentPlayerIdsByOpp[oppIdx] : [];
+      const usPool = pickPool(players.length);
+      const oppPool = pickPool(Math.max(oppPlayerIds.length, 1));
+      players.forEach((pl, i) => {
+        heroPickRows.push([teamId, gameId, rosterId, matchId, pl.id, null, usPool[i], null, i]);
+        heroPicksCount++;
+      });
+      oppPlayerIds.forEach((oppPid, i) => {
+        heroPickRows.push([teamId, gameId, rosterId, matchId, null, oppPid, oppPool[i], null, i]);
+        heroPicksCount++;
+      });
+    }
+    await bulkInsertChunked(
+      "game_heroes",
+      ["team_id", "game_id", "roster_id", "match_id", "player_id", "opponent_player_id", "hero_id", "round_number", "sort_order"],
+      heroPickRows,
+    );
+  }
+
   // ---------- Bulk insert: player_game_stats (us) ----------
   phase(`Inserting player stats for ${gameIds.length} games…`);
   const statRows: any[][] = [];
@@ -916,7 +1003,11 @@ export async function loadExampleData(rosterId: string, jobId?: string): Promise
       const seq = ["ban", "ban", "pick", "pick", "decider"] as const;
       seq.forEach((act, step) => {
         const m = pool[step];
-        vetoRows.push([teamId, gameId, rosterId, matchId, step + 1, act, step % 2 === 0 ? "a" : "b", m.id, null, null]);
+        // Decider step gets a real side pick so Map Insights side-WR fills
+        // up; ban/pick steps leave side_id NULL (the side is locked in by
+        // the decider, per standard veto convention).
+        const sideId = act === "decider" ? sideIds[step % sideIds.length] : null;
+        vetoRows.push([teamId, gameId, rosterId, matchId, step + 1, act, step % 2 === 0 ? "a" : "b", m.id, sideId, null]);
       });
       mapVetoRowsCount += seq.length;
     }
@@ -939,8 +1030,11 @@ export async function loadExampleData(rosterId: string, jobId?: string): Promise
     opponents: opponentIds.length,
     opponentPlayers: oppPlayerSeeds.length,
     heroes: heroIds.length,
+    heroPicks: heroPicksCount,
     heroBanActions: heroBanActionsCount,
     mapVetoRows: mapVetoRowsCount,
+    sides: sideIds.length,
+    rounds: roundRows.length,
     usedTemplate,
     templateName,
   } as any;

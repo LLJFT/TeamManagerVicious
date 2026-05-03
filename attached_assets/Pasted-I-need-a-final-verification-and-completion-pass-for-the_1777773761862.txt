@@ -1,0 +1,92 @@
+I need a final verification and completion pass for the per-roster Load Example Data system.
+
+The goal is to make the seeded dataset as complete and realistic as possible for ONE roster only.
+
+Important:
+- This is roster-scoped only
+- Do NOT touch any other roster
+- Do NOT turn this into a team-wide or game-wide loader
+- Do NOT break existing real data
+- Keep super_admin safety rules in place
+
+What to do:
+1) Audit the current per-roster example-data output end-to-end.
+2) Verify that it uses the Game Template when one exists.
+3) If a Game Template exists, make sure it is actually applying every available piece of template data that can be used for this roster.
+4) If no template exists, build a rich fallback example dataset for the roster.
+
+I want the final per-roster example dataset to include as much real information as possible, including:
+- roster players
+- roster staff
+- opponents
+- opponent rosters
+- opponent players
+- player names
+- player roles
+- opponent images/logos if supported
+- maps
+- map images if supported
+- modes
+- event types
+- hero data
+- hero bans
+- map bans
+- draft / veto data
+- attendance / participation
+- match participants
+- stat rows
+- opponent player stats
+- hero usage stats
+- any other stat fields that exist in the schema and can be seeded safely
+- enough events and match history to make analytics meaningful
+- a realistic spread of dates and match activity
+
+Template-driven requirements:
+- If the Game Template contains opponents, use them
+- If the Game Template contains opponent rosters, use them
+- If the Game Template contains opponent players, use them
+- If the Game Template contains roles, assign them correctly
+- If the Game Template contains images/URLs, carry them through where supported
+- If the Game Template contains map, mode, or veto structures, seed them too
+- If the Game Template has partial data only, fill the gaps with sensible defaults
+
+Fallback requirements if there is no usable template:
+- Create a complete example roster dataset anyway
+- Create 15 opponents
+- Give each opponent 5 players
+- Give each player a name and role
+- Add full match/event/history/stat coverage so analytics pages have real data to show
+- Include enough diversity to test filters, trends, opponents, maps, heroes, bans, and player stats
+
+Quality requirements:
+- The final dataset should be rich enough that all analytics pages visibly populate
+- It should include enough detail to test:
+  - Draft Stats
+  - Opponent Scouting
+  - Team Leaderboard
+  - Player Leaderboard
+  - Map Insights
+  - Hero Insights
+  - Trends
+- No empty placeholder opponents unless absolutely unavoidable
+- No missing stats where the schema supports them
+- No silent skipping of available template data
+- No accidental omissions caused by partial template application
+
+Verification required:
+- Confirm what data is actually seeded for a single roster
+- Confirm the template is used when available
+- Confirm fallback behavior when no template exists
+- Confirm opponents, rosters, and players are really created
+- Confirm map bans / hero bans / draft data are really present
+- Confirm analytics pages are able to read the seeded data
+- Confirm the dataset is comprehensive enough for a proper live test
+
+After the audit and fix, report clearly:
+1. Whether the roster example data is now complete
+2. Whether the Game Template was fully applied when available
+3. What fallback data is used when no template exists
+4. How many opponents / players / events are created for a single roster
+5. What stats and draft data are now included
+6. Anything still missing because the schema or template does not support it
+7. Whether the output is now suitable for realistic analytics testing
