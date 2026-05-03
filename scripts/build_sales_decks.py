@@ -17,21 +17,21 @@ ASSETS_DIR = "attached_assets"
 _BUILD_TMP = os.path.join(tempfile.gettempdir(), "sales_deck_screenshots")
 os.makedirs(_BUILD_TMP, exist_ok=True)
 
-# ---------- Brand system ----------
-BG_DEEP    = RGBColor(0x0A, 0x0F, 0x1C)   # deepest background
-BG         = RGBColor(0x0F, 0x17, 0x2A)   # base slide bg
-SURFACE    = RGBColor(0x16, 0x21, 0x3A)   # card surface
-SURFACE_2  = RGBColor(0x1E, 0x2C, 0x4A)   # elevated card
-LINE       = RGBColor(0x2A, 0x3A, 0x5C)   # subtle border
-PRIMARY    = RGBColor(0x1F, 0xA8, 0xE0)   # cyan accent
-PRIMARY_DK = RGBColor(0x0E, 0x6E, 0x96)
-ACCENT     = RGBColor(0xF2, 0x6D, 0x55)   # coral
-SUCCESS    = RGBColor(0x22, 0xC5, 0x5E)
-WARN       = RGBColor(0xF5, 0xB7, 0x2E)
-DANGER     = RGBColor(0xEF, 0x55, 0x55)
-TEXT       = RGBColor(0xE7, 0xEC, 0xF5)
-TEXT_MUTED = RGBColor(0x9A, 0xA6, 0xC0)
-TEXT_DIM   = RGBColor(0x6A, 0x78, 0x95)
+# ---------- Brand system (Vicious v1.0) ----------
+BG_DEEP    = RGBColor(0x07, 0x0A, 0x10)   # deepest Onyx
+BG         = RGBColor(0x0E, 0x11, 0x17)   # Onyx base slide bg
+SURFACE    = RGBColor(0x1A, 0x1F, 0x2A)   # Carbon card surface
+SURFACE_2  = RGBColor(0x22, 0x28, 0x35)   # elevated card
+LINE       = RGBColor(0x2A, 0x31, 0x40)   # subtle border
+PRIMARY    = RGBColor(0xE1, 0x1D, 0x2E)   # Vicious Crimson
+PRIMARY_DK = RGBColor(0x99, 0x14, 0x21)
+ACCENT     = RGBColor(0xF5, 0x9E, 0x0B)   # Signal amber (warnings, secondary accent)
+SUCCESS    = RGBColor(0x16, 0xA3, 0x4A)
+WARN       = RGBColor(0xF5, 0x9E, 0x0B)
+DANGER     = RGBColor(0xDC, 0x26, 0x26)
+TEXT       = RGBColor(0xF5, 0xF6, 0xF8)   # Bone
+TEXT_MUTED = RGBColor(0x9C, 0xA3, 0xAF)
+TEXT_DIM   = RGBColor(0x5B, 0x65, 0x73)   # Steel
 WHITE      = RGBColor(0xFF, 0xFF, 0xFF)
 
 FONT = "Inter"
@@ -112,17 +112,43 @@ def add_bullets(slide, x, y, w, h, items, *, size=14, color=TEXT, bullet_color=P
         r2.font.color.rgb = color
     return tb
 
+# ---------- Brand mark ----------
+def draw_v_mark(slide, x_emu, y_emu, w_emu, color=PRIMARY):
+    """Render the Vicious V mark as a closed freeform polygon at (x, y), width w (EMU)."""
+    # Source coords on a 64-unit viewbox (matches brand/logos/vicious-symbol.svg).
+    pts = [(6, 8), (20, 8), (32, 42), (44, 8), (58, 8), (36, 58), (28, 58)]
+    unit = w_emu / 64
+    abs_pts = [(int(x_emu + px * unit), int(y_emu + py * unit)) for px, py in pts]
+    builder = slide.shapes.build_freeform(abs_pts[0][0], abs_pts[0][1], scale=1.0)
+    builder.add_line_segments(abs_pts[1:], close=True)
+    shape = builder.convert_to_shape()
+    shape.shadow.inherit = False
+    _set_fill(shape, color)
+    _no_line(shape)
+    return shape
+
+def draw_wordmark(slide, x, y, w, h, *, size=11, color=TEXT_DIM, align=PP_ALIGN.RIGHT):
+    """Tracked 'VICIOUS' wordmark, used as a watermark or lockup label."""
+    return add_text(slide, x, y, w, h, "V I C I O U S", size=size, bold=True, color=color, align=align)
+
 # ---------- Slide chrome ----------
-def base_slide(prs, *, bg=BG, accent_strip=True):
+def base_slide(prs, *, bg=BG, accent_strip=True, watermark=True):
     blank = prs.slide_layouts[6]
     slide = prs.slides.add_slide(blank)
     # background
     add_rect(slide, 0, 0, SLIDE_W, SLIDE_H, fill=bg)
     # subtle deeper band along top
     add_rect(slide, 0, 0, SLIDE_W, Inches(0.06), fill=PRIMARY)
+    # subtle wordmark watermark in bottom-right of every content slide
+    if watermark:
+        draw_wordmark(slide, Inches(9.0), Inches(7.18), Inches(3.6), Inches(0.22),
+                      size=8, color=TEXT_DIM, align=PP_ALIGN.RIGHT)
+        # tiny V mark next to wordmark
+        draw_v_mark(slide, Inches(8.78).emu, Inches(7.16).emu, Inches(0.18).emu,
+                    color=PRIMARY)
     return slide
 
-def add_footer(slide, page_num, total, label="Roster Intelligence Platform"):
+def add_footer(slide, page_num, total, label="VICIOUS  ·  Esports Team Platform"):
     add_text(slide, Inches(0.5), Inches(7.1), Inches(8), Inches(0.3),
              label, size=9, color=TEXT_DIM)
     add_text(slide, Inches(11.5), Inches(7.1), Inches(1.4), Inches(0.3),
@@ -146,9 +172,15 @@ def add_slide_header(slide, eyebrow, title, subtitle=None):
 
 # ---------- Specialized slides ----------
 def cover_slide(prs, eyebrow, title, subtitle, edition_label):
-    s = base_slide(prs, bg=BG_DEEP)
+    s = base_slide(prs, bg=BG_DEEP, watermark=False)
     # left accent column
     add_rect(s, 0, 0, Inches(0.35), SLIDE_H, fill=PRIMARY)
+    # Vicious lockup (V mark + wordmark) top-left
+    draw_v_mark(s, Inches(1.0).emu, Inches(0.85).emu, Inches(0.7).emu, color=PRIMARY)
+    add_text(s, Inches(1.85), Inches(0.95), Inches(6), Inches(0.55),
+             "VICIOUS", size=26, bold=True, color=WHITE)
+    add_text(s, Inches(1.87), Inches(1.45), Inches(6), Inches(0.3),
+             "ESPORTS  ·  TEAM PLATFORM", size=8, bold=True, color=TEXT_MUTED)
     # decorative diagonal blocks (tactical look)
     add_rect(s, Inches(11.3), Inches(0.7), Inches(1.6), Inches(0.06), fill=PRIMARY)
     add_rect(s, Inches(11.3), Inches(0.86), Inches(0.9), Inches(0.04), fill=ACCENT)
@@ -173,14 +205,19 @@ def cover_slide(prs, eyebrow, title, subtitle, edition_label):
              size=10, color=TEXT_DIM)
 
 def section_divider(prs, number, label, headline):
-    s = base_slide(prs, bg=BG_DEEP)
+    s = base_slide(prs, bg=BG_DEEP, watermark=False)
+    # Big V mark anchoring the section divider
+    draw_v_mark(s, Inches(10.6).emu, Inches(2.2).emu, Inches(2.2).emu, color=PRIMARY)
     add_text(s, Inches(0.7), Inches(2.2), Inches(2), Inches(0.6),
              f"§ {number:02d}", size=22, bold=True, color=PRIMARY)
     add_rect(s, Inches(0.7), Inches(2.95), Inches(0.7), Inches(0.05), fill=ACCENT)
     add_text(s, Inches(0.7), Inches(3.15), Inches(2.4), Inches(0.4),
              label.upper(), size=12, bold=True, color=TEXT_MUTED)
-    add_text(s, Inches(0.7), Inches(3.65), Inches(12), Inches(2.5),
+    add_text(s, Inches(0.7), Inches(3.65), Inches(11), Inches(2.5),
              headline, size=44, bold=True, color=WHITE, line_spacing=1.05)
+    # Footer wordmark
+    draw_wordmark(s, Inches(0.7), Inches(7.1), Inches(4), Inches(0.3),
+                  size=9, color=TEXT_DIM, align=PP_ALIGN.LEFT)
 
 def feature_card(slide, x, y, w, h, icon, title, body):
     add_rect(slide, x, y, w, h, fill=SURFACE, line=LINE)
@@ -234,7 +271,10 @@ def comparison_table(slide, x, y, w, h, headers, rows, highlight_col=2):
                      anchor=MSO_ANCHOR.MIDDLE, line_spacing=1.2)
 
 def cta_slide(prs, eyebrow, headline, subhead, primary_label, secondary_label, footnote):
-    s = base_slide(prs, bg=BG_DEEP)
+    s = base_slide(prs, bg=BG_DEEP, watermark=False)
+    draw_v_mark(s, Inches(11.6).emu, Inches(0.55).emu, Inches(0.7).emu, color=PRIMARY)
+    add_text(s, Inches(0.7), Inches(0.6), Inches(6), Inches(0.35),
+             "VICIOUS", size=14, bold=True, color=TEXT)
     add_eyebrow(s, Inches(0.7), Inches(2.3), eyebrow, color=ACCENT)
     add_text(s, Inches(0.7), Inches(2.75), Inches(12), Inches(2.2),
              headline, size=52, bold=True, color=WHITE, line_spacing=1.05)
@@ -259,8 +299,12 @@ def cta_slide(prs, eyebrow, headline, subhead, primary_label, secondary_label, f
     return s
 
 def closing_slide(prs, headline, line2, contact):
-    s = base_slide(prs, bg=BG_DEEP)
+    s = base_slide(prs, bg=BG_DEEP, watermark=False)
     add_rect(s, 0, 0, Inches(0.35), SLIDE_H, fill=ACCENT)
+    # Closing lockup
+    draw_v_mark(s, Inches(1.0).emu, Inches(0.85).emu, Inches(0.7).emu, color=PRIMARY)
+    add_text(s, Inches(1.85), Inches(0.95), Inches(6), Inches(0.55),
+             "VICIOUS", size=26, bold=True, color=WHITE)
     add_text(s, Inches(1.0), Inches(2.7), Inches(11), Inches(1.6),
              headline, size=64, bold=True, color=WHITE, line_spacing=1.0)
     add_text(s, Inches(1.0), Inches(4.5), Inches(11), Inches(0.6),
@@ -419,7 +463,7 @@ def build_individuals(out_path):
     # 01 Cover
     cover_slide(
         prs,
-        eyebrow="Roster Intelligence  ·  Single Roster Edition",
+        eyebrow="VICIOUS  ·  Single Roster Edition",
         title="Stop guessing.\nStart winning your matches.",
         subtitle="A professional-grade roster, stats and prep workspace —\nbuilt for the player who takes the game seriously.",
         edition_label="Individuals  ·  Single Roster",
@@ -724,7 +768,7 @@ def build_individuals(out_path):
     closing_slide(
         prs,
         headline="Talent wins games.\nData wins seasons.",
-        line2="Roster Intelligence  ·  Single Roster Edition",
+        line2="VICIOUS  ·  Run your roster like a pro.",
         contact="hello@yourdomain.com   ·   yourdomain.com   ·   @yourhandle",
     )
 
@@ -744,7 +788,7 @@ def build_organizations(out_path):
     # 01 Cover
     cover_slide(
         prs,
-        eyebrow="Roster Intelligence  ·  Organization Edition",
+        eyebrow="VICIOUS  ·  Organization Edition",
         title="Run your esports org\nlike a professional team.",
         subtitle="A unified roster, analytics and scouting platform —\nbuilt for organizations, coaches and managers.",
         edition_label="Organizations  ·  Multi-Roster Platform",
@@ -1085,7 +1129,7 @@ def build_organizations(out_path):
     closing_slide(
         prs,
         headline="Built for orgs\nthat play to win.",
-        line2="Roster Intelligence  ·  Organization Edition",
+        line2="VICIOUS  ·  The command center for multi-game esports orgs.",
         contact="hello@yourdomain.com   ·   yourdomain.com   ·   @yourhandle",
     )
 

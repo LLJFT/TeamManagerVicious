@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="1200" height="800">
+  <rect width="1200" height="800" fill="#0E1117"/>
+  <text x="60" y="70" font-family="Inter, sans-serif" font-weight="500" font-size="14" letter-spacing="6" fill="#9CA3AF">BRAND BOARD · v1</text>
+  <text x="60" y="120" font-family="Inter, sans-serif" font-weight="900" font-size="64" letter-spacing="6" fill="#F5F6F8">VICIOUS</text>
+  <text x="60" y="150" font-family="Inter, sans-serif" font-weight="500" font-size="14" letter-spacing="3" fill="#E11D2E">ESPORTS · TEAM PLATFORM</text>
+  <line x1="60" y1="180" x2="1140" y2="180" stroke="#1F2530"/>
+
+  <!-- Logo block -->
+  <g transform="translate(60 220)">
+    <text font-family="Inter,sans-serif" font-size="11" letter-spacing="3" fill="#9CA3AF">LOGO</text>
+    <g transform="translate(0 30)">
+      <path d="M0 0 L24 0 L42 56 L60 0 L84 0 L52 96 L32 96 Z" fill="#E11D2E"/>
+    </g>
+    <g transform="translate(140 50)">
+      <text font-family="Inter,sans-serif" font-weight="900" font-size="40" letter-spacing="5" fill="#F5F6F8">VICIOUS</text>
+    </g>
+  </g>
+
+  <!-- Color palette -->
+  <g transform="translate(60 400)">
+    <text font-family="Inter,sans-serif" font-size="11" letter-spacing="3" fill="#9CA3AF">PALETTE</text>
+    <g transform="translate(0 20)">
+      <rect x="0"   y="0" width="120" height="80" fill="#E11D2E"/>
+      <rect x="130" y="0" width="120" height="80" fill="#0E1117" stroke="#1F2530"/>
+      <rect x="260" y="0" width="120" height="80" fill="#1A1F2A"/>
+      <rect x="390" y="0" width="120" height="80" fill="#5B6573"/>
+      <rect x="520" y="0" width="120" height="80" fill="#F5F6F8"/>
+      <rect x="650" y="0" width="120" height="80" fill="#F59E0B"/>
+      <text x="6"   y="100" font-family="Inter,sans-serif" font-size="10" fill="#9CA3AF">CRIMSON · #E11D2E</text>
+      <text x="136" y="100" font-family="Inter,sans-serif" font-size="10" fill="#9CA3AF">ONYX · #0E1117</text>
+      <text x="266" y="100" font-family="Inter,sans-serif" font-size="10" fill="#9CA3AF">CARBON · #1A1F2A</text>
+      <text x="396" y="100" font-family="Inter,sans-serif" font-size="10" fill="#9CA3AF">STEEL · #5B6573</text>
+      <text x="526" y="100" font-family="Inter,sans-serif" font-size="10" fill="#9CA3AF">BONE · #F5F6F8</text>
+      <text x="656" y="100" font-family="Inter,sans-serif" font-size="10" fill="#9CA3AF">SIGNAL · #F59E0B</text>
+    </g>
+  </g>
+
+  <!-- Type -->
+  <g transform="translate(60 580)">
+    <text font-family="Inter,sans-serif" font-size="11" letter-spacing="3" fill="#9CA3AF">TYPOGRAPHY · INTER</text>
+    <text y="40" font-family="Inter,sans-serif" font-weight="900" font-size="40" fill="#F5F6F8">Lead. Scout. Win.</text>
+    <text y="74" font-family="Inter,sans-serif" font-weight="600" font-size="18" fill="#F5F6F8">A tactical platform for serious esports orgs.</text>
+    <text y="100" font-family="Inter,sans-serif" font-weight="400" font-size="13" fill="#9CA3AF">Body · Inter Regular · 1.5 line height · used for dashboards, decks, and docs.</text>
+  </g>
+
+  <!-- Tagline corner -->
+  <g transform="translate(820 220)">
+    <text font-family="Inter,sans-serif" font-size="11" letter-spacing="3" fill="#9CA3AF">TAGLINE</text>
+    <text y="40" font-family="Inter,sans-serif" font-weight="800" font-size="22" fill="#E11D2E">Run your roster like a pro.</text>
+    <text y="80" font-family="Inter,sans-serif" font-size="11" letter-spacing="3" fill="#9CA3AF">ONE-LINER</text>
+    <text y="105" font-family="Inter,sans-serif" font-weight="500" font-size="13" fill="#F5F6F8">The command center for multi-game</text>
+    <text y="122" font-family="Inter,sans-serif" font-weight="500" font-size="13" fill="#F5F6F8">esports teams — schedule, scout, scale.</text>
+  </g>
+</svg>

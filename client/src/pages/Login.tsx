@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, UserPlus, LogIn, Clock, Check, Lock } from "lucide-react";
+import { UserPlus, LogIn, Clock, Check, Lock } from "lucide-react";
+import { VicLogo } from "@/components/VicLogo";
 import type { SupportedGame, Roster } from "@shared/schema";
 import { GAME_ABBREVIATIONS } from "@shared/schema";
 import { LanguageSelector } from "@/components/LanguageSelector";
@@ -219,8 +220,10 @@ export default function Login() {
       <LangCorner />
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-            <Shield className="h-6 w-6 text-primary" />
+          <div className="mx-auto mb-3 flex flex-col items-center gap-2">
+            <VicLogo size={40} className="text-primary" />
+            <span className="text-2xl font-extrabold tracking-[0.22em] uppercase" data-testid="text-brand-vicious">Vicious</span>
+            <span className="text-[10px] tracking-[0.3em] uppercase text-muted-foreground">Esports · Team Platform</span>
           </div>
           <CardTitle data-testid="text-auth-title">
             {mode === "login" ? t("login.signInTitle") : t("login.registerTitle")}

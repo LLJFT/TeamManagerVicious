@@ -26,6 +26,7 @@ import {
   Layers as LayersIcon,
 } from "lucide-react";
 import { SiDiscord, SiX } from "react-icons/si";
+import { VicLogo } from "@/components/VicLogo";
 import type { Permission, OrgRole } from "@shared/schema";
 import { orgRoleLabels } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
@@ -120,9 +121,9 @@ export function AppSidebar() {
                 onError={() => setLogoError(true)}
               />
             ) : (
-              <Shield className="h-6 w-6 text-primary flex-shrink-0" />
+              <VicLogo size={24} className="text-primary flex-shrink-0" />
             )}
-            <span className="text-lg font-bold truncate">{orgName || "Vicious"}</span>
+            <span className="text-lg font-extrabold tracking-[0.18em] uppercase truncate">{orgName || "Vicious"}</span>
           </div>
         )}
       </SidebarHeader>

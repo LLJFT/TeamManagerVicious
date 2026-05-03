@@ -2,71 +2,71 @@
 @tailwind components;
 @tailwind utilities;
 
-/* LIGHT MODE - Modern, Bright, Energetic Theme */
+/* LIGHT MODE - Vicious Brand: Bone surfaces, Crimson primary, Onyx text */
 :root {
-  --button-outline: rgba(0,0,0, .08);
-  --badge-outline: rgba(0,0,0, .04);
+  --button-outline: rgba(14,17,23, .10);
+  --badge-outline: rgba(14,17,23, .06);
 
   --opaque-button-border-intensity: -6;
 
-  --elevate-1: rgba(0,0,0, .03);
-  --elevate-2: rgba(0,0,0, .06);
+  --elevate-1: rgba(14,17,23, .04);
+  --elevate-2: rgba(14,17,23, .08);
 
-  /* Main backgrounds - clean and bright */
-  --background: 210 40% 98%;
-  --foreground: 222 47% 11%;
+  /* Main backgrounds - Bone */
+  --background: 220 14% 97%;
+  --foreground: 220 24% 9%;
 
-  --border: 214 32% 91%;
+  --border: 220 14% 88%;
 
-  /* Cards - subtle lift from background */
+  /* Cards - clean white above Bone */
   --card: 0 0% 100%;
-  --card-foreground: 222 47% 11%;
-  --card-border: 214 32% 91%;
+  --card-foreground: 220 24% 9%;
+  --card-border: 220 14% 88%;
 
-  /* Sidebar - clean neutral */
-  --sidebar: 210 40% 96%;
-  --sidebar-foreground: 222 47% 11%;
-  --sidebar-border: 214 32% 91%;
-  --sidebar-primary: 199 89% 48%;
+  /* Sidebar - subtle Onyx-tinted neutral */
+  --sidebar: 220 16% 94%;
+  --sidebar-foreground: 220 24% 9%;
+  --sidebar-border: 220 14% 86%;
+  --sidebar-primary: 354 75% 50%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 199 89% 94%;
-  --sidebar-accent-foreground: 199 89% 30%;
-  --sidebar-ring: 199 89% 48%;
+  --sidebar-accent: 354 75% 95%;
+  --sidebar-accent-foreground: 354 75% 35%;
+  --sidebar-ring: 354 75% 50%;
 
   /* Popover */
   --popover: 0 0% 100%;
-  --popover-foreground: 222 47% 11%;
-  --popover-border: 214 32% 88%;
+  --popover-foreground: 220 24% 9%;
+  --popover-border: 220 14% 86%;
 
-  /* Primary - Vibrant Cyan/Teal (energetic, heroic) */
-  --primary: 199 89% 48%;
+  /* Primary - Vicious Crimson */
+  --primary: 354 75% 50%;
   --primary-foreground: 0 0% 100%;
 
-  /* Secondary - Light gray-blue */
-  --secondary: 210 40% 94%;
-  --secondary-foreground: 222 47% 20%;
+  /* Secondary - cool steel-tinted neutral */
+  --secondary: 220 14% 92%;
+  --secondary-foreground: 220 24% 18%;
 
-  /* Muted - Soft gray */
-  --muted: 210 40% 96%;
-  --muted-foreground: 215 16% 47%;
+  /* Muted */
+  --muted: 220 14% 95%;
+  --muted-foreground: 216 12% 40%;
 
-  /* Accent - Warm coral/salmon (exciting, motivational) */
-  --accent: 12 76% 95%;
-  --accent-foreground: 12 76% 35%;
+  /* Accent - Signal amber (held back) */
+  --accent: 38 92% 92%;
+  --accent-foreground: 30 80% 30%;
 
-  /* Destructive - Bright red */
-  --destructive: 0 84% 60%;
+  /* Destructive */
+  --destructive: 0 78% 48%;
   --destructive-foreground: 0 0% 100%;
 
-  --input: 214 32% 91%;
-  --ring: 199 89% 48%;
+  --input: 220 14% 88%;
+  --ring: 354 75% 50%;
 
-  /* Chart colors - Vibrant and varied */
-  --chart-1: 199 89% 48%;
-  --chart-2: 262 83% 58%;
-  --chart-3: 142 71% 45%;
-  --chart-4: 12 76% 61%;
-  --chart-5: 43 96% 56%;
+  /* Chart colors - Crimson first (us), then steel-blue, success, signal, violet */
+  --chart-1: 354 75% 50%;
+  --chart-2: 215 35% 52%;
+  --chart-3: 142 65% 38%;
+  --chart-4: 38 92% 50%;
+  --chart-5: 262 60% 58%;
 
   /* Success/Warning colors */
   --success: 142 71% 45%;
@@ -107,7 +107,7 @@
   --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
 }
 
-/* THEME: Default Dark - Modern blue-gray with cyan accents (DEFAULT) */
+/* THEME: Default Dark - Vicious Brand: Onyx/Carbon surfaces, Crimson primary (DEFAULT) */
 .theme-default-dark {
   --button-outline: rgba(255,255,255, .12);
   --badge-outline: rgba(255,255,255, .08);
@@ -115,50 +115,50 @@
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .08);
 
-  --background: 222 47% 11%;
-  --foreground: 210 40% 98%;
-  --border: 217 33% 20%;
+  --background: 220 24% 7%;
+  --foreground: 220 14% 97%;
+  --border: 220 14% 18%;
 
-  --card: 217 33% 14%;
-  --card-foreground: 210 40% 98%;
-  --card-border: 217 33% 22%;
+  --card: 220 23% 11%;
+  --card-foreground: 220 14% 97%;
+  --card-border: 220 14% 20%;
 
-  --sidebar: 222 47% 9%;
-  --sidebar-foreground: 210 40% 98%;
-  --sidebar-border: 217 33% 18%;
-  --sidebar-primary: 199 89% 48%;
+  --sidebar: 220 26% 5%;
+  --sidebar-foreground: 220 14% 97%;
+  --sidebar-border: 220 14% 16%;
+  --sidebar-primary: 354 75% 52%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 199 89% 18%;
-  --sidebar-accent-foreground: 199 89% 80%;
-  --sidebar-ring: 199 89% 48%;
+  --sidebar-accent: 354 60% 16%;
+  --sidebar-accent-foreground: 354 80% 88%;
+  --sidebar-ring: 354 75% 52%;
 
-  --popover: 217 33% 14%;
-  --popover-foreground: 210 40% 98%;
-  --popover-border: 217 33% 24%;
+  --popover: 220 23% 11%;
+  --popover-foreground: 220 14% 97%;
+  --popover-border: 220 14% 22%;
 
-  --primary: 199 89% 48%;
+  --primary: 354 75% 52%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 217 33% 18%;
-  --secondary-foreground: 210 40% 90%;
+  --secondary: 220 14% 16%;
+  --secondary-foreground: 220 14% 92%;
 
-  --muted: 217 33% 16%;
-  --muted-foreground: 215 20% 65%;
+  --muted: 220 14% 14%;
+  --muted-foreground: 216 12% 65%;
 
-  --accent: 12 76% 25%;
-  --accent-foreground: 12 76% 90%;
+  --accent: 38 70% 18%;
+  --accent-foreground: 38 92% 80%;
 
-  --destructive: 0 84% 60%;
+  --destructive: 0 78% 55%;
   --destructive-foreground: 0 0% 100%;
 
-  --input: 217 33% 22%;
-  --ring: 199 89% 48%;
+  --input: 220 14% 20%;
+  --ring: 354 75% 52%;
 
-  --chart-1: 199 89% 55%;
-  --chart-2: 262 83% 65%;
-  --chart-3: 142 71% 50%;
-  --chart-4: 12 76% 65%;
-  --chart-5: 43 96% 60%;
+  --chart-1: 354 75% 58%;
+  --chart-2: 215 50% 60%;
+  --chart-3: 142 60% 45%;
+  --chart-4: 38 92% 55%;
+  --chart-5: 262 60% 65%;
 
   --success: 142 71% 45%;
   --success-foreground: 0 0% 100%;
@@ -487,7 +487,7 @@
   --destructive-border: hsl(var(--destructive));
 }
 
-/* Legacy dark class for backwards compatibility - maps to default dark */
+/* Legacy dark class for backwards compatibility - maps to Vicious default dark */
 .dark {
   --button-outline: rgba(255,255,255, .12);
   --badge-outline: rgba(255,255,255, .08);
@@ -495,50 +495,50 @@
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .08);
 
-  --background: 222 47% 11%;
-  --foreground: 210 40% 98%;
-  --border: 217 33% 20%;
+  --background: 220 24% 7%;
+  --foreground: 220 14% 97%;
+  --border: 220 14% 18%;
 
-  --card: 217 33% 14%;
-  --card-foreground: 210 40% 98%;
-  --card-border: 217 33% 22%;
+  --card: 220 23% 11%;
+  --card-foreground: 220 14% 97%;
+  --card-border: 220 14% 20%;
 
-  --sidebar: 222 47% 9%;
-  --sidebar-foreground: 210 40% 98%;
-  --sidebar-border: 217 33% 18%;
-  --sidebar-primary: 199 89% 48%;
+  --sidebar: 220 26% 5%;
+  --sidebar-foreground: 220 14% 97%;
+  --sidebar-border: 220 14% 16%;
+  --sidebar-primary: 354 75% 52%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 199 89% 18%;
-  --sidebar-accent-foreground: 199 89% 80%;
-  --sidebar-ring: 199 89% 48%;
+  --sidebar-accent: 354 60% 16%;
+  --sidebar-accent-foreground: 354 80% 88%;
+  --sidebar-ring: 354 75% 52%;
 
-  --popover: 217 33% 14%;
-  --popover-foreground: 210 40% 98%;
-  --popover-border: 217 33% 24%;
+  --popover: 220 23% 11%;
+  --popover-foreground: 220 14% 97%;
+  --popover-border: 220 14% 22%;
 
-  --primary: 199 89% 48%;
+  --primary: 354 75% 52%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 217 33% 18%;
-  --secondary-foreground: 210 40% 90%;
+  --secondary: 220 14% 16%;
+  --secondary-foreground: 220 14% 92%;
 
-  --muted: 217 33% 16%;
-  --muted-foreground: 215 20% 65%;
+  --muted: 220 14% 14%;
+  --muted-foreground: 216 12% 65%;
 
-  --accent: 12 76% 25%;
-  --accent-foreground: 12 76% 90%;
+  --accent: 38 70% 18%;
+  --accent-foreground: 38 92% 80%;
 
-  --destructive: 0 84% 60%;
+  --destructive: 0 78% 55%;
   --destructive-foreground: 0 0% 100%;
 
-  --input: 217 33% 22%;
-  --ring: 199 89% 48%;
+  --input: 220 14% 20%;
+  --ring: 354 75% 52%;
 
-  --chart-1: 199 89% 55%;
-  --chart-2: 262 83% 65%;
-  --chart-3: 142 71% 50%;
-  --chart-4: 12 76% 65%;
-  --chart-5: 43 96% 60%;
+  --chart-1: 354 75% 58%;
+  --chart-2: 215 50% 60%;
+  --chart-3: 142 60% 45%;
+  --chart-4: 38 92% 55%;
+  --chart-5: 262 60% 65%;
 
   --success: 142 71% 45%;
   --success-foreground: 0 0% 100%;

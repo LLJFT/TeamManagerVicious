@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 96" width="480" height="96" role="img" aria-label="Vicious horizontal lockup, dark background">
+  <title>Vicious</title>
+  <rect width="480" height="96" fill="#0E1117"/>
+  <g transform="translate(20 16)">
+    <path d="M0 0 L18 0 L32 40 L46 0 L64 0 L40 64 L24 64 Z" fill="#E11D2E"/>
+  </g>
+  <text x="110" y="62" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-weight="900" font-size="44" letter-spacing="6" fill="#F5F6F8">VICIOUS</text>
+  <text x="112" y="82" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-weight="500" font-size="10" letter-spacing="3" fill="#9CA3AF">ESPORTS · TEAM PLATFORM</text>
+</svg>

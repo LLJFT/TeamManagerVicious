@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Vicious app icon">
+  <title>Vicious</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1A1F2A"/>
+      <stop offset="1" stop-color="#0A0C12"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <path d="M96 112 L184 112 L256 320 L328 112 L416 112 L292 448 L220 448 Z" fill="#E11D2E"/>
+  <path d="M200 112 L224 112 L256 200 L288 112 L312 112 L272 224 L240 224 Z" fill="#FFFFFF" fill-opacity="0.14"/>
+</svg>

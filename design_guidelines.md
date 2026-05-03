@@ -1,27 +1,27 @@
-# Design Guidelines: Marvel Rivals Roster Attendance Manager
+# Design Guidelines: Vicious Esports Multi-Game Management Platform
 
 ## Design Approach
-**Selected Approach:** Modern, Bright, Energetic Design System  
-**Justification:** Creates an exciting, motivational environment for esports team management while maintaining clean UI and clear information hierarchy.
+**Selected Approach:** Vicious Brand Identity System (v1.0) — tactical, premium, restrained.
+**Justification:** A serious operations console for esports orgs needs trust, clarity, and a single sharp brand color — not bright "energetic" SaaS palettes. See `brand/Vicious-Brand-Guidelines.md` for the full system; the rules below are the in-product subset.
 
 **Key Design Principles:**
-- Modern and energetic: Vibrant colors that inspire action
-- Clean and readable: Clear hierarchy with excellent contrast
-- Motivational: Design that energizes team management activities
-- Efficient data entry: Minimize clicks and cognitive load
+- Tactical and operator-grade: dark Onyx surfaces, restrained accent
+- Premium and confident: type-led hierarchy, hairline rules, no decoration
+- One sharp color: Crimson is reserved for primary actions, focus, "us" data
+- Quietly intense: motion confirms actions, never performs
 
 ## Color System
 
 ### Primary Colors
-- **Primary:** Vibrant Cyan/Teal (hsl 199 89% 48%) - Heroic, energetic
-- **Accent:** Warm Coral (hsl 12 76%) - Exciting, motivational
-- **Success:** Emerald Green (hsl 142 71% 45%) - Positive outcomes
-- **Warning:** Amber (hsl 43 96% 56%) - Attention needed
-- **Destructive:** Red (hsl 0 84% 60%) - Negative/danger
+- **Primary (Vicious Crimson):** hsl 354 75% 50% / `#E11D2E` — Brand accent, primary actions, focus rings, "us" series in charts
+- **Signal (amber):** hsl 38 92% 50% / `#F59E0B` — Warnings and soft attention only; never used as primary
+- **Success:** hsl 142 65% 38% / `#16A34A`
+- **Warning:** hsl 38 92% 50% / `#F59E0B`
+- **Destructive:** hsl 0 78% 48% / `#DC2626`
 
 ### Background Colors
-- **Light Mode:** Clean blue-gray tones (hsl 210 40% 98%)
-- **Dark Mode:** Deep blue-gray (hsl 222 47% 11%)
+- **Light Mode:** Bone (hsl 220 14% 97% / `#F5F6F8`) with white cards
+- **Dark Mode (default):** Onyx (hsl 220 24% 7% / `#0E1117`) with Carbon cards (hsl 220 23% 11% / `#1A1F2A`)
 
 ### Status Colors
 - Available: Emerald green
