@@ -66,7 +66,9 @@ export function ObjectUploader({
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({ error: "Upload failed" }));
-          throw new Error(err.error || err.message || "Upload failed");
+          // Prefer the human-readable `message` over the machine `error` code
+          // (e.g. "not_a_scoreboard") so toasts surface the friendly text.
+          throw new Error(err.message || err.error || "Upload failed");
         }
         const data = await res.json();
         completed.push(data);
