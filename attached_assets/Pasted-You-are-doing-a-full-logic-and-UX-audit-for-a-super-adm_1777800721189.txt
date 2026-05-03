@@ -1,0 +1,79 @@
+You are doing a full logic and UX audit for a super-admin esports roster management app called "The Bootcamp".
+
+Go through the entire app and verify that everything is logical, correct, and makes sense end-to-end.
+
+Check the following areas:
+
+1) NAVIGATION AND ROUTING
+- Every link goes to the correct page
+- No broken routes or 404s
+- Back navigation works correctly
+- URL structure is consistent
+
+2) ROSTER FLOW
+- Creating a new roster works completely
+- All tabs inside the roster load without errors
+- All data is correctly scoped to the roster
+- No data leaks between rosters
+
+3) GAME TEMPLATES
+- Templates save and load correctly
+- Applying a template to a roster works
+- Hero Roles are template-scoped only
+- Roster Roles and Hero Roles are separate
+
+4) SUBSCRIPTION AND ACTIVE/INACTIVE
+- Active users see the app normally
+- Inactive users are blocked with the Discord renewal message
+- Countdown displays correctly for roster users and management users
+- Super Admin is never blocked
+
+5) ANALYTICS
+- Draft Stats loads correctly with real data
+- Leaderboard pages load correctly
+- Opponent Scouting works
+- All stats are roster-scoped
+- Empty states show correctly
+
+6) MEDIA LIBRARY
+- Game folders are visible
+- Custom folders work
+- Nested folders work
+- Images and URLs are intact
+
+7) DATASET / SEED
+- New roster creation seeds data correctly
+- Template-based seeding works
+- Default seeding works for games without templates
+
+8) FORMS AND VALIDATION
+- All forms validate inputs correctly
+- Required fields are enforced
+- Error messages are clear and helpful
+- No form submits broken or incomplete data
+
+9) PERMISSIONS AND ACCESS CONTROL
+- Super Admin sees everything
+- Regular users only see what they are assigned to
+- Management users see their assigned rosters
+- No unauthorized access to other rosters or data
+
+10) GENERAL UX
+- Pages load in reasonable time
+- No infinite loading states
+- No console errors on normal usage
+- Empty states are handled with clear messages
+- Tooltips are dismissible and not blocking
+- Discord and Twitter links are visible in sidebar
+- Help/Guide page is accessible from top bar
+
+For every issue found:
+- Describe the problem clearly
+- Say where it is (page, component, endpoint)
+- Fix it if it is straightforward
+- Flag it clearly if it needs more work
+
+After the audit is complete and fixes are applied, give me a detailed report of:
+- Every issue found
+- Which ones were fixed
+- Which ones were flagged for follow-up, and why
