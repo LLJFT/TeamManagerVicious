@@ -9,6 +9,7 @@ import { ShieldCheck, Plus, Trash2, Save, Pencil, X } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { type Permission } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next";
 
 const HOME_PERMISSIONS: { label: string; value: string }[] = [
   { label: "View Dashboard", value: "view_dashboard" },
@@ -81,6 +82,7 @@ interface Role {
 type TabType = "user-roles" | "user-permissions";
 
 export default function RolesPage() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<TabType>("user-roles");
   const [editingRole, setEditingRole] = useState<string | null>(null);
@@ -107,9 +109,9 @@ export default function RolesPage() {
       setNewRoleName("");
       setNewRolePermissions([]);
       setShowCreateForm(false);
-      toast({ title: "Role created" });
+      toast({ title: t("admin.roles.toasts.roleCreated") });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: t("admin.roles.toasts.genericError"), description: e.message, variant: "destructive" }),
   });
 
   const updateRoleMutation = useMutation({
@@ -119,7 +121,7 @@ export default function RolesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/platform-roles"] });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: t("admin.roles.toasts.genericError"), description: e.message, variant: "destructive" }),
   });
 
   const deleteRoleMutation = useMutation({
@@ -128,9 +130,9 @@ export default function RolesPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/platform-roles"] });
-      toast({ title: "Role deleted" });
+      toast({ title: t("admin.roles.toasts.roleDeleted") });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: t("admin.roles.toasts.genericError"), description: e.message, variant: "destructive" }),
   });
 
   const togglePermissionAutoSave = (role: Role, perm: string) => {
@@ -150,7 +152,7 @@ export default function RolesPage() {
   };
 
   if (isLoading) {
-    return <div className="p-6"><p className="text-muted-foreground">Loading roles...</p></div>;
+    return <div className="p-6"><p className="text-muted-foreground">{t("admin.roles.loadingRoles")}</p></div>;
   }
 
   const userRoleTypes = ["Player", "Staff", "Management"];
@@ -159,7 +161,7 @@ export default function RolesPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center gap-2">
         <ShieldCheck className="h-6 w-6" />
-        <h1 className="text-2xl font-bold" data-testid="text-roles-title">Roles & Permissions</h1>
+        <h1 className="text-2xl font-bold" data-testid="text-roles-title">{t("admin.roles.title")}</h1>
       </div>
 
       <div className="flex gap-1 border-b">
@@ -223,17 +225,17 @@ export default function RolesPage() {
           {showCreateForm && (
             <Card>
               <CardHeader className="pb-3 gap-2">
-                <CardTitle className="text-base">Create New Permission Role</CardTitle>
+                <CardTitle className="text-base">{t("admin.roles.createNew")}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <Input
-                  placeholder="Permission role name"
+                  placeholder={t("admin.roles.nameInput")}
                   value={newRoleName}
                   onChange={(e) => setNewRoleName(e.target.value)}
                   data-testid="input-new-role-name"
                 />
                 <div className="space-y-3">
-                  <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Home Permissions</p>
+                  <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">{t("admin.roles.homePermissions")}</p>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {HOME_PERMISSIONS.map(perm => (
                       <label key={perm.value} className="flex items-center gap-2 text-sm cursor-pointer">
@@ -296,8 +298,8 @@ export default function RolesPage() {
                       ) : (
                         <CardTitle className="text-base">{role.name}</CardTitle>
                       )}
-                      {role.isSystem && <Badge variant="secondary" className="text-xs">System</Badge>}
-                      <Badge variant="outline" className="text-xs">Home Permission</Badge>
+                      {role.isSystem && <Badge variant="secondary" className="text-xs">{t("admin.roles.system")}</Badge>}
+                      <Badge variant="outline" className="text-xs">{t("admin.roles.homePermission")}</Badge>
                     </div>
                     <div className="flex items-center gap-1">
                       {editingRole !== role.id && (
@@ -322,7 +324,7 @@ export default function RolesPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-3">
-                    <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Home Permissions</p>
+                    <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">{t("admin.roles.homePermissions")}</p>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                       {HOME_PERMISSIONS.map(perm => (
                         <label key={perm.value} className="flex items-center gap-2 text-sm cursor-pointer">

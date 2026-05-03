@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Plus, Pencil, Trash2, ShieldCheck, Search } from "lucide-react";
 import type { Subscription } from "@shared/schema";
+import { useTranslation } from "react-i18next";
 
 type SubRow = Subscription & {
   username?: string | null;
@@ -86,6 +87,7 @@ const blankForm: FormState = {
 };
 
 export default function SubscriptionsPage() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { toast } = useToast();
   const [search, setSearch] = useState("");
@@ -114,10 +116,10 @@ export default function SubscriptionsPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/subscriptions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/subscriptions/me"] });
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-      toast({ title: "Subscription created" });
+      toast({ title: t("subs.toasts.created") });
       setDialogOpen(false);
     },
-    onError: (e: Error) => toast({ title: "Failed to create", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast({ title: t("subs.toasts.failedCreate"), description: e.message, variant: "destructive" }),
   });
 
   const updateMutation = useMutation({
@@ -129,10 +131,10 @@ export default function SubscriptionsPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/subscriptions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/subscriptions/me"] });
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-      toast({ title: "Subscription updated" });
+      toast({ title: t("subs.toasts.updated") });
       setDialogOpen(false);
     },
-    onError: (e: Error) => toast({ title: "Failed to update", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast({ title: t("subs.toasts.failedUpdate"), description: e.message, variant: "destructive" }),
   });
 
   const deleteMutation = useMutation({
@@ -143,10 +145,10 @@ export default function SubscriptionsPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/subscriptions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/subscriptions/me"] });
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-      toast({ title: "Subscription deleted" });
+      toast({ title: t("subs.toasts.deleted") });
       setDeleteId(null);
     },
-    onError: (e: Error) => toast({ title: "Failed to delete", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast({ title: t("subs.toasts.failedDelete"), description: e.message, variant: "destructive" }),
   });
 
   const openCreate = () => {
@@ -173,15 +175,15 @@ export default function SubscriptionsPage() {
 
   const submit = () => {
     if (!form.userId) {
-      toast({ title: "Select a user", variant: "destructive" });
+      toast({ title: t("subs.toasts.selectUserError"), variant: "destructive" });
       return;
     }
     if (!form.startDate || !form.endDate) {
-      toast({ title: "Start and end dates are required", variant: "destructive" });
+      toast({ title: t("subs.toasts.datesRequired"), variant: "destructive" });
       return;
     }
     if (form.endDate < form.startDate) {
-      toast({ title: "End date must be on or after start date", variant: "destructive" });
+      toast({ title: t("subs.toasts.endAfterStart"), variant: "destructive" });
       return;
     }
     const payload: any = {
@@ -226,7 +228,7 @@ export default function SubscriptionsPage() {
   if (user?.orgRole !== "super_admin") {
     return (
       <div className="p-8 text-center" data-testid="text-no-access">
-        <h2 className="text-xl font-bold mb-2">Access denied</h2>
+        <h2 className="text-xl font-bold mb-2">{t("subs.accessDenied")}</h2>
         <p className="text-muted-foreground">Only super admins can manage subscriptions.</p>
       </div>
     );
@@ -241,7 +243,7 @@ export default function SubscriptionsPage() {
               <ShieldCheck className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold" data-testid="text-page-title">Subscriptions</h1>
+              <h1 className="text-3xl font-bold" data-testid="text-page-title">{t("subs.title")}</h1>
               <p className="text-muted-foreground text-sm">Manage trial and paid plans for every user.</p>
             </div>
           </div>
@@ -254,12 +256,12 @@ export default function SubscriptionsPage() {
         <Card>
           <CardHeader className="pb-3 gap-2">
             <div className="flex items-center justify-between gap-3 flex-wrap">
-              <CardTitle className="text-base">All subscriptions</CardTitle>
+              <CardTitle className="text-base">{t("subs.allSubs")}</CardTitle>
               <div className="flex items-center gap-2 flex-wrap">
                 <div className="relative">
                   <Search className="h-4 w-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <Input
-                    placeholder="Search user or notes…"
+                    placeholder={t("subs.searchPlaceholder")}
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className="pl-8 w-64"
@@ -271,9 +273,9 @@ export default function SubscriptionsPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All statuses</SelectItem>
-                    <SelectItem value="active">Active only</SelectItem>
-                    <SelectItem value="inactive">Inactive only</SelectItem>
+                    <SelectItem value="all">{t("subs.allStatuses")}</SelectItem>
+                    <SelectItem value="active">{t("subs.activeOnly")}</SelectItem>
+                    <SelectItem value="inactive">{t("subs.inactiveOnly")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -281,7 +283,7 @@ export default function SubscriptionsPage() {
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">Loading…</p>
+              <p className="text-sm text-muted-foreground py-8 text-center">{t("subs.loading")}</p>
             ) : filtered.length === 0 ? (
               <p className="text-sm text-muted-foreground py-8 text-center" data-testid="text-no-subscriptions">
                 {subs.length === 0
@@ -293,14 +295,14 @@ export default function SubscriptionsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>User</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Start</TableHead>
-                      <TableHead>End</TableHead>
-                      <TableHead>Days left</TableHead>
-                      <TableHead>Notes</TableHead>
-                      <TableHead className="w-24 text-right">Actions</TableHead>
+                      <TableHead>{t("subs.user")}</TableHead>
+                      <TableHead>{t("subs.type")}</TableHead>
+                      <TableHead>{t("subs.status")}</TableHead>
+                      <TableHead>{t("subs.start")}</TableHead>
+                      <TableHead>{t("subs.end")}</TableHead>
+                      <TableHead>{t("subs.daysLeft")}</TableHead>
+                      <TableHead>{t("subs.notes")}</TableHead>
+                      <TableHead className="w-24 text-right">{t("subs.actions")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -323,11 +325,11 @@ export default function SubscriptionsPage() {
                           <TableCell className="capitalize">{row.type}</TableCell>
                           <TableCell>
                             <Badge variant={isActive ? "default" : "destructive"} data-testid={`badge-sub-status-${row.id}`}>
-                              {isActive ? "Active" : "Inactive"}
+                              {isActive ? t("subs.active") : t("subs.inactive")}
                             </Badge>
                             {row.manualActiveOverride !== null && (
                               <Badge variant="outline" className="ml-1 text-xs">
-                                {row.manualActiveOverride ? "Forced active" : "Forced inactive"}
+                                {row.manualActiveOverride ? t("subs.forcedActive") : t("subs.forcedInactive")}
                               </Badge>
                             )}
                           </TableCell>
@@ -363,20 +365,20 @@ export default function SubscriptionsPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-md" data-testid="dialog-subscription">
           <DialogHeader>
-            <DialogTitle>{editingId ? "Edit subscription" : "New subscription"}</DialogTitle>
+            <DialogTitle>{editingId ? t("subs.editTitle") : t("subs.newTitle")}</DialogTitle>
             <DialogDescription>
               {editingId ? "Update plan details for this user." : "Create a trial or paid plan for a user."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div>
-              <Label>User</Label>
+              <Label>{t("subs.user")}</Label>
               <Select
                 value={form.userId}
                 onValueChange={(v) => setForm({ ...form, userId: v })}
                 disabled={!!editingId}
               >
-                <SelectTrigger data-testid="select-sub-user"><SelectValue placeholder="Select user…" /></SelectTrigger>
+                <SelectTrigger data-testid="select-sub-user"><SelectValue placeholder={t("subs.selectUser")} /></SelectTrigger>
                 <SelectContent className="max-h-72">
                   {sortedUsers.map(u => (
                     <SelectItem key={u.id} value={u.id}>
@@ -388,30 +390,30 @@ export default function SubscriptionsPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Plan type</Label>
+                <Label>{t("subs.planType")}</Label>
                 <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v as "trial" | "paid" })}>
                   <SelectTrigger data-testid="select-sub-type"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="trial">Trial</SelectItem>
-                    <SelectItem value="paid">Paid</SelectItem>
+                    <SelectItem value="trial">{t("subs.trial")}</SelectItem>
+                    <SelectItem value="paid">{t("subs.paid")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>Override</Label>
+                <Label>{t("subs.override")}</Label>
                 <Select value={form.manualOverride} onValueChange={(v) => setForm({ ...form, manualOverride: v as any })}>
                   <SelectTrigger data-testid="select-sub-override"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="auto">Auto (date based)</SelectItem>
-                    <SelectItem value="force_active">Force active</SelectItem>
-                    <SelectItem value="force_inactive">Force inactive</SelectItem>
+                    <SelectItem value="auto">{t("subs.autoDate")}</SelectItem>
+                    <SelectItem value="force_active">{t("subs.forceActive")}</SelectItem>
+                    <SelectItem value="force_inactive">{t("subs.forceInactive")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Start date</Label>
+                <Label>{t("subs.startDate")}</Label>
                 <Input
                   type="date"
                   value={form.startDate}
@@ -420,7 +422,7 @@ export default function SubscriptionsPage() {
                 />
               </div>
               <div>
-                <Label>End date</Label>
+                <Label>{t("subs.endDate")}</Label>
                 <Input
                   type="date"
                   value={form.endDate}
@@ -430,11 +432,11 @@ export default function SubscriptionsPage() {
               </div>
             </div>
             <div>
-              <Label>Notes (optional)</Label>
+              <Label>{t("subs.notesOptional")}</Label>
               <Textarea
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                placeholder="e.g. invoice #123, paid via Stripe"
+                placeholder={t("subs.notesPlaceholder")}
                 rows={2}
                 data-testid="input-sub-notes"
               />
@@ -447,7 +449,7 @@ export default function SubscriptionsPage() {
               disabled={createMutation.isPending || updateMutation.isPending}
               data-testid="button-sub-save"
             >
-              {editingId ? "Save changes" : "Create"}
+              {editingId ? t("subs.saveChanges") : t("subs.create")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -456,7 +458,7 @@ export default function SubscriptionsPage() {
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent data-testid="dialog-delete-subscription">
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete subscription?</AlertDialogTitle>
+            <AlertDialogTitle>{t("subs.deleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
               This will revoke this user's plan immediately. They will be locked out unless they have super admin bypass.
             </AlertDialogDescription>

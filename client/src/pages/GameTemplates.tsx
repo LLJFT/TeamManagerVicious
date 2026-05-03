@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Plus, Pencil, Trash2, Copy, Layers, ArrowLeft } from "lucide-react";
 import type { GameTemplate, SupportedGame } from "@shared/schema";
+import { useTranslation } from "react-i18next";
 
 const GAME_ABBR: Record<string, string> = {
   overwatch: "OW",
@@ -38,6 +39,7 @@ function makeCode(slug: string): string {
 }
 
 export default function GameTemplatesPage() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { toast } = useToast();
   const [, navigate] = useLocation();
@@ -58,7 +60,7 @@ export default function GameTemplatesPage() {
   const createMutation = useMutation({
     mutationFn: async (vars: { name: string; gameId: string }) => {
       const game = gameById.get(vars.gameId);
-      if (!game) throw new Error("Pick a game");
+      if (!game) throw new Error(t("templates.toasts.pickGame"));
       const code = makeCode(game.slug);
       const res = await apiRequest("POST", "/api/game-templates", {
         name: vars.name,
@@ -70,12 +72,12 @@ export default function GameTemplatesPage() {
     },
     onSuccess: (tpl: GameTemplate) => {
       queryClient.invalidateQueries({ queryKey: ["/api/game-templates"] });
-      toast({ title: "Template created", description: `"${tpl.name}" — code ${tpl.code}` });
+      toast({ title: t("templates.toasts.created"), description: `"${tpl.name}" — ${tpl.code}` });
       setCreateOpen(false);
       navigate(`/game-templates/${tpl.id}`);
     },
     onError: (err: any) => {
-      toast({ title: "Could not create template", description: err.message, variant: "destructive" });
+      toast({ title: t("templates.toasts.couldNotCreate"), description: err.message, variant: "destructive" });
     },
   });
 
@@ -85,10 +87,10 @@ export default function GameTemplatesPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/game-templates"] });
-      toast({ title: "Template deleted" });
+      toast({ title: t("templates.toasts.deleted") });
     },
     onError: (err: any) => {
-      toast({ title: "Delete failed", description: err.message, variant: "destructive" });
+      toast({ title: t("templates.toasts.deleteFailed"), description: err.message, variant: "destructive" });
     },
   });
 
@@ -115,7 +117,7 @@ export default function GameTemplatesPage() {
           </Button>
           <Layers className="h-6 w-6 text-muted-foreground" />
           <div>
-            <h1 className="text-2xl font-bold" data-testid="heading-game-templates">Game Templates</h1>
+            <h1 className="text-2xl font-bold" data-testid="heading-game-templates">{t("templates.title")}</h1>
             <p className="text-sm text-muted-foreground">
               Reusable per-game configuration packs. Apply by code on a roster's Reset tab.
             </p>
@@ -131,7 +133,7 @@ export default function GameTemplatesPage() {
       </div>
 
       {isLoading ? (
-        <div className="text-muted-foreground text-sm" data-testid="text-loading">Loading templates…</div>
+        <div className="text-muted-foreground text-sm" data-testid="text-loading">{t("templates.loading")}</div>
       ) : templates.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground" data-testid="text-empty">
@@ -140,56 +142,56 @@ export default function GameTemplatesPage() {
         </Card>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {templates.map(t => {
-            const game = gameById.get(t.gameId);
+          {templates.map(tpl => {
+            const game = gameById.get(tpl.gameId);
             return (
-              <Card key={t.id} className="hover-elevate" data-testid={`card-template-${t.id}`}>
+              <Card key={tpl.id} className="hover-elevate" data-testid={`card-template-${tpl.id}`}>
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="text-base" data-testid={`text-name-${t.id}`}>{t.name}</CardTitle>
-                    {game && <Badge variant="outline" data-testid={`badge-game-${t.id}`}>{game.name}</Badge>}
+                    <CardTitle className="text-base" data-testid={`text-name-${tpl.id}`}>{tpl.name}</CardTitle>
+                    {game && <Badge variant="outline" data-testid={`badge-game-${tpl.id}`}>{game.name}</Badge>}
                   </div>
                   <CardDescription className="font-mono text-xs flex items-center gap-1">
-                    <span data-testid={`text-code-${t.id}`}>{t.code}</span>
+                    <span data-testid={`text-code-${tpl.id}`}>{tpl.code}</span>
                     <Button
                       size="icon"
                       variant="ghost"
                       className="h-5 w-5"
                       onClick={() => {
-                        navigator.clipboard.writeText(t.code);
-                        toast({ title: "Code copied", description: t.code });
+                        navigator.clipboard.writeText(tpl.code);
+                        toast({ title: t("templates.toasts.codeCopied"), description: tpl.code });
                       }}
-                      data-testid={`button-copy-${t.id}`}
+                      data-testid={`button-copy-${tpl.id}`}
                     >
                       <Copy className="h-3 w-3" />
                     </Button>
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="flex items-center gap-2">
-                  <Button asChild size="sm" variant="default" data-testid={`button-edit-${t.id}`}>
-                    <Link href={`/game-templates/${t.id}`}>
+                  <Button asChild size="sm" variant="default" data-testid={`button-edit-${tpl.id}`}>
+                    <Link href={`/game-templates/${tpl.id}`}>
                       <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
                     </Link>
                   </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button size="sm" variant="outline" data-testid={`button-delete-${t.id}`}>
+                      <Button size="sm" variant="outline" data-testid={`button-delete-${tpl.id}`}>
                         <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Delete this template?</AlertDialogTitle>
+                        <AlertDialogTitle>{t("templates.deleteThis")}</AlertDialogTitle>
                         <AlertDialogDescription>
-                          "{t.name}" ({t.code}) will be removed permanently. Rosters that
+                          "{tpl.name}" ({tpl.code}) will be removed permanently. Rosters that
                           previously had this template applied keep their existing config.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction
-                          onClick={() => deleteMutation.mutate(t.id)}
-                          data-testid={`button-confirm-delete-${t.id}`}
+                          onClick={() => deleteMutation.mutate(tpl.id)}
+                          data-testid={`button-confirm-delete-${tpl.id}`}
                         >
                           Delete
                         </AlertDialogAction>
@@ -215,6 +217,7 @@ function CreateTemplateDialog({
   onCreate: (name: string, gameId: string) => void;
   isPending: boolean;
 }) {
+  const { t } = useTranslation();
   const [name, setName] = useState("");
   const [gameId, setGameId] = useState("");
 
@@ -227,25 +230,25 @@ function CreateTemplateDialog({
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>New Game Template</DialogTitle>
+          <DialogTitle>{t("templates.newTemplate")}</DialogTitle>
           <DialogDescription>Pick the game and a friendly name. You'll edit the config on the next page.</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div>
-            <Label htmlFor="tpl-name">Name</Label>
+            <Label htmlFor="tpl-name">{t("templates.name")}</Label>
             <Input
               id="tpl-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Marvel Rivals — Standard"
+              placeholder={t("templates.namePlaceholder")}
               data-testid="input-template-name"
             />
           </div>
           <div>
-            <Label>Game</Label>
+            <Label>{t("templates.game")}</Label>
             <Select value={gameId} onValueChange={setGameId}>
               <SelectTrigger data-testid="select-template-game">
-                <SelectValue placeholder="Pick a game" />
+                <SelectValue placeholder={t("templates.pickGame")} />
               </SelectTrigger>
               <SelectContent>
                 {games.map(g => (
@@ -264,7 +267,7 @@ function CreateTemplateDialog({
             disabled={!name.trim() || !gameId || isPending}
             data-testid="button-confirm-create"
           >
-            {isPending ? "Creating…" : "Create"}
+            {isPending ? t("templates.creating") : t("templates.create")}
           </Button>
         </DialogFooter>
       </DialogContent>

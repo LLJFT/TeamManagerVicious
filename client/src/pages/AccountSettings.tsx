@@ -10,6 +10,7 @@ import { Link } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 
 interface SessionInfo {
   sid: string;
@@ -20,6 +21,7 @@ interface SessionInfo {
 }
 
 function SessionsCard() {
+  const { t } = useTranslation();
   const { toast } = useToast();
 
   const { data: sessions = [], isLoading } = useQuery<SessionInfo[]>({
@@ -33,9 +35,9 @@ function SessionsCard() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
-      toast({ title: "Session terminated" });
+      toast({ title: t("account.toasts.sessionTerminated") });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: t("account.toasts.error"), description: e.message, variant: "destructive" }),
   });
 
   return (
@@ -43,15 +45,15 @@ function SessionsCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Monitor className="h-5 w-5" />
-          Active Sessions
+          {t("account.sessions")}
         </CardTitle>
-        <CardDescription>Manage your active login sessions</CardDescription>
+        <CardDescription>{t("account.manageSessions")}</CardDescription>
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <p className="text-muted-foreground text-sm">Loading sessions...</p>
+          <p className="text-muted-foreground text-sm">{t("account.loadingSessions")}</p>
         ) : sessions.length === 0 ? (
-          <p className="text-muted-foreground text-sm">No active sessions found</p>
+          <p className="text-muted-foreground text-sm">{t("account.noSessions")}</p>
         ) : (
           <div className="space-y-3">
             {sessions.map((session) => (
@@ -61,7 +63,7 @@ function SessionsCard() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-medium">{session.deviceInfo || "Unknown device"}</span>
-                      {session.isCurrent && <Badge variant="secondary">Current</Badge>}
+                      {session.isCurrent && <Badge variant="secondary">{t("account.current")}</Badge>}
                     </div>
                     {session.expiresAt && (
                       <span className="text-xs text-muted-foreground">Expires: {new Date(session.expiresAt).toLocaleDateString()}</span>
@@ -89,6 +91,7 @@ function SessionsCard() {
 }
 
 export default function AccountSettings() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { toast } = useToast();
   
@@ -104,13 +107,13 @@ export default function AccountSettings() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-      toast({ title: "Settings updated" });
+      toast({ title: t("account.toasts.settingsUpdated") });
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
     },
     onError: (err: Error) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: t("account.toasts.error"), description: err.message, variant: "destructive" });
     },
   });
 
@@ -122,15 +125,15 @@ export default function AccountSettings() {
 
   const handleChangePassword = () => {
     if (!currentPassword || !newPassword) {
-      toast({ title: "Please fill in all password fields", variant: "destructive" });
+      toast({ title: t("account.toasts.fillAllPasswords"), variant: "destructive" });
       return;
     }
     if (newPassword !== confirmPassword) {
-      toast({ title: "New passwords don't match", variant: "destructive" });
+      toast({ title: t("account.toasts.passwordsDontMatch"), variant: "destructive" });
       return;
     }
     if (newPassword.length < 3) {
-      toast({ title: "Password must be at least 3 characters", variant: "destructive" });
+      toast({ title: t("account.toasts.passwordTooShort"), variant: "destructive" });
       return;
     }
     updateSettingsMutation.mutate({ currentPassword, newPassword });
@@ -150,8 +153,8 @@ export default function AccountSettings() {
               <User className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-foreground" data-testid="text-page-title">Account Settings</h1>
-              <p className="text-muted-foreground">Manage your account</p>
+              <h1 className="text-3xl font-bold text-foreground" data-testid="text-page-title">{t("account.title")}</h1>
+              <p className="text-muted-foreground">{t("account.manageAccount")}</p>
             </div>
           </div>
         </div>
@@ -163,7 +166,7 @@ export default function AccountSettings() {
                 <User className="h-5 w-5" />
                 Profile
               </CardTitle>
-              <CardDescription>Your account information</CardDescription>
+              <CardDescription>{t("account.accountInfo")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center gap-4 p-4 rounded-lg bg-muted/30">
@@ -179,7 +182,7 @@ export default function AccountSettings() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="username">Username</Label>
+                <Label htmlFor="username">{t("account.username")}</Label>
                 <Input
                   id="username"
                   value={username}
@@ -205,11 +208,11 @@ export default function AccountSettings() {
                 <Lock className="h-5 w-5" />
                 Change Password
               </CardTitle>
-              <CardDescription>Update your password</CardDescription>
+              <CardDescription>{t("account.updatePassword")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="current-password">Current Password</Label>
+                <Label htmlFor="current-password">{t("account.currentPassword")}</Label>
                 <Input
                   id="current-password"
                   type="password"
@@ -219,7 +222,7 @@ export default function AccountSettings() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="new-password">New Password</Label>
+                <Label htmlFor="new-password">{t("account.newPassword")}</Label>
                 <Input
                   id="new-password"
                   type="password"
@@ -229,7 +232,7 @@ export default function AccountSettings() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="confirm-password">Confirm New Password</Label>
+                <Label htmlFor="confirm-password">{t("account.confirmPassword")}</Label>
                 <Input
                   id="confirm-password"
                   type="password"

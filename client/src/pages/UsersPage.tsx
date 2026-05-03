@@ -9,6 +9,7 @@ import { Users, Plus, Ban, Trash2, LogOut, Pencil, KeyRound, UserPlus, Search, S
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { orgRoleLabels, type OrgRole } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next";
 
 interface PlatformRole {
   id: string;
@@ -30,6 +31,7 @@ interface UserData {
 }
 
 export default function UsersPage() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<"users" | "permissions">("users");
   const [searchQuery, setSearchQuery] = useState("");
@@ -62,9 +64,9 @@ export default function UsersPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/all-users"] });
-      toast({ title: "Permission role updated" });
+      toast({ title: t("admin.users.toasts.permissionUpdated") });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: t("admin.users.toasts.genericError"), description: e.message, variant: "destructive" }),
   });
 
   const filteredUsers = allUsers.filter(u =>
@@ -82,9 +84,9 @@ export default function UsersPage() {
       setNewUsername("");
       setNewPassword("");
       setNewOrgRole("player");
-      toast({ title: "Account created" });
+      toast({ title: t("admin.users.toasts.accountCreated") });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: t("admin.users.toasts.genericError"), description: e.message, variant: "destructive" }),
   });
 
   const banMutation = useMutation({
@@ -93,9 +95,9 @@ export default function UsersPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/all-users"] });
-      toast({ title: "User status updated" });
+      toast({ title: t("admin.users.toasts.statusUpdated") });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: t("admin.users.toasts.genericError"), description: e.message, variant: "destructive" }),
   });
 
   const deleteMutation = useMutation({
@@ -104,9 +106,9 @@ export default function UsersPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/all-users"] });
-      toast({ title: "User deleted" });
+      toast({ title: t("admin.users.toasts.userDeleted") });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: t("admin.users.toasts.genericError"), description: e.message, variant: "destructive" }),
   });
 
   const forceLogoutMutation = useMutation({
@@ -114,9 +116,9 @@ export default function UsersPage() {
       await apiRequest("PUT", `/api/users/${id}/force-logout`);
     },
     onSuccess: () => {
-      toast({ title: "User logged out" });
+      toast({ title: t("admin.users.toasts.userLoggedOut") });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: t("admin.users.toasts.genericError"), description: e.message, variant: "destructive" }),
   });
 
   const renameMutation = useMutation({
@@ -127,9 +129,9 @@ export default function UsersPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/all-users"] });
       setRenamingUser(null);
       setNewName("");
-      toast({ title: "Username updated" });
+      toast({ title: t("admin.users.toasts.usernameUpdated") });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: t("admin.users.toasts.genericError"), description: e.message, variant: "destructive" }),
   });
 
   const changeRoleMutation = useMutation({
@@ -138,9 +140,9 @@ export default function UsersPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/all-users"] });
-      toast({ title: "Role updated" });
+      toast({ title: t("admin.users.toasts.roleUpdated") });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: t("admin.users.toasts.genericError"), description: e.message, variant: "destructive" }),
   });
 
   const resetPasswordMutation = useMutation({
@@ -151,9 +153,9 @@ export default function UsersPage() {
     onSuccess: (data, id) => {
       setTempPasswordUser(id);
       setTempPassword(data.tempPassword);
-      toast({ title: "Password reset" });
+      toast({ title: t("admin.users.toasts.passwordReset") });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: t("admin.users.toasts.genericError"), description: e.message, variant: "destructive" }),
   });
 
   const approveAllAssignmentsMutation = useMutation({
@@ -162,20 +164,20 @@ export default function UsersPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/all-users"] });
-      toast({ title: "User approved" });
+      toast({ title: t("admin.users.toasts.userApproved") });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: t("admin.users.toasts.genericError"), description: e.message, variant: "destructive" }),
   });
 
   const getStatusBadge = (status: string) => {
-    if (status === "active") return <Badge variant="default" className="text-xs">Active</Badge>;
-    if (status === "banned") return <Badge variant="destructive" className="text-xs">Banned</Badge>;
-    if (status === "pending") return <Badge variant="secondary" className="text-xs">Pending</Badge>;
+    if (status === "active") return <Badge variant="default" className="text-xs">{t("admin.users.statusActive")}</Badge>;
+    if (status === "banned") return <Badge variant="destructive" className="text-xs">{t("admin.users.statusBanned")}</Badge>;
+    if (status === "pending") return <Badge variant="secondary" className="text-xs">{t("admin.users.statusPending")}</Badge>;
     return <Badge variant="outline" className="text-xs">{status}</Badge>;
   };
 
   if (isLoading) {
-    return <div className="p-6"><p className="text-muted-foreground">Loading users...</p></div>;
+    return <div className="p-6"><p className="text-muted-foreground">{t("admin.users.loadingUsers")}</p></div>;
   }
 
   const permFilteredUsers = allUsers.filter(u =>
@@ -188,7 +190,7 @@ export default function UsersPage() {
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-2">
           <Users className="h-6 w-6" />
-          <h1 className="text-2xl font-bold" data-testid="text-users-title">User Management</h1>
+          <h1 className="text-2xl font-bold" data-testid="text-users-title">{t("admin.users.title")}</h1>
           <Badge variant="secondary">{allUsers.length}</Badge>
         </div>
         {activeTab === "users" && (
@@ -223,7 +225,7 @@ export default function UsersPage() {
           <div className="flex items-center gap-2">
             <Search className="h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search users..."
+              placeholder={t("admin.users.searchUsers")}
               value={permSearchQuery}
               onChange={(e) => setPermSearchQuery(e.target.value)}
               className="max-w-sm"
@@ -250,7 +252,7 @@ export default function UsersPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <label className="text-xs text-muted-foreground whitespace-nowrap">Permission Role:</label>
+                      <label className="text-xs text-muted-foreground whitespace-nowrap">{t("admin.users.permissionRole")}</label>
                       <Select
                         value={user.role?.id || "none"}
                         onValueChange={(value) => {
@@ -259,10 +261,10 @@ export default function UsersPage() {
                         }}
                       >
                         <SelectTrigger className="w-[180px]" data-testid={`select-perm-role-${user.id}`}>
-                          <SelectValue placeholder="No role assigned" />
+                          <SelectValue placeholder={t("admin.users.noRoleAssigned")} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none" disabled>No role assigned</SelectItem>
+                          <SelectItem value="none" disabled>{t("admin.users.noRoleAssigned")}</SelectItem>
                           {platformRoles.map(r => (
                             <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
                           ))}
@@ -280,31 +282,31 @@ export default function UsersPage() {
       {activeTab === "users" && showCreateForm && (
         <Card>
           <CardHeader className="pb-3 gap-2">
-            <CardTitle className="text-base">Create New Account</CardTitle>
+            <CardTitle className="text-base">{t("admin.users.createNewAccount")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Input
-                placeholder="Username"
+                placeholder={t("admin.users.username")}
                 value={newUsername}
                 onChange={(e) => setNewUsername(e.target.value)}
                 data-testid="input-new-username"
               />
               <Input
                 type="password"
-                placeholder="Password"
+                placeholder={t("admin.users.password")}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 data-testid="input-new-password"
               />
               <Select value={newOrgRole} onValueChange={setNewOrgRole}>
                 <SelectTrigger data-testid="select-new-role">
-                  <SelectValue placeholder="Role" />
+                  <SelectValue placeholder={t("admin.users.role")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="player">Player</SelectItem>
-                  <SelectItem value="coach_analyst">Staff</SelectItem>
-                  <SelectItem value="org_admin">Management</SelectItem>
+                  <SelectItem value="player">{t("admin.users.rolePlayer")}</SelectItem>
+                  <SelectItem value="coach_analyst">{t("admin.users.roleStaff")}</SelectItem>
+                  <SelectItem value="org_admin">{t("admin.users.roleManagement")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -327,7 +329,7 @@ export default function UsersPage() {
           <CardContent className="pt-4">
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div>
-                <p className="text-sm font-medium">Temporary Password Generated</p>
+                <p className="text-sm font-medium">{t("admin.users.tempPassword")}</p>
                 <p className="text-lg font-mono font-bold" data-testid="text-temp-password">{tempPassword}</p>
                 <p className="text-xs text-muted-foreground">Share this with the user. They should change it after logging in.</p>
               </div>
@@ -343,7 +345,7 @@ export default function UsersPage() {
       <div className="flex items-center gap-2">
         <Search className="h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Search users..."
+          placeholder={t("admin.users.searchUsers")}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="max-w-sm"
@@ -410,12 +412,12 @@ export default function UsersPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {user.orgRole === "org_admin" ? (
-                        <SelectItem value="org_admin">Management</SelectItem>
+                        <SelectItem value="org_admin">{t("admin.users.roleManagement")}</SelectItem>
                       ) : (
                         <>
-                          <SelectItem value="player">Player</SelectItem>
-                          <SelectItem value="coach_analyst">Staff</SelectItem>
-                          <SelectItem value="org_admin">Management</SelectItem>
+                          <SelectItem value="player">{t("admin.users.rolePlayer")}</SelectItem>
+                          <SelectItem value="coach_analyst">{t("admin.users.roleStaff")}</SelectItem>
+                          <SelectItem value="org_admin">{t("admin.users.roleManagement")}</SelectItem>
                         </>
                       )}
                     </SelectContent>
@@ -423,7 +425,7 @@ export default function UsersPage() {
                   <Button
                     size="icon"
                     variant="ghost"
-                    title="Rename"
+                    title={t("admin.users.rename")}
                     onClick={() => { setRenamingUser(user.id); setNewName(user.username); }}
                     data-testid={`button-rename-${user.id}`}
                   >
@@ -432,7 +434,7 @@ export default function UsersPage() {
                   <Button
                     size="icon"
                     variant="ghost"
-                    title="Reset Password"
+                    title={t("admin.users.resetPassword")}
                     onClick={() => resetPasswordMutation.mutate(user.id)}
                     data-testid={`button-reset-pw-${user.id}`}
                   >
@@ -441,7 +443,7 @@ export default function UsersPage() {
                   <Button
                     size="icon"
                     variant="ghost"
-                    title="Force Logout"
+                    title={t("admin.users.forceLogout")}
                     onClick={() => forceLogoutMutation.mutate(user.id)}
                     data-testid={`button-force-logout-${user.id}`}
                   >
@@ -450,7 +452,7 @@ export default function UsersPage() {
                   <Button
                     size="icon"
                     variant="ghost"
-                    title={user.status === "banned" ? "Unban" : "Ban"}
+                    title={user.status === "banned" ? t("admin.users.unban") : t("admin.users.ban")}
                     onClick={() => banMutation.mutate({ id: user.id, action: user.status === "banned" ? "unban" : "ban" })}
                     data-testid={`button-ban-${user.id}`}
                   >
@@ -459,7 +461,7 @@ export default function UsersPage() {
                   <Button
                     size="icon"
                     variant="ghost"
-                    title="Delete"
+                    title={t("admin.users.delete")}
                     onClick={() => { if (confirm(`Delete user "${user.username}"? This cannot be undone.`)) deleteMutation.mutate(user.id); }}
                     data-testid={`button-delete-${user.id}`}
                   >

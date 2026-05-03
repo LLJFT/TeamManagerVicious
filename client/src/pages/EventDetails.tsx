@@ -27,8 +27,10 @@ import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { OpponentAvatar } from "@/components/OpponentAvatar";
+import { useTranslation } from "react-i18next";
 
 export default function EventDetails() {
+  const { t } = useTranslation();
   const [, params] = useRoute("/:gameSlug/:rosterCode/events/:id");
   const eventId = params?.id || "";
   const { fullSlug, currentGame, currentRoster, gameId, rosterId } = useGame();
@@ -243,7 +245,7 @@ export default function EventDetails() {
       queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "attendance"] });
     },
     onError: (error: any) => {
-      setToastMessage(error.message || "Failed to update attendance");
+      setToastMessage(error.message || t("events.toasts.attendanceFailed"));
       setToastType("error");
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
@@ -290,13 +292,13 @@ export default function EventDetails() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
       queryClient.invalidateQueries({ queryKey: ["/api/events", eventId] });
-      setToastMessage("Event details saved");
+      setToastMessage(t("events.toasts.eventDetailsSaved"));
       setToastType("success");
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
     },
     onError: (error: any) => {
-      setToastMessage(error.message || "Failed to save details");
+      setToastMessage(error.message || t("events.toasts.saveDetailsFailed"));
       setToastType("error");
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
@@ -346,7 +348,7 @@ export default function EventDetails() {
           queryClient.invalidateQueries({ queryKey: ["/api/games", newGame.id, "heroes"] });
         } catch (err: any) {
           console.error("Failed to save match stats for new game:", err);
-          setToastMessage(err.message || "Game saved but match stats failed");
+          setToastMessage(err.message || t("events.toasts.statsFailed"));
           setToastType("error");
           setShowToast(true);
           setTimeout(() => setShowToast(false), 3000);
@@ -366,7 +368,7 @@ export default function EventDetails() {
           queryClient.invalidateQueries({ queryKey: ["/api/games", newGame.id, "hero-ban-actions"] });
         } catch (err: any) {
           console.error("Failed to save hero ban actions for new game:", err);
-          setToastMessage(err?.message || "Game saved but hero ban sequence failed");
+          setToastMessage(err?.message || t("events.toasts.heroBanFailed"));
           setToastType("error");
           setShowToast(true);
           setTimeout(() => setShowToast(false), 3000);
@@ -387,7 +389,7 @@ export default function EventDetails() {
           queryClient.invalidateQueries({ queryKey: ["/api/games", newGame.id, "map-veto-rows"] });
         } catch (err: any) {
           console.error("Failed to save map veto rows for new game:", err);
-          setToastMessage(err?.message || "Game saved but map veto rows failed");
+          setToastMessage(err?.message || t("events.toasts.mapVetoFailed"));
           setToastType("error");
           setShowToast(true);
           setTimeout(() => setShowToast(false), 3000);
@@ -395,13 +397,13 @@ export default function EventDetails() {
       }
       queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "games"] });
       resetNewGameForm();
-      setToastMessage("Game added successfully");
+      setToastMessage(t("events.toasts.gameAdded"));
       setToastType("success");
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
     },
     onError: (error: any) => {
-      setToastMessage(error.message || "Failed to add game");
+      setToastMessage(error.message || t("events.toasts.addGameFailed"));
       setToastType("error");
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
@@ -416,13 +418,13 @@ export default function EventDetails() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "games"] });
       setEditingGame(null);
-      setToastMessage("Game updated successfully");
+      setToastMessage(t("events.toasts.gameUpdated"));
       setToastType("success");
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
     },
     onError: (error: any) => {
-      setToastMessage(error.message || "Failed to update game");
+      setToastMessage(error.message || t("events.toasts.updateGameFailed"));
       setToastType("error");
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
@@ -436,13 +438,13 @@ export default function EventDetails() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "games"] });
-      setToastMessage("Game deleted successfully");
+      setToastMessage(t("events.toasts.gameDeleted"));
       setToastType("success");
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
     },
     onError: (error: any) => {
-      setToastMessage(error.message || "Failed to delete game");
+      setToastMessage(error.message || t("events.toasts.deleteGameFailed"));
       setToastType("error");
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
@@ -453,7 +455,7 @@ export default function EventDetails() {
     const imagePath = result.url || result.path;
     setNewGameImageUrl(imagePath);
     setUploadingImageForNewGame(false);
-    setToastMessage("Image uploaded successfully");
+    setToastMessage(t("events.toasts.imageUploaded"));
     setToastType("success");
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3000);
@@ -465,7 +467,7 @@ export default function EventDetails() {
       setEditingGame({ ...editingGame, imageUrl: imagePath });
     }
     setUploadingImageForGame(null);
-    setToastMessage("Image uploaded successfully");
+    setToastMessage(t("events.toasts.imageUploaded"));
     setToastType("success");
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3000);
@@ -484,7 +486,7 @@ export default function EventDetails() {
 
   const handleAddGame = () => {
     if (!newGameCode.trim() || !newGameScore.trim()) {
-      setToastMessage("Please enter game code and score");
+      setToastMessage(t("events.toasts.enterCodeAndScore"));
       setToastType("error");
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
@@ -574,13 +576,13 @@ export default function EventDetails() {
       queryClient.invalidateQueries({ queryKey: ["/api/games", vars.gameId, "rounds"] });
       setEditingRoundsForGame(null);
       setEditingRounds([]);
-      setToastMessage("Rounds saved");
+      setToastMessage(t("events.toasts.roundsSaved"));
       setToastType("success");
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
     },
     onError: (error: any) => {
-      setToastMessage(error.message || "Failed to save rounds");
+      setToastMessage(error.message || t("events.toasts.saveRoundsFailed"));
       setToastType("error");
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
@@ -664,7 +666,7 @@ export default function EventDetails() {
                   onValueChange={(v) => updateRound(idx, { sideId: v === "none" ? null : v })}
                 >
                   <SelectTrigger className="h-9 text-sm" data-testid={`select-round-side-${keyPrefix}-${idx}`}>
-                    <SelectValue placeholder="Side" />
+                    <SelectValue placeholder={t("events.side")} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">— No side —</SelectItem>
@@ -681,7 +683,7 @@ export default function EventDetails() {
                   max={maxAllowed}
                   value={round.teamScore}
                   onChange={(e) => updateRound(idx, { teamScore: clamp(parseInt(e.target.value || "0", 10)) })}
-                  placeholder="Us"
+                  placeholder={t("events.us")}
                   className="h-9 text-sm text-center"
                   data-testid={`input-round-team-${keyPrefix}-${idx}`}
                 />
@@ -693,13 +695,13 @@ export default function EventDetails() {
                   max={maxAllowed}
                   value={round.opponentScore}
                   onChange={(e) => updateRound(idx, { opponentScore: clamp(parseInt(e.target.value || "0", 10)) })}
-                  placeholder="Them"
+                  placeholder={t("events.them")}
                   className="h-9 text-sm text-center"
                   data-testid={`input-round-opp-${keyPrefix}-${idx}`}
                 />
               </div>
               <div className="col-span-1 flex justify-end">
-                <Hint label="Remove this round">
+                <Hint label={t("events.removeRound")}>
                   <Button
                     type="button"
                     variant="ghost"
@@ -707,7 +709,7 @@ export default function EventDetails() {
                     onClick={() => removeRound(idx)}
                     disabled={rounds.length <= 1}
                     data-testid={`button-remove-round-${keyPrefix}-${idx}`}
-                    aria-label="Remove round"
+                    aria-label={t("events.removeRound")}
                   >
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
@@ -751,7 +753,7 @@ export default function EventDetails() {
   };
 
   const handleDeleteGame = (id: string) => {
-    if (confirm("Are you sure you want to delete this game?")) {
+    if (confirm(t("events.confirmDeleteGame"))) {
       deleteGameMutation.mutate(id);
     }
   };
@@ -772,15 +774,15 @@ export default function EventDetails() {
   const getResultText = (result: string) => {
     switch (result) {
       case "win":
-        return "Win";
+        return t("events.result_win");
       case "loss":
-        return "Loss";
+        return t("events.result_loss");
       case "draw":
-        return "Draw";
+        return t("events.result_draw");
       case "pending":
-        return "Pending";
+        return t("events.result_pending");
       default:
-        return "Not Set";
+        return t("events.result_notSet");
     }
   };
 
@@ -791,7 +793,7 @@ export default function EventDetails() {
   if (!event) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4">
-        <div className="text-lg">Event not found</div>
+        <div className="text-lg">{t("events.notFound")}</div>
         <Link href={`/${fullSlug}/events`}>
           <Button data-testid="button-back-to-events">
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -824,7 +826,7 @@ export default function EventDetails() {
             <div className="max-w-4xl max-h-full">
               <img
                 src={viewingImage}
-                alt="Scoreboard"
+                alt={t("events.scoreboardAlt")}
                 className="max-w-full max-h-[90vh] object-contain rounded-lg"
               />
             </div>
@@ -881,7 +883,7 @@ export default function EventDetails() {
                 const derived = deriveResultFromGames(games);
                 if (!derived) return null;
                 return (
-                  <Badge variant={getResultBadgeVariant(derived)} data-testid="badge-derived-result" title="Derived from game results">
+                  <Badge variant={getResultBadgeVariant(derived)} data-testid="badge-derived-result" title={t("events.derivedFromGameResults")}>
                     {getResultText(derived)} (from games)
                   </Badge>
                 );
@@ -906,7 +908,7 @@ export default function EventDetails() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-2">Event Result</label>
+              <label className="block text-sm font-medium mb-2">{t("events.eventResult")}</label>
               <div className="flex items-center gap-2">
                 <Select
                   value={event.result || "pending"}
@@ -914,13 +916,13 @@ export default function EventDetails() {
                   onValueChange={() => { /* auto-computed from games */ }}
                 >
                   <SelectTrigger data-testid="select-result" className="flex-1">
-                    <SelectValue placeholder="Pending" />
+                    <SelectValue placeholder={t("events.pending")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="win">Win</SelectItem>
-                    <SelectItem value="loss">Loss</SelectItem>
-                    <SelectItem value="draw">Draw</SelectItem>
+                    <SelectItem value="pending">{t("events.result_pending")}</SelectItem>
+                    <SelectItem value="win">{t("events.result_win")}</SelectItem>
+                    <SelectItem value="loss">{t("events.result_loss")}</SelectItem>
+                    <SelectItem value="draw">{t("events.result_draw")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -930,30 +932,30 @@ export default function EventDetails() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Opponent</label>
+              <label className="block text-sm font-medium mb-2">{t("events.opponent")}</label>
               {linkedOpponent ? (
                 <div className="flex items-center gap-2 p-2 border border-border rounded-md bg-muted/40" data-testid="display-linked-opponent">
-                  <Badge variant="secondary">Linked</Badge>
+                  <Badge variant="secondary">{t("events.linked")}</Badge>
                   <span className="text-sm font-medium">{linkedOpponent.name}</span>
                   {linkedOpponent.shortName && <span className="text-xs text-muted-foreground">[{linkedOpponent.shortName}]</span>}
-                  <span className="text-xs text-muted-foreground ml-2">Edit on the event itself to change.</span>
+                  <span className="text-xs text-muted-foreground ml-2">{t("events.editOnEvent")}</span>
                 </div>
               ) : (
                 <Input
                   value={opponentName}
                   onChange={(e) => setOpponentName(e.target.value)}
-                  placeholder="Enter opponent team name (or link an opponent via Edit Event)"
+                  placeholder={t("events.opponentPlaceholder")}
                   data-testid="input-opponent"
                 />
               )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Notes</label>
+              <label className="block text-sm font-medium mb-2">{t("events.notes")}</label>
               <Textarea
                 value={eventNotes}
                 onChange={(e) => setEventNotes(e.target.value)}
-                placeholder="Enter any notes about the event..."
+                placeholder={t("events.notesPlaceholder")}
                 rows={4}
                 data-testid="textarea-notes"
               />
@@ -965,23 +967,23 @@ export default function EventDetails() {
               data-testid="button-save-details"
             >
               <Save className="h-4 w-4 mr-2" />
-              {updateEventMutation.isPending ? "Saving..." : "Save Details"}
+              {updateEventMutation.isPending ? t("events.saving") : t("events.saveDetails")}
             </Button>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Games & Scoreboard</CardTitle>
+            <CardTitle>{t("events.gamesScoreboard")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-4">
-              <label className="block text-sm font-medium">Add New Game</label>
+              <label className="block text-sm font-medium">{t("events.addNewGame")}</label>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <Input
                   value={newGameCode}
                   onChange={(e) => setNewGameCode(e.target.value)}
-                  placeholder="Game Code"
+                  placeholder={t("events.gameCode")}
                   data-testid="input-new-game-code"
                 />
                 {(singleMode || newGameModeId) ? (() => {
@@ -1012,7 +1014,7 @@ export default function EventDetails() {
                         max={maxAllowed}
                         value={us}
                         onChange={(e) => setScorePair(parseInt(e.target.value || "0", 10), them)}
-                        placeholder="Us"
+                        placeholder={t("events.us")}
                         className="text-center"
                         data-testid="input-new-game-score-us"
                       />
@@ -1023,7 +1025,7 @@ export default function EventDetails() {
                         max={maxAllowed}
                         value={them}
                         onChange={(e) => setScorePair(us, parseInt(e.target.value || "0", 10))}
-                        placeholder="Them"
+                        placeholder={t("events.them")}
                         className="text-center"
                         data-testid="input-new-game-score-them"
                       />
@@ -1039,12 +1041,12 @@ export default function EventDetails() {
                   onValueChange={(v) => setNewGameResult(v as "win" | "loss" | "draw")}
                 >
                   <SelectTrigger data-testid="select-new-game-result">
-                    <SelectValue placeholder="Game Result" />
+                    <SelectValue placeholder={t("events.gameResult")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="win">Win</SelectItem>
-                    <SelectItem value="loss">Loss</SelectItem>
-                    <SelectItem value="draw">Draw</SelectItem>
+                    <SelectItem value="win">{t("events.result_win")}</SelectItem>
+                    <SelectItem value="loss">{t("events.result_loss")}</SelectItem>
+                    <SelectItem value="draw">{t("events.result_draw")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1058,7 +1060,7 @@ export default function EventDetails() {
                     }}
                   >
                     <SelectTrigger data-testid="select-new-game-mode">
-                      <SelectValue placeholder="Game Mode" />
+                      <SelectValue placeholder={t("events.gameMode")} />
                     </SelectTrigger>
                     <SelectContent>
                       {gameModes.map((mode) => (
@@ -1073,7 +1075,7 @@ export default function EventDetails() {
                   disabled={!singleMode && !newGameModeId}
                 >
                   <SelectTrigger data-testid="select-new-game-map">
-                    <SelectValue placeholder={singleMode || newGameModeId ? "Select Map" : "Select Mode First"} />
+                    <SelectValue placeholder={singleMode || newGameModeId ? t("events.selectMap") : t("events.selectModeFirst")} />
                   </SelectTrigger>
                   <SelectContent>
                     {getMapsByMode(newGameModeId).map((map) => (
@@ -1084,7 +1086,7 @@ export default function EventDetails() {
                 <Input
                   value={newGameLink}
                   onChange={(e) => setNewGameLink(e.target.value)}
-                  placeholder="VOD Link (optional)"
+                  placeholder={t("events.vodLinkOptional")}
                   data-testid="input-new-game-link"
                 />
               </div>
@@ -1097,7 +1099,7 @@ export default function EventDetails() {
                   buttonSize="sm"
                 >
                   <Upload className="h-4 w-4 mr-2" />
-                  {newGameImageUrl ? "Change Image" : "Upload Scoreboard"}
+                  {newGameImageUrl ? t("events.changeImage") : t("events.uploadScoreboard")}
                 </ObjectUploader>
                 {newGameImageUrl && (
                   <Badge variant="outline" className="text-xs">
@@ -1154,7 +1156,7 @@ export default function EventDetails() {
                 >
                   {newGameHbsExpanded ? <ChevronUp className="h-4 w-4 text-primary" /> : <ChevronDown className="h-4 w-4 text-primary" />}
                   <Ban className="h-4 w-4 text-primary" />
-                  <h3 className="text-sm font-semibold">Hero Ban — New Game</h3>
+                  <h3 className="text-sm font-semibold">{t("events.heroBan")}</h3>
                   <span className="text-xs text-muted-foreground ml-1">(optional, configure before adding)</span>
                 </button>
                 {newGameHbsExpanded && (
@@ -1187,7 +1189,7 @@ export default function EventDetails() {
                 >
                   {newGameMvsExpanded ? <ChevronUp className="h-4 w-4 text-primary" /> : <ChevronDown className="h-4 w-4 text-primary" />}
                   <MapIcon className="h-4 w-4 text-primary" />
-                  <h3 className="text-sm font-semibold">Map Veto — New Game</h3>
+                  <h3 className="text-sm font-semibold">{t("events.mapVeto")}</h3>
                   <span className="text-xs text-muted-foreground ml-1">(optional, configure before adding)</span>
                 </button>
                 {newGameMvsExpanded && (
@@ -1223,12 +1225,12 @@ export default function EventDetails() {
                 <table className="w-full">
                   <thead className="bg-muted">
                     <tr>
-                      <th className="p-3 text-left font-semibold">Game</th>
-                      <th className="p-3 text-left font-semibold">Mode / Map</th>
-                      <th className="p-3 text-left font-semibold">Score</th>
-                      <th className="p-3 text-left font-semibold">Result</th>
-                      <th className="p-3 text-left font-semibold">Media</th>
-                      <th className="p-3 text-left font-semibold">Actions</th>
+                      <th className="p-3 text-left font-semibold">{t("events.game")}</th>
+                      <th className="p-3 text-left font-semibold">{t("events.modeMap")}</th>
+                      <th className="p-3 text-left font-semibold">{t("events.score")}</th>
+                      <th className="p-3 text-left font-semibold">{t("events.gameResult")}</th>
+                      <th className="p-3 text-left font-semibold">{t("events.media")}</th>
+                      <th className="p-3 text-left font-semibold">{t("events.actions")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1258,7 +1260,7 @@ export default function EventDetails() {
                                   onValueChange={(v) => setEditingGame({ ...editingGame, gameModeId: v, mapId: null })}
                                 >
                                   <SelectTrigger className="w-32">
-                                    <SelectValue placeholder="Mode" />
+                                    <SelectValue placeholder={t("events.mode")} />
                                   </SelectTrigger>
                                   <SelectContent>
                                     {gameModes.map((mode) => (
@@ -1273,7 +1275,7 @@ export default function EventDetails() {
                                 disabled={!singleMode && !editingGame.gameModeId}
                               >
                                 <SelectTrigger className="w-32">
-                                  <SelectValue placeholder="Map" />
+                                  <SelectValue placeholder={t("events.map")} />
                                 </SelectTrigger>
                                 <SelectContent>
                                   {getMapsByMode(editingGame.gameModeId || "").map((map) => (
@@ -1323,12 +1325,12 @@ export default function EventDetails() {
                               onValueChange={(v) => setEditingGame({ ...editingGame, result: v })}
                             >
                               <SelectTrigger className="w-24">
-                                <SelectValue placeholder="Result" />
+                                <SelectValue placeholder={t("events.gameResult")} />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="win">Win</SelectItem>
-                                <SelectItem value="loss">Loss</SelectItem>
-                                <SelectItem value="draw">Draw</SelectItem>
+                                <SelectItem value="win">{t("events.result_win")}</SelectItem>
+                                <SelectItem value="loss">{t("events.result_loss")}</SelectItem>
+                                <SelectItem value="draw">{t("events.result_draw")}</SelectItem>
                               </SelectContent>
                             </Select>
                           ) : (
@@ -1342,7 +1344,7 @@ export default function EventDetails() {
                                 <Input
                                   value={editingGame.link || ""}
                                   onChange={(e) => setEditingGame({ ...editingGame, link: e.target.value })}
-                                  placeholder="VOD Link"
+                                  placeholder={t("events.vodLink")}
                                   className="w-32"
                                 />
                                 <div className="flex gap-2 flex-wrap">
@@ -1353,7 +1355,7 @@ export default function EventDetails() {
                                     buttonSize="sm"
                                   >
                                     <Upload className="h-4 w-4 mr-2" />
-                                    {editingGame.imageUrl ? "Change" : "Upload"}
+                                    {editingGame.imageUrl ? t("events.change") : t("events.upload")}
                                   </ObjectUploader>
                                 </div>
                               </div>
@@ -1426,7 +1428,7 @@ export default function EventDetails() {
                                     }
                                   }}
                                   data-testid={`button-rounds-game-${game.id}`}
-                                  title="Rounds"
+                                  title={t("events.rounds")}
                                 >
                                   Rounds
                                 </Button>
@@ -1604,7 +1606,7 @@ export default function EventDetails() {
                               data-testid={`button-save-rounds-${game.id}`}
                             >
                               <Save className="h-4 w-4 mr-2" />
-                              {saveRoundsMutation.isPending ? "Saving..." : "Save Rounds"}
+                              {saveRoundsMutation.isPending ? t("events.saving") : t("events.saveRounds")}
                             </Button>
                           </div>
                         </div>
@@ -1634,7 +1636,7 @@ export default function EventDetails() {
               <div className="space-y-4">
                 {allPlayers.length > 0 && (
                   <div>
-                    <h4 className="text-sm font-medium text-muted-foreground mb-2">Players</h4>
+                    <h4 className="text-sm font-medium text-muted-foreground mb-2">{t("events.players")}</h4>
                     <div className="divide-y divide-border rounded-md border">
                       {allPlayers.map((player) => {
                         const status = getPlayerAttendanceStatus(player.id);
@@ -1681,7 +1683,7 @@ export default function EventDetails() {
                 )}
                 {allStaff.length > 0 && (
                   <div>
-                    <h4 className="text-sm font-medium text-muted-foreground mb-2">Staff</h4>
+                    <h4 className="text-sm font-medium text-muted-foreground mb-2">{t("events.staff")}</h4>
                     <div className="divide-y divide-border rounded-md border">
                       {allStaff.map((member) => {
                         const status = getStaffAttendanceStatus(member.id);
