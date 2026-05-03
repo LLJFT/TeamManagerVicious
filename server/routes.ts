@@ -5640,7 +5640,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/game-assignments/:id/approve", requireAuth, requireOrgRole("org_admin", "game_manager"), async (req, res) => {
+  app.post("/api/game-assignments/:id/approve", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
     try {
       const [updated] = await db.update(userGameAssignments)
         .set({ status: "approved", approvalGameStatus: "approved", approvalOrgStatus: "approved" })
@@ -6344,6 +6344,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teamId = getTeamId();
       const validRoles = ["member", "player", "staff", "coach_analyst", "management", "game_manager", "org_admin"];
       if (!validRoles.includes(orgRole)) return res.status(400).json({ message: "Invalid role" });
+      const rankError = await checkRankGuard(req.session.userId!, id, teamId);
+      if (rankError) return res.status(403).json({ message: rankError });
+      const allRolesArr = await db.select().from(roles).where(eq(roles.teamId, teamId));
+      const [actor] = await db.select().from(users).where(and(eq(users.id, req.session.userId!), eq(users.teamId, teamId)));
+      const actorRank = getUserRank(actor, allRolesArr);
+      const targetOrgRank = ORG_ROLE_RANK[orgRole] || 0;
+      if (targetOrgRank >= actorRank) {
+        return res.status(403).json({ message: "Cannot assign a role equal to or higher than your own" });
+      }
       await db.update(users).set({ orgRole }).where(and(eq(users.id, id), eq(users.teamId, teamId)));
       logActivity(req.session.userId!, "change_org_role", `Changed user role to ${orgRole}`, "team", undefined, getGameId(req), getRosterId(req));
       res.json({ message: "Role updated" });
@@ -6366,17 +6375,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==================== FORGOT PASSWORD REQUESTS ====================
+  const forgotPasswordRateLimit = new Map<string, { count: number; resetAt: number }>();
+  const FORGOT_PASSWORD_MAX = 5;
+  const FORGOT_PASSWORD_WINDOW_MS = 15 * 60 * 1000;
+
   app.post("/api/forgot-password", async (req, res) => {
     try {
+      const ip = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
+      const now = Date.now();
+      const entry = forgotPasswordRateLimit.get(ip);
+      if (entry && now < entry.resetAt) {
+        if (entry.count >= FORGOT_PASSWORD_MAX) {
+          return res.status(429).json({ message: "Too many requests. Please try again later." });
+        }
+        entry.count++;
+      } else {
+        forgotPasswordRateLimit.set(ip, { count: 1, resetAt: now + FORGOT_PASSWORD_WINDOW_MS });
+      }
+
       const { username } = req.body;
       if (!username) return res.status(400).json({ message: "Username is required" });
       const teamId = getTeamId();
       const [user] = await db.select().from(users)
         .where(and(ilike(users.username, username), eq(users.teamId, teamId)))
         .limit(1);
-      if (!user) return res.status(404).json({ message: "Username not found" });
-      await db.execute(sql`INSERT INTO password_reset_requests (team_id, username) VALUES (${teamId}, ${user.username})`);
-      res.json({ message: "Password reset request submitted. An admin will review it." });
+      if (user) {
+        const existingPending = await db.execute(sql`SELECT id FROM password_reset_requests WHERE team_id = ${teamId} AND username = ${user.username} AND status = 'pending' LIMIT 1`);
+        if (!existingPending.rows || existingPending.rows.length === 0) {
+          await db.execute(sql`INSERT INTO password_reset_requests (team_id, username) VALUES (${teamId}, ${user.username})`);
+        }
+      }
+      res.json({ message: "If that username exists, a password reset request has been submitted. An admin will review it." });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }

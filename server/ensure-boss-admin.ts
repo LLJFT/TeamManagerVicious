@@ -1,11 +1,10 @@
 import bcrypt from "bcryptjs";
 import { db } from "./db";
-import { eq, and, ne, sql, isNull } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { users, roles, userGameAssignments, supportedGames } from "@shared/schema";
 import { getTeamId } from "./storage";
 
 const BOSS_USERNAME = "Boss";
-const BOSS_PASSWORD = "TheBootcamp&2!@90A94";
 
 async function findOrCreateManagementRole(teamId: string): Promise<string> {
   const existing = await db.select().from(roles)
@@ -21,77 +20,66 @@ async function findOrCreateManagementRole(teamId: string): Promise<string> {
   return created.id;
 }
 
+/**
+ * One-time bootstrap: creates the Boss super admin account only if it does not
+ * already exist. Subsequent boots are a no-op — credentials and roles set via
+ * the UI or database are never overwritten at runtime.
+ *
+ * Requires BOSS_SUPER_ADMIN_PASSWORD environment variable to be set.
+ * Does NOT demote any other super_admin accounts.
+ */
 export async function ensureBossSuperAdmin(): Promise<void> {
+  const bossPassword = process.env.BOSS_SUPER_ADMIN_PASSWORD;
+
+  if (!bossPassword) {
+    console.log("[ensure-boss] BOSS_SUPER_ADMIN_PASSWORD not set — skipping Boss super admin bootstrap.");
+    return;
+  }
+
   const teamId = getTeamId();
-  console.log(`[ensure-boss] Starting (team=${teamId})...`);
 
-  const managementRoleId = await findOrCreateManagementRole(teamId);
-  const passwordHash = await bcrypt.hash(BOSS_PASSWORD, 10);
-
-  const existingBoss = await db.select().from(users)
-    .where(and(eq(users.teamId, teamId), sql`lower(${users.username}) = ${BOSS_USERNAME.toLowerCase()}`))
+  const existingBoss = await db.select({ id: users.id }).from(users)
+    .where(and(
+      eq(users.teamId, teamId),
+      eq(users.username, BOSS_USERNAME),
+    ))
     .limit(1);
 
-  let bossId: string;
   if (existingBoss.length > 0) {
-    bossId = existingBoss[0].id;
-    await db.update(users).set({
-      username: BOSS_USERNAME,
-      passwordHash,
-      orgRole: "super_admin",
-      status: "active",
-      roleId: managementRoleId,
-    }).where(eq(users.id, bossId));
-    console.log(`[ensure-boss] Updated existing Boss user (${bossId}) — password reset, role=super_admin/Management, status=active`);
-  } else {
-    const [created] = await db.insert(users).values({
-      teamId,
-      username: BOSS_USERNAME,
-      displayName: BOSS_USERNAME,
-      passwordHash,
-      orgRole: "super_admin",
-      status: "active",
-      roleId: managementRoleId,
-    }).returning();
-    bossId = created.id;
-    console.log(`[ensure-boss] Created new Boss user (${bossId}) as super_admin`);
-
-    const allGames = await db.select().from(supportedGames);
-    if (allGames.length > 0) {
-      await db.insert(userGameAssignments).values(
-        allGames.map(g => ({
-          teamId,
-          userId: bossId,
-          gameId: g.id,
-          assignedRole: "super_admin",
-          status: "approved",
-        }))
-      );
-      console.log(`[ensure-boss] Assigned Boss to all ${allGames.length} supported games`);
-    }
+    console.log(`[ensure-boss] Boss account already exists — skipping bootstrap (no credentials or roles overwritten).`);
+    return;
   }
 
-  const demoted = await db.update(users).set({
-    orgRole: "org_admin",
-  }).where(and(
-    eq(users.teamId, teamId),
-    eq(users.orgRole, "super_admin"),
-    ne(users.id, bossId),
-  )).returning({ id: users.id, username: users.username });
+  console.log(`[ensure-boss] Boss account not found — running one-time bootstrap (team=${teamId})...`);
 
-  if (demoted.length > 0) {
-    console.log(`[ensure-boss] Demoted ${demoted.length} other super_admin user(s) to org_admin: ${demoted.map(d => d.username).join(", ")}`);
-  } else {
-    console.log(`[ensure-boss] No other super_admins found — Boss is the sole super_admin.`);
+  const managementRoleId = await findOrCreateManagementRole(teamId);
+  const passwordHash = await bcrypt.hash(bossPassword, 10);
+
+  const [created] = await db.insert(users).values({
+    teamId,
+    username: BOSS_USERNAME,
+    displayName: BOSS_USERNAME,
+    passwordHash,
+    orgRole: "super_admin",
+    status: "active",
+    roleId: managementRoleId,
+  }).returning();
+
+  console.log(`[ensure-boss] Created Boss super admin (id=${created.id}). Change the password immediately after first login.`);
+
+  const allGames = await db.select().from(supportedGames);
+  if (allGames.length > 0) {
+    await db.insert(userGameAssignments).values(
+      allGames.map(g => ({
+        teamId,
+        userId: created.id,
+        gameId: g.id,
+        assignedRole: "super_admin",
+        status: "approved",
+      }))
+    );
+    console.log(`[ensure-boss] Assigned Boss to all ${allGames.length} supported games.`);
   }
 
-  const verifyAll = await db.select({ id: users.id, username: users.username, orgRole: users.orgRole })
-    .from(users)
-    .where(and(eq(users.teamId, teamId), eq(users.orgRole, "super_admin")));
-  console.log(`[ensure-boss] Verification: ${verifyAll.length} super_admin(s) on team — ${verifyAll.map(u => u.username).join(", ")}`);
-  if (verifyAll.length !== 1 || verifyAll[0].username !== BOSS_USERNAME) {
-    console.error(`[ensure-boss] WARNING: expected exactly 1 super_admin (Boss) but found ${verifyAll.length}`);
-  } else {
-    console.log(`[ensure-boss] OK — Boss is the only super_admin.`);
-  }
+  console.log(`[ensure-boss] One-time bootstrap complete.`);
 }
