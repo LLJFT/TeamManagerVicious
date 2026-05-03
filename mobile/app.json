@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Platform Mobile",
+    "slug": "platform-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": false,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.bootcamp.platform"
+    },
+    "android": {
+      "package": "com.bootcamp.platform",
+      "adaptiveIcon": {
+        "backgroundColor": "#0F172A"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "extra": {
+      "apiBaseUrl": "http://localhost:5000"
+    },
+    "plugins": []
+  }
+}
