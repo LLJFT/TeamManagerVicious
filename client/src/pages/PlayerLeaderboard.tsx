@@ -14,8 +14,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Medal, Users, ExternalLink, ChevronRight, Activity, BarChart3, Swords, ArrowLeft, Shield,
-  Map as MapIcon, Layers, UserCircle,
+  Map as MapIcon, Layers, UserCircle, ChevronDown, ChevronUp,
 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Paginator, paginate, DEFAULT_PAGE_SIZE } from "@/components/Paginator";
 import { useGame } from "@/hooks/use-game";
 import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied } from "@/components/AccessDenied";
@@ -166,6 +168,14 @@ export default function PlayerLeaderboard() {
   const [modeFilter, setModeFilter] = useState<string>("__all__");
   const [mapFilter, setMapFilter] = useState<string>("__all__");
   const [roleFilter, setRoleFilter] = useState<string>("__all__");
+  const [attendancePage, setAttendancePage] = useState(1);
+  const [mostPickedPage, setMostPickedPage] = useState(1);
+  type StatCardUi = { expanded: boolean; sort: "avg" | "total"; page: number };
+  const [statCardState, setStatCardState] = useState<Record<string, StatCardUi>>({});
+  const getStatUi = (key: string): StatCardUi =>
+    statCardState[key] ?? { expanded: true, sort: "avg", page: 1 };
+  const updateStatUi = (key: string, patch: Partial<StatCardUi>) =>
+    setStatCardState(prev => ({ ...prev, [key]: { ...getStatUi(key), ...patch } }));
 
   const opponentParam = opponentFilter === "__all__" ? undefined : opponentFilter;
 
@@ -613,16 +623,17 @@ export default function PlayerLeaderboard() {
                   <p className="text-sm text-muted-foreground italic px-1 py-2">No participation recorded yet.</p>
                 ) : (
                   <div className="space-y-1.5">
-                    {attendance.map((row, i) => {
+                    {paginate(attendance, attendancePage).map((row, i) => {
                       const total = row.wins + row.losses + row.draws;
                       const wr = total > 0 ? pct(row.wins, total) : 0;
+                      const rank = (attendancePage - 1) * DEFAULT_PAGE_SIZE + i + 1;
                       return (
                         <div
                           key={row.player.id}
                           className="flex items-center gap-2 px-2 py-1.5 rounded border border-border bg-card"
                           data-testid={`row-attendance-${row.player.id}`}
                         >
-                          <span className="text-xs text-muted-foreground w-5 text-right">{i + 1}.</span>
+                          <span className="text-xs text-muted-foreground w-7 text-right tabular-nums">{rank}.</span>
                           <div className="flex-1 min-w-0"><PlayerChip player={row.player} /></div>
                           <div className="flex items-center gap-2 shrink-0">
                             <Badge variant="secondary" className="text-xs tabular-nums" data-testid={`badge-played-${row.player.id}`}>
@@ -648,6 +659,12 @@ export default function PlayerLeaderboard() {
                         </div>
                       );
                     })}
+                    <Paginator
+                      page={attendancePage}
+                      total={attendance.length}
+                      onPageChange={setAttendancePage}
+                      testId="attendance"
+                    />
                   </div>
                 )}
               </CardContent>
@@ -666,10 +683,6 @@ export default function PlayerLeaderboard() {
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {groupedStatCards.map(group => {
-                  // Merge per-player rows across every stat-field id that
-                  // shares this normalized name. Different game modes define
-                  // their own "Kills" stat field, but in Overall view the
-                  // user wants ONE "Kills" leaderboard, not three.
                   const merged = new Map<string, PlayerStatRow>();
                   for (const fid of group.fieldIds) {
                     const rows = statLeaderboards.get(fid) || [];
@@ -690,51 +703,102 @@ export default function PlayerLeaderboard() {
                       }
                     }
                   }
+                  const ui = getStatUi(group.key);
                   const rows = Array.from(merged.values())
                     .map(r => ({ ...r, avg: r.matchesPlayed > 0 ? r.total / r.matchesPlayed : 0 }))
-                    .sort((a, b) => b.total - a.total);
+                    .sort((a, b) => ui.sort === "avg" ? b.avg - a.avg : b.total - a.total);
                   return (
                     <Card key={group.key}>
-                      <CardHeader>
-                        <CardTitle className="text-base flex items-center gap-2">
-                          <BarChart3 className="h-4 w-4 text-primary" /> {group.displayName}
-                        </CardTitle>
-                        <CardDescription>
-                          Total · average per match · all rostered players
-                          {group.fieldIds.length > 1 && (
-                            <span className="ml-1 text-[11px] text-muted-foreground/80">
-                              (combined across {group.fieldIds.length} mode-specific stat fields)
-                            </span>
-                          )}
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        {rows.length === 0 ? (
-                          <p className="text-sm text-muted-foreground italic px-1 py-2">No data yet.</p>
-                        ) : (
-                          <div className="space-y-1.5">
-                            {rows.slice(0, 10).map((r, i) => (
-                              <div
-                                key={r.player.id}
-                                className={`flex items-center gap-2 px-2 py-1.5 rounded border ${r.player.isOurs ? "border-primary/40 bg-primary/5" : "border-border bg-card"}`}
-                                data-testid={`row-stat-${group.key}-${r.player.id}`}
+                      <Collapsible
+                        open={ui.expanded}
+                        onOpenChange={(o) => updateStatUi(group.key, { expanded: o })}
+                      >
+                        <CardHeader className="pb-3">
+                          <div className="flex items-start justify-between gap-2 flex-wrap">
+                            <div className="min-w-0">
+                              <CardTitle className="text-base flex items-center gap-2">
+                                <BarChart3 className="h-4 w-4 text-primary" /> {group.displayName}
+                              </CardTitle>
+                              <CardDescription>
+                                Ranked by {ui.sort === "avg" ? "average per match" : "total"} · {rows.length.toLocaleString()} player{rows.length === 1 ? "" : "s"}
+                                {group.fieldIds.length > 1 && (
+                                  <span className="ml-1 text-[11px] text-muted-foreground/80">
+                                    (combined across {group.fieldIds.length} mode-specific stat fields)
+                                  </span>
+                                )}
+                              </CardDescription>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <ToggleGroup
+                                type="single"
+                                value={ui.sort}
+                                onValueChange={(v) => v && updateStatUi(group.key, { sort: v as "avg" | "total", page: 1 })}
+                                className="gap-1"
+                                data-testid={`toggle-sort-${group.key}`}
                               >
-                                <span className="text-xs text-muted-foreground w-5 text-right">{i + 1}.</span>
-                                <div className="flex-1 min-w-0"><PlayerChip player={r.player} /></div>
-                                <div className="flex items-center gap-2 shrink-0">
-                                  <Badge variant="secondary" className="text-xs tabular-nums" data-testid={`badge-total-${group.key}-${r.player.id}`}>
-                                    {r.total.toLocaleString(undefined, { maximumFractionDigits: 1 })}
-                                  </Badge>
-                                  <Badge variant="outline" className="text-xs tabular-nums">
-                                    {r.avg.toFixed(1)} avg
-                                  </Badge>
-                                  <MatchDrillPopover refs={r.matches} fullSlug={fullSlug} label={`${r.player.name}-${group.displayName}`} />
-                                </div>
-                              </div>
-                            ))}
+                                <ToggleGroupItem value="avg" size="sm" data-testid={`toggle-sort-${group.key}-avg`}>Avg</ToggleGroupItem>
+                                <ToggleGroupItem value="total" size="sm" data-testid={`toggle-sort-${group.key}-total`}>Total</ToggleGroupItem>
+                              </ToggleGroup>
+                              <CollapsibleTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  data-testid={`button-collapse-${group.key}`}
+                                  aria-label={ui.expanded ? "Collapse" : "Expand"}
+                                >
+                                  {ui.expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                </Button>
+                              </CollapsibleTrigger>
+                            </div>
                           </div>
-                        )}
-                      </CardContent>
+                        </CardHeader>
+                        <CollapsibleContent>
+                          <CardContent>
+                            {rows.length === 0 ? (
+                              <p className="text-sm text-muted-foreground italic px-1 py-2">No data yet.</p>
+                            ) : (
+                              <div className="space-y-1.5">
+                                {paginate(rows, ui.page).map((r, i) => {
+                                  const rank = (ui.page - 1) * DEFAULT_PAGE_SIZE + i + 1;
+                                  return (
+                                    <div
+                                      key={r.player.id}
+                                      className={`flex items-center gap-2 px-2 py-1.5 rounded border ${r.player.isOurs ? "border-primary/40 bg-primary/5" : "border-border bg-card"}`}
+                                      data-testid={`row-stat-${group.key}-${r.player.id}`}
+                                    >
+                                      <span className="text-xs text-muted-foreground w-7 text-right tabular-nums">{rank}.</span>
+                                      <div className="flex-1 min-w-0"><PlayerChip player={r.player} /></div>
+                                      <div className="flex items-center gap-2 shrink-0">
+                                        <Badge
+                                          variant={ui.sort === "total" ? "secondary" : "outline"}
+                                          className="text-xs tabular-nums"
+                                          data-testid={`badge-total-${group.key}-${r.player.id}`}
+                                        >
+                                          {r.total.toLocaleString(undefined, { maximumFractionDigits: 1 })} total
+                                        </Badge>
+                                        <Badge
+                                          variant={ui.sort === "avg" ? "secondary" : "outline"}
+                                          className="text-xs tabular-nums"
+                                          data-testid={`badge-avg-${group.key}-${r.player.id}`}
+                                        >
+                                          {r.avg.toFixed(1)} avg
+                                        </Badge>
+                                        <MatchDrillPopover refs={r.matches} fullSlug={fullSlug} label={`${r.player.name}-${group.displayName}`} />
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                                <Paginator
+                                  page={ui.page}
+                                  total={rows.length}
+                                  onPageChange={(p) => updateStatUi(group.key, { page: p })}
+                                  testId={`stat-${group.key}`}
+                                />
+                              </div>
+                            )}
+                          </CardContent>
+                        </CollapsibleContent>
+                      </Collapsible>
                     </Card>
                   );
                 })}
@@ -755,16 +819,17 @@ export default function PlayerLeaderboard() {
                   <p className="text-sm text-muted-foreground italic px-1 py-2">No hero picks recorded yet.</p>
                 ) : (
                   <div className="space-y-1.5">
-                    {heroPerformance.slice(0, 30).map((row, i) => {
+                    {paginate(heroPerformance, mostPickedPage).map((row, i) => {
                       const total = row.wins + row.losses + row.draws;
                       const wr = total > 0 ? pct(row.wins, total) : 0;
+                      const rank = (mostPickedPage - 1) * DEFAULT_PAGE_SIZE + i + 1;
                       return (
                         <div
                           key={`${row.player.id}-${row.hero.id}`}
                           className={`flex items-center gap-2 px-2 py-1.5 rounded border ${row.player.isOurs ? "border-primary/40 bg-primary/5" : "border-border bg-card"}`}
                           data-testid={`row-hero-${row.player.id}-${row.hero.id}`}
                         >
-                          <span className="text-xs text-muted-foreground w-5 text-right">{i + 1}.</span>
+                          <span className="text-xs text-muted-foreground w-7 text-right tabular-nums">{rank}.</span>
                           <div className="flex-1 min-w-0 flex items-center gap-3 flex-wrap">
                             <PlayerChip player={row.player} />
                             <span className="text-xs text-muted-foreground">on</span>
@@ -799,6 +864,12 @@ export default function PlayerLeaderboard() {
                         </div>
                       );
                     })}
+                    <Paginator
+                      page={mostPickedPage}
+                      total={heroPerformance.length}
+                      onPageChange={setMostPickedPage}
+                      testId="most-picked"
+                    />
                   </div>
                 )}
               </CardContent>

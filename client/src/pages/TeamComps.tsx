@@ -10,16 +10,18 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
-  Layers, Users, Shield, ExternalLink, Filter, X, Calendar as CalendarIcon,
-  Swords, Target, Trophy,
+  Layers, Shield, ExternalLink, Filter, X, Calendar as CalendarIcon,
+  Swords, Target, ArrowLeft, ChevronDown, ChevronUp, Search, Trophy,
 } from "lucide-react";
 import { useGame } from "@/hooks/use-game";
 import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied } from "@/components/AccessDenied";
 import { StatsSkeleton } from "@/components/PageSkeleton";
+import { Paginator, paginate, DEFAULT_PAGE_SIZE } from "@/components/Paginator";
 import type {
-  Event, Game, Hero, Opponent, OpponentPlayer, Player, GameHero,
+  Event, Game, Hero, Opponent, OpponentPlayer, Player, GameHero, Map as MapType, GameMode,
 } from "@shared/schema";
 
 type Side = "ours" | "opponents";
@@ -27,22 +29,39 @@ type Side = "ours" | "opponents";
 interface CompSlot {
   participantId: string;
   participantName: string;
-  isOurs: boolean;
   heroes: Hero[];
 }
 
-interface Comp {
+interface GamePlay {
   matchId: string;
   eventId: string | null;
   date: string;
   subType: string | null;
   result: string | null;
   gameCode: string;
-  opponentId: string | null;
-  opponentName: string;
-  opponentLogoUrl: string | null;
+  mapName: string | null;
+  modeName: string | null;
   ourSlots: CompSlot[];
   oppSlots: CompSlot[];
+}
+
+interface GroupedComp {
+  key: string;
+  heroes: Hero[];
+  plays: GamePlay[];
+  wins: number;
+  losses: number;
+  draws: number;
+}
+
+interface OpponentSummary {
+  opponent: Opponent | null;
+  syntheticName: string;
+  syntheticKey: string;
+  matches: number;
+  wins: number;
+  losses: number;
+  draws: number;
 }
 
 function resultBadge(r: string | null) {
@@ -81,79 +100,105 @@ function HeroPill({ hero }: { hero: Hero }) {
   );
 }
 
-function SlotRow({ slot }: { slot: CompSlot }) {
+function OpponentLogo({ opp, size = 10 }: { opp: { name: string; logoUrl?: string | null } | null; size?: number }) {
+  const name = opp?.name || "Unknown";
+  const logo = opp?.logoUrl || null;
+  const sz = `h-${size} w-${size}`;
   return (
-    <div className="flex items-start gap-2 py-1" data-testid={`row-slot-${slot.participantId}`}>
-      <div className="w-28 shrink-0">
-        <div className="text-xs font-medium truncate" data-testid={`text-participant-${slot.participantId}`}>
-          {slot.participantName}
-        </div>
-      </div>
-      <div className="flex flex-wrap gap-1 min-w-0 flex-1">
-        {slot.heroes.length === 0 ? (
-          <span className="text-xs text-muted-foreground italic">No heroes recorded</span>
-        ) : (
-          slot.heroes.map(h => <HeroPill key={h.id} hero={h} />)
-        )}
-      </div>
-    </div>
+    <Avatar className={`${sz} shrink-0`}>
+      {logo ? <AvatarImage src={logo} alt={name} /> : null}
+      <AvatarFallback className="text-xs bg-muted">
+        {name.slice(0, 2).toUpperCase()}
+      </AvatarFallback>
+    </Avatar>
   );
 }
 
-function CompCard({ comp, side, fullSlug }: { comp: Comp; side: Side; fullSlug: string }) {
-  const slots = side === "ours" ? comp.ourSlots : comp.oppSlots;
-  const dateStr = comp.date ? new Date(comp.date).toLocaleDateString(undefined, {
-    year: "numeric", month: "short", day: "numeric",
-  }) : "—";
-
+function GroupedCompCard({
+  group, side, fullSlug,
+}: { group: GroupedComp; side: Side; fullSlug: string }) {
+  const [open, setOpen] = useState(false);
+  const total = group.wins + group.losses + group.draws;
+  const wr = total > 0 ? (group.wins / total) * 100 : 0;
   return (
-    <Card className="hover-elevate" data-testid={`card-comp-${comp.matchId}-${side}`}>
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between gap-2 flex-wrap">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              {comp.opponentLogoUrl ? (
-                <Avatar className="h-7 w-7 shrink-0">
-                  <AvatarImage src={comp.opponentLogoUrl} alt={comp.opponentName} />
-                  <AvatarFallback className="text-[10px] bg-muted">
-                    {comp.opponentName.slice(0, 2).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-              ) : null}
-              <CardTitle className="text-sm" data-testid={`text-opponent-${comp.matchId}`}>
-                vs {comp.opponentName}
-              </CardTitle>
-              {resultBadge(comp.result)}
+    <Card data-testid={`card-grouped-${side}-${group.key}`}>
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <CardHeader className="pb-3">
+          <div className="flex items-start justify-between gap-2 flex-wrap">
+            <div className="flex flex-wrap gap-1.5 min-w-0 flex-1">
+              {group.heroes.length === 0 ? (
+                <span className="text-xs text-muted-foreground italic">No heroes recorded</span>
+              ) : group.heroes.map(h => <HeroPill key={h.id} hero={h} />)}
             </div>
-            <div className="flex items-center gap-2 flex-wrap mt-1.5">
-              <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
-                <CalendarIcon className="h-3 w-3" />
-                <span data-testid={`text-date-${comp.matchId}`}>{dateStr}</span>
-              </span>
-              <Badge variant="outline" className="text-[10px]">{comp.gameCode}</Badge>
-              {comp.subType && (
-                <Badge variant="secondary" className="text-[10px]" data-testid={`badge-subtype-${comp.matchId}`}>
-                  {comp.subType}
+            <div className="flex items-center gap-2 shrink-0">
+              <Badge variant="secondary" className="text-xs tabular-nums" data-testid={`badge-plays-${group.key}`}>
+                {group.plays.length} {group.plays.length === 1 ? "play" : "plays"}
+              </Badge>
+              {total > 0 && (
+                <Badge
+                  variant="outline"
+                  className={`text-xs tabular-nums ${
+                    wr >= 60 ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" :
+                    wr >= 40 ? "bg-amber-500/15 text-amber-700 dark:text-amber-300" :
+                    "bg-red-500/15 text-red-700 dark:text-red-300"
+                  }`}
+                  data-testid={`badge-wr-${group.key}`}
+                >
+                  {group.wins}-{group.losses}{group.draws ? `-${group.draws}` : ""} · {wr.toFixed(0)}%
                 </Badge>
               )}
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  data-testid={`button-toggle-comp-${group.key}`}
+                  aria-label={open ? "Hide games" : "Show games"}
+                >
+                  {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </Button>
+              </CollapsibleTrigger>
             </div>
           </div>
-          {comp.eventId && (
-            <Button asChild size="sm" variant="ghost" data-testid={`button-open-event-${comp.matchId}`}>
-              <Link href={`/${fullSlug}/events/${comp.eventId}`}>
-                <ExternalLink className="h-3.5 w-3.5" />
-              </Link>
-            </Button>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent className="pt-0 space-y-1">
-        {slots.length === 0 ? (
-          <div className="text-xs text-muted-foreground italic">No {side === "ours" ? "team" : "opponent"} hero data for this game.</div>
-        ) : (
-          slots.map(s => <SlotRow key={s.participantId} slot={s} />)
-        )}
-      </CardContent>
+        </CardHeader>
+        <CollapsibleContent>
+          <CardContent className="pt-0 space-y-1.5">
+            <div className="text-[11px] text-muted-foreground uppercase tracking-wide pt-1">
+              Played in {group.plays.length} {group.plays.length === 1 ? "game" : "games"}
+            </div>
+            {group.plays.map(p => {
+              const dateStr = p.date ? new Date(p.date).toLocaleDateString(undefined, {
+                year: "numeric", month: "short", day: "numeric",
+              }) : "—";
+              return (
+                <div
+                  key={p.matchId}
+                  className="flex items-center gap-2 px-2 py-1.5 rounded border border-border bg-card flex-wrap"
+                  data-testid={`row-play-${p.matchId}`}
+                >
+                  {resultBadge(p.result)}
+                  <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap text-xs">
+                    <span className="inline-flex items-center gap-1">
+                      <CalendarIcon className="h-3 w-3 text-muted-foreground" />
+                      <span data-testid={`text-play-date-${p.matchId}`}>{dateStr}</span>
+                    </span>
+                    <Badge variant="outline" className="text-[10px]">{p.gameCode}</Badge>
+                    {p.modeName && <Badge variant="secondary" className="text-[10px]">{p.modeName}</Badge>}
+                    {p.mapName && <Badge variant="outline" className="text-[10px]">{p.mapName}</Badge>}
+                    {p.subType && <Badge variant="secondary" className="text-[10px]">{p.subType}</Badge>}
+                  </div>
+                  {p.eventId && (
+                    <Button asChild size="sm" variant="ghost" data-testid={`button-open-event-${p.matchId}`}>
+                      <Link href={`/${fullSlug}/events/${p.eventId}`}>
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </Link>
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
     </Card>
   );
 }
@@ -162,13 +207,17 @@ export default function TeamComps() {
   const { hasPermission } = useAuth();
   const { gameId, rosterId, fullSlug, currentRoster } = useGame();
   const rosterReady = !!(gameId && rosterId);
-
   const canView = hasPermission("view_statistics");
 
-  const [tab, setTab] = useState<Side>("ours");
+  // Detail view state
+  const [selectedOpponentKey, setSelectedOpponentKey] = useState<string | null>(null);
+  const [side, setSide] = useState<Side>("ours");
+  const [opponentSearch, setOpponentSearch] = useState("");
+  const [opponentsPage, setOpponentsPage] = useState(1);
+  const [groupsPage, setGroupsPage] = useState(1);
+
+  // Detail filters
   const [subTypeFilter, setSubTypeFilter] = useState<string>("__all__");
-  const [opponentFilter, setOpponentFilter] = useState<string>("__all__");
-  const [heroFilter, setHeroFilter] = useState<string>("__all__");
   const [resultFilter, setResultFilter] = useState<string>("__all__");
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
@@ -194,6 +243,12 @@ export default function TeamComps() {
   const { data: opponents = [] } = useQuery<Opponent[]>({
     queryKey: ["/api/opponents", { gameId, rosterId }], enabled: rosterReady,
   });
+  const { data: maps = [] } = useQuery<MapType[]>({
+    queryKey: ["/api/maps", { gameId, rosterId }], enabled: rosterReady,
+  });
+  const { data: gameModes = [] } = useQuery<GameMode[]>({
+    queryKey: ["/api/game-modes", { gameId, rosterId }], enabled: rosterReady,
+  });
 
   const isLoading = evLoading || gLoading || ghLoading;
 
@@ -207,6 +262,8 @@ export default function TeamComps() {
     return m;
   }, [opponents]);
   const eventById = useMemo(() => new Map(events.map(e => [e.id, e])), [events]);
+  const mapById = useMemo(() => new Map(maps.map(m => [m.id, m])), [maps]);
+  const modeById = useMemo(() => new Map(gameModes.map(m => [m.id, m])), [gameModes]);
 
   const subTypes = useMemo(() => {
     const set = new Set<string>();
@@ -214,9 +271,10 @@ export default function TeamComps() {
     return Array.from(set).sort();
   }, [events]);
 
-  // Build comps grouped by matchId
-  const comps: Comp[] = useMemo(() => {
+  // Build per-game enriched plays with opponent resolution
+  const allPlays: (GamePlay & { opponent: Opponent | null; syntheticName: string; syntheticKey: string })[] = useMemo(() => {
     if (!games.length) return [];
+
     const heroByMatchAndPlayer = new Map<string, Hero[]>();
     const heroByMatchAndOppPlayer = new Map<string, Hero[]>();
     for (const r of gameHeroRows) {
@@ -234,58 +292,53 @@ export default function TeamComps() {
         heroByMatchAndOppPlayer.set(k, list);
       }
     }
-
     const matchIdsWithHeroes = new Set<string>();
     gameHeroRows.forEach(r => matchIdsWithHeroes.add(r.matchId));
 
-    const out: Comp[] = [];
+    const out: (GamePlay & { opponent: Opponent | null; syntheticName: string; syntheticKey: string })[] = [];
     for (const g of games) {
       if (!matchIdsWithHeroes.has(g.id)) continue;
       const ev = g.eventId ? eventById.get(g.eventId) : undefined;
 
-      // Resolve opponent via 3-way fallback
-      let resolvedOpp: Opponent | undefined;
-      if (g.opponentId) resolvedOpp = opponentById.get(g.opponentId);
-      if (!resolvedOpp && ev?.opponentId) resolvedOpp = opponentById.get(ev.opponentId);
+      let resolvedOpp: Opponent | null = null;
+      if (g.opponentId) resolvedOpp = opponentById.get(g.opponentId) || null;
+      if (!resolvedOpp && ev?.opponentId) resolvedOpp = opponentById.get(ev.opponentId) || null;
       if (!resolvedOpp && ev?.opponentName) {
-        resolvedOpp = opponentByLowerName.get(ev.opponentName.toLowerCase());
+        resolvedOpp = opponentByLowerName.get(ev.opponentName.toLowerCase()) || null;
       }
-      const opponentName = resolvedOpp?.name || ev?.opponentName || "Unknown";
+      const syntheticName = resolvedOpp?.name || ev?.opponentName || "Unknown";
+      const syntheticKey = resolvedOpp?.id || `name:${syntheticName.toLowerCase()}`;
 
-      // Build slots for our side
-      const ourSlots: CompSlot[] = [];
-      const ourPlayerIdsInMatch = new Set<string>();
+      const ourPlayerIds = new Set<string>();
+      const oppPlayerIds = new Set<string>();
       gameHeroRows.forEach(r => {
-        if (r.matchId === g.id && r.playerId) ourPlayerIdsInMatch.add(r.playerId);
+        if (r.matchId !== g.id) return;
+        if (r.playerId) ourPlayerIds.add(r.playerId);
+        if (r.opponentPlayerId) oppPlayerIds.add(r.opponentPlayerId);
       });
-      for (const pid of ourPlayerIdsInMatch) {
+
+      const ourSlots: CompSlot[] = [];
+      ourPlayerIds.forEach(pid => {
         const p = playerById.get(pid);
-        if (!p) continue;
+        if (!p) return;
         ourSlots.push({
           participantId: p.id,
           participantName: p.name,
-          isOurs: true,
           heroes: heroByMatchAndPlayer.get(`${g.id}::${p.id}`) || [],
         });
-      }
+      });
       ourSlots.sort((a, b) => a.participantName.localeCompare(b.participantName));
 
-      // Opponent side
       const oppSlots: CompSlot[] = [];
-      const oppPlayerIdsInMatch = new Set<string>();
-      gameHeroRows.forEach(r => {
-        if (r.matchId === g.id && r.opponentPlayerId) oppPlayerIdsInMatch.add(r.opponentPlayerId);
-      });
-      for (const opid of oppPlayerIdsInMatch) {
+      oppPlayerIds.forEach(opid => {
         const op = oppPlayerById.get(opid);
-        if (!op) continue;
+        if (!op) return;
         oppSlots.push({
           participantId: op.id,
           participantName: op.name,
-          isOurs: false,
           heroes: heroByMatchAndOppPlayer.get(`${g.id}::${op.id}`) || [],
         });
-      }
+      });
       oppSlots.sort((a, b) => a.participantName.localeCompare(b.participantName));
 
       out.push({
@@ -295,110 +348,292 @@ export default function TeamComps() {
         subType: ev?.eventSubType || null,
         result: g.result || null,
         gameCode: g.gameCode,
-        opponentId: resolvedOpp?.id || g.opponentId || ev?.opponentId || null,
-        opponentName,
-        opponentLogoUrl: resolvedOpp?.logoUrl || null,
+        mapName: g.mapId ? (mapById.get(g.mapId)?.name || null) : null,
+        modeName: g.gameModeId ? (modeById.get(g.gameModeId)?.name || null) : null,
         ourSlots,
         oppSlots,
+        opponent: resolvedOpp,
+        syntheticName,
+        syntheticKey,
       });
     }
-    out.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
     return out;
-  }, [games, gameHeroRows, heroById, playerById, oppPlayerById, opponentById, opponentByLowerName, eventById]);
+  }, [games, gameHeroRows, heroById, playerById, oppPlayerById, opponentById, opponentByLowerName, eventById, mapById, modeById]);
 
-  const filteredComps = useMemo(() => {
-    return comps.filter(c => {
-      if (subTypeFilter !== "__all__" && (c.subType || "") !== subTypeFilter) return false;
-      if (opponentFilter !== "__all__") {
-        const matches = c.opponentId === opponentFilter ||
-          (c.opponentName.toLowerCase() === (opponentById.get(opponentFilter)?.name || "").toLowerCase());
-        if (!matches) return false;
+  // Build opponent summary list (for landing grid)
+  const opponentSummaries: OpponentSummary[] = useMemo(() => {
+    const map = new Map<string, OpponentSummary>();
+    for (const p of allPlays) {
+      let s = map.get(p.syntheticKey);
+      if (!s) {
+        s = {
+          opponent: p.opponent,
+          syntheticName: p.syntheticName,
+          syntheticKey: p.syntheticKey,
+          matches: 0, wins: 0, losses: 0, draws: 0,
+        };
+        map.set(p.syntheticKey, s);
       }
-      if (resultFilter !== "__all__") {
-        if (normResult(c.result) !== resultFilter) return false;
-      }
-      if (dateFrom && (c.date || "") < dateFrom) return false;
-      if (dateTo && (c.date || "") > dateTo) return false;
-      if (heroFilter !== "__all__") {
-        const slots = tab === "ours" ? c.ourSlots : c.oppSlots;
-        const has = slots.some(s => s.heroes.some(h => h.id === heroFilter));
-        if (!has) return false;
-      }
-      // Hide cards on the active tab if that side has no hero data at all.
-      const sideSlots = tab === "ours" ? c.ourSlots : c.oppSlots;
-      const sideHasAny = sideSlots.some(s => s.heroes.length > 0);
-      if (!sideHasAny) return false;
+      s.matches++;
+      const r = normResult(p.result);
+      if (r === "W") s.wins++;
+      else if (r === "L") s.losses++;
+      else if (r === "D") s.draws++;
+    }
+    return Array.from(map.values()).sort((a, b) => {
+      if (b.matches !== a.matches) return b.matches - a.matches;
+      return a.syntheticName.localeCompare(b.syntheticName);
+    });
+  }, [allPlays]);
+
+  const filteredOpponentSummaries = useMemo(() => {
+    const q = opponentSearch.trim().toLowerCase();
+    if (!q) return opponentSummaries;
+    return opponentSummaries.filter(s => s.syntheticName.toLowerCase().includes(q));
+  }, [opponentSummaries, opponentSearch]);
+
+  // Selected opponent's plays (with detail filters applied)
+  const selectedSummary = useMemo(
+    () => opponentSummaries.find(s => s.syntheticKey === selectedOpponentKey) || null,
+    [opponentSummaries, selectedOpponentKey],
+  );
+
+  const opponentPlays = useMemo(() => {
+    if (!selectedOpponentKey) return [];
+    return allPlays.filter(p => p.syntheticKey === selectedOpponentKey).filter(p => {
+      if (subTypeFilter !== "__all__" && (p.subType || "") !== subTypeFilter) return false;
+      if (resultFilter !== "__all__" && normResult(p.result) !== resultFilter) return false;
+      if (dateFrom && (p.date || "") < dateFrom) return false;
+      if (dateTo && (p.date || "") > dateTo) return false;
       return true;
     });
-  }, [comps, subTypeFilter, opponentFilter, resultFilter, dateFrom, dateTo, heroFilter, tab, opponentById]);
+  }, [allPlays, selectedOpponentKey, subTypeFilter, resultFilter, dateFrom, dateTo]);
 
-  const filtersActive =
-    subTypeFilter !== "__all__" || opponentFilter !== "__all__" || heroFilter !== "__all__" ||
-    resultFilter !== "__all__" || !!dateFrom || !!dateTo;
-
-  const clearFilters = () => {
-    setSubTypeFilter("__all__"); setOpponentFilter("__all__"); setHeroFilter("__all__");
-    setResultFilter("__all__"); setDateFrom(""); setDateTo("");
-  };
+  // Group selected opponent plays by sorted hero IDs per side
+  const groupedComps: GroupedComp[] = useMemo(() => {
+    const groups = new Map<string, GroupedComp>();
+    for (const play of opponentPlays) {
+      const slots = side === "ours" ? play.ourSlots : play.oppSlots;
+      const heroIds = new Set<string>();
+      slots.forEach(s => s.heroes.forEach(h => heroIds.add(h.id)));
+      if (heroIds.size === 0) continue;
+      const sortedIds = Array.from(heroIds).sort();
+      const key = sortedIds.join("|");
+      let g = groups.get(key);
+      if (!g) {
+        const heroObjs = sortedIds.map(id => heroById.get(id)).filter((h): h is Hero => !!h);
+        heroObjs.sort((a, b) => a.name.localeCompare(b.name));
+        g = { key, heroes: heroObjs, plays: [], wins: 0, losses: 0, draws: 0 };
+        groups.set(key, g);
+      }
+      g.plays.push(play);
+      // Result is from our POV; flip for opponent comp WR so "wins" = times opp won
+      const r = normResult(play.result);
+      const eff = side === "ours" ? r : (r === "W" ? "L" : r === "L" ? "W" : r);
+      if (eff === "W") g.wins++;
+      else if (eff === "L") g.losses++;
+      else if (eff === "D") g.draws++;
+    }
+    // Sort groups by play count desc; then most recent play; then hero count
+    const arr = Array.from(groups.values());
+    arr.forEach(g => g.plays.sort((a, b) => (b.date || "").localeCompare(a.date || "")));
+    arr.sort((a, b) => {
+      if (b.plays.length !== a.plays.length) return b.plays.length - a.plays.length;
+      return (b.plays[0]?.date || "").localeCompare(a.plays[0]?.date || "");
+    });
+    return arr;
+  }, [opponentPlays, side, heroById]);
 
   if (!canView) return <AccessDenied />;
   if (!rosterReady) return <StatsSkeleton />;
 
-  const totalAnyHero = comps.length;
-  const showEmpty = !isLoading && totalAnyHero === 0;
+  // Reset detail page when opponent or side changes
+  const selectOpponent = (key: string | null) => {
+    setSelectedOpponentKey(key);
+    setGroupsPage(1);
+    setSubTypeFilter("__all__");
+    setResultFilter("__all__");
+    setDateFrom("");
+    setDateTo("");
+    setSide("ours");
+  };
+
+  // ---- Landing view: opponent grid ----
+  if (!selectedOpponentKey) {
+    return (
+      <div className="p-4 md:p-6 space-y-4 max-w-[1400px] mx-auto" data-testid="page-team-comps">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-semibold flex items-center gap-2">
+              <Layers className="h-6 w-6" />
+              Team Comps by Opponent
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Pick an opponent to view our comps used against them and their comps used against us.
+              {currentRoster ? ` — ${currentRoster.name}` : ""}
+            </p>
+          </div>
+        </div>
+
+        <Card>
+          <CardContent className="p-3 md:p-4">
+            <div className="flex items-center gap-2">
+              <Search className="h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search opponents…"
+                value={opponentSearch}
+                onChange={e => { setOpponentSearch(e.target.value); setOpponentsPage(1); }}
+                data-testid="input-opponent-search"
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {isLoading ? (
+          <StatsSkeleton />
+        ) : opponentSummaries.length === 0 ? (
+          <Card data-testid="empty-no-hero-data">
+            <CardContent className="py-12 text-center">
+              <Layers className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+              <div className="text-sm font-medium">No hero data yet</div>
+              <div className="text-xs text-muted-foreground mt-1">
+                Add heroes in the Match Stats editor to start building comp history.
+              </div>
+            </CardContent>
+          </Card>
+        ) : filteredOpponentSummaries.length === 0 ? (
+          <Card data-testid="empty-no-match">
+            <CardContent className="py-10 text-center">
+              <Target className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+              <div className="text-sm">No opponents match "{opponentSearch}".</div>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+              {paginate(filteredOpponentSummaries, opponentsPage).map(s => {
+                const total = s.wins + s.losses + s.draws;
+                const wr = total > 0 ? (s.wins / total) * 100 : 0;
+                return (
+                  <Card
+                    key={s.syntheticKey}
+                    className="hover-elevate active-elevate-2 cursor-pointer"
+                    onClick={() => selectOpponent(s.syntheticKey)}
+                    data-testid={`card-opponent-${s.syntheticKey}`}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <OpponentLogo opp={s.opponent ?? { name: s.syntheticName }} size={12} />
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium truncate" data-testid={`text-opp-name-${s.syntheticKey}`}>
+                            {s.syntheticName}
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                            <Badge variant="secondary" className="text-[10px] tabular-nums">
+                              {s.matches} {s.matches === 1 ? "game" : "games"}
+                            </Badge>
+                            {total > 0 && (
+                              <Badge
+                                variant="outline"
+                                className={`text-[10px] tabular-nums ${
+                                  wr >= 60 ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" :
+                                  wr >= 40 ? "bg-amber-500/15 text-amber-700 dark:text-amber-300" :
+                                  "bg-red-500/15 text-red-700 dark:text-red-300"
+                                }`}
+                              >
+                                {s.wins}-{s.losses}{s.draws ? `-${s.draws}` : ""}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+            <Paginator
+              page={opponentsPage}
+              total={filteredOpponentSummaries.length}
+              onPageChange={setOpponentsPage}
+              testId="opponents"
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ---- Detail view: selected opponent ----
+  const total = selectedSummary ? selectedSummary.wins + selectedSummary.losses + selectedSummary.draws : 0;
+  const wr = total > 0 && selectedSummary ? (selectedSummary.wins / total) * 100 : 0;
+  const filtersActive =
+    subTypeFilter !== "__all__" || resultFilter !== "__all__" || !!dateFrom || !!dateTo;
 
   return (
-    <div className="p-4 md:p-6 space-y-4 max-w-[1400px] mx-auto" data-testid="page-team-comps">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-semibold flex items-center gap-2">
-            <Layers className="h-6 w-6" />
-            Team Comps
+    <div className="p-4 md:p-6 space-y-4 max-w-[1400px] mx-auto" data-testid="page-team-comps-detail">
+      <div className="flex items-center gap-3 flex-wrap">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => selectOpponent(null)}
+          data-testid="button-back-opponents"
+          aria-label="Back to opponents"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <OpponentLogo opp={selectedSummary?.opponent ?? { name: selectedSummary?.syntheticName || "" }} size={12} />
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-semibold truncate" data-testid="text-detail-opp-name">
+            vs {selectedSummary?.syntheticName || "Unknown"}
           </h1>
-          <p className="text-sm text-muted-foreground">
-            Hero lineups per game{currentRoster ? ` — ${currentRoster.name}` : ""}.
-          </p>
+          <div className="flex items-center gap-2 flex-wrap text-sm text-muted-foreground">
+            <span>{selectedSummary?.matches || 0} {selectedSummary?.matches === 1 ? "game" : "games"}</span>
+            {total > 0 && selectedSummary && (
+              <Badge
+                variant="outline"
+                className={`text-xs tabular-nums ${
+                  wr >= 60 ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" :
+                  wr >= 40 ? "bg-amber-500/15 text-amber-700 dark:text-amber-300" :
+                  "bg-red-500/15 text-red-700 dark:text-red-300"
+                }`}
+              >
+                <Trophy className="h-3 w-3 mr-1" />
+                {selectedSummary.wins}-{selectedSummary.losses}{selectedSummary.draws ? `-${selectedSummary.draws}` : ""} · {wr.toFixed(0)}%
+              </Badge>
+            )}
+          </div>
         </div>
-        {filtersActive && (
-          <Button variant="ghost" size="sm" onClick={clearFilters} data-testid="button-clear-filters">
-            <X className="h-3.5 w-3.5 mr-1" /> Clear filters
-          </Button>
-        )}
       </div>
 
       <Card>
         <CardContent className="p-3 md:p-4">
           <div className="flex items-center gap-1.5 mb-2 text-xs text-muted-foreground">
             <Filter className="h-3.5 w-3.5" /> Filters
+            {filtersActive && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-auto"
+                onClick={() => {
+                  setSubTypeFilter("__all__"); setResultFilter("__all__");
+                  setDateFrom(""); setDateTo(""); setGroupsPage(1);
+                }}
+                data-testid="button-clear-filters"
+              >
+                <X className="h-3.5 w-3.5 mr-1" /> Clear
+              </Button>
+            )}
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2">
-            <Select value={subTypeFilter} onValueChange={setSubTypeFilter}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+            <Select value={subTypeFilter} onValueChange={(v) => { setSubTypeFilter(v); setGroupsPage(1); }}>
               <SelectTrigger data-testid="select-subtype"><SelectValue placeholder="Sub type" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="__all__">All sub types</SelectItem>
                 {subTypes.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
               </SelectContent>
             </Select>
-
-            <Select value={opponentFilter} onValueChange={setOpponentFilter}>
-              <SelectTrigger data-testid="select-opponent"><SelectValue placeholder="Opponent" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All opponents</SelectItem>
-                {opponents.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-
-            <Select value={heroFilter} onValueChange={setHeroFilter}>
-              <SelectTrigger data-testid="select-hero"><SelectValue placeholder="Hero" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">Any hero</SelectItem>
-                {heroes.filter(h => h.isActive).slice().sort((a, b) => a.name.localeCompare(b.name)).map(h => (
-                  <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={resultFilter} onValueChange={setResultFilter}>
+            <Select value={resultFilter} onValueChange={(v) => { setResultFilter(v); setGroupsPage(1); }}>
               <SelectTrigger data-testid="select-result"><SelectValue placeholder="Result" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="__all__">Any result</SelectItem>
@@ -407,86 +642,69 @@ export default function TeamComps() {
                 <SelectItem value="D">Draw</SelectItem>
               </SelectContent>
             </Select>
-
             <Input
-              type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-              placeholder="From" aria-label="Date from" data-testid="input-date-from"
+              type="date" value={dateFrom}
+              onChange={e => { setDateFrom(e.target.value); setGroupsPage(1); }}
+              aria-label="Date from" data-testid="input-date-from"
             />
             <Input
-              type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-              placeholder="To" aria-label="Date to" data-testid="input-date-to"
+              type="date" value={dateTo}
+              onChange={e => { setDateTo(e.target.value); setGroupsPage(1); }}
+              aria-label="Date to" data-testid="input-date-to"
             />
           </div>
         </CardContent>
       </Card>
 
-      <Tabs value={tab} onValueChange={v => setTab(v as Side)}>
+      <Tabs value={side} onValueChange={(v) => { setSide(v as Side); setGroupsPage(1); }}>
         <TabsList>
           <TabsTrigger value="ours" data-testid="tab-ours">
-            <Shield className="h-3.5 w-3.5 mr-1.5" /> Our Comps
+            <Shield className="h-3.5 w-3.5 mr-1.5" /> Our Comps vs {selectedSummary?.syntheticName}
           </TabsTrigger>
           <TabsTrigger value="opponents" data-testid="tab-opponents">
-            <Swords className="h-3.5 w-3.5 mr-1.5" /> Opponent Comps
+            <Swords className="h-3.5 w-3.5 mr-1.5" /> Their Comps vs Us
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="ours" className="mt-3">
+        <TabsContent value={side} className="mt-3 space-y-3">
           {isLoading ? (
             <StatsSkeleton />
-          ) : showEmpty ? (
-            <EmptyState />
-          ) : filteredComps.length === 0 ? (
-            <NoMatchState />
+          ) : opponentPlays.length === 0 ? (
+            <Card data-testid="empty-no-plays">
+              <CardContent className="py-10 text-center">
+                <Target className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                <div className="text-sm">No games match the current filters.</div>
+              </CardContent>
+            </Card>
+          ) : groupedComps.length === 0 ? (
+            <Card data-testid="empty-no-side-data">
+              <CardContent className="py-10 text-center">
+                <Layers className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                <div className="text-sm">
+                  No {side === "ours" ? "team" : "opponent"} hero data recorded for this opponent.
+                </div>
+              </CardContent>
+            </Card>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-              {filteredComps.map(c => (
-                <CompCard key={`${c.matchId}-ours`} comp={c} side="ours" fullSlug={fullSlug || ""} />
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="opponents" className="mt-3">
-          {isLoading ? (
-            <StatsSkeleton />
-          ) : showEmpty ? (
-            <EmptyState />
-          ) : filteredComps.length === 0 ? (
-            <NoMatchState />
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-              {filteredComps.map(c => (
-                <CompCard key={`${c.matchId}-opp`} comp={c} side="opponents" fullSlug={fullSlug || ""} />
-              ))}
-            </div>
+            <>
+              <div className="text-xs text-muted-foreground">
+                {groupedComps.length} unique comp{groupedComps.length === 1 ? "" : "s"} across {opponentPlays.length} game{opponentPlays.length === 1 ? "" : "s"}
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                {paginate(groupedComps, groupsPage).map(g => (
+                  <GroupedCompCard key={g.key} group={g} side={side} fullSlug={fullSlug || ""} />
+                ))}
+              </div>
+              <Paginator
+                page={groupsPage}
+                total={groupedComps.length}
+                onPageChange={setGroupsPage}
+                testId="grouped-comps"
+              />
+            </>
           )}
         </TabsContent>
       </Tabs>
     </div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <Card data-testid="empty-no-hero-data">
-      <CardContent className="py-12 text-center">
-        <Layers className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
-        <div className="text-sm font-medium">No hero data yet</div>
-        <div className="text-xs text-muted-foreground mt-1">
-          Add heroes in the Match Stats editor to start building comp history.
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function NoMatchState() {
-  return (
-    <Card data-testid="empty-no-match">
-      <CardContent className="py-10 text-center">
-        <Target className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-        <div className="text-sm">No comps match the current filters.</div>
-      </CardContent>
-    </Card>
   );
 }

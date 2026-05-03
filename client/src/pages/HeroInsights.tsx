@@ -14,6 +14,7 @@ import {
   ArrowLeft, Swords, Ban, Trophy, ShieldAlert, Activity, UserSquare,
   Sparkles, Target, ZapOff,
 } from "lucide-react";
+import { Paginator, paginate, DEFAULT_PAGE_SIZE } from "@/components/Paginator";
 import { useGame } from "@/hooks/use-game";
 import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied } from "@/components/AccessDenied";
@@ -58,6 +59,11 @@ export default function HeroInsights() {
   const rosterReady = !!(gameId && rosterId);
   const [opponentFilter, setOpponentFilter] = useState<string>("__all__");
   const { filters, setFilters } = useAnalyticsFilters();
+  const [priorityPage, setPriorityPage] = useState(1);
+  const [bannedNeverPage, setBannedNeverPage] = useState(1);
+  const [ourBanEffPage, setOurBanEffPage] = useState(1);
+  const [oppBanEffPage, setOppBanEffPage] = useState(1);
+  const [metaPage, setMetaPage] = useState(1);
 
   const { data: events = [], isLoading: evLoading } = useQuery<Event[]>({
     queryKey: ["/api/events", { gameId, rosterId }], enabled: rosterReady,
@@ -407,13 +413,15 @@ export default function HeroInsights() {
                   <p className="text-sm text-muted-foreground italic">No draft data yet.</p>
                 ) : (
                   <div className="space-y-1.5">
-                    {prioritized.slice(0, 30).map((p, i) => (
+                    {paginate(prioritized, priorityPage).map((p, i) => {
+                      const rank = (priorityPage - 1) * DEFAULT_PAGE_SIZE + i + 1;
+                      return (
                       <div
                         key={p.hero.id}
                         className="flex items-center gap-2 px-2 py-1.5 rounded border border-border bg-card"
-                        data-testid={`row-hero-priority-${i}`}
+                        data-testid={`row-hero-priority-${rank}`}
                       >
-                        <span className="text-xs text-muted-foreground w-5 text-right tabular-nums">{i + 1}.</span>
+                        <span className="text-xs text-muted-foreground w-7 text-right tabular-nums">{rank}.</span>
                         <div className="flex-1 min-w-0"><HeroChip hero={p.hero} /></div>
                         <Badge variant="secondary" className="text-xs tabular-nums">
                           {p.pickRate.toFixed(0)}% pick
@@ -425,7 +433,9 @@ export default function HeroInsights() {
                           {p.priority.toFixed(0)} priority
                         </Badge>
                       </div>
-                    ))}
+                      );
+                    })}
+                    <Paginator page={priorityPage} total={prioritized.length} onPageChange={setPriorityPage} testId="priority" />
                   </div>
                 )}
               </CardContent>
@@ -472,17 +482,22 @@ export default function HeroInsights() {
                     <p className="text-sm text-muted-foreground italic">No qualifying heroes.</p>
                   ) : (
                     <div className="space-y-1.5">
-                      {alwaysBannedNeverPlayed.slice(0, 20).map((r, i) => (
+                      {paginate(alwaysBannedNeverPlayed, bannedNeverPage).map((r, i) => {
+                        const rank = (bannedNeverPage - 1) * DEFAULT_PAGE_SIZE + i + 1;
+                        return (
                         <div
                           key={r.hero.id}
                           className="flex items-center gap-2 px-2 py-1.5 rounded border border-border bg-card"
-                          data-testid={`row-hero-banned-never-${i}`}
+                          data-testid={`row-hero-banned-never-${rank}`}
                         >
+                          <span className="text-xs text-muted-foreground w-7 text-right tabular-nums">{rank}.</span>
                           <div className="flex-1 min-w-0"><HeroChip hero={r.hero} /></div>
                           <Badge variant="outline" className="text-xs tabular-nums">us {r.bansByUs}</Badge>
                           <Badge variant="outline" className="text-xs tabular-nums">opp {r.bansByOpp}</Badge>
                         </div>
-                      ))}
+                        );
+                      })}
+                      <Paginator page={bannedNeverPage} total={alwaysBannedNeverPlayed.length} onPageChange={setBannedNeverPage} testId="banned-never" />
                     </div>
                   )}
                 </CardContent>
@@ -506,13 +521,15 @@ export default function HeroInsights() {
                     <p className="text-sm text-muted-foreground italic">No bans recorded.</p>
                   ) : (
                     <div className="space-y-1.5">
-                      {banEfficiency.ourBansList.slice(0, 15).map((r, i) => (
+                      {paginate(banEfficiency.ourBansList, ourBanEffPage).map((r, i) => {
+                        const rank = (ourBanEffPage - 1) * DEFAULT_PAGE_SIZE + i + 1;
+                        return (
                         <div
                           key={r.hero.id}
                           className="flex items-center gap-2 px-2 py-1.5 rounded border border-border bg-card"
-                          data-testid={`row-our-ban-eff-${i}`}
+                          data-testid={`row-our-ban-eff-${rank}`}
                         >
-                          <span className="text-xs text-muted-foreground w-5 text-right tabular-nums">{i + 1}.</span>
+                          <span className="text-xs text-muted-foreground w-7 text-right tabular-nums">{rank}.</span>
                           <div className="flex-1 min-w-0"><HeroChip hero={r.hero} /></div>
                           <Badge variant="secondary" className="text-xs tabular-nums">{r.bans} bans</Badge>
                           {r.oppPicks > 0 ? (
@@ -523,7 +540,9 @@ export default function HeroInsights() {
                             <Badge variant="outline" className="text-xs">no data</Badge>
                           )}
                         </div>
-                      ))}
+                        );
+                      })}
+                      <Paginator page={ourBanEffPage} total={banEfficiency.ourBansList.length} onPageChange={setOurBanEffPage} testId="our-ban-eff" />
                     </div>
                   )}
                 </CardContent>
@@ -543,13 +562,15 @@ export default function HeroInsights() {
                     <p className="text-sm text-muted-foreground italic">No opponent bans recorded.</p>
                   ) : (
                     <div className="space-y-1.5">
-                      {banEfficiency.oppBansList.slice(0, 15).map((r, i) => (
+                      {paginate(banEfficiency.oppBansList, oppBanEffPage).map((r, i) => {
+                        const rank = (oppBanEffPage - 1) * DEFAULT_PAGE_SIZE + i + 1;
+                        return (
                         <div
                           key={r.hero.id}
                           className="flex items-center gap-2 px-2 py-1.5 rounded border border-border bg-card"
-                          data-testid={`row-opp-ban-eff-${i}`}
+                          data-testid={`row-opp-ban-eff-${rank}`}
                         >
-                          <span className="text-xs text-muted-foreground w-5 text-right tabular-nums">{i + 1}.</span>
+                          <span className="text-xs text-muted-foreground w-7 text-right tabular-nums">{rank}.</span>
                           <div className="flex-1 min-w-0"><HeroChip hero={r.hero} /></div>
                           <Badge variant="secondary" className="text-xs tabular-nums">{r.bans} bans</Badge>
                           {r.ourPicks > 0 ? (
@@ -560,7 +581,9 @@ export default function HeroInsights() {
                             <Badge variant="outline" className="text-xs">no data</Badge>
                           )}
                         </div>
-                      ))}
+                        );
+                      })}
+                      <Paginator page={oppBanEffPage} total={banEfficiency.oppBansList.length} onPageChange={setOppBanEffPage} testId="opp-ban-eff" />
                     </div>
                   )}
                 </CardContent>
@@ -583,28 +606,34 @@ export default function HeroInsights() {
                   <p className="text-sm text-muted-foreground italic">No meta data yet.</p>
                 ) : (
                   <div className="space-y-1.5">
-                    {[...prioritized]
-                      .sort((a, b) => b.presence - a.presence)
-                      .slice(0, 30)
-                      .map((p, i) => (
-                        <div
-                          key={p.hero.id}
-                          className="flex items-center gap-2 px-2 py-1.5 rounded border border-border bg-card"
-                          data-testid={`row-hero-meta-${i}`}
-                        >
-                          <span className="text-xs text-muted-foreground w-5 text-right tabular-nums">{i + 1}.</span>
-                          <div className="flex-1 min-w-0"><HeroChip hero={p.hero} /></div>
-                          <Badge variant="secondary" className="text-xs tabular-nums">
-                            {p.totalPicks} picks
-                          </Badge>
-                          <Badge variant="outline" className="text-xs tabular-nums">
-                            {p.totalBans} bans
-                          </Badge>
-                          <Badge className={`text-xs tabular-nums ${wrColor(p.presence)}`} variant="outline">
-                            {p.presence.toFixed(0)}% presence
-                          </Badge>
-                        </div>
-                      ))}
+                    {(() => {
+                      const sorted = [...prioritized].sort((a, b) => b.presence - a.presence);
+                      return (<>
+                        {paginate(sorted, metaPage).map((p, i) => {
+                          const rank = (metaPage - 1) * DEFAULT_PAGE_SIZE + i + 1;
+                          return (
+                          <div
+                            key={p.hero.id}
+                            className="flex items-center gap-2 px-2 py-1.5 rounded border border-border bg-card"
+                            data-testid={`row-hero-meta-${rank}`}
+                          >
+                            <span className="text-xs text-muted-foreground w-7 text-right tabular-nums">{rank}.</span>
+                            <div className="flex-1 min-w-0"><HeroChip hero={p.hero} /></div>
+                            <Badge variant="secondary" className="text-xs tabular-nums">
+                              {p.totalPicks} picks
+                            </Badge>
+                            <Badge variant="outline" className="text-xs tabular-nums">
+                              {p.totalBans} bans
+                            </Badge>
+                            <Badge className={`text-xs tabular-nums ${wrColor(p.presence)}`} variant="outline">
+                              {p.presence.toFixed(0)}% presence
+                            </Badge>
+                          </div>
+                          );
+                        })}
+                        <Paginator page={metaPage} total={sorted.length} onPageChange={setMetaPage} testId="meta" />
+                      </>);
+                    })()}
                   </div>
                 )}
               </CardContent>
