@@ -60,37 +60,35 @@ function MatchDrillPopover({
           {refs.length} match{refs.length === 1 ? "" : "es"}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 p-0">
-        <div className="p-2 border-b text-xs font-semibold">Matches: {label}</div>
-        <ScrollArea className="max-h-72">
-          <div className="p-1 space-y-1">
-            {refs.map((m, i) => {
-              const resColor =
-                m.result === "win" ? "text-emerald-500" :
-                m.result === "loss" ? "text-red-500" :
-                m.result === "draw" ? "text-amber-500" : "text-muted-foreground";
-              const resLabel = m.result === "win" ? "W" : m.result === "loss" ? "L" : m.result === "draw" ? "D" : "—";
-              return (
-                <Link
-                  key={`${m.matchId}-${i}`}
-                  href={fullSlug ? `/${fullSlug}/events/${m.eventId}` : "#"}
-                  data-testid={`link-drill-event-${m.eventId}`}
-                >
-                  <div className="flex items-center gap-2 px-2 py-1.5 rounded text-xs hover-elevate cursor-pointer">
-                    <Badge variant="outline" className={`shrink-0 w-6 justify-center ${resColor}`}>{resLabel}</Badge>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate font-medium">{m.opponentName || "Unknown opponent"}</div>
-                      <div className="text-[10px] text-muted-foreground">
-                        {m.date ? new Date(m.date).toLocaleDateString() : ""} · Map {m.gameCode}
-                      </div>
+      <PopoverContent align="end" className="w-80 p-0 max-h-[min(70vh,28rem)] overflow-y-auto overscroll-contain">
+        <div className="p-2 border-b text-xs font-semibold sticky top-0 bg-popover z-10">Matches: {label}</div>
+        <div className="p-1 space-y-1">
+          {refs.map((m, i) => {
+            const resColor =
+              m.result === "win" ? "text-emerald-500" :
+              m.result === "loss" ? "text-red-500" :
+              m.result === "draw" ? "text-amber-500" : "text-muted-foreground";
+            const resLabel = m.result === "win" ? "W" : m.result === "loss" ? "L" : m.result === "draw" ? "D" : "—";
+            return (
+              <Link
+                key={`${m.matchId}-${i}`}
+                href={fullSlug ? `/${fullSlug}/events/${m.eventId}` : "#"}
+                data-testid={`link-drill-event-${m.eventId}`}
+              >
+                <div className="flex items-center gap-2 px-2 py-1.5 rounded text-xs hover-elevate cursor-pointer">
+                  <Badge variant="outline" className={`shrink-0 w-6 justify-center ${resColor}`}>{resLabel}</Badge>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-medium">{m.opponentName || "Unknown opponent"}</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {m.date ? new Date(m.date).toLocaleDateString() : ""} · Map {m.gameCode}
                     </div>
-                    <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
                   </div>
-                </Link>
-              );
-            })}
-          </div>
-        </ScrollArea>
+                  <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                </div>
+              </Link>
+            );
+          })}
+        </div>
       </PopoverContent>
     </Popover>
   );

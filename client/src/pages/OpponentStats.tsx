@@ -195,24 +195,69 @@ export default function OpponentStats() {
   }, [maps]);
 
   const opponentData = useMemo<OpponentData[]>(() => {
-    const opponentMap = new Map<string, Event[]>();
+    // Bucket events + games by a stable opponent key. Prefer the FK
+    // (event.opponentId / game.opponentId) so linked-only opponents (no
+    // free-text name on the event) still appear. Fall back to a normalized
+    // text name for legacy rows that only have opponentName.
+    const opponentById = new Map<string, Opponent>();
+    const opponentByLowerName = new Map<string, Opponent>();
+    opponentRoster.forEach(o => {
+      opponentById.set(o.id, o);
+      opponentByLowerName.set(o.name.trim().toLowerCase(), o);
+    });
 
-    events.forEach(event => {
-      if (event.opponentName && event.opponentName.trim()) {
-        const name = event.opponentName.trim().toLowerCase();
-        if (!opponentMap.has(name)) {
-          opponentMap.set(name, []);
-        }
-        opponentMap.get(name)!.push(event);
+    type Bucket = { key: string; displayName: string; events: Event[]; games: typeof allGames };
+    const buckets = new Map<string, Bucket>();
+
+    // Canonicalize: text names that match a roster opponent (case-insensitive)
+    // collapse into the FK bucket so mixed text+FK rows for the same real team
+    // aggregate together instead of fragmenting.
+    const canonical = (oppId: string | null | undefined, oppName: string | null | undefined):
+      { key: string; displayName: string } | null => {
+      if (oppId && opponentById.has(oppId)) {
+        return { key: `id:${oppId}`, displayName: opponentById.get(oppId)!.name };
       }
+      const txt = (oppName || "").trim();
+      if (!txt) return null;
+      const matched = opponentByLowerName.get(txt.toLowerCase());
+      if (matched) return { key: `id:${matched.id}`, displayName: matched.name };
+      return { key: `name:${txt.toLowerCase()}`, displayName: txt };
+    };
+
+    const ensureBucket = (key: string, displayName: string): Bucket => {
+      let b = buckets.get(key);
+      if (!b) { b = { key, displayName, events: [], games: [] }; buckets.set(key, b); }
+      return b;
+    };
+
+    const eventIdToBucket = new Map<string, Bucket>();
+    events.forEach(event => {
+      const k = canonical(event.opponentId, event.opponentName);
+      if (!k) return;
+      const b = ensureBucket(k.key, k.displayName);
+      b.events.push(event);
+      eventIdToBucket.set(event.id, b);
+    });
+
+    allGames.forEach(g => {
+      // Prefer the game's own opponent FK when present (most authoritative);
+      // fall back to the parent event's bucket only when the game has no FK.
+      const fromFk = canonical(g.opponentId, null);
+      if (fromFk) {
+        const b = ensureBucket(fromFk.key, fromFk.displayName);
+        b.games.push(g);
+        return;
+      }
+      const viaEvent = g.eventId ? eventIdToBucket.get(g.eventId) : undefined;
+      if (viaEvent) viaEvent.games.push(g);
     });
 
     const result: OpponentData[] = [];
 
-    opponentMap.forEach((opponentEvents, nameLower) => {
-      const displayName = opponentEvents[0].opponentName!;
-      const eventIds = new Set(opponentEvents.map(e => e.id));
-      const opponentGames = allGames.filter(g => eventIds.has(g.eventId || ""));
+    buckets.forEach((bucket) => {
+      const opponentEvents = bucket.events;
+      const displayName = bucket.displayName;
+      const opponentGames = bucket.games;
       const matchIds = new Set(opponentGames.map(g => g.id));
 
       // ---- Scouting computation ----
@@ -320,7 +365,7 @@ export default function OpponentStats() {
     });
 
     return result;
-  }, [events, allGames, gameModes, maps, heroBanRows, vetoRows, gameHeroRows, heroById, mapById]);
+  }, [events, allGames, gameModes, maps, heroBanRows, vetoRows, gameHeroRows, heroById, mapById, opponentRoster]);
 
   const filteredAndSorted = useMemo(() => {
     let filtered = opponentData;

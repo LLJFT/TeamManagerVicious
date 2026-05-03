@@ -1978,6 +1978,14 @@ export class DbStorage implements IStorage {
         counts.heroBanSystems = 1;
       }
 
+      // 4h0) Availability slots — sensible defaults so the roster's
+      //      Availability page isn't blank on first run.
+      await tx.insert(availabilitySlots).values(
+        ["Morning", "Afternoon", "Evening", "Night"].map((label, i) => ({
+          teamId, gameId, rosterId, label, sortOrder: i,
+        }))
+      );
+
       // 4h) Map Veto System (one preset).
       if (defaults.mapVetoSystem) {
         await tx.insert(mapVetoSystems).values({

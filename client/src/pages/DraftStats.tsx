@@ -90,11 +90,10 @@ function MatchDrillPopover({
           {refs.length} match{refs.length === 1 ? "" : "es"}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 p-0">
-        <div className="p-2 border-b text-xs font-semibold">Matches: {label}</div>
-        <ScrollArea className="max-h-72">
-          <div className="p-1 space-y-1">
-            {refs.map((m, i) => {
+      <PopoverContent align="end" className="w-80 p-0 max-h-[min(70vh,28rem)] overflow-y-auto overscroll-contain">
+        <div className="p-2 border-b text-xs font-semibold sticky top-0 bg-popover z-10">Matches: {label}</div>
+        <div className="p-1 space-y-1">
+          {refs.map((m, i) => {
               const resColor =
                 m.result === "win" ? "text-emerald-500" :
                 m.result === "loss" ? "text-red-500" :
@@ -119,8 +118,7 @@ function MatchDrillPopover({
                 </Link>
               );
             })}
-          </div>
-        </ScrollArea>
+        </div>
       </PopoverContent>
     </Popover>
   );

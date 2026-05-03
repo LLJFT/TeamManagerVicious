@@ -1,0 +1,135 @@
+There are still several real issues after the latest publish. Please audit them carefully and fix them completely.
+
+IMPORTANT CONTEXT
+The opponent linking feature itself already exists.
+Opponents are linked.
+The issue is NOT simply “add opponents”.
+
+The real problem is:
+since I added opponent-linking, the system still does not properly surface / aggregate / show opponent data and opponent statistics in the analytics the way it should.
+
+I am attaching screenshots to show the exact broken areas. Use them to reproduce the issues precisely.
+
+==================================================
+1) OPPONENT DATA / OPPONENT ANALYTICS ARE STILL INCOMPLETE
+==================================================
+
+The opponent relationship is already there.
+But the actual opponent dataset and opponent analytics are still not working correctly.
+
+Observed issues:
+- Stats by Opponent page can show “No Opponents Found” even though opponent linking exists
+- Opponent-related analytics are incomplete or empty
+- Opponent player data is not consistently surfacing where it should
+- Opponent stats are not behaving like a complete mirrored dataset
+
+What I need:
+- Audit the full opponent data flow end-to-end:
+  - opponent records
+  - event → opponent links
+  - game → opponent links
+  - opponent players
+  - opponent player stats
+  - analytics queries and page-level filtering
+- Find exactly where the disconnect is
+- Fix it so that linked opponents actually appear and their data is usable everywhere it should be
+
+Important:
+Do NOT assume the issue is “missing opponent rows”.
+The rows may already exist.
+The problem may be in the query path, roster scoping, joins, event/game linkage, or which tables analytics pages use.
+
+I want opponents to work as a real data model, not just a linked name.
+
+==================================================
+2) OPPONENT PLAYER STATS MUST WORK PROPERLY
+==================================================
+
+I want statistics for opponent players to be fully usable.
+
+Requirements:
+- Opponent players must appear in player-related analytics when their stats exist
+- Not just our team players
+- If there is a toggle for All / Our players / Opponents, all three modes must work correctly
+- If Opponents mode is empty, find the real cause and fix it
+- Opponent player stat rows must join correctly to opponent players and opponent teams
+- Use opponent team logos where available instead of generic first-letter fallback
+- Keep our players visually highlighted
+- If useful, add role-aware organization (for example top players by role) as long as it stays clean
+
+Also:
+- Make sure event/date/opponent filters still apply correctly to opponent player data
+- Make sure aggregation/dedupe is correct and not inflated
+
+==================================================
+3) OPPONENTS PAGE / STATS BY OPPONENT MUST POPULATE
+==================================================
+
+The Opponents / Stats by Opponent page should not be empty if the seeded or linked opponent data already exists.
+
+Please verify and fix:
+- the page query
+- any endpoint used by this page
+- any roster scope / game scope mismatch
+- any reliance on old event text fields instead of the real opponent relation
+- any issue caused by the newer linked-opponent architecture
+
+Goal:
+If a roster has linked opponents and games/events against them, this page must show them properly.
+
+==================================================
+4) AVAILABILITY TIMES / AVAILABILITY SLOTS
+==================================================
+
+Another issue:
+availability times / slots are still not appearing correctly in the real roster.
+
+Observed issue:
+- The real roster availability page does not reflect the configured availability slots/times as expected
+- The slots from the template/config are not being carried into the roster properly
+
+What to do:
+- Audit how availability slots are stored in templates/config
+- Verify how they are supposed to be copied into a roster
+- Fix the apply/load/seed flow so the roster actually gets them
+- Make sure they appear on the real availability page after load/apply
+
+==================================================
+5) SCROLL IS STILL BROKEN IN SOME ANALYTICS DRILLDOWNS
+==================================================
+
+The previous scroll fix did not fully solve the problem.
+
+Observed issue:
+- Some analytics drilldowns/popovers/lists still cannot be scrolled fully
+- I can only see the first few rows in some cases
+
+Do not just assume the primitive fix solved everything.
+Reproduce the exact failing cases from the screenshots and fix the remaining scroll blockers.
+
+==================================================
+6) GENERAL REQUIREMENTS
+==================================================
+
+- Audit first, then fix
+- Use the attached screenshots to reproduce the exact broken states
+- Do not stop at partial fixes
+- Keep everything strictly roster-scoped
+- Do not break the recent template-fidelity work
+- Do not remove the recent performance improvements
+- Do not touch forbidden files
+- Keep permission / safety rules intact
+
+==================================================
+7) AFTER IMPLEMENTATION REPORT
+==================================================
+
+Report clearly:
+1. Root cause of the opponent analytics/data issue
+2. What was broken in opponent stats / opponent player stats
+3. What was fixed in the Opponents page
+4. What was fixed in Player Leaderboard / opponent players mode
+5. Whether opponent logos now appear correctly
+6. What was fixed in availability slots/times
+7. Root cause of the remaining scroll issue
+8. What exact pages/components were fixed

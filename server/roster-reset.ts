@@ -520,6 +520,23 @@ export async function loadExampleData(rosterId: string, jobId?: string): Promise
     );
   }
 
+  // ---- Availability slots (template if present, else sensible defaults) ----
+  // Wiped earlier at line 275; loadExampleData previously left this empty,
+  // so the Roster Settings → Availability Slots panel rendered blank even
+  // when the game template defined them. Re-insert here.
+  {
+    const slotSeed = templateConfig?.availabilitySlots?.length
+      ? templateConfig.availabilitySlots.map((s, i) => ({ label: s.label, sortOrder: s.sortOrder ?? i }))
+      : ["Morning", "Afternoon", "Evening", "Night"].map((n, i) => ({ label: n, sortOrder: i }));
+    if (slotSeed.length > 0) {
+      await bulkInsert(
+        "availability_slots",
+        ["team_id", "game_id", "roster_id", "label", "sort_order"],
+        slotSeed.map(s => [teamId, gameId, rosterId, s.label, s.sortOrder]),
+      );
+    }
+  }
+
   // ---- Stat fields (template if present, linked via gameModeTempId) ----
   const statFieldsByMode: Record<string, { id: string; name: string }[]> = {};
   Object.keys(modeIds).forEach(n => { statFieldsByMode[n] = []; });
