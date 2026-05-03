@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* LIGHT MODE - Vicious Brand: Bone surfaces, Crimson primary, Onyx text */
+/* LIGHT MODE - The Bootcamp Brand: Bone surfaces, Crimson primary, Onyx text */
 :root {
   --button-outline: rgba(14,17,23, .10);
   --badge-outline: rgba(14,17,23, .06);
@@ -38,7 +38,7 @@
   --popover-foreground: 220 24% 9%;
   --popover-border: 220 14% 86%;
 
-  /* Primary - Vicious Crimson */
+  /* Primary - Crimson */
   --primary: 354 75% 50%;
   --primary-foreground: 0 0% 100%;
 
@@ -107,7 +107,7 @@
   --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
 }
 
-/* THEME: Default Dark - Vicious Brand: Onyx/Carbon surfaces, Crimson primary (DEFAULT) */
+/* THEME: Default Dark - The Bootcamp Brand: Onyx/Carbon surfaces, Crimson primary (DEFAULT) */
 .theme-default-dark {
   --button-outline: rgba(255,255,255, .12);
   --badge-outline: rgba(255,255,255, .08);
@@ -487,7 +487,7 @@
   --destructive-border: hsl(var(--destructive));
 }
 
-/* Legacy dark class for backwards compatibility - maps to Vicious default dark */
+/* Legacy dark class for backwards compatibility - maps to The Bootcamp default dark */
 .dark {
   --button-outline: rgba(255,255,255, .12);
   --badge-outline: rgba(255,255,255, .08);

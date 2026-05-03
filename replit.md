@@ -1,10 +1,10 @@
-# Vicious Esports Multi-Game Management Platform
+# THE BOOTCAMP Multi-Game Management Platform
 
 ## Overview
-The Vicious Esports Multi-Game Management Platform is a comprehensive system designed for "The Vicious" organization to centralize and streamline operations across 29 games, managing 116 teams. Its primary purpose is to provide a unified solution for team scheduling, event management, player/staff administration, and robust access control within a large-scale, multi-game esports environment. The platform offers capabilities like team chat, statistics dashboards, and seasonal management to enhance organizational efficiency and competitive performance.
+The Bootcamp Multi-Game Management Platform is a comprehensive system designed for "Bootcamp" organization to centralize and streamline operations across 29 games, managing 116 teams. Its primary purpose is to provide a unified solution for team scheduling, event management, player/staff administration, and robust access control within a large-scale, multi-game esports environment. The platform offers capabilities like team chat, statistics dashboards, and seasonal management to enhance organizational efficiency and competitive performance.
 
 ## Brand Identity
-The product ships with the **Vicious** brand identity system (v1.0). Source files, logos, extensions, and the full guidelines (markdown + PDF) live under `brand/`. Core tokens: Crimson primary `#E11D2E` (HSL 354 75% 50%), Onyx background `#0E1117`, Carbon cards `#1A1F2A`, Steel `#5B6573`, Bone `#F5F6F8`, Signal amber `#F59E0B`. Typography is a single Inter family with weight-driven hierarchy. The web app reads these tokens from `client/src/index.css` (`:root`, `.dark`, and `.theme-default-dark`). The favicon is `client/public/vicious-favicon.svg`. The in-product V mark is `client/src/components/VicLogo.tsx`. Rebuild the brand PDF with `node scripts/build-brand-pdf.mjs`.
+The product ships with the **BOOTCAMP** brand identity system (v1.0). Source files, logos, extensions, and the full guidelines (markdown + PDF) live under `brand/`. Core tokens: Crimson primary `#E11D2E` (HSL 354 75% 50%), Onyx background `#0E1117`, Carbon cards `#1A1F2A`, Steel `#5B6573`, Bone `#F5F6F8`, Signal amber `#F59E0B`. Typography is a single Inter family with weight-driven hierarchy. The web app reads these tokens from `client/src/index.css` (`:root`, `.dark`, and `.theme-default-dark`). The favicon is `client/public/4.png`. Rebuild the brand PDF with `node scripts/build-brand-pdf.mjs`.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.

@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Calendar, BarChart3, Users, Settings, MessageSquare, ClipboardList, HelpCircle, ChevronRight, ChevronLeft } from "lucide-react";
 
-const ONBOARDING_KEY = "vicious_onboarding_seen";
-const HELP_EVENT = "vicious_show_help";
+const ONBOARDING_KEY = "bootcamp_onboarding_seen";
+const HELP_EVENT = "bootcamp_show_help";
 
 const steps = [
   {
