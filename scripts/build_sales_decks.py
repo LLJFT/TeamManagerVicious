@@ -9,7 +9,13 @@ from pptx.util import Inches, Pt, Emu
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 from pptx.dml.color import RGBColor
+from PIL import Image
 import os
+import tempfile
+
+ASSETS_DIR = "attached_assets"
+_BUILD_TMP = os.path.join(tempfile.gettempdir(), "sales_deck_screenshots")
+os.makedirs(_BUILD_TMP, exist_ok=True)
 
 # ---------- Brand system ----------
 BG_DEEP    = RGBColor(0x0A, 0x0F, 0x1C)   # deepest background
@@ -263,10 +269,45 @@ def closing_slide(prs, headline, line2, contact):
     add_text(s, Inches(1.0), Inches(5.55), Inches(11), Inches(0.5),
              contact, size=13, bold=True, color=PRIMARY)
 
-def mockup_frame(slide, x, y, w, h, caption=None):
-    """Draw a window-chrome mockup placeholder for a product screenshot."""
+def _prepare_screenshot(image_path, target_w_emu, target_h_emu, key):
+    """Center-crop the given image to match the target frame aspect ratio,
+    preserving as much of the original product UI as possible. Returns the
+    path to a cached PNG ready to embed in the PPTX."""
+    target_ratio = target_w_emu / target_h_emu
+    cache_path = os.path.join(_BUILD_TMP, f"{key}.png")
+    if os.path.exists(cache_path):
+        return cache_path
+    im = Image.open(image_path).convert("RGB")
+    iw, ih = im.size
+    src_ratio = iw / ih
+    if src_ratio > target_ratio:
+        # source is wider — crop sides
+        new_w = int(ih * target_ratio)
+        x0 = (iw - new_w) // 2
+        im = im.crop((x0, 0, x0 + new_w, ih))
+    elif src_ratio < target_ratio:
+        # source is taller — crop top/bottom, biased toward top so headers stay
+        new_h = int(iw / target_ratio)
+        y0 = max(0, (ih - new_h) // 4)  # bias upward
+        im = im.crop((0, y0, iw, y0 + new_h))
+    # downscale very large images to keep file size reasonable
+    max_w = 2200
+    if im.size[0] > max_w:
+        ratio = max_w / im.size[0]
+        im = im.resize((max_w, int(im.size[1] * ratio)), Image.LANCZOS)
+    im.save(cache_path, format="PNG", optimize=True)
+    return cache_path
+
+
+def mockup_frame(slide, x, y, w, h, caption=None, image=None):
+    """Draw a dark window-chrome frame around a product screenshot.
+
+    If `image` is provided, a real screenshot from `attached_assets/` is
+    embedded inside the frame body. Otherwise the function falls back to a
+    schematic placeholder grid so the deck still builds without assets.
+    """
+    # outer frame + title bar (kept for both modes so styling is identical)
     add_rect(slide, x, y, w, h, fill=SURFACE, line=LINE)
-    # title bar
     add_rect(slide, x, y, w, Inches(0.32), fill=SURFACE_2, line=LINE)
     add_rect(slide, x + Inches(0.15), y + Inches(0.10), Inches(0.13), Inches(0.13),
              fill=DANGER, shape=MSO_SHAPE.OVAL)
@@ -274,21 +315,42 @@ def mockup_frame(slide, x, y, w, h, caption=None):
              fill=WARN, shape=MSO_SHAPE.OVAL)
     add_rect(slide, x + Inches(0.49), y + Inches(0.10), Inches(0.13), Inches(0.13),
              fill=SUCCESS, shape=MSO_SHAPE.OVAL)
-    # body grid hint (left nav + content blocks)
-    nav_w = Inches(1.1)
-    add_rect(slide, x, y + Inches(0.32), nav_w, h - Inches(0.32), fill=BG_DEEP, line=LINE)
-    for i in range(5):
-        add_rect(slide, x + Inches(0.15), y + Inches(0.55) + Inches(0.45) * i,
-                 nav_w - Inches(0.3), Inches(0.22), fill=SURFACE_2)
-    # right content cards
-    cx = x + nav_w + Inches(0.25)
-    cw = w - nav_w - Inches(0.4)
-    add_rect(slide, cx, y + Inches(0.5), cw, Inches(0.5), fill=SURFACE_2)
-    card_h = (h - Inches(1.6)) / 2
-    add_rect(slide, cx, y + Inches(1.15), cw / 2 - Inches(0.1), card_h, fill=SURFACE_2)
-    add_rect(slide, cx + cw / 2 + Inches(0.1), y + Inches(1.15),
-             cw / 2 - Inches(0.1), card_h, fill=SURFACE_2)
-    add_rect(slide, cx, y + Inches(1.3) + card_h, cw, h - Inches(1.5) - card_h, fill=SURFACE_2)
+
+    body_y = y + Inches(0.32)
+    body_h = h - Inches(0.32)
+
+    if image:
+        image_path = image if os.path.isabs(image) else os.path.join(ASSETS_DIR, image)
+        if not os.path.exists(image_path):
+            raise FileNotFoundError(f"mockup_frame: screenshot not found: {image_path}")
+        # small inset so the screenshot doesn't touch the chrome
+        inset = Inches(0.06)
+        ix, iy = x + inset, body_y + inset
+        iw_emu, ih_emu = w - inset * 2, body_h - inset * 2
+        # include source mtime in cache key so updated screenshots invalidate cleanly
+        mtime = int(os.path.getmtime(image_path))
+        key = (os.path.splitext(os.path.basename(image_path))[0]
+               + f"_{int(iw_emu)}x{int(ih_emu)}_{mtime}")
+        cropped = _prepare_screenshot(image_path, int(iw_emu), int(ih_emu), key)
+        # background behind the image, in case PNG has transparency
+        add_rect(slide, ix, iy, iw_emu, ih_emu, fill=BG_DEEP, line=None)
+        slide.shapes.add_picture(cropped, ix, iy, width=iw_emu, height=ih_emu)
+    else:
+        # schematic placeholder (legacy)
+        nav_w = Inches(1.1)
+        add_rect(slide, x, body_y, nav_w, body_h, fill=BG_DEEP, line=LINE)
+        for i in range(5):
+            add_rect(slide, x + Inches(0.15), y + Inches(0.55) + Inches(0.45) * i,
+                     nav_w - Inches(0.3), Inches(0.22), fill=SURFACE_2)
+        cx = x + nav_w + Inches(0.25)
+        cw = w - nav_w - Inches(0.4)
+        add_rect(slide, cx, y + Inches(0.5), cw, Inches(0.5), fill=SURFACE_2)
+        card_h = (h - Inches(1.6)) / 2
+        add_rect(slide, cx, y + Inches(1.15), cw / 2 - Inches(0.1), card_h, fill=SURFACE_2)
+        add_rect(slide, cx + cw / 2 + Inches(0.1), y + Inches(1.15),
+                 cw / 2 - Inches(0.1), card_h, fill=SURFACE_2)
+        add_rect(slide, cx, y + Inches(1.3) + card_h, cw, h - Inches(1.5) - card_h, fill=SURFACE_2)
+
     if caption:
         add_text(slide, x, y + h + Inches(0.1), w, Inches(0.3),
                  caption, size=10, color=TEXT_DIM, align=PP_ALIGN.CENTER)
@@ -474,7 +536,8 @@ def build_individuals(out_path):
     add_slide_header(s, "06  ·  How it looks",
                      "Built like a pro tool. Designed to be readable in a war room.")
     mockup_frame(s, Inches(0.6), Inches(2.95), Inches(8.0), Inches(4.0),
-                 caption="Dashboard view  ·  replace with real product screenshot")
+                 caption="Dashboard  ·  live product view",
+                 image="Dashboard_users_1771832454665.png")
     add_bullets(s, Inches(8.9), Inches(3.0), Inches(4.0), Inches(4), [
         "Dark, premium UI",
         "Information-dense without being noisy",
@@ -835,7 +898,8 @@ def build_organizations(out_path):
                     "Notes from coaches and analysts on the same record",
                 ], size=14)
     mockup_frame(s, Inches(7.0), Inches(2.95), Inches(5.8), Inches(4.0),
-                 caption="Opponent profile  ·  swap with real screenshot in Canva")
+                 caption="Opponent profile  ·  live product view",
+                 image="Opponents_page_1775904047714.png")
     add_footer(s, 9, TOTAL)
 
     # 10 Draft / Map / Hero analysis
