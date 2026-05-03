@@ -20,8 +20,9 @@ import {
   ArrowLeft, Plus, Pencil, Trash2, Gamepad2, Map as MapIcon,
   ChevronRight, ChevronDown, Calendar, BarChart3, Settings, Users, Shield,
   Clock, UserCog, Check, Ban, UserCheck, Search, ArrowUp, ArrowDown,
-  AlertTriangle, Database, Loader2, Swords, Target, Image as ImageIcon
+  AlertTriangle, Database, Loader2, Swords, Target, Image as ImageIcon, ShieldCheck
 } from "lucide-react";
+import { SubscriptionPlanCard } from "@/components/SubscriptionPlanCard";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type {
   GameMode, Map as MapType, Season, StatField, Role, Player,
@@ -1272,6 +1273,7 @@ export default function Dashboard() {
     { value: "event-types", label: "Event Types", icon: Calendar, show: canManageGameConfig },
     { value: "stat-fields", label: "Stat Fields", icon: BarChart3, show: canManageStatFields },
     { value: "activity", label: "Activity", icon: Clock, show: canViewActivityLog },
+    { value: "subscription", label: "Plan", icon: ShieldCheck, show: canViewDashboard },
     { value: "reset-roster", label: "Reset Roster", icon: AlertTriangle, show: user?.orgRole === "super_admin" },
   ];
 
@@ -1350,7 +1352,7 @@ export default function Dashboard() {
         )}
 
         <Tabs defaultValue={defaultTab}>
-          <TabsList className="flex-wrap" data-testid="dashboard-tabs">
+          <TabsList className="flex-wrap h-auto gap-1 mb-4" data-testid="dashboard-tabs">
             {visibleTabs.map(tab => (
               <TabsTrigger key={tab.value} value={tab.value} data-testid={`tab-${tab.value}`}>
                 <tab.icon className="h-4 w-4 mr-2" />
@@ -2615,6 +2617,12 @@ export default function Dashboard() {
 
           <TabsContent value="activity">
             <ActivityLogTab />
+          </TabsContent>
+
+          <TabsContent value="subscription" className="space-y-6">
+            <div className="max-w-2xl">
+              <SubscriptionPlanCard showManageLink />
+            </div>
           </TabsContent>
 
           <TabsContent value="reset-roster">

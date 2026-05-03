@@ -2,10 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
-import { Lock } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Lock, Gamepad2, ShieldCheck } from "lucide-react";
 import type { SupportedGame, Roster } from "@shared/schema";
 import { useGame, rosterUrlSlug } from "@/hooks/use-game";
 import { GameIcon } from "@/components/game-icon";
+import { SubscriptionPlanCard } from "@/components/SubscriptionPlanCard";
 
 function RosterBadge({ name }: { name: string }) {
   return <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{name}</span>;
@@ -17,9 +19,10 @@ interface RosterCardData {
 }
 
 export default function GamesHome() {
-  const { hasGameAccess, hasRosterAccess } = useAuth();
+  const { hasGameAccess, hasRosterAccess, hasOrgRole } = useAuth();
   const [, navigate] = useLocation();
   const { setRosterId } = useGame();
+  const showPlanTab = hasOrgRole("super_admin" as any, "org_admin" as any, "management" as any);
 
   const { data: allGames = [], isLoading } = useQuery<SupportedGame[]>({
     queryKey: ["/api/supported-games"],
@@ -58,14 +61,8 @@ export default function GamesHome() {
     navigate(url);
   };
 
-  return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold" data-testid="text-page-title">Home</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">Select a roster to manage</p>
-      </div>
-
-      <div className="space-y-6">
+  const rostersView = (
+    <div className="space-y-6">
         {[...allGames]
           .map((game) => {
             const gameRosterCards = rosterCards.filter(rc => rc.game.id === game.id);
@@ -123,7 +120,36 @@ export default function GamesHome() {
               </div>
             );
           })}
+    </div>
+  );
+
+  return (
+    <div className="p-4 md:p-6 max-w-7xl mx-auto">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold" data-testid="text-page-title">Home</h1>
+        <p className="text-muted-foreground text-sm mt-0.5">Select a roster to manage</p>
       </div>
+
+      {showPlanTab ? (
+        <Tabs defaultValue="rosters">
+          <TabsList data-testid="games-home-tabs">
+            <TabsTrigger value="rosters" data-testid="tab-home-rosters">
+              <Gamepad2 className="h-4 w-4 mr-2" /> Rosters
+            </TabsTrigger>
+            <TabsTrigger value="plan" data-testid="tab-home-plan">
+              <ShieldCheck className="h-4 w-4 mr-2" /> My Plan
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="rosters" className="mt-4">{rostersView}</TabsContent>
+          <TabsContent value="plan" className="mt-4">
+            <div className="max-w-2xl">
+              <SubscriptionPlanCard showManageLink />
+            </div>
+          </TabsContent>
+        </Tabs>
+      ) : (
+        rostersView
+      )}
     </div>
   );
 }

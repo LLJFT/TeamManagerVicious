@@ -280,6 +280,20 @@ export function AppSidebar() {
                         </SidebarMenuButton>
                       </SidebarMenuItem>
                     )}
+                    {hasOrgRole("super_admin" as any) && (
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          asChild
+                          isActive={location === "/subscriptions"}
+                          data-testid="link-subscriptions"
+                        >
+                          <Link href="/subscriptions">
+                            <ShieldCheck className="h-4 w-4" />
+                            <span>Subscriptions</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    )}
                   </SidebarMenu>
                 </SidebarGroupContent>
               </SidebarGroup>

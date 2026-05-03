@@ -15,6 +15,7 @@ import { useState, useEffect, useCallback, useRef, type CSSProperties } from "re
 import { Moon } from "lucide-react";
 import { LoadingSpinner } from "@/components/PageSkeleton";
 import { SubscriptionBlock } from "@/components/SubscriptionBlock";
+import { SubscriptionCountdownBanner } from "@/components/SubscriptionCountdownBanner";
 import Login from "@/pages/Login";
 import GamesHome from "@/pages/GamesHome";
 import Home from "@/pages/Home";
@@ -48,6 +49,7 @@ import SettingsPage from "@/pages/SettingsPage";
 import GameTemplatesPage from "@/pages/GameTemplates";
 import GameTemplateEditorPage from "@/pages/GameTemplateEditor";
 import MediaLibraryPage from "@/pages/MediaLibrary";
+import SubscriptionsPage from "@/pages/SubscriptionsPage";
 import NotFound from "@/pages/not-found";
 
 function GameRoutes({ slug }: { slug: string }) {
@@ -153,6 +155,7 @@ function MainContent() {
       <Route path="/game-templates" component={GameTemplatesPage} />
       <Route path="/game-templates/:id" component={GameTemplateEditorPage} />
       <Route path="/media-library" component={MediaLibraryPage} />
+      <Route path="/subscriptions" component={SubscriptionsPage} />
       <Route path="/account" component={AccountSettings} />
       <Route>
         {() => {
@@ -280,6 +283,7 @@ function AuthenticatedApp() {
                 </div>
               </header>
               <main className="flex-1 overflow-auto">
+                <SubscriptionCountdownBanner />
                 <OnboardingGuide />
                 <MainContent />
               </main>
