@@ -1,0 +1,140 @@
+We are at the point where the underlying game data exists, but the analytics pages are still not surfacing it correctly.
+
+Important:
+- Do NOT rebuild the whole dataset from scratch unless a table is truly empty.
+- The core issue now is that existing data is not being surfaced correctly in analytics.
+- I want the fix to use the existing recorded games/results/stats/hero plays/opponent links and make the analytics pages show them properly.
+
+Use the attached screenshots to reproduce the current broken behavior.
+
+==================================================
+1) OPPONENTS PAGE SHOWS “NO OPPONENT DATA AVAILABLE”
+==================================================
+
+Observed issue:
+- The Opponents page says “No opponent data available”
+- But there ARE recorded games and opponent-linked events
+- The issue is not just missing opponents rows
+- The problem is that the analytics page is not surfacing the existing opponent-linked data correctly
+
+Please audit the entire opponent analytics path:
+- opponent links on events/games
+- opponent stats rows
+- opponent player rows
+- any team/game/roster scope logic
+- any aggregation that may be looking at the wrong table or wrong key
+- any joins that may be too strict or using the wrong identifier
+
+Requirements:
+- If a roster has recorded games against opponents, the Opponents page must show them
+- The page must use the real relational links where available
+- It must not depend only on brittle text fields
+- It must not silently ignore existing linked data
+- If old records use text fields and new ones use FKs, merge them correctly
+- Make sure opponent logos/team identity show when available
+
+==================================================
+2) PLAYER LEADERBOARD — OPPONENTS / ALL MUST SURFACE EXISTING DATA
+==================================================
+
+The Player Leaderboard is still not showing opponent-side data properly.
+
+Important:
+- Opponent player stats already exist in the dataset or in the game records
+- But the leaderboard still does not show them correctly in Opponents or All modes
+- I do NOT want a blank state if stats already exist
+
+Please audit:
+- opponent_players
+- opponent player stat rows
+- hero picks / game_heroes for opponent players
+- joins to games / opponents / modes / maps / events
+- page-level filtering and aggregation logic in PlayerLeaderboard
+
+Requirements:
+- All mode must include existing data correctly
+- Opponents mode must include opponent-side data correctly
+- If opponent stats exist, they must appear
+- If hero plays exist, hero specialization must appear
+- Our players and opponent players must remain visually distinct
+- Team logos should show for opponent players when available
+- Filters for mode/map/role/event/date must still apply correctly
+
+==================================================
+3) OVERALL STATS MUST MERGE SAME-NAMED STAT FIELDS
+==================================================
+
+In Overall view, repeated stat names must be merged into one stat.
+
+Examples:
+- Kills
+- Deaths
+- Assists
+- Final Hits
+- Damage
+- Damage Blocked
+- Healing
+
+These may exist across multiple game modes, but in OVERALL view they should be combined by normalized stat name.
+
+Requirements:
+- Overall view should group same-named stats together
+- By Mode should keep mode-specific separation
+- By Map should keep scoped separation
+- No duplicate cards in Overall for the same stat name
+- No inflated totals
+- Correct dedupe rules for both our players and opponent players
+
+==================================================
+4) CHAT MUST REMAIN FULLY ROSTER-SCOPED
+==================================================
+
+The chat system must stay isolated by roster.
+
+Requirements:
+- Channels must remain roster-scoped
+- Messages must remain roster-scoped
+- No channel leakage
+- No message leakage
+- Do not break the fixes already made
+
+==================================================
+5) AVAILABILITY / TEMPLATE FIDELITY MUST NOT REGRESS
+==================================================
+
+Do not break availability or template propagation while fixing the analytics.
+
+Requirements:
+- Availability slots/times continue to propagate correctly where supported
+- Template-defined config continues to be used when available
+- Do not silently fall back when template data exists
+- Preserve current working behavior
+
+==================================================
+GENERAL RULES
+==================================================
+
+- Audit first, then fix
+- Use the screenshots to reproduce the exact current failures
+- Keep everything strictly roster-scoped
+- Do not touch forbidden files
+- Do not break the recent template-fidelity or analytics work
+- Do not remove performance improvements
+- Keep permissions and safety rules intact
+
+==================================================
+AFTER IMPLEMENTATION REPORT
+==================================================
+
+Report clearly:
+1. Why Opponents page showed “No opponent data available”
+2. What data path was failing to surface existing opponent records
+3. What was fixed so Opponents now show existing data
+4. Why Player Leaderboard Opponents / All was blank or incomplete
+5. What was fixed so existing opponent player data surfaces correctly
+6. How All vs Opponents modes now behave
+7. How Overall stat merging now works
+8. What filters still apply to opponent-player stats
+9. Confirmation that chat remains roster-scoped
+10. Confirmation that availability/template behavior was not regressed
+11. Any remaining schema/data limitations

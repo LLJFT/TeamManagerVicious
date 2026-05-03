@@ -4971,6 +4971,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const allGameModes = await storage.getAllGameModes(gid, rid);
 
       const allMaps = await storage.getAllMaps(gid, rid);
+      const allOpponents = await storage.getAllOpponents(gid, rid);
+      const opponentNameById = new Map(allOpponents.map(o => [o.id, o.name]));
+
+      // Resolve a stable opponent display name for a game by walking
+      // through the available linkage in priority order. The per-game FK
+      // is most authoritative; the parent event's FK is next; finally we
+      // fall back to the parent event's free-text name. Returning null
+      // means the game cannot be attributed to any opponent.
+      const resolveOpponentName = (game: any, event: any): string | null => {
+        const fkOnGame = game?.opponentId ? opponentNameById.get(game.opponentId) : undefined;
+        if (fkOnGame) return fkOnGame;
+        const fkOnEvent = event?.opponentId ? opponentNameById.get(event.opponentId) : undefined;
+        if (fkOnEvent) return fkOnEvent;
+        const txt = (event?.opponentName || "").trim();
+        return txt || null;
+      };
 
       const summary = allPlayers.map(player => {
         const playerStats = allPlayerGameStats.filter(s => s.playerId === player.id);
@@ -5005,8 +5021,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const game = allGames.find(g => g.id === gameId);
           if (!game) continue;
           const event = allEvents.find(e => e.id === game.eventId);
-          if (!event || !event.opponentName) continue;
-          const opp = event.opponentName;
+          const opp = resolveOpponentName(game, event);
+          if (!opp) continue;
           if (!opponentStats[opp]) {
             opponentStats[opp] = { opponent: opp, wins: 0, losses: 0, draws: 0, gamesPlayed: 0, stats: {}, byMode: {}, byMap: {}, bySubType: {} };
           }

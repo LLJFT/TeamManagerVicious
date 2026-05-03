@@ -1,7 +1,7 @@
 import type { Player, InsertPlayer, Schedule, InsertSchedule, Setting, InsertSetting, Event, InsertEvent, Attendance, InsertAttendance, TeamNotes, InsertTeamNotes, Game, InsertGame, GameMode, InsertGameMode, Map, InsertMap, Season, InsertSeason, OffDay, InsertOffDay, StatField, InsertStatField, PlayerGameStat, InsertPlayerGameStat, PlayerAvailabilityRecord, InsertPlayerAvailability, StaffAvailabilityRecord, InsertStaffAvailability, Staff, InsertStaff, AvailabilitySlot, RosterRole, SupportedGame, UserGameAssignment, Notification, EventCategory, InsertEventCategory, EventSubType, InsertEventSubType, Side, InsertSide, GameRound, InsertGameRound, Hero, InsertHero, HeroRoleConfig, InsertHeroRoleConfig, GameHero, InsertGameHero, Opponent, InsertOpponent, OpponentPlayer, InsertOpponentPlayer, MatchParticipant, InsertMatchParticipant, OpponentPlayerGameStat, InsertOpponentPlayerGameStat, HeroBanSystem, InsertHeroBanSystem, MapVetoSystem, InsertMapVetoSystem, GameHeroBanAction, InsertGameHeroBanAction, GameMapVetoRow, InsertGameMapVetoRow, GameTemplate, GameTemplateConfig } from "@shared/schema";
 import { players, schedules, settings, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays, statFields, playerGameStats, playerAvailability, staffAvailability, staff as staffTable, availabilitySlots, rosterRoles, supportedGames, userGameAssignments, notifications, users, rosters, eventCategories, eventSubTypes, sides, gameRounds, heroes, heroRoleConfigs, gameHeroes, opponents, opponentPlayers, matchParticipants, opponentPlayerGameStats, heroBanSystems, mapVetoSystems, gameHeroBanActions, gameMapVetoRows, gameTemplates, mediaFolders, mediaItems } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, isNull, desc, sql, inArray } from "drizzle-orm";
+import { eq, and, isNull, desc, sql, inArray, or } from "drizzle-orm";
 import { getGameDefaults, defaultIgn } from "./defaults/gameDefaults";
 import { OPPONENT_SEEDS_BY_GAME_SLUG } from "./defaults/realOpponents";
 
@@ -691,10 +691,15 @@ export class DbStorage implements IStorage {
       eq(games.gameId, gameId),
       eq(games.rosterId, rosterId),
     ];
-    if (opponentId) conditions.push(eq(games.opponentId, opponentId));
+    if (opponentId) conditions.push(or(
+      eq(games.opponentId, opponentId),
+      eq(events.opponentId, opponentId),
+      sql`lower(${events.opponentName}) = (select lower(name) from opponents where id = ${opponentId})`,
+    )!);
     const rows = await db.select({ h: gameHeroes })
       .from(gameHeroes)
       .innerJoin(games, eq(gameHeroes.matchId, games.id))
+      .leftJoin(events, eq(games.eventId, events.id))
       .where(and(...conditions));
     return rows.map(r => r.h);
   }
@@ -1035,10 +1040,18 @@ export class DbStorage implements IStorage {
       eq(games.gameId, gameId),
       eq(games.rosterId, rosterId),
     ];
-    if (opponentId) conditions.push(eq(games.opponentId, opponentId));
+    // Opponents are linked at the event level for almost all historical
+    // rows; only a tiny fraction of games have a per-game opponentId FK.
+    // Coalesce the two so opponent-scoped queries surface the real data.
+    if (opponentId) conditions.push(or(
+      eq(games.opponentId, opponentId),
+      eq(events.opponentId, opponentId),
+      sql`lower(${events.opponentName}) = (select lower(name) from opponents where id = ${opponentId})`,
+    )!);
     const rows = await db.select({ s: playerGameStats })
       .from(playerGameStats)
       .innerJoin(games, eq(playerGameStats.matchId, games.id))
+      .leftJoin(events, eq(games.eventId, events.id))
       .where(and(...conditions));
     return rows.map(r => r.s);
   }
@@ -1294,10 +1307,15 @@ export class DbStorage implements IStorage {
       eq(games.gameId, gameId),
       eq(games.rosterId, rosterId),
     ];
-    if (opponentId) conditions.push(eq(games.opponentId, opponentId));
+    if (opponentId) conditions.push(or(
+      eq(games.opponentId, opponentId),
+      eq(events.opponentId, opponentId),
+      sql`lower(${events.opponentName}) = (select lower(name) from opponents where id = ${opponentId})`,
+    )!);
     const rows = await db.select({ s: opponentPlayerGameStats })
       .from(opponentPlayerGameStats)
       .innerJoin(games, eq(opponentPlayerGameStats.matchId, games.id))
+      .leftJoin(events, eq(games.eventId, events.id))
       .where(and(...conditions));
     return rows.map(r => r.s);
   }
@@ -1344,10 +1362,15 @@ export class DbStorage implements IStorage {
       eq(games.gameId, gameId),
       eq(games.rosterId, rosterId),
     ];
-    if (opponentId) conditions.push(eq(games.opponentId, opponentId));
+    if (opponentId) conditions.push(or(
+      eq(games.opponentId, opponentId),
+      eq(events.opponentId, opponentId),
+      sql`lower(${events.opponentName}) = (select lower(name) from opponents where id = ${opponentId})`,
+    )!);
     const rows = await db.select({ p: matchParticipants })
       .from(matchParticipants)
       .innerJoin(games, eq(matchParticipants.matchId, games.id))
+      .leftJoin(events, eq(games.eventId, events.id))
       .where(and(...conditions));
     return rows.map(r => r.p);
   }

@@ -275,12 +275,33 @@ export default function PlayerLeaderboard() {
     );
   }, [statFields, modeFilter]);
 
+  // Resolve a game's effective opponent FK by walking through:
+  //  1. per-game FK,
+  //  2. parent event's FK,
+  //  3. parent event's free-text opponentName matched (case-insensitive)
+  //     against the loaded opponents list.
+  // Almost every historical game has no per-game FK while its event does,
+  // so opponent filters that key off `g.opponentId` alone hide all data.
+  const opponentIdByLowerName = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const o of opponents) m.set(o.name.trim().toLowerCase(), o.id);
+    return m;
+  }, [opponents]);
+
+  const effectiveOpponentId = useMemo(() => (g: Game) => {
+    if (g.opponentId) return g.opponentId;
+    const ev = eventById.get(g.eventId);
+    if (ev?.opponentId) return ev.opponentId;
+    const txt = (ev?.opponentName || "").trim().toLowerCase();
+    return txt ? (opponentIdByLowerName.get(txt) ?? null) : null;
+  }, [eventById, opponentIdByLowerName]);
+
   const filteredGames = useMemo(() => allGames.filter(g => {
-    if (opponentFilter !== "__all__" && g.opponentId !== opponentFilter) return false;
+    if (opponentFilter !== "__all__" && effectiveOpponentId(g) !== opponentFilter) return false;
     if (modeFilter !== "__all__" && g.gameModeId !== modeFilter) return false;
     if (mapFilter !== "__all__" && g.mapId !== mapFilter) return false;
     return true;
-  }), [allGames, opponentFilter, modeFilter, mapFilter]);
+  }), [allGames, opponentFilter, modeFilter, mapFilter, effectiveOpponentId]);
   const matchById = useMemo(() => new Map(filteredGames.map(g => [g.id, g])), [filteredGames]);
 
   // All distinct roles across our players + opponent players, used to populate the role filter.
@@ -304,7 +325,11 @@ export default function PlayerLeaderboard() {
       matchId: g.id,
       eventId: g.eventId,
       date: ev?.date || "",
-      opponentName: g.opponentId ? (opponentById.get(g.opponentId)?.name || ev?.opponentName || "Unknown") : (ev?.opponentName || "Unknown"),
+      opponentName:
+        (g.opponentId && opponentById.get(g.opponentId)?.name) ||
+        (ev?.opponentId && opponentById.get(ev.opponentId)?.name) ||
+        ev?.opponentName ||
+        "Unknown",
       result: g.result || null,
       gameCode: g.gameCode || "",
     };
