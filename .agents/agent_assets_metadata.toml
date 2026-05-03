@@ -6,3 +6,9 @@ id = "voOaP7raCqwIqflMZ4Opp"
 uri = "file://design/DESIGN_SYSTEM.md"
 type = "text"
 title = "The Bootcamp — Design System v1.0"
+
+[[outputs]]
+id = "vtOwl7rkr1pRR06xiDYRL"
+uri = "file://docs/Bootcamp-Product-Documentation.pdf"
+type = "pdf"
+title = "The Bootcamp — Product Documentation"
