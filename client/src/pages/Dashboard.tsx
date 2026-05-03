@@ -3389,7 +3389,8 @@ function ResetRosterTab() {
           <p className="text-sm text-muted-foreground">
             Wipes <strong>only this roster</strong> and reseeds it with players, staff, game
             config, and two months of events with games and stats. Other rosters in this game and
-            in your team remain untouched. Typically takes 30–90 seconds for one roster.
+            in your team remain untouched. Typically 30 s – 6 min for one roster on production
+            (the dominant cost is ~15–20k sequential database inserts).
           </p>
           <Button
             className="bg-cyan-600 hover:bg-cyan-700 text-white border-cyan-700"
@@ -3464,7 +3465,7 @@ function ResetRosterTab() {
               This affects <strong>this roster only</strong>. The roster's existing players,
               staff, events, games, and stats will be wiped and replaced with example data. Other
               rosters in this game, and every other game in your team, will not be touched. This
-              typically takes 30–90 seconds for one roster.
+              typically takes 30 s – 6 min for one roster on production.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-md border border-border p-3 bg-muted/30 space-y-1">
@@ -3489,8 +3490,8 @@ function ResetRosterTab() {
             <div className="rounded-md border border-cyan-600/30 bg-cyan-600/10 p-3 text-sm flex items-center gap-2" data-testid="status-load-job">
               <Loader2 className="h-4 w-4 animate-spin text-cyan-600" />
               <div>
-                <div className="font-medium text-cyan-700 dark:text-cyan-300">Loading example data for this roster…</div>
-                <div className="text-xs text-muted-foreground">Typically 30–90 seconds. Elapsed: {loadElapsed}s</div>
+                <div className="font-medium text-cyan-700 dark:text-cyan-300">{jobStatus?.message || "Loading example data for this roster…"}</div>
+                <div className="text-xs text-muted-foreground">Typically 30 s – 6 min on production · Elapsed: {Math.floor(loadElapsed / 60)}m {loadElapsed % 60}s</div>
               </div>
             </div>
           )}

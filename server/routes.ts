@@ -1342,8 +1342,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const rosterId = req.params.id;
       // Start the heavy work in the background and return a job ID immediately.
-      // The frontend polls /api/admin/jobs/:jobId for completion.
-      const job = startJob(`load-example:${rosterId}`, () => loadExampleData(rosterId));
+      // startJob hands the freshly-created jobId to the work fn so the loader
+      // can call setJobMessage for live phase progress.
+      const job = startJob(`load-example:${rosterId}`, (jid) => loadExampleData(rosterId, jid));
       res.json({ ok: true, jobId: job.id, status: job.status });
     } catch (err: any) {
       console.error("[load-example] failed to start job:", err);
@@ -1385,15 +1386,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const { setJobMessage } = await import("./roster-reset");
       const total = targets.length;
-      const job = startJob(`load-example-all:${teamId}:${total}`, async () => {
+      const job = startJob(`load-example-all:${teamId}:${total}`, async (jid) => {
         const results: { rosterId: string; ok: boolean; events?: number; error?: string }[] = [];
         let i = 0;
         for (const r of targets) {
           i++;
-          setJobMessage(job.id, `Seeding roster ${i} of ${total}`);
+          setJobMessage(jid, `Seeding roster ${i} of ${total}: ${r.id}`);
           const t0 = Date.now();
           try {
-            const out = await loadExampleData(r.id);
+            // Pass the parent jid so per-roster phase updates flow through.
+            const out = await loadExampleData(r.id, jid);
             results.push({ rosterId: r.id, ok: true, events: out.events });
             console.log(`[load-example-all] roster ${i}/${total} ${r.id} done in ${Date.now() - t0}ms (${out.events} events)`);
           } catch (e: any) {

@@ -26,7 +26,7 @@ function newJobId(): string {
   return `job_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
-export function startJob<T>(type: string, work: () => Promise<T>): Job {
+export function startJob<T>(type: string, work: (jobId: string) => Promise<T>): Job {
   const job: Job = {
     id: newJobId(),
     type,
@@ -35,8 +35,9 @@ export function startJob<T>(type: string, work: () => Promise<T>): Job {
     message: "Starting...",
   };
   jobs.set(job.id, job);
-  // Fire-and-forget; updates happen via the closure
-  work()
+  // Fire-and-forget; updates happen via the closure. Pass the job id into
+  // `work` so the work fn can call setJobMessage(jobId, …) for live progress.
+  work(job.id)
     .then((res) => {
       job.status = "completed";
       job.finishedAt = Date.now();
@@ -273,10 +274,12 @@ function randInt(min: number, max: number) { return Math.floor(Math.random() * (
 function pad2(n: number) { return n.toString().padStart(2, "0"); }
 function isoDate(d: Date) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
 
-export async function loadExampleData(rosterId: string): Promise<{
+export async function loadExampleData(rosterId: string, jobId?: string): Promise<{
   events: number; games: number; players: number; staff: number; users: number;
 }> {
+  const phase = (msg: string) => { if (jobId) setJobMessage(jobId, msg); };
   // Wipe first
+  phase("Wiping existing roster data…");
   await resetRosterData(rosterId);
 
   // Look up roster + game info
@@ -298,6 +301,7 @@ export async function loadExampleData(rosterId: string): Promise<{
   const userTag: string = `${gameSlug}_${(r.id as string).replace(/-/g, "").slice(0, 8)}`;
 
   // ---------- Game Config ----------
+  phase("Seeding game config (modes, maps, seasons, stat fields)…");
   // Game modes
   const modeIds: Record<string, string> = {};
   for (const modeName of ["Game Mode 1", "Game Mode 2", "Game Mode 3"]) {
@@ -389,6 +393,7 @@ export async function loadExampleData(rosterId: string): Promise<{
   }
 
   // ---------- Players + their user accounts ----------
+  phase("Seeding 8 players, availability, and user accounts…");
   const passwordHash = bcrypt.hashSync("0000", 10);
   const players: { id: string; name: string; role: string; userId: string }[] = [];
   for (const rd of ROLE_DEFS) {
@@ -421,6 +426,7 @@ export async function loadExampleData(rosterId: string): Promise<{
   }
 
   // ---------- Staff + their user accounts ----------
+  phase("Seeding staff and availability…");
   let staffCount = 0;
   for (const sd of STAFF_DEFS) {
     const sIns: any = await db.execute(sql`
@@ -463,8 +469,17 @@ export async function loadExampleData(rosterId: string): Promise<{
 
   let eventCount = 0;
   let gameCount = 0;
+  const totalDays = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+  let dayIdx = 0;
 
   for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    dayIdx++;
+    // Update phase every few days so the user sees real progress through the
+    // dominant events/games/stats phase. Each insert here is its own DB
+    // round-trip so this loop dominates wall-clock time on production.
+    if (dayIdx % 5 === 0 || dayIdx === 1) {
+      phase(`Seeding events (day ${dayIdx} of ${totalDays}) — ${eventCount} events, ${gameCount} games so far`);
+    }
     const dow = d.getDay(); // 0=Sun ... 4=Thu, 5=Fri
     const dateStr = isoDate(d);
     if (dow === 4 || dow === 5) {
