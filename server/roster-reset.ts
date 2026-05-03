@@ -395,84 +395,214 @@ export async function loadExampleData(rosterId: string, jobId?: string): Promise
   const teamN: number = (r.sort_order ?? 0) + 1;
   const userTag: string = `${gameSlug}_${(r.id as string).replace(/-/g, "").slice(0, 8)}`;
 
-  // ---------- Game Config ----------
-  phase("Seeding game config (modes, maps, seasons, stat fields)…");
-  // Game modes
-  const modeIds: Record<string, string> = {};
-  for (const modeName of ["Game Mode 1", "Game Mode 2", "Game Mode 3"]) {
-    const ins: any = await db.execute(sql`
-      INSERT INTO game_modes (team_id, game_id, roster_id, name, sort_order)
-      VALUES (${teamId}, ${gameId}, ${rosterId}, ${modeName}, ${"0"}) RETURNING id
+  // ---------- Game Template Lookup (source of truth for ALL config when present) ----------
+  // Pulled BEFORE seeding so modes/maps/stat-fields/roles/categories/ban+veto
+  // systems can all honor template values. Images (opponent logos, hero images,
+  // map images) are preserved verbatim — defaults never overwrite template values.
+  phase("Looking up game template…");
+  let templateConfig: GameTemplateConfig | null = null;
+  let templateName: string | null = null;
+  try {
+    const tplRes: any = await db.execute(sql`
+      SELECT name, config FROM game_templates
+      WHERE game_id = ${gameId}
+      ORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST
+      LIMIT 1
     `);
-    modeIds[modeName] = ins.rows[0].id;
+    if (tplRes.rows?.length) {
+      templateName = tplRes.rows[0].name as string;
+      const cfg = tplRes.rows[0].config;
+      templateConfig = (typeof cfg === "string" ? JSON.parse(cfg) : cfg) as GameTemplateConfig;
+    }
+  } catch (e) {
+    templateConfig = null;
   }
-  // Maps
+  const usedTemplate = !!(templateConfig && (
+    (templateConfig.opponents?.length ?? 0) > 0 ||
+    (templateConfig.heroes?.length ?? 0) > 0 ||
+    (templateConfig.maps?.length ?? 0) > 0 ||
+    (templateConfig.gameModes?.length ?? 0) > 0
+  ));
+
+  // ---------- Game Config (template-first, defaults only fill gaps) ----------
+  phase(usedTemplate
+    ? `Seeding game config from template "${templateName}"…`
+    : "Seeding game config (modes, maps, seasons, stat fields)…");
+
+  // ---- Game modes ----
+  const modeIds: Record<string, string> = {};            // name -> id
+  const modeTempIdToId: Record<string, string> = {};      // template tempId -> id
+  const modeTempIdToName: Record<string, string> = {};    // template tempId -> name
+  type ModeSeed = {
+    tempId?: string; name: string; sortOrder: string;
+    scoreType: string; maxScore: number | null; maxRoundWins: number | null;
+    maxRoundsPerGame: number | null; maxScorePerRoundPerSide: number | null;
+  };
+  const modeSeed: ModeSeed[] = templateConfig?.gameModes?.length
+    ? templateConfig.gameModes.map((m, i) => ({
+        tempId: m.tempId, name: m.name, sortOrder: m.sortOrder ?? String(i),
+        scoreType: m.scoreType ?? "numeric",
+        maxScore: m.maxScore ?? null, maxRoundWins: m.maxRoundWins ?? null,
+        maxRoundsPerGame: m.maxRoundsPerGame ?? null,
+        maxScorePerRoundPerSide: m.maxScorePerRoundPerSide ?? null,
+      }))
+    : ["Game Mode 1", "Game Mode 2", "Game Mode 3"].map((n, i) => ({
+        name: n, sortOrder: String(i), scoreType: "numeric",
+        maxScore: null, maxRoundWins: null, maxRoundsPerGame: null, maxScorePerRoundPerSide: null,
+      }));
+  const modeIdList = await bulkInsertWithIds(
+    "game_modes",
+    ["team_id", "game_id", "roster_id", "name", "sort_order", "score_type", "max_score", "max_round_wins", "max_rounds_per_game", "max_score_per_round_per_side"],
+    modeSeed.map(m => [teamId, gameId, rosterId, m.name, m.sortOrder, m.scoreType, m.maxScore, m.maxRoundWins, m.maxRoundsPerGame, m.maxScorePerRoundPerSide]),
+  );
+  modeSeed.forEach((m, i) => {
+    modeIds[m.name] = modeIdList[i];
+    if (m.tempId) {
+      modeTempIdToId[m.tempId] = modeIdList[i];
+      modeTempIdToName[m.tempId] = m.name;
+    }
+  });
+
+  // ---- Maps (template carries imageUrl + game-mode link) ----
   const mapsByMode: Record<string, { id: string; name: string }[]> = {};
-  for (const [modeName, mapNames] of Object.entries(MAPS_BY_MODE)) {
-    mapsByMode[modeName] = [];
-    for (const mn of mapNames) {
-      const ins: any = await db.execute(sql`
-        INSERT INTO maps (team_id, game_id, roster_id, name, game_mode_id, sort_order)
-        VALUES (${teamId}, ${gameId}, ${rosterId}, ${mn}, ${modeIds[modeName]}, ${"0"}) RETURNING id
-      `);
-      mapsByMode[modeName].push({ id: ins.rows[0].id, name: mn });
+  Object.keys(modeIds).forEach(n => { mapsByMode[n] = []; });
+  type MapSeed = { name: string; modeName: string; modeId: string; imageUrl: string | null; sortOrder: string };
+  const mapSeeds: MapSeed[] = [];
+  const fallbackModeName = Object.keys(modeIds)[0];
+  if (templateConfig?.maps?.length) {
+    templateConfig.maps.forEach((m, i) => {
+      let modeName = m.gameModeTempId ? modeTempIdToName[m.gameModeTempId] : undefined;
+      let modeId = m.gameModeTempId ? modeTempIdToId[m.gameModeTempId] : undefined;
+      if (!modeName || !modeId) { modeName = fallbackModeName; modeId = modeIds[fallbackModeName]; }
+      mapSeeds.push({ name: m.name, modeName, modeId, imageUrl: m.imageUrl ?? null, sortOrder: m.sortOrder ?? String(i) });
+    });
+  } else {
+    for (const [modeName, mapNames] of Object.entries(MAPS_BY_MODE)) {
+      if (!modeIds[modeName]) continue;
+      for (const mn of mapNames) {
+        mapSeeds.push({ name: mn, modeName, modeId: modeIds[modeName], imageUrl: null, sortOrder: "0" });
+      }
     }
   }
-  // Seasons
-  const seasonIds: string[] = [];
-  for (const sn of ["Season 1", "Season 2"]) {
-    const ins: any = await db.execute(sql`
-      INSERT INTO seasons (team_id, game_id, roster_id, name) VALUES (${teamId}, ${gameId}, ${rosterId}, ${sn}) RETURNING id
-    `);
-    seasonIds.push(ins.rows[0].id);
+  // Pad any mode that ended up empty so the games loop always has a map per mode.
+  for (const modeName of Object.keys(modeIds)) {
+    if (!mapSeeds.some(m => m.modeName === modeName)) {
+      mapSeeds.push({ name: `${modeName} Map`, modeName, modeId: modeIds[modeName], imageUrl: null, sortOrder: "0" });
+    }
   }
-  // Roster roles
-  for (const rn of ["Tank", "DPS", "Support", "Flex"]) {
-    await db.execute(sql`
-      INSERT INTO roster_roles (team_id, game_id, roster_id, name, type, sort_order)
-      VALUES (${teamId}, ${gameId}, ${rosterId}, ${rn}, ${"player"}, ${0})
-    `);
+  if (mapSeeds.length > 0) {
+    const mapIds = await bulkInsertWithIds(
+      "maps",
+      ["team_id", "game_id", "roster_id", "name", "game_mode_id", "image_url", "sort_order"],
+      mapSeeds.map(m => [teamId, gameId, rosterId, m.name, m.modeId, m.imageUrl, m.sortOrder]),
+    );
+    mapIds.forEach((id, i) => {
+      mapsByMode[mapSeeds[i].modeName].push({ id, name: mapSeeds[i].name });
+    });
   }
-  // Stat fields
+
+  // ---- Seasons (no template field) ----
+  const seasonIds = await bulkInsertWithIds(
+    "seasons",
+    ["team_id", "game_id", "roster_id", "name"],
+    ["Season 1", "Season 2"].map(n => [teamId, gameId, rosterId, n]),
+  );
+
+  // ---- Roster roles (template if present) ----
+  {
+    const roleSeed = templateConfig?.rosterRoles?.length
+      ? templateConfig.rosterRoles.map((r, i) => ({ name: r.name, type: r.type ?? "player", sortOrder: r.sortOrder ?? i }))
+      : ["Tank", "DPS", "Support", "Flex"].map((n, i) => ({ name: n, type: "player", sortOrder: i }));
+    await bulkInsert(
+      "roster_roles",
+      ["team_id", "game_id", "roster_id", "name", "type", "sort_order"],
+      roleSeed.map(r => [teamId, gameId, rosterId, r.name, r.type, r.sortOrder]),
+    );
+  }
+
+  // ---- Stat fields (template if present, linked via gameModeTempId) ----
   const statFieldsByMode: Record<string, { id: string; name: string }[]> = {};
-  for (const [modeName, fieldNames] of Object.entries(STAT_FIELDS_BY_MODE)) {
-    statFieldsByMode[modeName] = [];
-    for (const fn of fieldNames) {
-      const ins: any = await db.execute(sql`
-        INSERT INTO stat_fields (team_id, game_id, roster_id, name, game_mode_id)
-        VALUES (${teamId}, ${gameId}, ${rosterId}, ${fn}, ${modeIds[modeName]}) RETURNING id
-      `);
-      statFieldsByMode[modeName].push({ id: ins.rows[0].id, name: fn });
+  Object.keys(modeIds).forEach(n => { statFieldsByMode[n] = []; });
+  type SfSeed = { name: string; modeName: string; modeId: string };
+  const sfSeeds: SfSeed[] = [];
+  if (templateConfig?.statFields?.length) {
+    for (const f of templateConfig.statFields) {
+      let modeName = f.gameModeTempId ? modeTempIdToName[f.gameModeTempId] : undefined;
+      let modeId = f.gameModeTempId ? modeTempIdToId[f.gameModeTempId] : undefined;
+      if (!modeName || !modeId) { modeName = fallbackModeName; modeId = modeIds[fallbackModeName]; }
+      sfSeeds.push({ name: f.name, modeName, modeId });
+    }
+  } else {
+    for (const [modeName, fieldNames] of Object.entries(STAT_FIELDS_BY_MODE)) {
+      if (!modeIds[modeName]) continue;
+      for (const fn of fieldNames) sfSeeds.push({ name: fn, modeName, modeId: modeIds[modeName] });
     }
   }
-  // Event categories + sub-types — insert FIRST, then re-query for verification
+  if (sfSeeds.length > 0) {
+    const sfIds = await bulkInsertWithIds(
+      "stat_fields",
+      ["team_id", "game_id", "roster_id", "name", "game_mode_id"],
+      sfSeeds.map(s => [teamId, gameId, rosterId, s.name, s.modeId]),
+    );
+    sfIds.forEach((id, i) => statFieldsByMode[sfSeeds[i].modeName].push({ id, name: sfSeeds[i].name }));
+  }
+
+  // ---- Event categories + sub-types ----
+  // CRITICAL: events loop later requires Scrim (with Practice + Warm-up),
+  // Tournament, and Meetings categories to plan a realistic calendar. So
+  // ALWAYS seed those defaults; ADDITIONALLY merge any template-only extras
+  // (categories or sub-types not already covered).
+  const tplCatTempIdToName: Record<string, string> = {};
+  const seenCatNamesLower = new Set(CATEGORIES.map(c => c.name.toLowerCase()));
+  const extraCats: Array<{ name: string; color: string }> = [];
+  if (templateConfig?.eventCategories?.length) {
+    for (const c of templateConfig.eventCategories) {
+      tplCatTempIdToName[c.tempId] = c.name;
+      const lower = c.name.toLowerCase();
+      if (seenCatNamesLower.has(lower)) continue;
+      seenCatNamesLower.add(lower);
+      extraCats.push({ name: c.name, color: c.color ?? "#3b82f6" });
+    }
+  }
+  const allCatNames = [...CATEGORIES.map(c => c.name), ...extraCats.map(c => c.name)];
+  const allCatColors = [...CATEGORIES.map(c => c.color), ...extraCats.map(c => c.color)];
+  const catIdList = await bulkInsertWithIds(
+    "event_categories",
+    ["team_id", "game_id", "roster_id", "name", "color", "sort_order"],
+    allCatNames.map((n, i) => [teamId, gameId, rosterId, n, allCatColors[i], 0]),
+  );
   const catIdByName: Record<string, string> = {};
+  const catIdToName: Record<string, string> = {};
+  allCatNames.forEach((n, i) => { catIdByName[n] = catIdList[i]; catIdToName[catIdList[i]] = n; });
+
+  type SubSeed = { catId: string; catName: string; name: string; color: string };
+  const subSeeds: SubSeed[] = [];
   for (const cat of CATEGORIES) {
-    const catIns: any = await db.execute(sql`
-      INSERT INTO event_categories (team_id, game_id, roster_id, name, color, sort_order)
-      VALUES (${teamId}, ${gameId}, ${rosterId}, ${cat.name}, ${cat.color}, ${0}) RETURNING id
-    `);
-    catIdByName[cat.name] = catIns.rows[0].id;
     for (const sn of cat.subs) {
-      await db.execute(sql`
-        INSERT INTO event_sub_types (team_id, game_id, roster_id, category_id, name, color, sort_order)
-        VALUES (${teamId}, ${gameId}, ${rosterId}, ${catIdByName[cat.name]}, ${sn}, ${cat.color}, ${0})
-      `);
+      subSeeds.push({ catId: catIdByName[cat.name], catName: cat.name, name: sn, color: cat.color });
     }
   }
-  // Re-query everything back from the DB to make sure we use the IDs that actually exist
-  const catRowsRes: any = await db.execute(sql`
-    SELECT id, name FROM event_categories WHERE roster_id = ${rosterId}
-  `);
+  if (templateConfig?.eventSubTypes?.length) {
+    for (const s of templateConfig.eventSubTypes) {
+      const catName = tplCatTempIdToName[s.categoryTempId];
+      if (!catName) continue;
+      const catId = catIdByName[catName];
+      if (!catId) continue;
+      if (subSeeds.some(x => x.catName === catName && x.name.toLowerCase() === s.name.toLowerCase())) continue;
+      subSeeds.push({ catId, catName, name: s.name, color: s.color ?? "#3b82f6" });
+    }
+  }
+  if (subSeeds.length > 0) {
+    await bulkInsert(
+      "event_sub_types",
+      ["team_id", "game_id", "roster_id", "category_id", "name", "color", "sort_order"],
+      subSeeds.map(s => [teamId, gameId, rosterId, s.catId, s.name, s.color, 0]),
+    );
+  }
+  // Re-query sub-types so the planner sees the rows actually persisted.
   const subRowsRes: any = await db.execute(sql`
     SELECT id, name, category_id FROM event_sub_types WHERE roster_id = ${rosterId}
   `);
-  const catIdToName: Record<string, string> = {};
-  const catNameToId: Record<string, string> = {};
-  for (const row of (catRowsRes.rows ?? [])) {
-    catIdToName[row.id] = row.name;
-    catNameToId[row.name] = row.id;
-  }
   const subTypesByCat: Record<string, { id: string; name: string }[]> = {};
   for (const row of (subRowsRes.rows ?? [])) {
     const catName = catIdToName[row.category_id];
@@ -480,7 +610,6 @@ export async function loadExampleData(rosterId: string, jobId?: string): Promise
     if (!subTypesByCat[catName]) subTypesByCat[catName] = [];
     subTypesByCat[catName].push({ id: row.id, name: row.name });
   }
-  // Verify every category we expect exists with sub-types
   for (const cat of CATEGORIES) {
     if (!subTypesByCat[cat.name] || subTypesByCat[cat.name].length === 0) {
       throw new Error(`Failed to seed sub-types for category "${cat.name}" on roster ${rosterId}`);
@@ -551,34 +680,8 @@ export async function loadExampleData(rosterId: string, jobId?: string): Promise
     staffCount++;
   }
 
-  // ---------- Game Template lookup ----------
-  // Prefer most-recent game_template for this game (any team). Its config
-  // becomes the source of truth for opponents, opponent rosters, and heroes.
-  phase("Looking up game template…");
-  let templateConfig: GameTemplateConfig | null = null;
-  let templateName: string | null = null;
-  try {
-    const tplRes: any = await db.execute(sql`
-      SELECT name, config FROM game_templates
-      WHERE game_id = ${gameId}
-      ORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST
-      LIMIT 1
-    `);
-    if (tplRes.rows?.length) {
-      templateName = tplRes.rows[0].name as string;
-      const cfg = tplRes.rows[0].config;
-      templateConfig = (typeof cfg === "string" ? JSON.parse(cfg) : cfg) as GameTemplateConfig;
-    }
-  } catch (e) {
-    // Templates are optional; fall back silently if the table or row is missing.
-    templateConfig = null;
-  }
-  const usedTemplate = !!(templateConfig && (
-    (templateConfig.opponents?.length ?? 0) > 0 ||
-    (templateConfig.heroes?.length ?? 0) > 0
-  ));
-
   // ---------- Opponents + Opponent Rosters ----------
+  // (templateConfig was loaded earlier so it could drive game-config seeding too)
   phase(usedTemplate
     ? `Seeding opponents from template "${templateName}"…`
     : "Seeding 15 fallback opponents with 5-player rosters each…");
@@ -702,18 +805,62 @@ export async function loadExampleData(rosterId: string, jobId?: string): Promise
     sideSeed.map(s => [teamId, gameId, rosterId, s.name, s.sortOrder]),
   );
 
-  // ---------- Hero-Ban + Map-Veto Systems (one each, roster-scoped) ----------
+  // ---------- Hero-Ban + Map-Veto Systems (template if present, else defaults) ----------
   phase("Seeding hero-ban + map-veto systems…");
+  const tplBan = templateConfig?.heroBanSystems?.[0];
   const banSysIds = await bulkInsertWithIds(
     "hero_ban_systems",
-    ["team_id", "game_id", "roster_id", "name", "enabled", "mode", "supports_locks", "bans_per_team", "locks_per_team", "bans_target_enemy", "locks_secure_own", "sort_order"],
-    [[teamId, gameId, rosterId, "Standard Bans", true, "simple", false, 2, 0, true, false, 0]],
+    [
+      "team_id", "game_id", "roster_id", "name", "enabled", "mode",
+      "supports_locks", "bans_per_team", "locks_per_team",
+      "bans_target_enemy", "locks_secure_own",
+      "bans_per_round", "bans_every_side_switch", "bans_every_two_rounds",
+      "bans_reset_on_halftime", "overtime_behavior",
+      "total_bans_per_map", "bans_accumulate", "notes", "sort_order",
+    ],
+    [[
+      teamId, gameId, rosterId,
+      tplBan?.name ?? "Standard Bans",
+      tplBan?.enabled ?? true,
+      tplBan?.mode ?? "simple",
+      tplBan?.supportsLocks ?? false,
+      tplBan?.bansPerTeam ?? 2,
+      tplBan?.locksPerTeam ?? 0,
+      tplBan?.bansTargetEnemy ?? true,
+      tplBan?.locksSecureOwn ?? false,
+      tplBan?.bansPerRound ?? null,
+      tplBan?.bansEverySideSwitch ?? false,
+      tplBan?.bansEveryTwoRounds ?? false,
+      tplBan?.bansResetOnHalftime ?? false,
+      tplBan?.overtimeBehavior ?? null,
+      tplBan?.totalBansPerMap ?? null,
+      tplBan?.bansAccumulate ?? false,
+      tplBan?.notes ?? null,
+      tplBan?.sortOrder ?? 0,
+    ]],
   );
   const heroBanSystemId = banSysIds[0];
+
+  const tplVeto = templateConfig?.mapVetoSystems?.[0];
   const vetoSysIds = await bulkInsertWithIds(
     "map_veto_systems",
-    ["team_id", "game_id", "roster_id", "name", "enabled", "supports_ban", "supports_pick", "supports_decider", "supports_side_choice", "default_row_count", "sort_order"],
-    [[teamId, gameId, rosterId, "Standard Veto", true, true, true, true, true, 7, 0]],
+    [
+      "team_id", "game_id", "roster_id", "name", "enabled",
+      "supports_ban", "supports_pick", "supports_decider", "supports_side_choice",
+      "default_row_count", "notes", "sort_order",
+    ],
+    [[
+      teamId, gameId, rosterId,
+      tplVeto?.name ?? "Standard Veto",
+      tplVeto?.enabled ?? true,
+      tplVeto?.supportsBan ?? true,
+      tplVeto?.supportsPick ?? true,
+      tplVeto?.supportsDecider ?? true,
+      tplVeto?.supportsSideChoice ?? true,
+      tplVeto?.defaultRowCount ?? 7,
+      tplVeto?.notes ?? null,
+      tplVeto?.sortOrder ?? 0,
+    ]],
   );
   const mapVetoSystemId = vetoSysIds[0];
 

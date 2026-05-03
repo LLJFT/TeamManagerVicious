@@ -1,0 +1,74 @@
+I need one final completion pass focused on FULL TEMPLATE FIDELITY, with special priority on images.
+
+Current state:
+The per-roster Load Example Data system is now rich and analytics-ready, but there is still a gap:
+some template-defined data is still falling back to curated defaults instead of being copied from the Game Template.
+
+This final pass must prioritize full template fidelity.
+
+TOP PRIORITY
+If a Game Template exists for the selected game, I want the example-data loader to copy EVERYTHING it can from that template, especially images.
+
+Images are the highest priority.
+If the template has images, use them.
+Do not silently replace template images with fallback defaults unless the template is missing them.
+
+What I want copied from the Game Template whenever available:
+- opponent names
+- opponent short names
+- opponent logos / image URLs
+- opponent rosters
+- opponent players
+- opponent player names
+- opponent player roles
+- heroes
+- hero roles
+- hero image URLs
+- maps
+- map image URLs
+- game modes
+- sides
+- event categories
+- event sub types
+- stat fields
+- roster roles
+- hero ban systems
+- map veto systems
+- any template-defined defaults that can be safely applied to the roster example data
+
+Important behavior:
+- Template data should be the source of truth when it exists
+- Curated defaults should only fill missing gaps
+- Do not overwrite template-provided images with fallback values
+- Do not ignore template images just because defaults also exist
+- If a template has partial data, merge intelligently:
+  - use template values first
+  - fill only missing fields from defaults
+
+Image-specific requirements:
+- Opponent logos/images from the template must be copied through
+- Hero images from the template must be copied through
+- Map images from the template must be copied through
+- Any other template-supported display images should be carried through where the schema supports them
+- Verify they are actually visible/available to the UI after the seed, not just stored in a detached field
+
+Verification required:
+1. Audit exactly which template fields are still not being applied
+2. Implement full template fidelity wherever supported
+3. Verify images are preserved and visible after Load Example Data
+4. Verify no fallback image overrides a template image
+5. Verify analytics and roster pages still work after these changes
+6. Keep everything strictly roster-scoped
+
+Do NOT:
+- break existing real data
+- touch other rosters
+- downgrade the current rich fallback behavior
+- remove the current performance improvements
+
+After implementation, report:
+1. Which template fields are now fully honored
+2. Which image fields are now copied from the template
+3. Any template fields that still cannot be used and why
+4. Whether fallback is used only for missing data
+5. Confirmation that template images now survive into the seeded roster correctly
