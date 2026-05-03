@@ -1,0 +1,148 @@
+Add these two feature sets together in a single implementation pass, but keep the code clean and modular:
+
+==================================================
+PART 1 — TEAM COMPS EXPANSION
+==================================================
+
+I want the Team Comps experience to be much more comprehensive and matchup-focused.
+
+Current issue:
+The page only shows grouped comps and a couple of tabs. That is not enough.
+
+What I want:
+
+1) Add at least 4 tabs on the opponent detail page:
+- Our Comps
+- Their Comps
+- Our Comp Matchups
+- Their Comp Matchups
+
+Optional 5th tab if it makes sense:
+- Head-to-Head Matrix
+
+2) What each tab should do:
+- Our Comps:
+  Show our grouped comps used against this opponent.
+- Their Comps:
+  Show opponent grouped comps used against us.
+- Our Comp Matchups:
+  For each of our grouped comps, show how that comp performed against each opposing comp.
+- Their Comp Matchups:
+  For each opponent grouped comp, show how that comp performed against each of our comps.
+- Head-to-Head Matrix:
+  Optional matrix/grid view of comp vs comp with games played and win rate.
+
+3) Grouping rules:
+- Group duplicate comps together.
+- Show how many times a comp was played.
+- Each grouped card should be expandable to show the individual games behind it.
+- Preserve date, result, map, mode, sub-type, and event links.
+
+4) Matchup details:
+- I do not only want to see “this comp was played”.
+- I want to know how this comp performed against the specific opposing comp.
+- Show games played, W/L/D, win rate, and expandable game list.
+
+5) Fix the current bad rendering issue:
+- The sub type filter/list is currently showing UUID-like IDs instead of readable names.
+- It must show human-readable sub type names, not raw IDs.
+
+6) Keep the page consistent with the current app style.
+- This should feel like an extension of the existing Team Comps page, not a separate product.
+
+==================================================
+PART 2 — SUBSCRIPTION / ACCESS SYSTEM
+==================================================
+
+Add a full subscription and access-control system with active/inactive status.
+
+1) Active / inactive logic:
+- A user is ACTIVE if they have a valid running subscription or trial.
+- A user is INACTIVE if their subscription or trial has expired or was never set.
+- This status must be checked on login and page load.
+- Super Admin is always active and is never blocked.
+
+2) Inactive user behavior:
+- If an inactive user opens the app, immediately show a full-screen block message:
+  “Your subscription has ended. Join our Discord to renew.”
+- Add a clear Discord button linking to:
+  https://discord.gg/HrGFwMxaD
+- Inactive users must not access any roster, page, or data.
+- Super Admin must never be blocked.
+
+3) Subscription management page:
+- Add a new page accessible from Home or Settings.
+- This page is super_admin only.
+- It must let me:
+  - View all users and their current status
+  - Create or assign a subscription or trial
+  - Set subscription type: Subscription or Trial
+  - Set start date and end date
+  - Manually toggle active / inactive
+  - Edit or remove subscriptions
+  - See days remaining clearly
+
+4) Countdown behavior:
+- Roster-level users:
+  - Show a top-of-page countdown banner on every page they see.
+  - Show subscription type and days/hours remaining.
+  - Use warning color when fewer than 7 days remain.
+  - Block when expired.
+- Management users:
+  - Do NOT show the roster-level banner.
+  - Add a new tab inside Home dashboard called Subscriptions or My Plan.
+  - Show subscription type, status, countdown, and Discord renew link.
+- Roster dashboard:
+  - Add a Subscription / Plan tab inside every roster dashboard.
+  - Show type, days remaining, start/end date, status, and Discord link if expiring soon or expired.
+
+5) Tooltips:
+- Add a small ⓘ icon next to every major element, field, button, and section.
+- Clicking it should show a tooltip explaining what that element does.
+- Tooltip must be dismissible by X or clicking outside.
+- Do NOT add tooltips to Media Library or Game Templates.
+- Add tooltips everywhere else in the roster: tabs, form fields, config sections, analytics widgets, buttons, leaderboard, draft stats, opponents, players, maps, heroes, events, results, stat fields, sides, modes, availability, roles.
+
+6) Help / Guide page:
+- Add a Help / Guide page accessible from a visible Getting Started or ℹ️ button in the top bar.
+- Cover everything inside the roster except Media Library and Game Templates.
+- Each section needs:
+  - Title
+  - Plain-language explanation
+  - Practical example
+- Add sidebar or anchor navigation so users can jump to any section.
+- Keep it clean and readable.
+
+7) Discord and Twitter links:
+- Always visible in the bottom left of the sidebar.
+- Discord: https://discord.gg/HrGFwMxaD
+- Twitter/X: https://x.com/The__BootCamp
+- Use proper icons and open in a new tab.
+- Keep them subtle but always accessible.
+
+8) Constraints:
+- Super Admin is never blocked and never affected by subscription checks.
+- Do not break existing pages or features.
+- Do not touch forbidden files: vite.config.ts, server/vite.ts, package.json, drizzle.config.ts.
+- Match the existing app style.
+- Handle edge cases: no subscription set, expired, trial vs paid, user with no roster.
+- Keep schema changes safe and migrate existing data if needed.
+
+9) After implementation, report:
+- How Active/Inactive status works and where it is checked
+- How the block screen works
+- How the Subscription Management page works
+- How countdown displays for roster users vs management users
+- What schema changes were made
+- Where tooltips were added and what was excluded
+- How the Help page is structured
+- Discord and Twitter link placement confirmation
+
+==================================================
+IMPORTANT
+==================================================
+- Implement both parts in one pass if possible.
+- Keep the code modular and reusable.
+- Do not remove or weaken any existing feature.
+- If anything needs a database migration, do it safely.
+- If you need to make a judgment call, prefer the more complete UX.
