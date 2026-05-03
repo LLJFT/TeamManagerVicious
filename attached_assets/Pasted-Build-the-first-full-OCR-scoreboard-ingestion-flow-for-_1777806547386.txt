@@ -1,0 +1,109 @@
+Build the first full OCR scoreboard ingestion flow for the app.
+
+IMPORTANT
+This is NOT the final advanced AI OCR phase.
+Start with a reliable, reviewable OCR pipeline that scans a scoreboard image, extracts structured data, lets the user review/correct it, and then saves it into the correct roster/game statistics records.
+
+GOAL
+I want to upload a scoreboard screenshot/image, run OCR on it, detect the scoreboard data, map it into the app’s existing data model, and save the results so it contributes to real statistics.
+
+SCOPE
+The OCR flow should support:
+- uploading a scoreboard image
+- running OCR on the image
+- extracting structured scoreboard data
+- extracting player rows if visible
+- extracting hero/agent picks if visible
+- extracting team scores if visible
+- extracting map / round / match context if visible
+- showing a review screen before saving
+- saving the confirmed result into the existing app data model
+
+CORE REQUIREMENTS
+
+1) IMAGE UPLOAD + OCR ENTRY
+- Add a clear UI flow for uploading or selecting a scoreboard image
+- Allow image preview before OCR
+- OCR should run only when the user confirms
+- Keep this roster-scoped and game-scoped
+
+2) OCR EXTRACTION
+Extract as much structured data as reliably possible, including when available:
+- our team score
+- opponent score
+- player names / scoreboard rows
+- hero / agent played per player
+- kills / deaths / assists if visible
+- any existing stat fields that are visible on the scoreboard
+- map name if visible
+- side / round context if visible
+- match winner if inferable
+
+3) REVIEW / CONFIRMATION STEP
+Before saving anything:
+- show the extracted data in a structured review screen
+- let the user correct wrong OCR values manually
+- let the user choose/match players if OCR text is imperfect
+- let the user choose/match heroes if OCR text is imperfect
+- let the user choose the target event/game/match if not confidently detected
+- do not auto-save raw OCR blindly
+
+4) DATA MAPPING
+After review, save the confirmed result into the real existing system:
+- scoreboard / result data
+- player stats
+- hero picks / hero usage
+- match or event-linked statistics
+- any supported stat fields already in the game config
+- make sure saved OCR results feed into existing analytics pages
+
+5) HERO / AGENT LINKING
+Very important:
+- If the scoreboard includes heroes/agents played, map them correctly to the existing heroes for that game
+- Use roster/game template hero definitions where applicable
+- If OCR is uncertain, require manual confirmation instead of guessing badly
+
+6) PLAYER LINKING
+- Match OCR player names to the correct roster players if possible
+- If OCR cannot confidently match them, show a manual mapping UI
+- Do not create duplicate broken player records
+- Keep this safe for future support of multiple IGN, but do not implement multiple IGN yet unless needed for basic mapping support
+
+7) SAFETY
+- Do not overwrite existing records silently
+- Do not break existing analytics or match data
+- Save OCR-imported data in a way that is traceable back to the source image
+- Preserve the uploaded scoreboard image reference if useful
+- Do not run destructive migrations
+- Do not seed fake OCR data
+
+8) UX
+- Keep the OCR workflow simple:
+  1. upload image
+  2. run OCR
+  3. review extracted data
+  4. confirm/save
+- Show confidence or uncertainty clearly where possible
+- Good empty/error states
+- If OCR fails, show a useful message and allow retry/manual correction path
+
+9) GAME-SPECIFIC SUPPORT
+- Respect each game’s template/config/stat fields
+- If a game has different stat fields, only save what is valid for that game
+- If hero picks are not relevant for a specific game, handle that gracefully
+- If some scoreboards only support partial extraction, still save the valid subset
+
+10) DO NOT DO YET
+- Do not try to solve the final “smart AI OCR for every scoreboard style in the world” yet
+- Do not over-engineer model training
+- First build the stable ingestion/review/save pipeline
+
+DELIVERABLES
+After implementation report:
+1. What OCR engine / approach was used
+2. What fields can be extracted reliably right now
+3. How the review/edit step works
+4. How players are matched
+5. How heroes are matched
+6. Where the OCR results are saved in the data model
+7. What limitations remain before the later advanced AI OCR phase
