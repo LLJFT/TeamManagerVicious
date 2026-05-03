@@ -520,6 +520,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "/api/activity-logs",
     "/api/hero-ban-actions", "/api/map-veto-rows", "/api/game-heroes",
     "/api/match-participants", "/api/player-game-stats", "/api/game-rounds",
+    "/api/event-categories", "/api/event-sub-types",
   ];
   for (const path of gameAccessPaths) {
     app.use(path, requireGameAccess);
@@ -2870,6 +2871,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/event-categories", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const data = insertEventCategorySchema.parse(req.body);
+      if (!await verifyConfigWriteScope(req, res, getGameId(req), getRosterId(req))) return;
       const cat = await storage.addEventCategory(data, getGameId(req), getRosterId(req));
       res.json(cat);
     } catch (error: any) {
@@ -2883,7 +2885,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teamId = getTeamId();
       const [existing] = await db.select().from(eventCategories).where(and(eq(eventCategories.id, req.params.id), eq(eventCategories.teamId, teamId))).limit(1);
       if (!existing) return res.status(404).json({ error: "Event category not found" });
-      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      if (!await verifyConfigWriteScope(req, res, existing.gameId, existing.rosterId)) return;
       const { name, sortOrder, color } = req.body;
       if (!name || typeof name !== "string") return res.status(400).json({ error: "Name is required" });
       const cat = await storage.updateEventCategory(req.params.id, { name, sortOrder: sortOrder ?? undefined, color: color ?? undefined }, existing.gameId, existing.rosterId);
@@ -2899,7 +2901,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teamId = getTeamId();
       const [existing] = await db.select().from(eventCategories).where(and(eq(eventCategories.id, req.params.id), eq(eventCategories.teamId, teamId))).limit(1);
       if (!existing) return res.status(404).json({ error: "Event category not found" });
-      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      if (!await verifyConfigWriteScope(req, res, existing.gameId, existing.rosterId)) return;
       const success = await storage.removeEventCategory(req.params.id, existing.gameId, existing.rosterId);
       if (!success) return res.status(404).json({ error: "Event category not found" });
       res.json({ success: true });
@@ -2917,8 +2919,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/event-categories/:categoryId/sub-types", requireAuth, async (req, res) => {
+  app.get("/api/event-categories/:categoryId/sub-types", requireAuth, requireGameAccess, async (req, res) => {
     try {
+      const teamId = getTeamId();
+      const [parentCat] = await db.select().from(eventCategories)
+        .where(and(eq(eventCategories.id, req.params.categoryId), eq(eventCategories.teamId, teamId)))
+        .limit(1);
+      if (!parentCat) return res.status(404).json({ error: "Event category not found" });
+      if (!await verifyObjectScope(req, res, parentCat.gameId, parentCat.rosterId)) return;
       const subs = await storage.getEventSubTypesByCategory(req.params.categoryId);
       res.json(subs);
     } catch (error: any) {
@@ -2929,6 +2937,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/event-sub-types", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const data = insertEventSubTypeSchema.parse(req.body);
+      if (!await verifyConfigWriteScope(req, res, getGameId(req), getRosterId(req))) return;
       const sub = await storage.addEventSubType(data, getGameId(req), getRosterId(req));
       res.json(sub);
     } catch (error: any) {
@@ -2942,7 +2951,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teamId = getTeamId();
       const [existing] = await db.select().from(eventSubTypes).where(and(eq(eventSubTypes.id, req.params.id), eq(eventSubTypes.teamId, teamId))).limit(1);
       if (!existing) return res.status(404).json({ error: "Event sub-type not found" });
-      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      if (!await verifyConfigWriteScope(req, res, existing.gameId, existing.rosterId)) return;
       const { name, sortOrder, color } = req.body;
       if (!name || typeof name !== "string") return res.status(400).json({ error: "Name is required" });
       const sub = await storage.updateEventSubType(req.params.id, { name, sortOrder: sortOrder ?? undefined, color: color ?? undefined }, existing.gameId, existing.rosterId);
@@ -2958,7 +2967,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teamId = getTeamId();
       const [existing] = await db.select().from(eventSubTypes).where(and(eq(eventSubTypes.id, req.params.id), eq(eventSubTypes.teamId, teamId))).limit(1);
       if (!existing) return res.status(404).json({ error: "Event sub-type not found" });
-      if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
+      if (!await verifyConfigWriteScope(req, res, existing.gameId, existing.rosterId)) return;
       const success = await storage.removeEventSubType(req.params.id, existing.gameId, existing.rosterId);
       if (!success) return res.status(404).json({ error: "Event sub-type not found" });
       res.json({ success: true });

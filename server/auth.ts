@@ -546,17 +546,19 @@ export async function requireGameAccess(req: Request, res: Response, next: NextF
     return res.status(403).json({ message: "Game scope required" });
   }
 
-  // Check for an approved assignment covering the requested game (and optionally roster)
+  // Check for an approved assignment covering the requested game (and optionally roster).
+  // When no rosterId is provided the caller must hold a game-wide assignment
+  // (rosterId IS NULL). Roster-scoped users must always supply their rosterId so
+  // that storage filters are properly scoped and cross-roster data leakage is prevented.
   const [assignment] = await db.select().from(userGameAssignments)
     .where(and(
       eq(userGameAssignments.userId, user.id),
       eq(userGameAssignments.gameId, gameId),
       eq(userGameAssignments.status, "approved"),
       eq(userGameAssignments.teamId, teamId),
-      // A game-wide assignment (rosterId IS NULL) or an exact roster match both grant access
       rosterId
         ? or(isNull(userGameAssignments.rosterId), eq(userGameAssignments.rosterId, rosterId))
-        : sql`1=1`,
+        : isNull(userGameAssignments.rosterId),
     ))
     .limit(1);
 
