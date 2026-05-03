@@ -12,3 +12,27 @@ id = "vtOwl7rkr1pRR06xiDYRL"
 uri = "file://docs/Bootcamp-Product-Documentation.pdf"
 type = "pdf"
 title = "The Bootcamp — Product Documentation"
+
+[[outputs]]
+id = "abTYiVHAbLaJ7Idprip6_"
+uri = "file://deliverables/sales_decks/Individuals_Deck.pptx"
+type = "slides"
+title = "Individuals Deck — Single Roster (16 slides, .pptx)"
+
+[[outputs]]
+id = "Fp3LPo68Xt2r3c0VfMb5U"
+uri = "file://deliverables/sales_decks/Individuals_Deck_Outline.md"
+type = "text"
+title = "Individuals Deck — Slide-by-Slide Outline"
+
+[[outputs]]
+id = "c-oW_an0p82gcdX0NeZLf"
+uri = "file://deliverables/sales_decks/Organizations_Deck.pptx"
+type = "slides"
+title = "Organizations Deck — Platform (19 slides, .pptx)"
+
+[[outputs]]
+id = "4pTFjnEROmtmP0Km_jzZa"
+uri = "file://deliverables/sales_decks/Organizations_Deck_Outline.md"
+type = "text"
+title = "Organizations Deck — Slide-by-Slide Outline"
