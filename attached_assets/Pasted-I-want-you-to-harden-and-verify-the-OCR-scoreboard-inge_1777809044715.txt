@@ -1,0 +1,78 @@
+I want you to harden and verify the OCR scoreboard ingestion flow.
+
+Main goal:
+The OCR pipeline must only work on scoreboard screenshots that the user uploads in events.
+It must NOT attempt to scan random images, posters, logos, UI screenshots, or other non-scoreboard content.
+It must only extract data from scoreboard images and save the result safely into the existing match/statistics data model.
+
+Primary requirements:
+
+1) SCOREBOARD-ONLY OCR
+- Restrict the OCR flow so it only accepts scoreboard screenshots.
+- Add validation or detection so non-scoreboard images are rejected or routed out safely.
+- Do not scan unrelated images or generic attachments.
+- Do not try to infer data from non-scoreboard visuals.
+- If the image is not clearly a scoreboard screenshot, return a clear rejection message and do not save anything.
+
+2) OCR EXTRACTION SCOPE
+- Extract only the scoreboard data relevant to the existing system.
+- Capture match statistics, scoreboard values, team/player totals, and any hero information visible in the scoreboard.
+- Do not invent missing values.
+- If some fields are unclear, mark them as uncertain instead of guessing.
+
+3) HERO LOGIC
+- Add or map heroes only if hero stats are not already present for that event/game context.
+- If heroes are already saved, do not duplicate them.
+- Preserve existing hero records and only add missing hero data.
+- Ensure hero matching is idempotent and does not create duplicates on repeated OCR runs.
+
+4) STATISTICS WRITE PATH
+- Save OCR results into the existing statistics / match records used by the app.
+- Make sure the OCR output feeds the same analytics system already used by the platform.
+- Do not create a parallel broken data path.
+- Do not overwrite existing good data unless the new OCR result is explicitly confirmed and better.
+
+5) REVIEW STEP
+- Add or verify a review step before final save.
+- The user must be able to inspect OCR results and correct them before committing.
+- Show clearly which values came from OCR and which were manually adjusted.
+
+6) DATA SAFETY
+- Do not truncate existing data.
+- Do not remove older scoreboard scans.
+- Do not break existing events, rosters, heroes, or stats.
+- Keep the OCR feature safe across remixes and future deployments.
+
+7) ERROR HANDLING
+- If OCR fails, show a clear error state.
+- If the image is not a scoreboard, explain why it was rejected.
+- If extraction confidence is low, surface that to the user before save.
+- Never save ambiguous OCR results silently.
+
+8) TESTING / VERIFICATION
+Please verify:
+- scoreboard-only detection works
+- non-scoreboard images are rejected
+- hero records are only added when missing
+- repeated OCR runs do not duplicate data
+- statistics save into the correct existing model
+- the review/correction flow works
+- no existing features regress
+
+9) REPORT BACK
+After implementation, report:
+- what changed
+- what files were updated
+- how scoreboard-only validation works
+- how hero deduplication works
+- how statistics are saved
+- any remaining OCR limitations
+- any risks still left for future improvement
+
+Constraints:
+- Preserve current app structure
+- Do not rewrite unrelated features
+- Keep the change compatible with the current esports platform
+- Do not affect admin or analytics work in unrelated lanes
+- Preserve Arabic RTL and existing localization behavior where relevant
+- Optimize for safe, accurate scoreboard ingestion only
