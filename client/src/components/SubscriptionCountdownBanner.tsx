@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/use-auth";
 import { AlertTriangle, Clock, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -7,6 +8,7 @@ const DISMISS_KEY = "subscriptionBanner.dismissedUntil";
 const WARN_THRESHOLD_DAYS = 14;
 
 export function SubscriptionCountdownBanner() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [dismissed, setDismissed] = useState<boolean>(() => {
     try {
@@ -38,13 +40,13 @@ export function SubscriptionCountdownBanner() {
   const Icon = urgent ? AlertTriangle : Clock;
   const label =
     days < 0
-      ? "Your subscription has expired"
+      ? t("subscription.expiredTitle")
       : days === 0
-      ? "Your subscription expires today"
+      ? t("subscription.expiresToday")
       : days === 1
-      ? "Your subscription expires tomorrow"
-      : `Your subscription expires in ${days} days`;
-  const planLabel = sub.type === "trial" ? "trial" : "plan";
+      ? t("subscription.expiresTomorrow")
+      : t("subscription.expiresInDays", { days });
+  const planLabel = sub.type === "trial" ? t("subscription.trial") : t("subscription.plan");
 
   const onDismiss = () => {
     try {
@@ -67,14 +69,15 @@ export function SubscriptionCountdownBanner() {
       <span className="flex-1 min-w-0" data-testid="text-banner-countdown">
         <span className="font-medium">{label}.</span>{" "}
         <span className="text-muted-foreground">
-          Contact The Bootcamp to renew your {planLabel} before access is suspended.
+          {t("subscription.inactiveAccount")} ({planLabel})
         </span>
       </span>
       <Button
         variant="ghost"
         size="icon"
         onClick={onDismiss}
-        title="Dismiss"
+        title={t("subscription.dismiss")}
+        aria-label={t("subscription.dismiss")}
         data-testid="button-dismiss-countdown"
         className="h-7 w-7"
       >

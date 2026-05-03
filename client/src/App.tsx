@@ -11,6 +11,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { NotificationBell } from "@/components/NotificationBell";
 import { HelpButton, OnboardingGuide } from "@/components/OnboardingGuide";
+import { LanguageSelector } from "@/components/LanguageSelector";
 import { useState, useEffect, useCallback, useRef, type CSSProperties } from "react";
 import { Moon } from "lucide-react";
 import { LoadingSpinner } from "@/components/PageSkeleton";
@@ -281,6 +282,7 @@ function AuthenticatedApp() {
                 <div className="flex items-center gap-1">
                   <HelpButton />
                   <NotificationBell />
+                  <LanguageSelector />
                   <ThemeToggle />
                 </div>
               </header>

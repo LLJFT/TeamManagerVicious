@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useLocation, Link } from "wouter";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/use-auth";
 import { useGame } from "@/hooks/use-game";
 import { useQuery } from "@tanstack/react-query";
@@ -19,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import {
   Home, Calendar, Users, BarChart3, Settings, MessageSquare,
   LogOut, Trophy, Clock, GitCompare, Target, Shield,
-  UserCog, ClipboardList, ArrowLeft, LayoutDashboard,
+  UserCog, ClipboardList, ArrowLeft, ArrowRight, LayoutDashboard,
   ShieldCheck, Gamepad2, KeyRound, Layers, Image as ImageIcon,
   Swords, Medal, Crown, Map as MapIcon, Sparkles, TrendingUp,
   Layers as LayersIcon,
@@ -29,39 +30,42 @@ import type { Permission, OrgRole } from "@shared/schema";
 import { orgRoleLabels } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
 import { GameBadge } from "@/components/game-icon";
+import { isRtl } from "@/i18n";
 
-function makeGameItems(prefix: string) {
+function makeGameItems(prefix: string, t: (k: string) => string) {
   return {
     main: [
-      { title: "Schedule", url: `${prefix}`, icon: Home, permission: "view_schedule" as Permission },
-      { title: "Events", url: `${prefix}/events`, icon: Calendar, permission: "view_events" as Permission },
-      { title: "Results", url: `${prefix}/results`, icon: Trophy, permission: "view_results" as Permission },
-      { title: "Players", url: `${prefix}/players`, icon: Users, permission: "view_players" as Permission },
+      { key: "schedule", title: t("nav.schedule"), url: `${prefix}`, icon: Home, permission: "view_schedule" as Permission },
+      { key: "events", title: t("nav.events"), url: `${prefix}/events`, icon: Calendar, permission: "view_events" as Permission },
+      { key: "results", title: t("nav.results"), url: `${prefix}/results`, icon: Trophy, permission: "view_results" as Permission },
+      { key: "players", title: t("nav.players"), url: `${prefix}/players`, icon: Users, permission: "view_players" as Permission },
     ],
     stats: [
-      { title: "Statistics", url: `${prefix}/stats`, icon: BarChart3, permission: "view_statistics" as Permission },
-      { title: "Player Stats", url: `${prefix}/player-stats`, icon: ClipboardList, permission: "view_player_stats" as Permission },
-      { title: "History", url: `${prefix}/history`, icon: Clock, permission: "view_history" as Permission },
-      { title: "Compare", url: `${prefix}/compare`, icon: GitCompare, permission: "view_compare" as Permission },
-      { title: "Opponents", url: `${prefix}/opponents`, icon: Target, permission: "view_opponents" as Permission },
-      { title: "Draft Stats", url: `${prefix}/draft-stats`, icon: Swords, permission: "view_statistics" as Permission },
-      { title: "Map Insights", url: `${prefix}/map-insights`, icon: MapIcon, permission: "view_statistics" as Permission },
-      { title: "Hero Insights", url: `${prefix}/hero-insights`, icon: Sparkles, permission: "view_statistics" as Permission },
-      { title: "Trends", url: `${prefix}/trends`, icon: TrendingUp, permission: "view_statistics" as Permission },
-      { title: "Team Leaderboard", url: `${prefix}/team-leaderboard`, icon: Crown, permission: "view_statistics" as Permission },
-      { title: "Player Leaderboard", url: `${prefix}/player-leaderboard`, icon: Medal, permission: "view_statistics" as Permission },
-      { title: "Team Comps", url: `${prefix}/comps`, icon: LayersIcon, permission: "view_statistics" as Permission },
+      { key: "statistics", title: t("nav.statistics"), url: `${prefix}/stats`, icon: BarChart3, permission: "view_statistics" as Permission },
+      { key: "playerStats", title: t("nav.playerStats"), url: `${prefix}/player-stats`, icon: ClipboardList, permission: "view_player_stats" as Permission },
+      { key: "history", title: t("nav.history"), url: `${prefix}/history`, icon: Clock, permission: "view_history" as Permission },
+      { key: "compare", title: t("nav.compare"), url: `${prefix}/compare`, icon: GitCompare, permission: "view_compare" as Permission },
+      { key: "opponents", title: t("nav.opponents"), url: `${prefix}/opponents`, icon: Target, permission: "view_opponents" as Permission },
+      { key: "draftStats", title: t("nav.draftStats"), url: `${prefix}/draft-stats`, icon: Swords, permission: "view_statistics" as Permission },
+      { key: "mapInsights", title: t("nav.mapInsights"), url: `${prefix}/map-insights`, icon: MapIcon, permission: "view_statistics" as Permission },
+      { key: "heroInsights", title: t("nav.heroInsights"), url: `${prefix}/hero-insights`, icon: Sparkles, permission: "view_statistics" as Permission },
+      { key: "trends", title: t("nav.trends"), url: `${prefix}/trends`, icon: TrendingUp, permission: "view_statistics" as Permission },
+      { key: "teamLeaderboard", title: t("nav.teamLeaderboard"), url: `${prefix}/team-leaderboard`, icon: Crown, permission: "view_statistics" as Permission },
+      { key: "playerLeaderboard", title: t("nav.playerLeaderboard"), url: `${prefix}/player-leaderboard`, icon: Medal, permission: "view_statistics" as Permission },
+      { key: "teamComps", title: t("nav.teamComps"), url: `${prefix}/comps`, icon: LayersIcon, permission: "view_statistics" as Permission },
     ],
     management: [
-      { title: "Dashboard", url: `${prefix}/dashboard`, icon: Settings, permission: "view_dashboard" as Permission },
-      { title: "Staff", url: `${prefix}/staff`, icon: UserCog, permission: "view_staff" as Permission },
-      { title: "Chat", url: `${prefix}/chat`, icon: MessageSquare, permission: "view_chat" as Permission },
+      { key: "dashboard", title: t("nav.dashboard"), url: `${prefix}/dashboard`, icon: Settings, permission: "view_dashboard" as Permission },
+      { key: "staff", title: t("nav.staff"), url: `${prefix}/staff`, icon: UserCog, permission: "view_staff" as Permission },
+      { key: "chat", title: t("nav.chat"), url: `${prefix}/chat`, icon: MessageSquare, permission: "view_chat" as Permission },
     ],
   };
 }
 
 export function AppSidebar() {
   const [location] = useLocation();
+  const { t, i18n } = useTranslation();
+  const rtl = isRtl(i18n.language);
   const { user, logout, hasPermission, hasOrgRole } = useAuth();
   const { currentGame, gameSlug, fullSlug, currentRoster } = useGame();
 
@@ -77,21 +81,22 @@ export function AppSidebar() {
 
   const inGameContext = !!currentGame && !!gameSlug;
   const prefix = inGameContext ? `/${fullSlug || gameSlug}` : "";
-  const navItems = inGameContext ? makeGameItems(prefix) : null;
+  const navItems = inGameContext ? makeGameItems(prefix, t) : null;
+  const BackIcon = rtl ? ArrowRight : ArrowLeft;
 
   return (
-    <Sidebar>
+    <Sidebar side={rtl ? "right" : "left"}>
       <SidebarHeader className="p-4">
         {inGameContext ? (
           <div className="space-y-2">
             <Link href="/">
-              <Button variant="ghost" size="sm" className="w-full justify-start gap-2 -ml-2" data-testid="button-back-home">
+              <Button variant="ghost" size="sm" className="w-full justify-start gap-2 -ms-2" data-testid="button-back-home">
                 {orgLogoUrl && !logoError ? (
                   <img src={orgLogoUrl} alt="Logo" className="h-5 w-5 rounded object-contain flex-shrink-0" onError={() => setLogoError(true)} />
                 ) : (
-                  <ArrowLeft className="h-4 w-4" />
+                  <BackIcon className="h-4 w-4" />
                 )}
-                <span>All Games</span>
+                <span>{t("nav.allGames")}</span>
               </Button>
             </Link>
             <div className="flex items-center gap-2">
@@ -126,11 +131,11 @@ export function AppSidebar() {
         {inGameContext && navItems ? (
           <>
             <SidebarGroup>
-              <SidebarGroupLabel>Main</SidebarGroupLabel>
+              <SidebarGroupLabel>{t("nav.main")}</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
                   {navItems.main.filter(item => hasPermission(item.permission)).map(item => (
-                    <SidebarMenuItem key={item.title}>
+                    <SidebarMenuItem key={item.key}>
                       <SidebarMenuButton asChild isActive={location === item.url || (item.url === prefix && location === prefix)}>
                         <Link href={item.url}>
                           <item.icon className="h-4 w-4" />
@@ -144,11 +149,11 @@ export function AppSidebar() {
             </SidebarGroup>
 
             <SidebarGroup>
-              <SidebarGroupLabel>Analytics</SidebarGroupLabel>
+              <SidebarGroupLabel>{t("nav.analytics")}</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
                   {navItems.stats.filter(item => hasPermission(item.permission)).map(item => (
-                    <SidebarMenuItem key={item.title}>
+                    <SidebarMenuItem key={item.key}>
                       <SidebarMenuButton asChild isActive={location === item.url}>
                         <Link href={item.url}>
                           <item.icon className="h-4 w-4" />
@@ -162,11 +167,11 @@ export function AppSidebar() {
             </SidebarGroup>
 
             <SidebarGroup>
-              <SidebarGroupLabel>Management</SidebarGroupLabel>
+              <SidebarGroupLabel>{t("nav.management")}</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
                   {navItems.management.filter(item => hasPermission(item.permission)).map(item => (
-                    <SidebarMenuItem key={item.title}>
+                    <SidebarMenuItem key={item.key}>
                       <SidebarMenuButton asChild isActive={location === item.url}>
                         <Link href={item.url}>
                           <item.icon className="h-4 w-4" />
@@ -182,14 +187,14 @@ export function AppSidebar() {
         ) : (
           <>
             <SidebarGroup>
-              <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+              <SidebarGroupLabel>{t("nav.navigation")}</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild isActive={location === "/" || location === ""}>
                       <Link href="/">
                         <Gamepad2 className="h-4 w-4" />
-                        <span>Games</span>
+                        <span>{t("nav.games")}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -198,7 +203,7 @@ export function AppSidebar() {
                       <SidebarMenuButton asChild isActive={location === "/dashboard"}>
                         <Link href="/dashboard">
                           <LayoutDashboard className="h-4 w-4" />
-                          <span>Overview</span>
+                          <span>{t("nav.overview")}</span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -208,7 +213,7 @@ export function AppSidebar() {
                       <SidebarMenuButton asChild isActive={location === "/calendar"}>
                         <Link href="/calendar">
                           <Calendar className="h-4 w-4" />
-                          <span>Calendar</span>
+                          <span>{t("nav.calendar")}</span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -219,7 +224,7 @@ export function AppSidebar() {
 
             {(hasPermission("view_users_tab" as Permission) || hasPermission("view_roles_tab" as Permission) || hasPermission("view_game_access" as Permission)) && (
               <SidebarGroup>
-                <SidebarGroupLabel>Administration</SidebarGroupLabel>
+                <SidebarGroupLabel>{t("nav.administration")}</SidebarGroupLabel>
                 <SidebarGroupContent>
                   <SidebarMenu>
                     {hasPermission("view_users_tab" as Permission) && (
@@ -227,7 +232,7 @@ export function AppSidebar() {
                         <SidebarMenuButton asChild isActive={location === "/users"}>
                           <Link href="/users">
                             <Users className="h-4 w-4" />
-                            <span>Users</span>
+                            <span>{t("nav.users")}</span>
                           </Link>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
@@ -237,7 +242,7 @@ export function AppSidebar() {
                         <SidebarMenuButton asChild isActive={location === "/roles"}>
                           <Link href="/roles">
                             <ShieldCheck className="h-4 w-4" />
-                            <span>Roles</span>
+                            <span>{t("nav.roles")}</span>
                           </Link>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
@@ -247,7 +252,7 @@ export function AppSidebar() {
                         <SidebarMenuButton asChild isActive={location === "/game-access"}>
                           <Link href="/game-access">
                             <KeyRound className="h-4 w-4" />
-                            <span>Game Access</span>
+                            <span>{t("nav.gameAccess")}</span>
                           </Link>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
@@ -261,7 +266,7 @@ export function AppSidebar() {
                         >
                           <Link href="/game-templates">
                             <Layers className="h-4 w-4" />
-                            <span>Game Templates</span>
+                            <span>{t("nav.gameTemplates")}</span>
                           </Link>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
@@ -275,7 +280,7 @@ export function AppSidebar() {
                         >
                           <Link href="/media-library">
                             <ImageIcon className="h-4 w-4" />
-                            <span>Media Library</span>
+                            <span>{t("nav.mediaLibrary")}</span>
                           </Link>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
@@ -289,7 +294,7 @@ export function AppSidebar() {
                         >
                           <Link href="/subscriptions">
                             <ShieldCheck className="h-4 w-4" />
-                            <span>Subscriptions</span>
+                            <span>{t("nav.subscriptions")}</span>
                           </Link>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
@@ -301,14 +306,14 @@ export function AppSidebar() {
 
             {(user?.orgRole === "management" || user?.orgRole === "super_admin") && (
               <SidebarGroup>
-                <SidebarGroupLabel>Communication</SidebarGroupLabel>
+                <SidebarGroupLabel>{t("nav.communication")}</SidebarGroupLabel>
                 <SidebarGroupContent>
                   <SidebarMenu>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild isActive={location === "/org-chat"}>
                         <Link href="/org-chat">
                           <MessageSquare className="h-4 w-4" />
-                          <span>Management Chat</span>
+                          <span>{t("nav.managementChat")}</span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -325,7 +330,7 @@ export function AppSidebar() {
                       <SidebarMenuButton asChild isActive={location === "/settings"}>
                         <Link href="/settings">
                           <Settings className="h-4 w-4" />
-                          <span>Settings</span>
+                          <span>{t("nav.settings")}</span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -334,7 +339,7 @@ export function AppSidebar() {
                     <SidebarMenuButton asChild isActive={location === "/account"}>
                       <Link href="/account">
                         <UserCog className="h-4 w-4" />
-                        <span>Account</span>
+                        <span>{t("nav.account")}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -351,7 +356,8 @@ export function AppSidebar() {
             asChild
             variant="ghost"
             size="icon"
-            title="Join our Discord"
+            title={t("social.discord")}
+            aria-label={t("social.discord")}
             data-testid="link-sidebar-discord"
           >
             <a href="https://discord.gg/HrGFwMxaD" target="_blank" rel="noopener noreferrer">
@@ -362,7 +368,8 @@ export function AppSidebar() {
             asChild
             variant="ghost"
             size="icon"
-            title="Follow on X"
+            title={t("social.twitter")}
+            aria-label={t("social.twitter")}
             data-testid="link-sidebar-twitter"
           >
             <a href="https://x.com/The__BootCamp" target="_blank" rel="noopener noreferrer">
@@ -380,7 +387,8 @@ export function AppSidebar() {
             size="icon"
             onClick={logout}
             data-testid="button-logout"
-            title="Sign out"
+            title={t("common.signOut")}
+            aria-label={t("common.signOut")}
           >
             <LogOut className="h-4 w-4" />
           </Button>

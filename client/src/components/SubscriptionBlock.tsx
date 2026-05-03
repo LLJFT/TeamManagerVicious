@@ -1,5 +1,6 @@
 import { Lock, LogOut } from "lucide-react";
 import { SiDiscord, SiX } from "react-icons/si";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { SubscriptionStatus } from "@shared/schema";
@@ -14,18 +15,22 @@ const DISCORD_URL = "https://discord.gg/HrGFwMxaD";
 const TWITTER_URL = "https://x.com/The__BootCamp";
 
 export function SubscriptionBlock({ subscription, username, onLogout }: SubscriptionBlockProps) {
+  const { t, i18n } = useTranslation();
   const expired =
     subscription?.hasSubscription &&
     subscription.manualActiveOverride !== false &&
     typeof subscription.daysRemaining === "number" &&
     subscription.daysRemaining < 0;
 
-  const headline = expired ? "Your subscription has expired" : "Subscription required";
+  const headline = expired ? t("subscription.expiredTitle") : t("subscription.requiredTitle");
   const subline = subscription?.hasSubscription
     ? expired
-      ? `Your ${subscription.type === "trial" ? "trial" : "plan"} ended on ${formatDate(subscription.endDate)}.`
-      : "Your account is currently inactive. Please contact The Bootcamp to reactivate."
-    : "Your account does not have an active subscription yet. Reach out to The Bootcamp to get started.";
+      ? t("subscription.expiredOn", {
+          type: subscription.type === "trial" ? t("subscription.trial") : t("subscription.plan"),
+          date: formatDate(subscription.endDate, i18n.language),
+        })
+      : t("subscription.inactiveAccount")
+    : t("subscription.noSubscription");
 
   return (
     <div
@@ -44,7 +49,7 @@ export function SubscriptionBlock({ subscription, username, onLogout }: Subscrip
 
           {username && (
             <p className="text-xs text-muted-foreground">
-              Signed in as <span className="font-medium text-foreground">{username}</span>
+              <span className="font-medium text-foreground">{username}</span>
             </p>
           )}
 
@@ -56,7 +61,7 @@ export function SubscriptionBlock({ subscription, username, onLogout }: Subscrip
             >
               <a href={DISCORD_URL} target="_blank" rel="noopener noreferrer">
                 <SiDiscord className="h-4 w-4" />
-                Join our Discord
+                {t("social.discord")}
               </a>
             </Button>
             <Button
@@ -67,7 +72,7 @@ export function SubscriptionBlock({ subscription, username, onLogout }: Subscrip
             >
               <a href={TWITTER_URL} target="_blank" rel="noopener noreferrer">
                 <SiX className="h-4 w-4" />
-                Follow on X
+                {t("social.twitter")}
               </a>
             </Button>
           </div>
@@ -80,7 +85,7 @@ export function SubscriptionBlock({ subscription, username, onLogout }: Subscrip
             className="mt-2"
           >
             <LogOut className="h-4 w-4" />
-            Sign out
+            {t("common.signOut")}
           </Button>
         </CardContent>
       </Card>
@@ -88,12 +93,12 @@ export function SubscriptionBlock({ subscription, username, onLogout }: Subscrip
   );
 }
 
-function formatDate(iso: string | null): string {
+function formatDate(iso: string | null, lang: string): string {
   if (!iso) return "—";
   try {
     const d = new Date(iso);
     if (isNaN(d.getTime())) return iso;
-    return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    return d.toLocaleDateString(lang || undefined, { year: "numeric", month: "short", day: "numeric" });
   } catch {
     return iso;
   }
