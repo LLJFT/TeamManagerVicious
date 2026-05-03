@@ -261,6 +261,10 @@ export interface ScoreboardSignal {
   isScoreboard: boolean;
   confidence: number; // 0..1
   reason: string;
+  // True when the image was accepted but signal is incomplete (cropped
+  // scoreboard, missing columns, low resolution, partial OCR). The scan is
+  // still saved — the review UI surfaces a banner explaining the blanks.
+  partial: boolean;
   signals: {
     wordCount: number;
     numericTokens: number;
@@ -275,12 +279,16 @@ export interface ScoreboardSignal {
 }
 
 /**
- * Decide whether the OCR output looks like a scoreboard at all. We require
- * a minimum amount of textual signal AND at least one strong domain anchor
- * (matched player IGN, matched hero, matched map/side, or a score pattern).
- * Logos, posters, plain UI screenshots and random photos fail this gate
- * because they yield few words and zero domain matches. The result is also
- * stored on the scan so the review UI can surface "low confidence" warnings.
+ * Decide whether the OCR output looks like a scoreboard. The contract is
+ * EXTRACT-WHAT-EXISTS / NEVER-INVENT:
+ *
+ *   - Hard reject ONLY when the image clearly isn't a scoreboard at all
+ *     (empty OCR, no numbers anywhere, zero domain anchors). This catches
+ *     logos, posters, and random photos.
+ *   - Otherwise accept the scan even if it's incomplete (cropped, low-res,
+ *     missing stat columns, only one row visible) and flag `partial=true`
+ *     so the review UI shows a soft banner. Missing fields stay blank for
+ *     the coach to fill in manually — we never invent values.
  */
 export function evaluateScoreboardSignal(
   rawText: string,
@@ -298,6 +306,9 @@ export function evaluateScoreboardSignal(
   const matchedMap = !!parsed.matchedMapId;
   const matchedSide = !!parsed.matchedSideId;
   const rowCount = parsed.rows.length;
+  const totalAnchors =
+    (hasScorePattern ? 1 : 0) + matchedPlayers + matchedOpponents +
+    matchedHeroes + (matchedMap ? 1 : 0) + (matchedSide ? 1 : 0);
 
   const signals = {
     wordCount, numericTokens, hasScorePattern,
@@ -305,19 +316,17 @@ export function evaluateScoreboardSignal(
     matchedMap, matchedSide, rowCount,
   };
 
-  // Hard rejects. These are the patterns we see for non-scoreboard images:
-  // empty OCR (logo / opaque image), almost no text (posters), no numbers
-  // at all (text-only graphics).
-  if (wordCount < 8) {
-    return { isScoreboard: false, confidence: 0, reason: "ocr_too_little_text", signals };
+  // Hard reject only when the image has essentially no scoreboard signal.
+  // This is intentionally permissive — partial / cropped / low-res
+  // scoreboards still pass and are flagged `partial=true`.
+  if (wordCount < 3) {
+    return { isScoreboard: false, confidence: 0, reason: "ocr_no_text", partial: false, signals };
   }
-  if (numericTokens < 4) {
-    return { isScoreboard: false, confidence: 0.1, reason: "ocr_no_numeric_grid", signals };
+  if (numericTokens === 0 && rowCount === 0 && totalAnchors === 0) {
+    return { isScoreboard: false, confidence: 0, reason: "no_scoreboard_signal", partial: false, signals };
   }
 
-  // Domain anchors. We weight them so a single matched IGN + a few numbers
-  // is not enough on its own — we want either a score pattern, or two
-  // independent domain hits, before we accept.
+  // Soft confidence score (informational only — does not gate acceptance).
   const anchorScore =
     (hasScorePattern ? 1.0 : 0) +
     (matchedPlayers >= 2 ? 0.8 : matchedPlayers === 1 ? 0.3 : 0) +
@@ -326,25 +335,28 @@ export function evaluateScoreboardSignal(
     (matchedMap ? 0.4 : 0) +
     (matchedSide ? 0.2 : 0) +
     (rowCount >= 3 ? 0.4 : rowCount >= 2 ? 0.2 : 0);
-
-  // Density boost: scoreboards are number-heavy.
   const numericDensity = wordCount > 0 ? numericTokens / wordCount : 0;
   const densityBoost = Math.min(0.4, numericDensity * 0.8);
-
   const confidence = Math.min(1, Number((anchorScore * 0.55 + densityBoost).toFixed(2)));
 
-  // Threshold: we require BOTH some confidence AND at least one anchor that
-  // is unmistakably scoreboard-shaped (score, ≥2 players matched, ≥2 heroes
-  // matched, or matched map name).
-  const hasStrongAnchor =
-    hasScorePattern || matchedPlayers >= 2 || matchedHeroes >= 2 || matchedMap;
-  if (!hasStrongAnchor || confidence < 0.45) {
-    return {
-      isScoreboard: false,
-      confidence,
-      reason: !hasStrongAnchor ? "no_scoreboard_anchors" : "low_confidence",
-      signals,
-    };
+  // Anything with at least one row OR one strong anchor is treated as a
+  // scoreboard. Below the old 0.45 threshold we mark it partial so the
+  // review UI prompts the coach to verify, but the scan still saves and
+  // every visible field is preserved.
+  const looksLikeScoreboard = rowCount >= 1 || totalAnchors >= 1;
+  if (!looksLikeScoreboard) {
+    return { isScoreboard: false, confidence, reason: "no_scoreboard_signal", partial: false, signals };
   }
-  return { isScoreboard: true, confidence, reason: "ok", signals };
+  const partial =
+    confidence < 0.55 ||
+    rowCount < 2 ||
+    (matchedPlayers + matchedOpponents) < 2 ||
+    matchedHeroes < 2;
+  return {
+    isScoreboard: true,
+    confidence,
+    reason: partial ? "partial_extraction" : "ok",
+    partial,
+    signals,
+  };
 }

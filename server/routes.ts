@@ -3707,15 +3707,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const parsed = parseScoreboardText(ocrResult.text, inputs);
         const validation = evaluateScoreboardSignal(ocrResult.text, parsed, inputs);
 
-        // Hard gate: if it's not a scoreboard, refuse without persisting any
-        // scan or stats. The client gets a structured 422 explaining why.
+        // Hard gate: only refuse images that show no scoreboard signal at
+        // all (logos, posters, blank/opaque images). Partial/cropped/low-res
+        // scoreboards are accepted and flagged `validation.partial=true`;
+        // the review UI surfaces a soft banner so the coach knows blanks
+        // are intentional, not an error. We never invent missing values.
         if (!validation.isScoreboard) {
           const reasonMessage = ({
-            ocr_too_little_text: "We couldn't find enough text in this image. Please upload a clear scoreboard screenshot.",
-            ocr_no_numeric_grid: "This image doesn't look like a scoreboard — we couldn't see the stats grid.",
-            no_scoreboard_anchors: "We couldn't recognise any players, heroes, scores or maps in this image.",
-            low_confidence: "This image doesn't appear to be a scoreboard with enough confidence to import.",
-          } as Record<string, string>)[validation.reason] || "Image rejected: not recognised as a scoreboard screenshot.";
+            ocr_no_text: "We couldn't read any text from this image. Please upload a clearer scoreboard screenshot.",
+            no_scoreboard_signal: "This image doesn't show any recognisable scoreboard elements (no numbers, players, heroes, score or map).",
+          } as Record<string, string>)[validation.reason] || "Image rejected: doesn't look like a scoreboard at all.";
           return res.status(422).json({
             error: "not_a_scoreboard",
             reason: validation.reason,
