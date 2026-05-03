@@ -487,6 +487,7 @@ const SUBSCRIPTION_GATE_ALLOWLIST = [
   "/api/subscriptions",            // covers /api/subscriptions/me + super-admin CRUD (which is also role-gated)
   "/api/org-setting",              // org logo / theme / name shown on the block screen
   "/api/notifications",            // header bell — kept lightweight
+  "/api/push-tokens",              // mobile push registration / opt-in toggle
 ];
 
 /**

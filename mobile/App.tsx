@@ -10,6 +10,7 @@ import { ToastProvider } from '@/components';
 import { queryClient } from '@/api/queries';
 import { bootstrapI18n } from '@/i18n';
 import { RootNavigator } from '@/navigation/RootNavigator';
+import { PushRegistration } from '@/push/PushRegistration';
 
 export default function App() {
   const [ready, setReady] = useState(false);
@@ -34,6 +35,7 @@ export default function App() {
             <AuthProvider>
               <ToastProvider>
                 <ThemedStatusBar />
+                <PushRegistration />
                 <RootNavigator />
               </ToastProvider>
             </AuthProvider>

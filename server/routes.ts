@@ -6,6 +6,7 @@ import { db } from "./db";
 import { eq, ne, and, ilike, sql, isNull, inArray, or } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { requireAuth, requirePermission, requireOrgRole, requireGameAccess, getSubscriptionStatus, subscriptionGate } from "./auth";
+import { startPushScheduler } from "./pushNotifications";
 import { getTeamId } from "./storage";
 import {
   insertScheduleSchema, insertEventSchema, insertPlayerSchema, insertAttendanceSchema,
@@ -29,6 +30,7 @@ import {
   staff as staffTable,
   supportedGames, userGameAssignments, notifications, rosters,
   subscriptions, insertSubscriptionSchema,
+  pushTokens, insertPushTokenSchema,
   eventCategories, eventSubTypes, sides, gameRounds,
   settings,
   mediaFolders, mediaItems, insertMediaFolderSchema, insertMediaItemSchema,
@@ -6902,6 +6904,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==================== PUSH TOKENS ====================
+  app.post("/api/push-tokens", requireAuth, async (req, res) => {
+    try {
+      const data = insertPushTokenSchema.parse(req.body);
+      const teamId = getTeamId();
+      const userId = req.session.userId!;
+      const [existing] = await db.select().from(pushTokens)
+        .where(eq(pushTokens.token, data.token)).limit(1);
+      const now = new Date().toISOString();
+      if (existing) {
+        const [updated] = await db.update(pushTokens)
+          .set({
+            userId,
+            teamId,
+            platform: data.platform ?? existing.platform,
+            enabled: data.enabled ?? true,
+            updatedAt: now,
+          })
+          .where(eq(pushTokens.id, existing.id))
+          .returning();
+        return res.json(updated);
+      }
+      const [created] = await db.insert(pushTokens).values({
+        userId,
+        teamId,
+        token: data.token,
+        platform: data.platform ?? null,
+        enabled: data.enabled ?? true,
+      }).returning();
+      res.status(201).json(created);
+    } catch (error: any) {
+      if (error?.name === "ZodError") return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.patch("/api/push-tokens", requireAuth, async (req, res) => {
+    try {
+      const userId = req.session.userId!;
+      const enabled = !!req.body?.enabled;
+      const token = typeof req.body?.token === "string" ? req.body.token : null;
+      const now = new Date().toISOString();
+      if (token) {
+        const [updated] = await db.update(pushTokens)
+          .set({ enabled, updatedAt: now })
+          .where(and(eq(pushTokens.userId, userId), eq(pushTokens.token, token)))
+          .returning();
+        return res.json(updated ?? { token, enabled });
+      }
+      // No token specified — flip every token for this user
+      await db.update(pushTokens)
+        .set({ enabled, updatedAt: now })
+        .where(eq(pushTokens.userId, userId));
+      res.json({ enabled });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/push-tokens", requireAuth, async (req, res) => {
+    try {
+      const userId = req.session.userId!;
+      const token = typeof req.body?.token === "string" ? req.body.token : null;
+      if (!token) return res.status(400).json({ message: "token required" });
+      await db.delete(pushTokens)
+        .where(and(eq(pushTokens.userId, userId), eq(pushTokens.token, token)));
+      res.json({ message: "Removed" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/push-tokens/me", requireAuth, async (req, res) => {
+    try {
+      const userId = req.session.userId!;
+      const rows = await db.select().from(pushTokens).where(eq(pushTokens.userId, userId));
+      res.json(rows);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // ==================== SUBSCRIPTIONS ====================
   // Current user's status (used by frontend to render the block screen)
   app.get("/api/subscriptions/me", requireAuth, async (req, res) => {
@@ -6993,6 +7077,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const httpServer = createServer(app);
+
+  // Periodic push notification scheduler (events + subscription expiry)
+  startPushScheduler();
 
   return httpServer;
 }

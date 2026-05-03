@@ -22,6 +22,17 @@
     "extra": {
       "apiBaseUrl": "http://localhost:5000"
     },
-    "plugins": []
+    "notification": {
+      "iosDisplayInForeground": true,
+      "androidMode": "default"
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "color": "#0F172A"
+        }
+      ]
+    ]
   }
 }

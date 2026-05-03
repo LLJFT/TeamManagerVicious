@@ -805,6 +805,46 @@ export const notifications = pgTable("notifications", {
   index("notifications_user_id_idx").on(table.userId),
 ]);
 
+export const pushTokens = pgTable("push_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id"),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  token: text("token").notNull(),
+  platform: text("platform"),
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: text("created_at").default(sql`now()`),
+  updatedAt: text("updated_at").default(sql`now()`),
+}, (table) => [
+  index("push_tokens_user_id_idx").on(table.userId),
+  index("push_tokens_team_id_idx").on(table.teamId),
+  uniqueIndex("push_tokens_token_uniq").on(table.token),
+]);
+
+export const pushReminders = pgTable("push_reminders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  kind: text("kind").notNull(),
+  refId: varchar("ref_id").notNull(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  sentAt: text("sent_at").default(sql`now()`),
+}, (table) => [
+  uniqueIndex("push_reminders_kind_ref_user_uniq").on(table.kind, table.refId, table.userId),
+]);
+
+export const insertPushTokenSchema = createInsertSchema(pushTokens).omit({
+  id: true,
+  teamId: true,
+  userId: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  token: z.string().min(1),
+  platform: z.string().optional().nullable(),
+  enabled: z.boolean().optional(),
+});
+
+export type PushToken = typeof pushTokens.$inferSelect;
+export type InsertPushToken = z.infer<typeof insertPushTokenSchema>;
+
 export const gameTemplates = pgTable("game_templates", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id").notNull(),

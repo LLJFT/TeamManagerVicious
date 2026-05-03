@@ -182,6 +182,16 @@ export const en = {
     players: 'No players in this roster yet.',
     notifications: 'No notifications.',
   },
+  push: {
+    title: 'Push notifications',
+    subtitle: 'Reminders for upcoming events and subscription expiry.',
+    promptTitle: 'Stay in the loop',
+    promptBody: 'Enable push notifications to get reminders before scrims, tournaments, and when your subscription is about to expire.',
+    enable: 'Enable',
+    notNow: 'Not now',
+    enabledToast: 'Notifications enabled',
+    disabledToast: 'Notifications disabled',
+  },
 };
 
 export type Translation = typeof en;
