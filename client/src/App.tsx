@@ -40,6 +40,7 @@ import StaffPage from "@/pages/Staff";
 import Chat from "@/pages/Chat";
 import AccountSettings from "@/pages/AccountSettings";
 import PlayerStats from "@/pages/PlayerStats";
+import OcrScanReview from "@/pages/OcrScanReview";
 import OrgDashboard from "@/pages/OrgDashboard";
 import CalendarPage from "@/pages/CalendarPage";
 import UsersPage from "@/pages/UsersPage";
@@ -78,6 +79,7 @@ function GameRoutes({ slug }: { slug: string }) {
       <Route path={`${basePath}/staff`} component={StaffPage} />
       <Route path={`${basePath}/chat`} component={Chat} />
       <Route path={`${basePath}/player-stats`} component={PlayerStats} />
+      <Route path={`${basePath}/ocr-scans/:id`} component={OcrScanReview} />
       <Route component={NotFound} />
     </Switch>
   );

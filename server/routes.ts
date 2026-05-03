@@ -3629,6 +3629,212 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== OCR Scoreboard Scans =====
+  const ocrUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 },
+  });
+
+  app.post(
+    "/api/games/:matchId/ocr-scans",
+    requireAuth,
+    requirePermission("edit_events"),
+    ocrUpload.single("file"),
+    async (req, res) => {
+      try {
+        const { matchId } = req.params;
+        if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+        const teamId = getTeamId();
+        const [game] = await db.select().from(games).where(and(eq(games.id, matchId), eq(games.teamId, teamId))).limit(1);
+        if (!game) return res.status(404).json({ error: "Game not found" });
+        if (!await verifyObjectScope(req, res, game.gameId, game.rosterId)) return;
+
+        // Persist source image to object storage so we can show it on review.
+        const { ObjectStorageService } = await import("./objectStorage");
+        const svc = new ObjectStorageService();
+        const ext = path.extname(req.file.originalname).toLowerCase() || ".png";
+        const mime = req.file.mimetype || "image/png";
+        const url = await svc.uploadBuffer(req.file.buffer, mime, ext);
+
+        // Pre-load candidate inputs for fuzzy matching.
+        const [our, opps, hs, sf, mps, sds] = await Promise.all([
+          storage.getAllPlayers(game.gameId, game.rosterId),
+          storage.getAllOpponents(game.gameId, game.rosterId),
+          storage.getAllHeroes(game.gameId, game.rosterId),
+          game.gameModeId ? storage.getStatFieldsByGameModeId(game.gameModeId) : Promise.resolve([]),
+          storage.getAllMaps(game.gameId, game.rosterId),
+          storage.getAllSides(game.gameId, game.rosterId),
+        ]);
+        // Pull opponent players from this game's opponent (or all if absent).
+        const oppId = (game as any).opponentId as string | null;
+        const oppPlayers = oppId
+          ? await storage.getOpponentPlayersByOpponentId(oppId)
+          : (await Promise.all(opps.map(o => storage.getOpponentPlayersByOpponentId(o.id)))).flat();
+
+        const { runOcr, parseScoreboardText } = await import("./ocr");
+        const ocrResult = await runOcr(req.file.buffer);
+        const parsed = parseScoreboardText(ocrResult.text, {
+          players: our,
+          opponentPlayers: oppPlayers as any,
+          heroes: hs,
+          statFields: sf,
+          maps: mps,
+          sides: sds,
+        });
+
+        const scan = await storage.createOcrScan({
+          gameId: game.gameId,
+          rosterId: game.rosterId,
+          matchId,
+          imageObjectPath: url,
+          rawOcr: { text: ocrResult.text } as any,
+          parsedCandidate: parsed as any,
+          editedCandidate: parsed as any,
+          status: "pending_review",
+          uploaderUserId: req.session.userId!,
+          errorMessage: ocrResult.text ? null : "OCR returned no text",
+        } as any);
+        res.json(scan);
+      } catch (error: any) {
+        console.error("Error in POST /api/games/:matchId/ocr-scans:", error);
+        res.status(500).json({ error: error.message || "Internal server error" });
+      }
+    }
+  );
+
+  app.get("/api/ocr-scans/:id", requireAuth, async (req, res) => {
+    try {
+      const scan = await storage.getOcrScan(req.params.id);
+      if (!scan) return res.status(404).json({ error: "Scan not found" });
+      if (!await verifyObjectScope(req, res, scan.gameId, scan.rosterId)) return;
+      res.json(scan);
+    } catch (error: any) {
+      console.error("Error in GET /api/ocr-scans/:id:", error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.patch("/api/ocr-scans/:id", requireAuth, requirePermission("edit_events"), async (req, res) => {
+    try {
+      const scan = await storage.getOcrScan(req.params.id);
+      if (!scan) return res.status(404).json({ error: "Scan not found" });
+      if (!await verifyObjectScope(req, res, scan.gameId, scan.rosterId)) return;
+      const editedCandidate = req.body?.editedCandidate;
+      if (!editedCandidate || typeof editedCandidate !== "object") {
+        return res.status(400).json({ error: "Missing editedCandidate" });
+      }
+      const updated = await storage.updateOcrScan(scan.id, { editedCandidate } as any);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error in PATCH /api/ocr-scans/:id:", error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.post("/api/ocr-scans/:id/confirm", requireAuth, requirePermission("edit_events"), async (req, res) => {
+    try {
+      const scan = await storage.getOcrScan(req.params.id);
+      if (!scan) return res.status(404).json({ error: "Scan not found" });
+      if (!await verifyObjectScope(req, res, scan.gameId, scan.rosterId)) return;
+      if (scan.status === "confirmed") return res.status(400).json({ error: "Scan already confirmed" });
+      const overwrite = req.body?.overwrite === true || req.query.overwrite === "true";
+
+      const candidate = (scan.editedCandidate || scan.parsedCandidate) as any;
+      if (!candidate) return res.status(400).json({ error: "No parsed candidate to confirm" });
+
+      // Conflict detection: if any existing rows are not from this scan, refuse
+      // unless overwrite was explicitly requested. We check the three target tables.
+      const teamId = getTeamId();
+      const existingHeroes = await storage.getGameHeroesByMatchId(scan.matchId);
+      const existingParts = await storage.getMatchParticipants(scan.matchId);
+      const existingStats = await storage.getPlayerGameStats(scan.matchId, scan.gameId, scan.rosterId);
+      const conflicts = {
+        gameHeroes: existingHeroes.filter((r: any) => r.importedViaOcrScanId !== scan.id).map((r: any) => r.id),
+        matchParticipants: existingParts.filter((r: any) => r.importedViaOcrScanId !== scan.id).map((r: any) => r.id),
+        playerGameStats: existingStats.filter((r: any) => r.importedViaOcrScanId !== scan.id).map((r: any) => r.id),
+      };
+      const hasConflicts = conflicts.gameHeroes.length || conflicts.matchParticipants.length || conflicts.playerGameStats.length;
+      if (hasConflicts && !overwrite) {
+        return res.status(409).json({ error: "Existing data would be overwritten", conflicts });
+      }
+
+      const [game] = await db.select().from(games).where(and(eq(games.id, scan.matchId), eq(games.teamId, teamId))).limit(1);
+      if (!game) return res.status(404).json({ error: "Game not found" });
+
+      // Build participants, heroes, and per-player stats from the candidate.
+      const participantRows: any[] = [];
+      const heroRows: any[] = [];
+      const statRows: any[] = [];
+      let sortIdx = 0;
+      for (const row of candidate.rows || []) {
+        if (row.side === "us") {
+          if (row.matchedPlayerId) {
+            participantRows.push({
+              gameId: game.gameId, rosterId: game.rosterId,
+              side: "us", playerId: row.matchedPlayerId, opponentPlayerId: null,
+              played: true, importedViaOcrScanId: scan.id,
+            });
+            if (row.matchedHeroId) {
+              heroRows.push({
+                gameId: game.gameId, rosterId: game.rosterId,
+                side: "us", playerId: row.matchedPlayerId, opponentPlayerId: null,
+                heroId: row.matchedHeroId, roundNumber: null, sortOrder: sortIdx++,
+                importedViaOcrScanId: scan.id,
+              });
+            }
+            for (const [statFieldId, value] of Object.entries(row.stats || {})) {
+              statRows.push({
+                gameId: game.gameId,
+                playerId: row.matchedPlayerId,
+                statFieldId,
+                value: String(value),
+                importedViaOcrScanId: scan.id,
+              });
+            }
+          }
+        } else if (row.side === "opponent") {
+          if (row.matchedOpponentPlayerId) {
+            participantRows.push({
+              gameId: game.gameId, rosterId: game.rosterId,
+              side: "opponent", playerId: null, opponentPlayerId: row.matchedOpponentPlayerId,
+              played: true, importedViaOcrScanId: scan.id,
+            });
+            if (row.matchedHeroId) {
+              heroRows.push({
+                gameId: game.gameId, rosterId: game.rosterId,
+                side: "opponent", playerId: null, opponentPlayerId: row.matchedOpponentPlayerId,
+                heroId: row.matchedHeroId, roundNumber: null, sortOrder: sortIdx++,
+                importedViaOcrScanId: scan.id,
+              });
+            }
+          }
+        }
+      }
+
+      await storage.replaceMatchParticipants(scan.matchId, participantRows, game.gameId, game.rosterId);
+      await storage.replaceGameHeroes(scan.matchId, heroRows, game.gameId, game.rosterId);
+      await storage.savePlayerGameStats(scan.matchId, statRows, game.gameId, game.rosterId);
+
+      // Update score on the game itself if provided.
+      if (typeof candidate.ourScore === "number" || typeof candidate.opponentScore === "number") {
+        await db.update(games).set({
+          ourScore: typeof candidate.ourScore === "number" ? candidate.ourScore : (game as any).ourScore,
+          opponentScore: typeof candidate.opponentScore === "number" ? candidate.opponentScore : (game as any).opponentScore,
+        } as any).where(and(eq(games.id, scan.matchId), eq(games.teamId, teamId)));
+      }
+
+      const updated = await storage.updateOcrScan(scan.id, { status: "confirmed" } as any);
+      res.json({ ok: true, scan: updated, counts: {
+        participants: participantRows.length,
+        heroes: heroRows.length,
+        stats: statRows.length,
+      } });
+    } catch (error: any) {
+      console.error("Error in POST /api/ocr-scans/:id/confirm:", error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
   // ===== Game Participation (per-side roster + DNP) =====
   app.get("/api/games/:id/participation", requireAuth, async (req, res) => {
     try {

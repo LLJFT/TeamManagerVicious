@@ -1,5 +1,5 @@
-import type { Player, InsertPlayer, Schedule, InsertSchedule, Setting, InsertSetting, Event, InsertEvent, Attendance, InsertAttendance, TeamNotes, InsertTeamNotes, Game, InsertGame, GameMode, InsertGameMode, Map, InsertMap, Season, InsertSeason, OffDay, InsertOffDay, StatField, InsertStatField, PlayerGameStat, InsertPlayerGameStat, PlayerAvailabilityRecord, InsertPlayerAvailability, StaffAvailabilityRecord, InsertStaffAvailability, Staff, InsertStaff, AvailabilitySlot, RosterRole, SupportedGame, UserGameAssignment, Notification, EventCategory, InsertEventCategory, EventSubType, InsertEventSubType, Side, InsertSide, GameRound, InsertGameRound, Hero, InsertHero, HeroRoleConfig, InsertHeroRoleConfig, GameHero, InsertGameHero, Opponent, InsertOpponent, OpponentPlayer, InsertOpponentPlayer, MatchParticipant, InsertMatchParticipant, OpponentPlayerGameStat, InsertOpponentPlayerGameStat, HeroBanSystem, InsertHeroBanSystem, MapVetoSystem, InsertMapVetoSystem, GameHeroBanAction, InsertGameHeroBanAction, GameMapVetoRow, InsertGameMapVetoRow, GameTemplate, GameTemplateConfig } from "@shared/schema";
-import { players, schedules, settings, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays, statFields, playerGameStats, playerAvailability, staffAvailability, staff as staffTable, availabilitySlots, rosterRoles, supportedGames, userGameAssignments, notifications, users, rosters, eventCategories, eventSubTypes, sides, gameRounds, heroes, heroRoleConfigs, gameHeroes, opponents, opponentPlayers, matchParticipants, opponentPlayerGameStats, heroBanSystems, mapVetoSystems, gameHeroBanActions, gameMapVetoRows, gameTemplates, mediaFolders, mediaItems } from "@shared/schema";
+import type { Player, InsertPlayer, Schedule, InsertSchedule, Setting, InsertSetting, Event, InsertEvent, Attendance, InsertAttendance, TeamNotes, InsertTeamNotes, Game, InsertGame, GameMode, InsertGameMode, Map, InsertMap, Season, InsertSeason, OffDay, InsertOffDay, StatField, InsertStatField, PlayerGameStat, InsertPlayerGameStat, PlayerAvailabilityRecord, InsertPlayerAvailability, StaffAvailabilityRecord, InsertStaffAvailability, Staff, InsertStaff, AvailabilitySlot, RosterRole, SupportedGame, UserGameAssignment, Notification, EventCategory, InsertEventCategory, EventSubType, InsertEventSubType, Side, InsertSide, GameRound, InsertGameRound, Hero, InsertHero, HeroRoleConfig, InsertHeroRoleConfig, GameHero, InsertGameHero, Opponent, InsertOpponent, OpponentPlayer, InsertOpponentPlayer, MatchParticipant, InsertMatchParticipant, OpponentPlayerGameStat, InsertOpponentPlayerGameStat, HeroBanSystem, InsertHeroBanSystem, MapVetoSystem, InsertMapVetoSystem, GameHeroBanAction, InsertGameHeroBanAction, GameMapVetoRow, InsertGameMapVetoRow, GameTemplate, GameTemplateConfig, ScoreboardOcrScan, InsertScoreboardOcrScan } from "@shared/schema";
+import { players, schedules, settings, events, attendance, teamNotes, games, gameModes, maps, seasons, offDays, statFields, playerGameStats, playerAvailability, staffAvailability, staff as staffTable, availabilitySlots, rosterRoles, supportedGames, userGameAssignments, notifications, users, rosters, eventCategories, eventSubTypes, sides, gameRounds, heroes, heroRoleConfigs, gameHeroes, opponents, opponentPlayers, matchParticipants, opponentPlayerGameStats, heroBanSystems, mapVetoSystems, gameHeroBanActions, gameMapVetoRows, gameTemplates, mediaFolders, mediaItems, scoreboardOcrScans } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, isNull, desc, sql, inArray, or } from "drizzle-orm";
 import { getGameDefaults, defaultIgn } from "./defaults/gameDefaults";
@@ -179,6 +179,10 @@ export interface IStorage {
   applyGameTemplate(templateId: string, rosterId: string, gameId: string): Promise<{ ok: true }>;
   findDefaultTemplateForGame(gameId: string): Promise<GameTemplate | undefined>;
   seedNewRoster(rosterId: string, gameId: string, opts?: { templateId?: string; force?: boolean }): Promise<SeedRosterResult>;
+  createOcrScan(scan: InsertScoreboardOcrScan): Promise<ScoreboardOcrScan>;
+  getOcrScan(id: string): Promise<ScoreboardOcrScan | undefined>;
+  updateOcrScan(id: string, fields: Partial<InsertScoreboardOcrScan>): Promise<ScoreboardOcrScan | undefined>;
+  listOcrScansByMatch(matchId: string): Promise<ScoreboardOcrScan[]>;
 }
 
 export interface SeedRosterResult {
@@ -2138,6 +2142,35 @@ export class DbStorage implements IStorage {
     void defaultIgn;
 
     return { source: "defaults", counts, warnings };
+  }
+
+  async createOcrScan(scan: InsertScoreboardOcrScan): Promise<ScoreboardOcrScan> {
+    const teamId = getTeamId();
+    const inserted = await db.insert(scoreboardOcrScans).values({ ...scan, teamId } as any).returning();
+    return inserted[0];
+  }
+
+  async getOcrScan(id: string): Promise<ScoreboardOcrScan | undefined> {
+    const teamId = getTeamId();
+    const r = await db.select().from(scoreboardOcrScans)
+      .where(and(eq(scoreboardOcrScans.id, id), eq(scoreboardOcrScans.teamId, teamId))).limit(1);
+    return r[0];
+  }
+
+  async updateOcrScan(id: string, fields: Partial<InsertScoreboardOcrScan>): Promise<ScoreboardOcrScan | undefined> {
+    const teamId = getTeamId();
+    const updates: any = { ...fields, updatedAt: sql`now()` };
+    const updated = await db.update(scoreboardOcrScans).set(updates)
+      .where(and(eq(scoreboardOcrScans.id, id), eq(scoreboardOcrScans.teamId, teamId)))
+      .returning();
+    return updated[0];
+  }
+
+  async listOcrScansByMatch(matchId: string): Promise<ScoreboardOcrScan[]> {
+    const teamId = getTeamId();
+    return await db.select().from(scoreboardOcrScans)
+      .where(and(eq(scoreboardOcrScans.matchId, matchId), eq(scoreboardOcrScans.teamId, teamId)))
+      .orderBy(desc(scoreboardOcrScans.createdAt));
   }
 }
 

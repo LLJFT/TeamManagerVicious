@@ -511,6 +511,7 @@ export const matchParticipants = pgTable("match_participants", {
   playerId: varchar("player_id").references(() => players.id, { onDelete: "set null" }),
   opponentPlayerId: varchar("opponent_player_id").references(() => opponentPlayers.id, { onDelete: "cascade" }),
   played: boolean("played").notNull().default(true),
+  importedViaOcrScanId: varchar("imported_via_ocr_scan_id"),
 }, (table) => [
   index("match_participants_team_id_idx").on(table.teamId),
   index("match_participants_match_id_idx").on(table.matchId),
@@ -671,6 +672,7 @@ export const gameHeroes = pgTable("game_heroes", {
   heroId: varchar("hero_id").notNull().references(() => heroes.id, { onDelete: "restrict" }),
   roundNumber: integer("round_number"),
   sortOrder: integer("sort_order").notNull().default(0),
+  importedViaOcrScanId: varchar("imported_via_ocr_scan_id"),
 }, (table) => [
   index("game_heroes_team_id_idx").on(table.teamId),
   index("game_heroes_match_id_idx").on(table.matchId),
@@ -715,6 +717,7 @@ export const playerGameStats = pgTable("player_game_stats", {
   statFieldId: varchar("stat_field_id").references(() => statFields.id, { onDelete: "set null" }),
   value: text("value").notNull().default("0"),
   createdAt: text("created_at").default(sql`now()`),
+  importedViaOcrScanId: varchar("imported_via_ocr_scan_id"),
 }, (table) => [
   index("player_game_stats_team_id_idx").on(table.teamId),
   index("player_game_stats_game_id_idx").on(table.gameId),
@@ -816,6 +819,61 @@ export const gameTemplates = pgTable("game_templates", {
   index("game_templates_game_id_idx").on(table.gameId),
   uniqueIndex("game_templates_code_uniq").on(table.code),
 ]);
+
+export const scoreboardOcrScanStatuses = ["pending_review", "confirmed", "discarded"] as const;
+export type ScoreboardOcrScanStatus = typeof scoreboardOcrScanStatuses[number];
+
+export const scoreboardOcrScans = pgTable("scoreboard_ocr_scans", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id").notNull(),
+  gameId: varchar("game_id"),
+  rosterId: varchar("roster_id").references(() => rosters.id, { onDelete: "set null" }),
+  matchId: varchar("match_id").notNull().references(() => games.id, { onDelete: "cascade" }),
+  imageObjectPath: text("image_object_path").notNull(),
+  rawOcr: jsonb("raw_ocr"),
+  parsedCandidate: jsonb("parsed_candidate"),
+  editedCandidate: jsonb("edited_candidate"),
+  status: text("status").notNull().default("pending_review"),
+  uploaderUserId: varchar("uploader_user_id").references(() => users.id, { onDelete: "set null" }),
+  errorMessage: text("error_message"),
+  createdAt: text("created_at").default(sql`now()`),
+  updatedAt: text("updated_at").default(sql`now()`),
+}, (table) => [
+  index("scoreboard_ocr_scans_team_id_idx").on(table.teamId),
+  index("scoreboard_ocr_scans_match_id_idx").on(table.matchId),
+  index("scoreboard_ocr_scans_status_idx").on(table.status),
+]);
+
+export const insertScoreboardOcrScanSchema = createInsertSchema(scoreboardOcrScans).omit({
+  id: true,
+  teamId: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type ScoreboardOcrScan = typeof scoreboardOcrScans.$inferSelect;
+export type InsertScoreboardOcrScan = z.infer<typeof insertScoreboardOcrScanSchema>;
+
+export interface OcrPlayerRow {
+  rawName: string;
+  matchedPlayerId?: string | null;
+  matchedOpponentPlayerId?: string | null;
+  rawHero?: string | null;
+  matchedHeroId?: string | null;
+  side: "us" | "opponent";
+  stats: Record<string, string | number>;
+  confidence?: number;
+}
+
+export interface OcrParsedCandidate {
+  ourScore?: number | null;
+  opponentScore?: number | null;
+  rawMap?: string | null;
+  matchedMapId?: string | null;
+  rawSide?: string | null;
+  matchedSideId?: string | null;
+  rows: OcrPlayerRow[];
+  notes?: string;
+}
 
 export const mediaFolders = pgTable("media_folders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

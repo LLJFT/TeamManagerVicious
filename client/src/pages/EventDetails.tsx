@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Plus, Trash2, Save, Upload, Eye, ExternalLink, Gamepad2, Map as MapIcon, BarChart3, UserCheck, Clock as ClockIcon, UserX, ChevronDown, ChevronUp, Ban } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Save, Upload, Eye, ExternalLink, Gamepad2, Map as MapIcon, BarChart3, UserCheck, Clock as ClockIcon, UserX, ChevronDown, ChevronUp, Ban, ScanLine } from "lucide-react";
 import { GameHeroBanPanel, type HeroBanDraftRow } from "@/components/GameHeroBanPanel";
 import { Hint } from "@/components/Hint";
 import { GameMapVetoPanel, type MapVetoDraftRow } from "@/components/GameMapVetoPanel";
@@ -1550,7 +1550,31 @@ export default function EventDetails() {
                                   )}
                                 </button>
                                 {isExpanded && (
-                                  <div className="mt-2" data-testid={`content-match-stats-${game.id}`}>
+                                  <div className="mt-2 space-y-2" data-testid={`content-match-stats-${game.id}`}>
+                                    <div className="flex justify-end">
+                                      <ObjectUploader
+                                        uploadUrl={`/api/games/${game.id}/ocr-scans`}
+                                        accept="image/*"
+                                        buttonVariant="outline"
+                                        buttonSize="sm"
+                                        onUploaded={(r: any) => {
+                                          const scanId = r?.id;
+                                          if (scanId) {
+                                            window.location.href = `/${fullSlug}/ocr-scans/${scanId}`;
+                                          }
+                                        }}
+                                        onError={(msg) => {
+                                          setToastMessage(`Scan failed: ${msg}`);
+                                          setToastType("error");
+                                          setShowToast(true);
+                                          setTimeout(() => setShowToast(false), 3000);
+                                        }}
+                                      >
+                                        <span className="flex items-center gap-1">
+                                          <ScanLine className="h-4 w-4" /> Import from scoreboard
+                                        </span>
+                                      </ObjectUploader>
+                                    </div>
                                     <MatchSidesEditor
                                       game={game}
                                       opponentId={game.opponentId || event?.opponentId || null}
