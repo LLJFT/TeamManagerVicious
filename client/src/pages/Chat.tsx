@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback, lazy, Suspense } from "react"
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient, getCurrentGameId } from "@/lib/queryClient";
+import { useGame } from "@/hooks/use-game";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { Card } from "@/components/ui/card";
@@ -54,6 +55,7 @@ interface TeamUser {
 
 export default function Chat() {
   const { user, hasPermission } = useAuth();
+  const { gameId, rosterId } = useGame();
   const { toast } = useToast();
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
   const [messageText, setMessageText] = useState("");
@@ -87,9 +89,20 @@ export default function Chat() {
     return url.split("/").pop() || "attachment";
   };
 
+  // Roster-scoped: include gameId/rosterId in the cache key so switching
+  // rosters does not surface another roster's channels from cache.
   const { data: channels = [], isLoading: channelsLoading } = useQuery<ChatChannelWithPerms[]>({
-    queryKey: ["/api/chat/channels"],
+    queryKey: ["/api/chat/channels", { gameId, rosterId }],
+    enabled: !!(gameId && rosterId),
   });
+
+  // When the active roster changes, drop any selected channel from the
+  // previous roster — its id is meaningless in the new scope and would
+  // otherwise leave the message pane showing stale messages until the
+  // user clicks a new channel.
+  useEffect(() => {
+    setSelectedChannelId(null);
+  }, [gameId, rosterId]);
 
   const { data: messages = [] } = useQuery<ChatMessageWithUser[]>({
     queryKey: ["/api/chat/channels", selectedChannelId, "messages"],

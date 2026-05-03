@@ -682,24 +682,21 @@ export class DbStorage implements IStorage {
   }
 
   async getGameHeroesByRoster(gameId: string, rosterId: string, opponentId?: string): Promise<GameHero[]> {
+    // Scope from joined `games`. Hero plays must surface for every match
+    // belonging to this roster regardless of whether the denormalized
+    // gameId/rosterId columns on game_heroes were ever populated.
     const teamId = getTeamId();
-    if (opponentId) {
-      const rows = await db.select({ h: gameHeroes })
-        .from(gameHeroes)
-        .innerJoin(games, eq(gameHeroes.matchId, games.id))
-        .where(and(
-          eq(gameHeroes.teamId, teamId),
-          eq(gameHeroes.gameId, gameId),
-          eq(gameHeroes.rosterId, rosterId),
-          eq(games.opponentId, opponentId),
-        ));
-      return rows.map(r => r.h);
-    }
-    return await db.select().from(gameHeroes).where(and(
+    const conditions: any[] = [
       eq(gameHeroes.teamId, teamId),
-      eq(gameHeroes.gameId, gameId),
-      eq(gameHeroes.rosterId, rosterId),
-    ));
+      eq(games.gameId, gameId),
+      eq(games.rosterId, rosterId),
+    ];
+    if (opponentId) conditions.push(eq(games.opponentId, opponentId));
+    const rows = await db.select({ h: gameHeroes })
+      .from(gameHeroes)
+      .innerJoin(games, eq(gameHeroes.matchId, games.id))
+      .where(and(...conditions));
+    return rows.map(r => r.h);
   }
 
   async addGameHero(insertGameHero: InsertGameHero, gameId?: string | null, rosterId?: string | null): Promise<GameHero> {
@@ -1028,10 +1025,14 @@ export class DbStorage implements IStorage {
   }
 
   async getPlayerGameStatsByRoster(gameId: string, rosterId: string, opponentId?: string): Promise<PlayerGameStat[]> {
+    // Derive scope from the joined `games` table only. The denormalized
+    // gameId/rosterId columns on stat tables are not always populated for
+    // historic rows, and a stat row that links to a properly-scoped game
+    // must surface in this roster's leaderboard regardless.
     const teamId = getTeamId();
     const conditions: any[] = [
       eq(playerGameStats.teamId, teamId),
-      eq(playerGameStats.gameId, gameId),
+      eq(games.gameId, gameId),
       eq(games.rosterId, rosterId),
     ];
     if (opponentId) conditions.push(eq(games.opponentId, opponentId));
@@ -1284,10 +1285,13 @@ export class DbStorage implements IStorage {
   }
 
   async getOpponentPlayerGameStatsByRoster(gameId: string, rosterId: string, opponentId?: string): Promise<OpponentPlayerGameStat[]> {
+    // Scope is derived from the joined `games` table only, so opponent
+    // stat rows whose denormalized gameId column was never written still
+    // surface as long as their match belongs to this game/roster.
     const teamId = getTeamId();
     const conditions: any[] = [
       eq(opponentPlayerGameStats.teamId, teamId),
-      eq(opponentPlayerGameStats.gameId, gameId),
+      eq(games.gameId, gameId),
       eq(games.rosterId, rosterId),
     ];
     if (opponentId) conditions.push(eq(games.opponentId, opponentId));
@@ -1331,20 +1335,21 @@ export class DbStorage implements IStorage {
   }
 
   async getMatchParticipantsByRoster(gameId: string, rosterId: string, opponentId?: string): Promise<MatchParticipant[]> {
+    // Scope from joined `games` so participants attached to a properly
+    // scoped game are returned even when their own gameId/rosterId
+    // columns were never backfilled.
     const teamId = getTeamId();
     const conditions: any[] = [
       eq(matchParticipants.teamId, teamId),
-      eq(matchParticipants.gameId, gameId),
-      eq(matchParticipants.rosterId, rosterId),
+      eq(games.gameId, gameId),
+      eq(games.rosterId, rosterId),
     ];
-    if (opponentId) {
-      const rows = await db.select({ p: matchParticipants })
-        .from(matchParticipants)
-        .innerJoin(games, eq(matchParticipants.matchId, games.id))
-        .where(and(...conditions, eq(games.opponentId, opponentId)));
-      return rows.map(r => r.p);
-    }
-    return await db.select().from(matchParticipants).where(and(...conditions));
+    if (opponentId) conditions.push(eq(games.opponentId, opponentId));
+    const rows = await db.select({ p: matchParticipants })
+      .from(matchParticipants)
+      .innerJoin(games, eq(matchParticipants.matchId, games.id))
+      .where(and(...conditions));
+    return rows.map(r => r.p);
   }
 
   async replaceMatchParticipants(matchId: string, rows: Omit<InsertMatchParticipant, "matchId">[], gameId?: string | null, rosterId?: string | null): Promise<MatchParticipant[]> {

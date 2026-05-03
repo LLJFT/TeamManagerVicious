@@ -1,0 +1,211 @@
+There are still critical issues remaining. Please audit and fix them carefully.
+
+IMPORTANT:
+The chat problem is not only channel duplication.
+Messages themselves are leaking across rosters too.
+This is a strict data-scope / isolation issue, not just a UI issue.
+
+Also, the biggest remaining analytics issue is still opponent player statistics:
+their games, stats, and hero data appear to exist, but the analytics still do not properly surface them.
+
+Use the attached screenshots to reproduce the exact current behavior.
+
+==================================================
+1) CHAT MUST BE FULLY ROSTER-SCOPED (CHANNELS + MESSAGES)
+==================================================
+
+Observed issues:
+- Channels are duplicated or mixed
+- Messages are leaking across rosters
+- The current roster chat is not isolated properly
+
+Audit the full chat flow:
+- chat channels data model
+- chat messages data model
+- channel queries
+- message queries
+- websocket/subscription routing if applicable
+- any client cache/state reuse between rosters
+- any server endpoint filtering by team/game but not roster
+
+Requirements:
+- A roster must only see its own channels
+- A roster must only see its own messages
+- No channels from another roster should appear
+- No messages from another roster should appear
+- Posting in one roster must not appear in another roster
+- Keep permissions intact
+- Do not break existing chat features
+
+Treat this as a real isolation bug, not just a display bug.
+
+==================================================
+2) AVAILABILITY PAGE / TEMPLATE SLOT PROPAGATION
+==================================================
+
+The availability page still needs a full audit.
+
+Observed:
+- Some slot/timing behavior still does not seem to follow the Game Template correctly
+- The real roster availability page must reflect the intended template/config setup cleanly
+
+What to do:
+- Audit how availability slots/times are stored in the template
+- Audit how they are copied into the roster
+- Audit how the page renders players + staff + slot labels
+- Verify that the live roster really uses the template-defined availability structure where supported
+
+Requirements:
+- Roster players must appear correctly
+- Staff must continue to appear correctly
+- Template-defined slot labels/times must be used when available
+- Do not silently replace template-defined slots with unrelated defaults
+
+==================================================
+3) PLAYER LEADERBOARD — OPPONENT PLAYER STATS STILL NOT REALLY WORKING
+==================================================
+
+This is the biggest remaining analytics problem.
+
+Opponent players’ statistics are still not being surfaced correctly, even though their underlying data appears to exist.
+
+I can see:
+- opponent games
+- opponent stats
+- opponent heroes / hero data
+
+But the leaderboard still does not properly show opponent player analytics the way it should.
+
+Please audit the full opponent-player analytics pipeline:
+- opponent_players
+- opponent player stat rows
+- hero picks / hero plays for opponent players
+- joins to games
+- joins to opponents
+- joins to maps / modes / event context
+- page-level filtering and aggregation logic in Player Leaderboard
+
+What I need:
+- Opponent players must actually appear with real aggregated statistics
+- Their stat cards must populate when data exists
+- Their hero usage/specialization must populate when data exists
+- Their stats must work in All / Opponents modes
+- Team logos should show when available
+- Our players and opponent players should remain visually distinct
+
+Most important:
+Do not stop at adding filters or labels if the underlying stats are still missing.
+The main task is to fix the actual opponent-player stat surfacing.
+
+==================================================
+4) PLAYER LEADERBOARD FILTERS / STAT SCOPING
+==================================================
+
+After the opponent-player stats actually work, make sure the scoping is correct.
+
+I want the relevant leaderboard data to respect:
+- opponent filter
+- game mode
+- map
+- role
+- event type
+- date scope
+
+Please verify:
+- which filters are applied to which sections
+- whether any section is still ignoring selected filters
+- whether opponent-player data respects the same filtered scope as our players
+
+==================================================
+5) OVERALL STAT DUPLICATION ACROSS MODES MUST BE FIXED
+==================================================
+
+There is another important Player Leaderboard issue:
+
+In games like Marvel Rivals / Black Ops, the same stat names exist in multiple game modes.
+Examples:
+- Kills
+- Deaths
+- Assists
+- Final Hits
+- Damage
+- Damage Blocked
+- Healing
+
+Or in Black Ops:
+- Kills
+- Deaths
+can appear in Overload / Hardpoint / Search and Destroy, etc.
+
+Right now these same-name stats are effectively repeated multiple times in OVERALL view because mode-specific stat fields are being treated as separate global stats.
+
+That is NOT the behavior I want.
+
+Required behavior:
+- In OVERALL view:
+  - merge stat fields that have the same display name into one combined stat
+  - Example: all “Kills” fields across all modes become one overall “Kills” leaderboard
+  - all “Deaths” fields across all modes become one overall “Deaths” leaderboard
+- In BY MODE view:
+  - keep mode-specific separation
+- In BY MAP view:
+  - keep scoped map-specific behavior
+- Do not inflate totals
+- Preserve correct dedupe rules
+- Make this work for both our players and opponent players where relevant
+
+Please audit:
+- how stat fields are keyed today
+- whether Overall mode is grouping by statFieldId instead of normalized stat name
+- whether duplicate cards are being created because same-name fields from different modes are treated as separate stats in the global view
+
+Fix requirement:
+- Overall = group by normalized stat name
+- Detailed scoped views = keep proper mode/map-specific separation
+
+==================================================
+6) GAME CONFIG / TEMPLATE FIDELITY FINAL AUDIT
+==================================================
+
+Do one more careful audit of Game Config / template fidelity for the remaining configuration-heavy areas.
+
+Check that template-driven behavior is truly applied where supported for:
+- game modes
+- maps
+- heroes
+- score configuration
+- availability-related configuration
+- any other related setup that the roster depends on
+
+If something still must default because of schema constraints, clearly identify that.
+But do not silently ignore template values that can be used.
+
+==================================================
+GENERAL RULES
+==================================================
+
+- Audit first, then fix
+- Use the screenshots to reproduce the exact failures
+- Keep everything strictly roster-scoped
+- Do not touch forbidden files
+- Do not break recent template-fidelity or analytics work
+- Do not remove performance improvements
+- Keep permissions and safety rules intact
+
+==================================================
+AFTER IMPLEMENTATION REPORT
+==================================================
+
+Report clearly:
+1. Root cause of chat channel leakage
+2. Root cause of chat message leakage
+3. What was fixed so chat is fully roster-isolated
+4. Root cause of opponent player stats not surfacing
+5. What was fixed in Player Leaderboard for opponent players
+6. Which filters now correctly apply to opponent-player stats
+7. What caused the duplicate repeated stats in Overall view
+8. How Overall stat grouping now works
+9. How By Mode / By Map remain separated correctly
+10. What was verified in availability/template slot propagation
+11. What remaining template-driven config areas were fixed
+12. Any remaining schema-level limitations

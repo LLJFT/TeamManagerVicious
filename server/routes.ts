@@ -1675,9 +1675,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const [currentUser] = await db.select().from(users).where(and(eq(users.id, userId), eq(users.teamId, teamId))).limit(1);
       const isAdmin = currentUser && (currentUser.orgRole === "super_admin" || currentUser.orgRole === "org_admin");
 
+      // Roster-scoped chat: when the request comes with the current
+      // gameId/rosterId, always filter channels to that scope. This applies
+      // to admins too — a Marvel Rivals "Team 3" view must never see chat
+      // channels from "Team 1" or from a different game. Channels with
+      // NULL gameId are treated as global (cross-team announcements);
+      // channels with gameId set but NULL rosterId are game-wide.
+      const reqGameId = getGameId(req);
+      const reqRosterId = getRosterId(req);
+      const scopeFilter = (gid: string | null, rid: string | null) => {
+        if (!gid) return undefined;
+        const cond: any[] = [or(isNull(chatChannels.gameId), eq(chatChannels.gameId, gid))];
+        if (rid) cond.push(or(isNull(chatChannels.rosterId), eq(chatChannels.rosterId, rid)));
+        else cond.push(isNull(chatChannels.rosterId));
+        return and(...cond);
+      };
+
       let channels;
       if (isAdmin) {
-        channels = await db.select().from(chatChannels).where(eq(chatChannels.teamId, teamId));
+        const baseConds: any[] = [eq(chatChannels.teamId, teamId)];
+        const sf = scopeFilter(reqGameId, reqRosterId);
+        if (sf) baseConds.push(sf);
+        channels = await db.select().from(chatChannels).where(and(...baseConds));
       } else {
         const assignments = await db.select().from(userGameAssignments)
           .where(and(eq(userGameAssignments.userId, userId), eq(userGameAssignments.status, "approved"), eq(userGameAssignments.teamId, teamId)));
@@ -1687,7 +1706,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (a.rosterId) conds.push(or(isNull(chatChannels.rosterId), eq(chatChannels.rosterId, a.rosterId)));
           return and(...conds);
         });
-        channels = await db.select().from(chatChannels).where(and(eq(chatChannels.teamId, teamId), or(...scopeConditions)));
+        const baseConds: any[] = [eq(chatChannels.teamId, teamId), or(...scopeConditions)];
+        const sf = scopeFilter(reqGameId, reqRosterId);
+        if (sf) baseConds.push(sf);
+        channels = await db.select().from(chatChannels).where(and(...baseConds));
       }
 
       const perms = await db.select().from(chatChannelPermissions).where(eq(chatChannelPermissions.teamId, teamId));

@@ -248,6 +248,33 @@ export default function PlayerLeaderboard() {
   }, [players, opponentPlayers, opponentById]);
 
   const heroById = useMemo(() => new Map(heroes.map(h => [h.id, h])), [heroes]);
+
+  // Group stat fields by normalized name so the Overall view collapses
+  // duplicates (e.g. three mode-specific "Kills" fields → one "Kills" card).
+  // When a mode filter is active, only fields tied to that mode (or
+  // unscoped) are kept, so per-mode separation still happens implicitly.
+  const groupedStatCards = useMemo(() => {
+    const norm = (s: string) => s.trim().toLowerCase();
+    const groups = new Map<string, { key: string; displayName: string; fieldIds: string[] }>();
+    for (const f of statFields) {
+      if (modeFilter !== "__all__") {
+        // Hide stat fields that belong to a different game mode. Fields
+        // with no gameModeId are treated as global and always shown.
+        if (f.gameModeId && f.gameModeId !== modeFilter) continue;
+      }
+      const key = norm(f.name);
+      const existing = groups.get(key);
+      if (existing) {
+        existing.fieldIds.push(f.id);
+      } else {
+        groups.set(key, { key, displayName: f.name, fieldIds: [f.id] });
+      }
+    }
+    return Array.from(groups.values()).sort((a, b) =>
+      a.displayName.localeCompare(b.displayName)
+    );
+  }, [statFields, modeFilter]);
+
   const filteredGames = useMemo(() => allGames.filter(g => {
     if (opponentFilter !== "__all__" && g.opponentId !== opponentFilter) return false;
     if (modeFilter !== "__all__" && g.gameModeId !== modeFilter) return false;
@@ -603,23 +630,58 @@ export default function PlayerLeaderboard() {
           </TabsContent>
 
           <TabsContent value="stats" className="mt-4">
-            {statFields.length === 0 ? (
+            {groupedStatCards.length === 0 ? (
               <Card>
                 <CardContent className="py-8 text-center text-sm text-muted-foreground">
-                  No stat fields configured for this roster.
+                  {statFields.length === 0
+                    ? "No stat fields configured for this roster."
+                    : "No stat fields match the current mode filter."}
                 </CardContent>
               </Card>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {statFields.map(field => {
-                  const rows = statLeaderboards.get(field.id) || [];
+                {groupedStatCards.map(group => {
+                  // Merge per-player rows across every stat-field id that
+                  // shares this normalized name. Different game modes define
+                  // their own "Kills" stat field, but in Overall view the
+                  // user wants ONE "Kills" leaderboard, not three.
+                  const merged = new Map<string, PlayerStatRow>();
+                  for (const fid of group.fieldIds) {
+                    const rows = statLeaderboards.get(fid) || [];
+                    for (const r of rows) {
+                      const existing = merged.get(r.player.id);
+                      if (existing) {
+                        existing.total += r.total;
+                        existing.matchesPlayed += r.matchesPlayed;
+                        existing.matches.push(...r.matches);
+                      } else {
+                        merged.set(r.player.id, {
+                          player: r.player,
+                          total: r.total,
+                          matchesPlayed: r.matchesPlayed,
+                          avg: 0,
+                          matches: [...r.matches],
+                        });
+                      }
+                    }
+                  }
+                  const rows = Array.from(merged.values())
+                    .map(r => ({ ...r, avg: r.matchesPlayed > 0 ? r.total / r.matchesPlayed : 0 }))
+                    .sort((a, b) => b.total - a.total);
                   return (
-                    <Card key={field.id}>
+                    <Card key={group.key}>
                       <CardHeader>
                         <CardTitle className="text-base flex items-center gap-2">
-                          <BarChart3 className="h-4 w-4 text-primary" /> {field.name}
+                          <BarChart3 className="h-4 w-4 text-primary" /> {group.displayName}
                         </CardTitle>
-                        <CardDescription>Total · average per match · all rostered players</CardDescription>
+                        <CardDescription>
+                          Total · average per match · all rostered players
+                          {group.fieldIds.length > 1 && (
+                            <span className="ml-1 text-[11px] text-muted-foreground/80">
+                              (combined across {group.fieldIds.length} mode-specific stat fields)
+                            </span>
+                          )}
+                        </CardDescription>
                       </CardHeader>
                       <CardContent>
                         {rows.length === 0 ? (
@@ -630,18 +692,18 @@ export default function PlayerLeaderboard() {
                               <div
                                 key={r.player.id}
                                 className={`flex items-center gap-2 px-2 py-1.5 rounded border ${r.player.isOurs ? "border-primary/40 bg-primary/5" : "border-border bg-card"}`}
-                                data-testid={`row-stat-${field.id}-${r.player.id}`}
+                                data-testid={`row-stat-${group.key}-${r.player.id}`}
                               >
                                 <span className="text-xs text-muted-foreground w-5 text-right">{i + 1}.</span>
                                 <div className="flex-1 min-w-0"><PlayerChip player={r.player} /></div>
                                 <div className="flex items-center gap-2 shrink-0">
-                                  <Badge variant="secondary" className="text-xs tabular-nums" data-testid={`badge-total-${field.id}-${r.player.id}`}>
+                                  <Badge variant="secondary" className="text-xs tabular-nums" data-testid={`badge-total-${group.key}-${r.player.id}`}>
                                     {r.total.toLocaleString(undefined, { maximumFractionDigits: 1 })}
                                   </Badge>
                                   <Badge variant="outline" className="text-xs tabular-nums">
                                     {r.avg.toFixed(1)} avg
                                   </Badge>
-                                  <MatchDrillPopover refs={r.matches} fullSlug={fullSlug} label={`${r.player.name}-${field.name}`} />
+                                  <MatchDrillPopover refs={r.matches} fullSlug={fullSlug} label={`${r.player.name}-${group.displayName}`} />
                                 </div>
                               </div>
                             ))}
