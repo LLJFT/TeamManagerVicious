@@ -1267,7 +1267,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==================== PROD BOOTSTRAP (admin streaming) ====================
-  app.post("/api/admin/prod-bootstrap/run", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+  app.post("/api/admin/prod-bootstrap/run", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
     const { runProdBootstrapNow, setBootstrapLogger } = await import("./prod-bootstrap");
     res.status(200);
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
@@ -1294,7 +1294,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/admin/prod-bootstrap/force-release-lock", requireAuth, requireOrgRole("org_admin"), async (_req, res) => {
+  app.post("/api/admin/prod-bootstrap/force-release-lock", requireAuth, requireOrgRole("super_admin"), async (_req, res) => {
     try {
       const ADVISORY_LOCK_KEY = "7345291004981234";
       const holders: any = await db.execute(sql.raw(`
@@ -1446,7 +1446,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (password !== RESET_PASSWORD) {
         return res.status(403).json({ message: "Invalid admin password" });
       }
-      const result = await resetRosterData(req.params.id);
+      const teamId = getTeamId();
+      const [roster] = await db.select().from(rosters)
+        .where(and(eq(rosters.id, req.params.id), eq(rosters.teamId, teamId)))
+        .limit(1);
+      if (!roster) return res.status(404).json({ message: "Roster not found" });
+      const result = await resetRosterData(roster.id);
       res.json({ ok: true, ...result });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -1486,7 +1491,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (password !== LOAD_EXAMPLE_PASSWORD) {
         return res.status(403).json({ message: "Invalid admin password" });
       }
-      const rosterId = req.params.id;
+      const teamId = getTeamId();
+      const [roster] = await db.select().from(rosters)
+        .where(and(eq(rosters.id, req.params.id), eq(rosters.teamId, teamId)))
+        .limit(1);
+      if (!roster) return res.status(404).json({ message: "Roster not found" });
+      const rosterId = roster.id;
       // Start the heavy work in the background and return a job ID immediately.
       // startJob hands the freshly-created jobId to the work fn so the loader
       // can call setJobMessage for live phase progress.
