@@ -1,0 +1,48 @@
+Please do a full validation pass on opponent-side data, because the current issue is almost certainly in the opponent player mapping pipeline, not the UI.
+
+Check every possible failure point in this order:
+
+1) Opponent player records
+- Verify opponentPlayers exist for the current team/roster/game scope.
+- Check whether FlyQuest players like Touzii, Meliø, Jolly, Veswa, Zelos, and Ken actually exist in opponentPlayers.
+- If any are missing, the issue is that Match Stats cannot link them.
+
+2) Opponent linking during Match Stats save
+- Verify the save flow sets opponentPlayerId correctly for opponent rows.
+- For each opponent row, confirm the name is matched to the correct opponentPlayers.id.
+- If the row is saved with null, wrong ID, duplicate ID, or a stale ID, fix the mapping logic.
+
+3) Duplicate or ambiguous opponent names
+- Check whether the same opponent name exists multiple times across different scopes.
+- If duplicates exist, the current matching logic may be choosing the wrong one.
+- Prefer the most specific valid scope only.
+- If the match is ambiguous, do not silently pick one incorrectly.
+
+4) Scope filtering
+- Confirm opponent players are filtered by the current gameId and rosterId.
+- Make sure no opponent from another roster or another game can be matched.
+- Make sure our player list is scoped separately and correctly.
+
+5) Stats source
+- Opponent player stats must come from the actual opponentPlayer-linked match rows.
+- Do not infer them from our player rows.
+- Do not infer them from hero comps.
+- Do not infer them from event names.
+
+6) Hero comp source
+- Opponent comps must come from game_heroes rows where opponentPlayerId is set.
+- Our comps must come from game_heroes rows where playerId is set.
+- If opponentPlayerId is not present, the opponent comp should not appear as linked.
+
+7) Final verification
+- After checking the above, verify a known opponent like FlyQuest appears correctly in:
+  - /api/opponent-player-stats
+  - Team Comps opponent side
+  - Opponent cards / leaderboard
+- If the opponent is still missing, report exactly which step failed and why.
+
+Important:
+- Do not assume the current implementation is correct.
+- Do not stop after checking one layer.
+- Validate the actual stored IDs, not just the rendered names.
+- If the save logic is auto-generating or matching by text, inspect that logic too, because that is the most likely place where it is wrong.
