@@ -2486,6 +2486,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!existing) return res.status(404).json({ error: "Event not found" });
       if (!await verifyObjectScope(req, res, existing.gameId, existing.rosterId)) return;
       const validatedData = await sanitizeScopeFields(req, insertEventSchema.partial().parse(req.body));
+      // Event result is auto-computed from the linked games via
+      // storage.recomputeEventResult; reject any client-supplied override so
+      // the value can never drift from the games it summarizes.
+      if ("result" in validatedData) delete (validatedData as any).result;
       const event = await storage.updateEvent(id, validatedData, existing.gameId, existing.rosterId);
       if (!event) return res.status(404).json({ error: "Event not found" });
       // Cascade opponentId change to child games whose opponentId is null OR matches the prior event opponentId

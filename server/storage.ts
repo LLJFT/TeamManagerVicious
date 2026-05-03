@@ -58,6 +58,7 @@ export interface IStorage {
   addGame(game: InsertGame, gameId?: string | null, rosterId?: string | null): Promise<Game>;
   updateGame(id: string, game: Partial<InsertGame>, gameId?: string | null, rosterId?: string | null): Promise<Game>;
   removeGame(id: string, gameId?: string | null, rosterId?: string | null): Promise<boolean>;
+  recomputeEventResult(eventId: string): Promise<"win" | "loss" | "draw" | "pending">;
   getAllGameModes(gameId?: string | null, rosterId?: string | null): Promise<GameMode[]>;
   addGameMode(gameMode: InsertGameMode, gameId?: string | null, rosterId?: string | null): Promise<GameMode>;
   updateGameMode(id: string, gameMode: Partial<InsertGameMode>, gameId?: string | null, rosterId?: string | null): Promise<GameMode>;
@@ -408,6 +409,9 @@ export class DbStorage implements IStorage {
   async addGame(insertGame: InsertGame, gameId?: string | null, rosterId?: string | null): Promise<Game> {
     const teamId = getTeamId();
     const inserted = await db.insert(games).values({ ...insertGame, teamId, gameId, rosterId }).returning();
+    if (inserted[0]?.eventId) {
+      try { await this.recomputeEventResult(inserted[0].eventId); } catch (e) { console.error("recomputeEventResult after addGame failed:", e); }
+    }
     return inserted[0];
   }
 
@@ -417,6 +421,9 @@ export class DbStorage implements IStorage {
     if (gameId) conditions.push(eq(games.gameId, gameId));
     if (rosterId) conditions.push(eq(games.rosterId, rosterId));
     const updated = await db.update(games).set(updateData).where(and(...conditions)).returning();
+    if (updated[0]?.eventId) {
+      try { await this.recomputeEventResult(updated[0].eventId); } catch (e) { console.error("recomputeEventResult after updateGame failed:", e); }
+    }
     return updated[0];
   }
 
@@ -426,7 +433,44 @@ export class DbStorage implements IStorage {
     if (gameId) conditions.push(eq(games.gameId, gameId));
     if (rosterId) conditions.push(eq(games.rosterId, rosterId));
     const deleted = await db.delete(games).where(and(...conditions)).returning();
+    for (const row of deleted) {
+      if (row.eventId) {
+        try { await this.recomputeEventResult(row.eventId); } catch (e) { console.error("recomputeEventResult after removeGame failed:", e); }
+      }
+    }
     return deleted.length > 0;
+  }
+
+  // Auto-computes events.result from the linked games:
+  //   - PENDING when the event has no games OR any game lacks a win/loss/draw result
+  //   - WIN  when wins > losses
+  //   - LOSS when losses > wins
+  //   - DRAW when wins == losses (and at least one game has a recorded result)
+  // Strictly team-scoped via team_id; never crosses event/team boundaries.
+  async recomputeEventResult(eventId: string): Promise<"win" | "loss" | "draw" | "pending"> {
+    const teamId = getTeamId();
+    const rows = await db.select({ result: games.result })
+      .from(games)
+      .where(and(eq(games.eventId, eventId), eq(games.teamId, teamId)));
+    const VALID = new Set(["win", "loss", "draw"]);
+    let next: "win" | "loss" | "draw" | "pending" = "pending";
+    if (rows.length > 0) {
+      const incomplete = rows.some(r => !r.result || !VALID.has(r.result));
+      if (!incomplete) {
+        let w = 0, l = 0, d = 0;
+        for (const r of rows) {
+          if (r.result === "win") w++;
+          else if (r.result === "loss") l++;
+          else if (r.result === "draw") d++;
+        }
+        if (w > l) next = "win";
+        else if (l > w) next = "loss";
+        else next = "draw";
+      }
+    }
+    await db.update(events).set({ result: next })
+      .where(and(eq(events.id, eventId), eq(events.teamId, teamId)));
+    return next;
   }
 
   async getAllGameModes(gameId?: string | null, _rosterId?: string | null): Promise<GameMode[]> {
@@ -984,6 +1028,11 @@ export class DbStorage implements IStorage {
         mapId: game.mapId,
       });
     }
+
+    // Duplicated games have empty score/result, so this normalizes the new
+    // event's result to "pending" instead of inheriting whatever default the
+    // events table has — keeping events.result strictly derived from games.
+    try { await this.recomputeEventResult(newEvent[0].id); } catch (e) { console.error("recomputeEventResult after duplicateEvent failed:", e); }
 
     return newEvent[0];
   }

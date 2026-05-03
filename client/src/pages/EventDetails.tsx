@@ -471,8 +471,11 @@ export default function EventDetails() {
   };
 
   const handleSaveEventDetails = () => {
+    // Event result is auto-computed server-side from the linked games on every
+    // game add/update/delete (storage.recomputeEventResult). The Result field
+    // is intentionally omitted from this payload so manual edits never
+    // overwrite the canonical, game-derived value.
     updateEventMutation.mutate({
-      result: eventResult,
       opponentName: opponentName,
       notes: eventNotes,
     });
@@ -902,11 +905,12 @@ export default function EventDetails() {
               <label className="block text-sm font-medium mb-2">Event Result</label>
               <div className="flex items-center gap-2">
                 <Select
-                  value={eventResult}
-                  onValueChange={(value) => setEventResult(value as EventResult)}
+                  value={event.result || "pending"}
+                  disabled
+                  onValueChange={() => { /* auto-computed from games */ }}
                 >
                   <SelectTrigger data-testid="select-result" className="flex-1">
-                    <SelectValue placeholder="Select result" />
+                    <SelectValue placeholder="Pending" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="pending">Pending</SelectItem>
@@ -915,24 +919,10 @@ export default function EventDetails() {
                     <SelectItem value="draw">Draw</SelectItem>
                   </SelectContent>
                 </Select>
-                {(() => {
-                  const derived = deriveResultFromGames(games);
-                  if (!derived) return null;
-                  if (eventResult === derived) return null;
-                  return (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setEventResult(derived)}
-                      data-testid="button-use-game-results"
-                      title={`Set Event Result to ${getResultText(derived)} based on game results`}
-                    >
-                      Use game results ({getResultText(derived)})
-                    </Button>
-                  );
-                })()}
               </div>
+              <p className="text-xs text-muted-foreground mt-1.5" data-testid="text-result-auto-hint">
+                Auto-computed from the games below. Stays "Pending" until every game has a recorded result.
+              </p>
             </div>
 
             <div>
