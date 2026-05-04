@@ -1,4 +1,5 @@
 import type { Player, Hero, OpponentPlayer, StatField, Map as MapType, Side, OcrParsedCandidate, OcrPlayerRow } from "@shared/schema";
+import { buildVisionPrompt, VISION_USER_INSTRUCTION } from "./ocr-prompts";
 
 function normalize(s: string): string {
   return (s || "")
@@ -360,3 +361,251 @@ export function evaluateScoreboardSignal(
     signals,
   };
 }
+
+// ---------------------------------------------------------------------------
+// GPT-4o Vision-based scoreboard extraction.
+// ---------------------------------------------------------------------------
+// Replaces Tesseract as the PRIMARY engine. Tesseract above is kept as a
+// fallback for when OPENAI_API_KEY is missing or the API call throws. The
+// model is asked to return a strict JSON object (see ocr-prompts.ts) which
+// we then post-process by fuzzy-matching IGNs against the configured roster
+// / opponent / map / side lists. Heroes are NEVER returned by the model and
+// always end up null — coaches pick heroes manually after import.
+
+const FUZZY_HIGH = 0.7;   // >=0.7 → commit (clean auto-match)
+const FUZZY_MED = 0.5;    // 0.5..0.7 → tentative; commit but flag medium
+                          // <0.5    → leave null
+
+interface VisionRawRow {
+  name?: string;
+  side?: "us" | "opponent" | "unknown" | string;
+  stats?: Record<string, string | number>;
+}
+interface VisionRawResponse {
+  ourScore?: number | null;
+  opponentScore?: number | null;
+  map?: string | null;
+  side?: string | null;
+  rows?: VisionRawRow[];
+}
+
+function fuzzyMatchByName<T extends { id: string; name: string }>(
+  raw: string,
+  candidates: T[],
+): { match: T | null; score: number } {
+  let best: T | null = null;
+  let bestScore = 0;
+  for (const c of candidates) {
+    const s = similarity(raw, c.name);
+    if (s > bestScore) {
+      bestScore = s;
+      best = c;
+    }
+  }
+  return { match: best, score: bestScore };
+}
+
+/**
+ * Map raw stat keys returned by GPT-4o (which were instructed to use the
+ * exact configured stat field names) onto stat field IDs. We do an exact
+ * case-insensitive match first, then fall back to fuzzy match >= 0.7.
+ */
+function mapStatsToFieldIds(
+  rawStats: Record<string, string | number> | undefined,
+  statFields: StatField[],
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!rawStats) return out;
+  const lowerIndex = new Map(statFields.map((sf) => [sf.name.toLowerCase().trim(), sf]));
+  for (const [key, value] of Object.entries(rawStats)) {
+    if (value === null || value === undefined || value === "") continue;
+    const normalizedValue = String(value).replace(/[^\d.\-]/g, "");
+    if (!normalizedValue) continue;
+    const exact = lowerIndex.get(key.toLowerCase().trim());
+    if (exact) {
+      out[exact.id] = normalizedValue;
+      continue;
+    }
+    const { match, score } = fuzzyMatchByName(key, statFields);
+    if (match && score >= FUZZY_HIGH) {
+      out[match.id] = normalizedValue;
+    }
+  }
+  return out;
+}
+
+/**
+ * Call OpenAI's gpt-4o Vision endpoint with the supplied scoreboard image
+ * and a game-specific extraction prompt. Throws if the API key is missing
+ * or the call fails — the caller is expected to catch and fall back to
+ * Tesseract so the user still gets a (lower-quality) result.
+ */
+async function callVisionApi(opts: {
+  buffer: Buffer;
+  mime: string;
+  systemPrompt: string;
+}): Promise<{ raw: string; parsed: VisionRawResponse }> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
+
+  const b64 = opts.buffer.toString("base64");
+  const dataUrl = `data:${opts.mime || "image/png"};base64,${b64}`;
+
+  const body = {
+    model: "gpt-4o",
+    response_format: { type: "json_object" },
+    temperature: 0,
+    max_tokens: 2048,
+    messages: [
+      { role: "system", content: opts.systemPrompt },
+      {
+        role: "user",
+        content: [
+          { type: "text", text: VISION_USER_INSTRUCTION },
+          { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
+        ],
+      },
+    ],
+  };
+
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    throw new Error(`OpenAI Vision API error ${res.status}: ${errText.slice(0, 500)}`);
+  }
+  const json: any = await res.json();
+  const raw: string = json?.choices?.[0]?.message?.content || "";
+  if (!raw) throw new Error("OpenAI Vision returned empty content");
+  let parsed: VisionRawResponse;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (e: any) {
+    // Some responses still wrap JSON in ```json fences despite response_format.
+    const stripped = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "");
+    parsed = JSON.parse(stripped);
+  }
+  return { raw, parsed };
+}
+
+/**
+ * Run GPT-4o Vision on a scoreboard image and post-process its response into
+ * the same OcrParsedCandidate shape Tesseract produces, so the rest of the
+ * upload + review pipeline is unchanged.
+ */
+export async function runVisionOcr(opts: {
+  buffer: Buffer;
+  mime: string;
+  gameSlug: string | null;
+  inputs: OcrInputs;
+}): Promise<{ parsed: OcrParsedCandidate; raw: string }> {
+  const { buffer, mime, gameSlug, inputs } = opts;
+  const systemPrompt = buildVisionPrompt({
+    gameSlug,
+    allowedStatFieldNames: inputs.statFields.map((sf) => sf.name),
+    allowedMapNames: inputs.maps.map((m) => m.name),
+    allowedSideNames: inputs.sides.map((s) => s.name),
+  });
+  const { raw, parsed: vision } = await callVisionApi({ buffer, mime, systemPrompt });
+
+  // ----- map / side fuzzy match -----
+  let matchedMapId: string | null = null;
+  let rawMap: string | null = vision.map ?? null;
+  if (vision.map) {
+    const m = fuzzyMatchByName(vision.map, inputs.maps);
+    if (m.match && m.score >= FUZZY_HIGH) matchedMapId = m.match.id;
+    else if (m.match && m.score >= FUZZY_MED) matchedMapId = m.match.id;
+  }
+  let matchedSideId: string | null = null;
+  let rawSide: string | null = vision.side ?? null;
+  if (vision.side) {
+    const s = fuzzyMatchByName(vision.side, inputs.sides);
+    if (s.match && s.score >= FUZZY_MED) matchedSideId = s.match.id;
+  }
+
+  // ----- per-row name + stats -----
+  const rows: OcrPlayerRow[] = [];
+  for (const r of vision.rows || []) {
+    if (!r?.name) continue;
+    const reportedSide: "us" | "opponent" | "unknown" =
+      r.side === "us" || r.side === "opponent" ? r.side : "unknown";
+
+    // Scope candidates to whichever side the model reported. If unknown,
+    // try both and take the higher-scoring match (this also catches model
+    // mistakes where it labelled an opponent player as ours).
+    let matchedPlayerId: string | null = null;
+    let matchedOpponentPlayerId: string | null = null;
+    let nameScore = 0;
+    let finalSide: "us" | "opponent" | "unknown" = reportedSide;
+
+    const ourMatch = fuzzyMatchByName(r.name, inputs.players);
+    const oppMatch = fuzzyMatchByName(r.name, inputs.opponentPlayers as any);
+
+    if (reportedSide === "us") {
+      if (ourMatch.match && ourMatch.score >= FUZZY_MED) {
+        matchedPlayerId = ourMatch.match.id;
+        nameScore = ourMatch.score;
+      } else if (oppMatch.match && oppMatch.score >= FUZZY_HIGH && oppMatch.score > ourMatch.score + 0.15) {
+        // Strong opponent match against a "us" label → trust the data, flip side.
+        matchedOpponentPlayerId = oppMatch.match.id;
+        nameScore = oppMatch.score;
+        finalSide = "opponent";
+      }
+    } else if (reportedSide === "opponent") {
+      if (oppMatch.match && oppMatch.score >= FUZZY_MED) {
+        matchedOpponentPlayerId = oppMatch.match.id;
+        nameScore = oppMatch.score;
+      } else if (ourMatch.match && ourMatch.score >= FUZZY_HIGH && ourMatch.score > oppMatch.score + 0.15) {
+        matchedPlayerId = ourMatch.match.id;
+        nameScore = ourMatch.score;
+        finalSide = "us";
+      }
+    } else {
+      // unknown: take whichever side has the higher-scoring fuzzy match.
+      if (ourMatch.score >= oppMatch.score && ourMatch.match && ourMatch.score >= FUZZY_MED) {
+        matchedPlayerId = ourMatch.match.id;
+        nameScore = ourMatch.score;
+        finalSide = "us";
+      } else if (oppMatch.match && oppMatch.score >= FUZZY_MED) {
+        matchedOpponentPlayerId = oppMatch.match.id;
+        nameScore = oppMatch.score;
+        finalSide = "opponent";
+      }
+    }
+
+    const stats = mapStatsToFieldIds(r.stats, inputs.statFields);
+
+    rows.push({
+      rawName: r.name,
+      matchedPlayerId,
+      matchedOpponentPlayerId,
+      // Heroes are MANUAL-ONLY per Part 5 of the OCR fix.
+      rawHero: null,
+      matchedHeroId: null,
+      side: finalSide,
+      stats,
+      confidence: Number(nameScore.toFixed(2)),
+    });
+  }
+
+  return {
+    parsed: {
+      ourScore: typeof vision.ourScore === "number" ? vision.ourScore : null,
+      opponentScore: typeof vision.opponentScore === "number" ? vision.opponentScore : null,
+      rawMap,
+      matchedMapId,
+      rawSide,
+      matchedSideId,
+      rows,
+    },
+    raw,
+  };
+}
+
+export const VISION_THRESHOLDS = { FUZZY_HIGH, FUZZY_MED };

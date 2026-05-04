@@ -3713,8 +3713,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ? await storage.getOpponentPlayersByOpponentId(oppId)
           : (await Promise.all(opps.map(o => storage.getOpponentPlayersByOpponentId(o.id)))).flat();
 
-        const { runOcr, parseScoreboardText, evaluateScoreboardSignal } = await import("./ocr");
-        const ocrResult = await runOcr(req.file.buffer);
+        const { runOcr, runVisionOcr, parseScoreboardText, evaluateScoreboardSignal } = await import("./ocr");
         const inputs = {
           players: our,
           opponentPlayers: oppPlayers as any,
@@ -3723,8 +3722,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
           maps: mps,
           sides: sds,
         };
-        const parsed = parseScoreboardText(ocrResult.text, inputs);
-        const validation = evaluateScoreboardSignal(ocrResult.text, parsed, inputs);
+
+        // Resolve game slug for the per-game GPT-4o prompt.
+        const [sg] = await db
+          .select({ slug: supportedGames.slug })
+          .from(supportedGames)
+          .where(eq(supportedGames.id, game.gameId!))
+          .limit(1);
+        const gameSlug = sg?.slug || null;
+
+        // PRIMARY: GPT-4o Vision extraction. FALLBACK: Tesseract text OCR.
+        // The fallback also runs whenever OPENAI_API_KEY is missing or the
+        // API call throws so coaches always get *some* candidate to review.
+        let parsed: ReturnType<typeof parseScoreboardText>;
+        let rawForStorage: { engine: string; raw?: string; text?: string };
+        let visionFailed: string | null = null;
+        try {
+          const visionResult = await runVisionOcr({
+            buffer: req.file.buffer,
+            mime: req.file.mimetype || "image/png",
+            gameSlug,
+            inputs,
+          });
+          parsed = visionResult.parsed;
+          rawForStorage = { engine: "gpt-4o-vision", raw: visionResult.raw };
+        } catch (err: any) {
+          visionFailed = err?.message || String(err);
+          console.warn("[ocr] Vision engine failed, falling back to Tesseract:", visionFailed);
+          const tesseractResult = await runOcr(req.file.buffer);
+          parsed = parseScoreboardText(tesseractResult.text, inputs);
+          rawForStorage = {
+            engine: "tesseract-fallback",
+            text: tesseractResult.text,
+          };
+        }
+        // Build the rawText feed into evaluateScoreboardSignal: Tesseract's
+        // raw text when we used it, otherwise a synthetic word-bag derived
+        // from the Vision candidate so density-based heuristics still work.
+        const evalText =
+          (rawForStorage as any).text
+          ?? [
+            parsed.ourScore != null ? `${parsed.ourScore}-${parsed.opponentScore}` : "",
+            parsed.rawMap || "",
+            parsed.rawSide || "",
+            ...parsed.rows.map((r) => `${r.rawName} ${Object.values(r.stats || {}).join(" ")}`),
+          ].join(" ");
+        const validation = evaluateScoreboardSignal(evalText, parsed, inputs);
 
         // Hard gate: only refuse images that show no scoreboard signal at
         // all (logos, posters, blank/opaque images). Partial/cropped/low-res
@@ -3757,12 +3800,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           rosterId: game.rosterId,
           matchId,
           imageObjectPath: url,
-          rawOcr: { text: ocrResult.text } as any,
+          rawOcr: { ...rawForStorage, visionFailed: visionFailed || undefined } as any,
           parsedCandidate: candidate,
           editedCandidate: candidate,
           status: "pending_review",
           uploaderUserId: req.session.userId!,
-          errorMessage: ocrResult.text ? null : "OCR returned no text",
+          errorMessage: parsed.rows.length === 0
+            ? (visionFailed ? `Vision OCR failed and Tesseract found nothing: ${visionFailed}` : "OCR returned no rows")
+            : null,
         } as any);
         res.json(scan);
       } catch (error: any) {

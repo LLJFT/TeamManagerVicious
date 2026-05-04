@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, CheckCircle2, Save, Trash2, Sparkles, ShieldCheck, ShieldAlert, XCircle, HelpCircle } from "lucide-react";
 import type {
   ScoreboardOcrScan, OcrParsedCandidate, OcrPlayerRow,
-  Player, OpponentPlayer, Hero, StatField, Map as MapType, Side, Game,
+  Player, OpponentPlayer, Hero, StatField, Map as MapType, Side, Game, GameRound,
 } from "@shared/schema";
 
 type RowSide = "us" | "opponent" | "unknown";
@@ -61,6 +61,21 @@ export default function OcrScanReview() {
     enabled: !!(game as any)?.opponentId,
   });
 
+  // Used to pre-populate the Side dropdown from the first round's sideId
+  // when the scan candidate didn't already commit one. We never overwrite
+  // a side the model (or a coach) already chose.
+  const { data: gameRounds = [] } = useQuery<GameRound[]>({
+    queryKey: ["/api/game-rounds", { matchId, gameId, rosterId }],
+    queryFn: async () => {
+      if (!matchId) return [];
+      const res = await fetch(`/api/game-rounds`, { credentials: "include" });
+      if (!res.ok) return [];
+      const all = (await res.json()) as GameRound[];
+      return all.filter((r) => r.matchId === matchId);
+    },
+    enabled: !!matchId && !!gameId && !!rosterId,
+  });
+
   const [draft, setDraft] = useState<OcrParsedCandidate | null>(null);
   const [overwriteMode, setOverwriteMode] = useState(false);
   useEffect(() => {
@@ -69,6 +84,37 @@ export default function OcrScanReview() {
       setDraft(c ? structuredClone(c) : { rows: [] });
     }
   }, [scan, draft]);
+
+  // Part 2: pre-populate Map / Side from existing game data when the
+  // scan candidate didn't already pin them. game.mapId is the canonical
+  // source for the map; the first round's sideId is the canonical source
+  // for "which side were we on this map". Only fires once per draft load
+  // and never overwrites a value the coach already set.
+  useEffect(() => {
+    if (!draft || !game) return;
+    let nextMapId = draft.matchedMapId ?? null;
+    let nextSideId = draft.matchedSideId ?? null;
+    let changed = false;
+    if (!nextMapId && (game as any)?.mapId) {
+      nextMapId = (game as any).mapId;
+      changed = true;
+    }
+    if (!nextSideId && gameRounds.length > 0) {
+      const firstWithSide = [...gameRounds].sort(
+        (a, b) => (a.roundNumber ?? 0) - (b.roundNumber ?? 0),
+      ).find((r) => !!r.sideId);
+      if (firstWithSide?.sideId) {
+        nextSideId = firstWithSide.sideId;
+        changed = true;
+      }
+    }
+    if (changed) {
+      setDraft({ ...draft, matchedMapId: nextMapId, matchedSideId: nextSideId });
+    }
+    // We intentionally only watch game and gameRounds — once the draft has
+    // been touched the coach's choices are sticky.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game, gameRounds]);
 
   const saveMutation = useMutation({
     mutationFn: async (editedCandidate: OcrParsedCandidate) => {
@@ -192,11 +238,21 @@ export default function OcrScanReview() {
   const renderRow = (idx: number, row: OcrPlayerRow) => {
     const conf = typeof row.confidence === "number" ? row.confidence : 0;
     const confTone: "default" | "secondary" | "destructive" =
-      conf >= 0.8 ? "default" : conf >= 0.5 ? "secondary" : "destructive";
+      conf >= 0.7 ? "default" : conf >= 0.5 ? "secondary" : "destructive";
     const isUnassigned =
       row.side === "unknown" ||
       (row.side === "us" && !row.matchedPlayerId) ||
       (row.side === "opponent" && !row.matchedOpponentPlayerId);
+    // Part 3: read-only role badge for matched players. Roles come from the
+    // configured player / opponent player record — never from OCR — and are
+    // never required (an opponent player without a role just shows nothing).
+    const matchedOurPlayer = row.matchedPlayerId
+      ? players.find((p) => p.id === row.matchedPlayerId)
+      : null;
+    const matchedOppPlayer = row.matchedOpponentPlayerId
+      ? opponentPlayers.find((p) => p.id === row.matchedOpponentPlayerId)
+      : null;
+    const matchedRole = matchedOurPlayer?.role || matchedOppPlayer?.role || null;
     return (
     <Card
       key={idx}
@@ -237,25 +293,37 @@ export default function OcrScanReview() {
             </Select>
           </div>
           {row.side === "us" ? (
-            <Select
-              value={row.matchedPlayerId || ""}
-              onValueChange={(v) => updateRow(idx, { matchedPlayerId: v || null, matchedOpponentPlayerId: null })}
-            >
-              <SelectTrigger data-testid={`select-player-${idx}`}><SelectValue placeholder="Pick player" /></SelectTrigger>
-              <SelectContent>
-                {players.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Select
+                value={row.matchedPlayerId || ""}
+                onValueChange={(v) => updateRow(idx, { matchedPlayerId: v || null, matchedOpponentPlayerId: null })}
+              >
+                <SelectTrigger className="min-w-[200px]" data-testid={`select-player-${idx}`}><SelectValue placeholder="Pick player" /></SelectTrigger>
+                <SelectContent>
+                  {/* Part 4: player dropdown is scoped to current roster only. */}
+                  {players.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              {matchedRole && (
+                <Badge variant="secondary" data-testid={`badge-role-${idx}`}>{matchedRole}</Badge>
+              )}
+            </div>
           ) : row.side === "opponent" ? (
-            <Select
-              value={row.matchedOpponentPlayerId || ""}
-              onValueChange={(v) => updateRow(idx, { matchedOpponentPlayerId: v || null, matchedPlayerId: null })}
-            >
-              <SelectTrigger data-testid={`select-opp-player-${idx}`}><SelectValue placeholder="Pick opponent player" /></SelectTrigger>
-              <SelectContent>
-                {opponentPlayers.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Select
+                value={row.matchedOpponentPlayerId || ""}
+                onValueChange={(v) => updateRow(idx, { matchedOpponentPlayerId: v || null, matchedPlayerId: null })}
+              >
+                <SelectTrigger className="min-w-[200px]" data-testid={`select-opp-player-${idx}`}><SelectValue placeholder="Pick opponent player" /></SelectTrigger>
+                <SelectContent>
+                  {/* Part 4: opponent dropdown is scoped to this game's opponent only. */}
+                  {opponentPlayers.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              {matchedRole && (
+                <Badge variant="secondary" data-testid={`badge-role-${idx}`}>{matchedRole}</Badge>
+              )}
+            </div>
           ) : (
             <p className="text-xs text-muted-foreground italic" data-testid={`text-pick-side-first-${idx}`}>
               Pick a side above to assign a player.

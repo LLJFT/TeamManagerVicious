@@ -1,0 +1,175 @@
+This is a full comprehensive fix for the OCR Review Scoreboard Scan feature.
+Read ALL sections before writing any code. Fix everything in one pass.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 1 — Replace OCR engine with GPT-4o Vision
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The current text OCR engine produces garbage output for game screenshots.
+Replace it entirely with GPT-4o Vision.
+
+1. Check if OPENAI_API_KEY exists in the environment. Use it if yes. 
+   Add it to required env vars and document in replit.md if no.
+
+2. In the OCR upload handler: convert the uploaded image to base64,
+   then POST to https://api.openai.com/v1/chat/completions
+   with model: "gpt-4o" and detail: "high"
+
+3. Create a file server/ocr-prompts.ts with game-specific prompt templates.
+   The game name is already known from the match context (roster → game type).
+   Use the correct template based on the game. Add these templates:
+
+   marvel-rivals → stats: kills, deaths, assists, finalHits, damage, damageBlocked, healing, accuracy
+   valorant       → stats: kills, deaths, assists, headshots, damage, ADR, KAST, rating
+   overwatch      → stats: eliminations, deaths, assists, damageDone, healingDone, objectiveTime
+   cs2            → stats: kills, deaths, assists, ADR, HSPercent, damage
+   default        → ask GPT-4o to detect stat columns automatically
+
+4. Use this GPT-4o system prompt (substitute {GAME_NAME} and {STAT_COLUMNS} from template):
+
+"You are a {GAME_NAME} scoreboard reader.
+Extract the scoreboard data from this image and return ONLY valid JSON with no explanation or markdown.
+
+{
+  \"map\": \"map name if visible, null if not\",
+  \"mode\": \"game mode if visible, null if not\",
+  \"ourScore\": number or null,
+  \"opponentScore\": number or null,
+  \"ourTeam\": [
+    {
+      \"name\": \"player name exactly as shown\",
+      \"hero\": null,
+      {STAT_COLUMNS}
+    }
+  ],
+  \"opponentTeam\": [same structure as ourTeam]
+}
+
+Rules:
+- Our team = top or left section of scoreboard. Opponent = bottom or right section.
+- Copy player names exactly as shown including numbers and special characters.
+- hero is ALWAYS null — do not attempt to detect heroes from icons.
+- For scores: look for small round/point win numbers (1-10 range), NOT kill totals.
+- Use null for any value you cannot clearly read. Never guess.
+- Return valid JSON only, nothing else."
+
+5. Map GPT-4o JSON response to the existing parsed_candidate structure:
+   - ourTeam → side: "us"
+   - opponentTeam → side: "opponent"
+   - map name → fuzzy match to known maps in DB
+   - Store the raw GPT-4o JSON as the raw_ocr field
+
+6. Fallback: if GPT-4o fails for any reason (API error, invalid JSON, empty teams)
+   → fall back to old text OCR with toast warning: 
+   "Vision AI unavailable — falling back to text OCR"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 2 — Fix Match Summary: Map and Side auto-population
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PROBLEM: Map and Side dropdowns are empty when entering the review screen.
+
+FIX:
+A) When the review screen loads for a specific match/game:
+   - Read the map already assigned to this game from the DB
+   - Read the side already assigned to this game from the DB
+   - Pre-populate both fields with those values automatically
+
+B) Map dropdown options must come from the roster's configured maps only
+   (not all maps in the system)
+
+C) Both fields remain editable — user can override if OCR disagrees
+
+D) If the game has no map/side set yet → show dropdown empty but functional,
+   user must fill before confirming import
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 3 — Fix Role display for player rows
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PROBLEM: Role dropdowns show for all players even when role is already known.
+
+FIX:
+A) Our team players (side = "us"):
+   - If matched to a roster player → their role is already set in the roster
+   - Show role as a read-only badge/label, NOT a dropdown
+   - Do not ask the user to fill in something already known
+
+B) Opponent players (side = "opponent"):
+   - If matched to an opponent player who has a role → show as read-only badge
+   - If unmatched or no role set → show role dropdown (optional, not required)
+
+C) Role is NEVER required to confirm import.
+   Import works even if role is empty.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 4 — Fix Player dropdowns scoping + Fuzzy auto-match
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PROBLEM: Player dropdowns show all users in the entire system, not scoped.
+
+FIX:
+A) Our team player dropdown (side = "us"):
+   - Show ONLY players from the current roster
+   - Never show opponent players or unrelated users
+
+B) Opponent player dropdown (side = "opponent"):
+   - Show ONLY players from the opponent's roster linked to this match/event
+   - Source: Dashboard → Opponents → View Roster for the opponent in this game
+   - If no opponent is linked → show all configured opponents' players for this roster
+
+C) Fuzzy name auto-matching:
+   - After OCR returns player names, run fuzzy matching against the scoped player list
+   - Use Levenshtein distance (implement inline, no new dependencies needed)
+   - Auto-select if similarity > 70% → show badge "Auto-matched (X%)"
+   - Pre-select but highlight yellow if similarity 50–70% → show "Low confidence — please verify"
+   - Leave empty if similarity < 50% → user picks manually
+   - The dropdown is always editable regardless of auto-match confidence
+
+D) No cross-contamination: our team dropdown never shows opponent players and vice versa.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 5 — Heroes: manual selection only, no scan
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Heroes are icon-based in Marvel Rivals and cannot be read by OCR.
+Do NOT attempt any hero detection or matching from the scoreboard image.
+
+FIX:
+- hero is always null from OCR output (already set in Part 1 prompt)
+- Show a hero picker dropdown per player row in the review screen
+- Hero selection is OPTIONAL — import confirms successfully without heroes
+- User picks heroes manually during review or later in Match Stats
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 6 — Fix game_heroes migration (500 on Confirm Import)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Error: "column imported_via_ocr_scan_id does not exist in game_heroes"
+
+FIX:
+1. Check schema.ts — confirm imported_via_ocr_scan_id is defined on game_heroes
+2. Check dev DB:
+   SELECT column_name FROM information_schema.columns 
+   WHERE table_name = 'game_heroes' ORDER BY ordinal_position
+3. If missing from dev → add to schema.ts and sync dev DB via SQL (same pattern used before)
+4. Run the same check for ALL related tables to catch any other missing columns:
+   - match_participants
+   - game_heroes
+   - player_game_stats
+   - opponent_player_game_stats
+   - scoreboard_ocr_scans
+5. After dev DB is fully synced with schema.ts → re-publish so Neon prod gets the changes
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REPORT BACK
+
+After completing all 6 parts in one pass:
+1. Confirm GPT-4o Vision is the primary OCR engine — show sample JSON output from a test scan
+2. Confirm game-specific prompt templates are created in server/ocr-prompts.ts
+3. Confirm Map and Side are pre-populated from existing game data
+4. Confirm role dropdowns replaced with read-only badges for matched players
+5. Confirm player dropdowns are scoped (our team = roster only, opponent = opponent roster only)
+6. Confirm fuzzy name matching is working — show confidence scores for a test scan
+7. Confirm game_heroes 500 is fixed and full schema audit passed
+8. List ALL files changed
