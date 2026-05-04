@@ -1,0 +1,106 @@
+I want a second theme added to the website, and I want it to become the DEFAULT theme instead of the current dark-heavy look.
+
+GOAL
+Create a light theme that is:
+- simple
+- formal
+- clean
+- modern
+- professional
+- suitable for an esports operations platform
+- easier on the eyes than the current default dark theme
+
+IMPORTANT
+Do not redesign the product structure or change any logic.
+This is a visual theming task only.
+
+REQUIREMENTS
+
+1) Make the NEW LIGHT THEME the default theme
+- The site should open in the new light theme by default
+- Keep dark mode available as an optional toggle
+- If the user manually changes theme, preserve that choice as the app already handles preferences
+
+2) Theme direction
+The new default theme should feel:
+- premium but restrained
+- operational, not decorative
+- clean and readable for tables, dashboards, forms, leaderboards, analytics, and admin pages
+- more like a serious SaaS/admin platform than a gaming landing page
+- no neon gamer aesthetic
+- no overly bright white backgrounds
+- no loud gradients
+- no purple/blue glowing effects
+
+3) Visual style
+Use a soft professional light palette, for example:
+- background: warm off-white / soft gray
+- cards: white or near-white
+- borders: subtle cool-gray or neutral-gray
+- text: dark charcoal / slate
+- primary accent: muted teal, steel blue, or dark cyan
+- success/warning/error should stay clear but not over-saturated
+
+The theme should work well for:
+- sidebar
+- top header
+- tables
+- stat cards
+- tabs
+- filters
+- dropdowns
+- forms
+- toasts
+- modals
+- charts
+- empty states
+
+4) Specific quality requirements
+- Improve readability of dense data screens
+- Make tables, filters, and cards clearer in the light theme
+- Keep enough contrast for accessibility
+- Make borders and surface layers more refined
+- Do not make everything flat and washed out
+- Keep the product looking premium and organized
+
+5) Dark mode
+- Keep dark mode, but make sure it is a secondary optional theme
+- The dark theme should still look clean and consistent with the new system
+- Do not remove dark mode support
+
+6) Implementation
+- Introduce proper theme tokens if needed (background, surface, border, text, muted text, primary, hover, input, sidebar, card, etc.)
+- Update all major shared UI areas to use theme tokens consistently
+- Do not patch only one or two screens — make the theming system consistent across the whole app
+- Prioritize:
+  - login
+  - dashboard
+  - events
+  - statistics
+  - player leaderboard
+  - team comps
+  - settings
+  - admin pages
+
+7) Branding fit
+The theme must match The Bootcamp brand and current product positioning:
+- serious
+- organized
+- premium
+- esports operations / management
+- multilingual UI including Arabic RTL support must remain visually correct
+
+8) Do not break anything
+- No business logic changes
+- No API changes
+- No routing changes
+- No auth changes
+- No data model changes unless absolutely needed for theme settings only
+
+9) Report back
+After finishing, report:
+- which theme tokens/colors were introduced
+- which shared components/screens were updated
+- whether the new light theme is now the default
+- whether dark mode still works
+- any screens that still need manual polish
