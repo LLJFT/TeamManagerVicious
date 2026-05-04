@@ -7,12 +7,11 @@ The Bootcamp Multi-Game Management Platform is a comprehensive system designed f
 The product ships with the **BOOTCAMP** brand identity system (v1.0). Source files, logos, extensions, and the full guidelines (markdown + PDF) live under `brand/`. Core tokens: Crimson primary `#E11D2E` (HSL 354 75% 50%), Onyx background `#0E1117`, Carbon cards `#1A1F2A`, Steel `#5B6573`, Bone `#F5F6F8`, Signal amber `#F59E0B`. Typography is a single Inter family with weight-driven hierarchy. The web app reads these tokens from `client/src/index.css` (`:root`, `.dark`, and `.theme-default-dark`). The favicon is `client/public/4.png`. Rebuild the brand PDF with `node scripts/build-brand-pdf.mjs`.
 
 ## Theme System
-Six themes ship with the app, registered in `client/src/hooks/use-theme.tsx` (`siteStyles`) and defined as CSS classes in `client/src/index.css`. Order matters in the picker UI:
-1. **Light Pro** (`.theme-light-pro`, also mirrored to `:root`) — DEFAULT. Warm off-white surfaces (`210 24% 98%`), white cards, refined cool-gray borders (`215 16% 88%`), muted steel-blue primary (`210 64% 38%`), muted-teal accent. Tuned for dense data screens (tables, leaderboards, analytics). WCAG AA contrast for body and muted text.
-2. **Default Dark** (`.theme-default-dark`) — Onyx + Crimson, the original Bootcamp brand dark.
-3. **Ocean Blue** / **Ruby Red** / **Minimal Dark** / **Carbon Black** — alternate dark themes.
+Five dark themes ship with the app, registered in `client/src/hooks/use-theme.tsx` (`siteStyles`) and defined as CSS classes in `client/src/index.css`. The default is dark — the platform never defaults to a light theme.
+1. **Default Dark** (`.theme-default-dark`, also mirrored to `:root` and the legacy `.dark` class) — DEFAULT. Refined "Dark Pro" palette inspired by Linear / Vercel / Supabase: deep slate-navy background (`220 22% 10%`), elevated cards (`220 20% 13%`), cool-gray borders (`215 16% 20%`), muted steel-blue primary (`210 64% 52%`), muted-teal accent. No crimson, no neon, no glow. Tuned for dense data screens with WCAG AA body contrast.
+2. **Ocean Blue** / **Ruby Red** / **Minimal Dark** / **Carbon Black** — alternate dark themes (untouched).
 
-`ThemeProvider` (`client/src/hooks/use-theme.tsx`) defaults to `light-pro`, persists choice to `localStorage["site-style"]`, and toggles `theme-*` classes on `<html>`. Any user with a previously-saved preference (e.g. `default-dark`) keeps it; new visitors get Light Pro. The legacy `.dark` class is preserved for backwards compatibility with any third-party CSS that may target it. Status/role utility classes (`.status-*`, `.role-*`, `.event-*`, `.result-*` at the bottom of `index.css`) use light defaults + `dark:` variants and adapt automatically.
+`ThemeProvider` (`client/src/hooks/use-theme.tsx`) defaults to `default-dark`, persists choice to `localStorage["site-style"]`, validates the stored value against `VALID_STYLES`, and toggles `theme-*` classes on `<html>`. Any user with a previously-saved value that no longer exists (e.g. legacy `light-pro`) is migrated to the default automatically. Status/role utility classes (`.status-*`, `.role-*`, `.event-*`, `.result-*` at the bottom of `index.css`) use light defaults + `dark:` variants and adapt automatically.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
@@ -73,7 +72,7 @@ The backend uses Node.js 20 with PostgreSQL 16.
   - A `<Badge>` shows the source: "Manually set" (default variant), "Auto-computed" (secondary), or "Pending" (outline).
   - The hint text below the dropdown:
     - For `manual`: "Manually set — change the result above to override or pick a different value to update. The 5-minute auto-compute will not touch this event."
-    - For `pending` / `auto` with a recent `lastGameChangeAt`: "Will auto-set in ~Xm SSs from the games below. Pick a value above to override."
+    - For `pending` / `auto` with a recent `lastGameChangeAt`: "Will auto-set in ~Xm SSs from the games below. Pick a value above to override." A `nowMs` state plus a 1-second `setInterval` (cleared on unmount or once the deadline passes) ticks this hint live so the user sees the countdown move without refreshing.
     - Otherwise: "Auto-computed from the games below after a 5-minute settle window. Pick a value above to override."
 - Manual-override semantics: choosing any non-pending value via the dropdown locks the event. To return to auto, change a game result (which bumps `last_game_change_at` but preserves `manual`) — manual stays manual until the user picks `pending` or another value matching the auto-derived result. Editing a game while the event is manual will still bump `last_game_change_at` but the scheduler skips manual-source events.
 

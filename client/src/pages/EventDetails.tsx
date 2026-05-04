@@ -41,6 +41,11 @@ export default function EventDetails() {
 
   const [eventResult, setEventResult] = useState<EventResult | "">("");
 
+  // Live ticker so the "Will auto-set in ~Xm Ys" countdown actually counts
+  // down without requiring user interaction. Only ticks while we're inside
+  // an active 5-minute settle window.
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
+
   // Derive an overall result from a list of games. Used as a fallback display
   // and as the seed for the "Use game results" button when the user hasn't
   // manually set an Event Result yet.
@@ -133,6 +138,22 @@ export default function EventDetails() {
     queryKey: ["/api/game-modes", { gameId }],
     enabled: !!gameId,
   });
+
+  // Tick the countdown every second while we're inside the 5-minute settle
+  // window (server runs the actual auto-compute every 60s, but the visible
+  // hint should still count down smoothly). Depending on the two specific
+  // fields (instead of the whole event object) prevents the ticker from
+  // re-initializing every time an unrelated field like notes/opponentName
+  // updates. Cleanup on unmount is handled by the returned function.
+  const lgcaForTicker = (event as any)?.lastGameChangeAt as string | null | undefined;
+  const srcForTicker = (event as any)?.resultSource as string | undefined;
+  useEffect(() => {
+    if (!lgcaForTicker || srcForTicker === "manual") return;
+    const dueAt = new Date(lgcaForTicker).getTime() + 5 * 60 * 1000;
+    if (Date.now() >= dueAt) return;
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [lgcaForTicker, srcForTicker]);
 
   // Per-team-per-game single-mode flag — when true the game has no mode dimension.
   const { data: singleModeData } = useQuery<{ singleMode: boolean }>({
@@ -955,7 +976,7 @@ export default function EventDetails() {
                 if (lgcaRaw) {
                   const lgca = new Date(lgcaRaw).getTime();
                   const dueAt = lgca + 5 * 60 * 1000;
-                  const remainingMs = dueAt - Date.now();
+                  const remainingMs = dueAt - nowMs;
                   if (remainingMs > 0) {
                     const m = Math.floor(remainingMs / 60000);
                     const s = Math.floor((remainingMs % 60000) / 1000);

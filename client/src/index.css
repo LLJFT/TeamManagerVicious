@@ -2,79 +2,80 @@
 @tailwind components;
 @tailwind utilities;
 
-/* DEFAULT THEME: Light Pro — clean, formal, premium SaaS look.
- * Warm off-white surfaces, refined cool-gray borders, steel-blue primary.
+/* DEFAULT THEME: Dark Pro — clean, formal, premium SaaS dark mode.
+ * Deep slate-navy surfaces, refined cool-gray borders, steel-blue primary.
+ * Inspired by Linear / Vercel / Supabase dark — no crimson, no neon, no glow.
  * Optimised for dense data screens (tables, leaderboards, analytics).
- * Also mirrored in `.theme-light-pro` below so the theme system works. */
+ * Mirrored in `.theme-default-dark` below so the theme switcher works. */
 :root {
-  --button-outline: rgba(15,23,42, .12);
-  --badge-outline: rgba(15,23,42, .08);
+  --button-outline: rgba(255,255,255, .12);
+  --badge-outline: rgba(255,255,255, .08);
 
-  --opaque-button-border-intensity: -8;
+  --opaque-button-border-intensity: 10;
 
-  --elevate-1: rgba(15,23,42, .04);
-  --elevate-2: rgba(15,23,42, .07);
+  --elevate-1: rgba(255,255,255, .04);
+  --elevate-2: rgba(255,255,255, .08);
 
-  /* Main backgrounds - warm off-white */
-  --background: 210 24% 98%;
-  --foreground: 222 25% 14%;
+  /* Main backgrounds - deep slate-navy */
+  --background: 220 22% 10%;
+  --foreground: 215 18% 90%;
 
-  --border: 215 16% 88%;
+  --border: 215 16% 20%;
 
-  /* Cards - clean white, subtly elevated above background */
-  --card: 0 0% 100%;
-  --card-foreground: 222 25% 14%;
-  --card-border: 215 16% 88%;
+  /* Cards - subtly elevated above background */
+  --card: 220 20% 13%;
+  --card-foreground: 215 18% 90%;
+  --card-border: 215 16% 22%;
 
-  /* Sidebar - cool neutral, slightly cooler than background */
-  --sidebar: 215 22% 96%;
-  --sidebar-foreground: 222 25% 14%;
-  --sidebar-border: 215 16% 86%;
-  --sidebar-primary: 210 64% 38%;
+  /* Sidebar - slightly deeper than background for clear separation */
+  --sidebar: 220 24% 8%;
+  --sidebar-foreground: 215 18% 90%;
+  --sidebar-border: 215 16% 18%;
+  --sidebar-primary: 210 64% 52%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 210 60% 94%;
-  --sidebar-accent-foreground: 210 64% 28%;
-  --sidebar-ring: 210 64% 38%;
+  --sidebar-accent: 210 50% 18%;
+  --sidebar-accent-foreground: 210 60% 85%;
+  --sidebar-ring: 210 64% 52%;
 
   /* Popover */
-  --popover: 0 0% 100%;
-  --popover-foreground: 222 25% 14%;
-  --popover-border: 215 16% 86%;
+  --popover: 220 20% 13%;
+  --popover-foreground: 215 18% 90%;
+  --popover-border: 215 16% 22%;
 
   /* Primary - muted steel blue */
-  --primary: 210 64% 38%;
+  --primary: 210 64% 52%;
   --primary-foreground: 0 0% 100%;
 
-  /* Secondary - cool gray neutral */
-  --secondary: 215 18% 92%;
-  --secondary-foreground: 222 25% 22%;
+  /* Secondary - dark slate neutral */
+  --secondary: 215 16% 18%;
+  --secondary-foreground: 215 18% 88%;
 
   /* Muted */
-  --muted: 215 18% 95%;
-  --muted-foreground: 215 16% 36%;
+  --muted: 215 16% 16%;
+  --muted-foreground: 215 14% 65%;
 
-  /* Accent - muted teal (held back) */
-  --accent: 188 50% 92%;
-  --accent-foreground: 188 60% 24%;
+  /* Accent - muted teal-tinted dark (held back) */
+  --accent: 188 35% 18%;
+  --accent-foreground: 188 55% 80%;
 
-  /* Destructive */
-  --destructive: 0 72% 46%;
+  /* Destructive - restrained red (only used for true destructive actions) */
+  --destructive: 0 65% 50%;
   --destructive-foreground: 0 0% 100%;
 
-  --input: 215 16% 88%;
-  --ring: 210 64% 38%;
+  --input: 215 16% 22%;
+  --ring: 210 64% 52%;
 
   /* Chart colors - steel-blue primary, then teal, success, amber, violet */
-  --chart-1: 210 64% 42%;
-  --chart-2: 188 60% 38%;
-  --chart-3: 145 55% 38%;
-  --chart-4: 38 90% 50%;
-  --chart-5: 262 50% 52%;
+  --chart-1: 210 64% 55%;
+  --chart-2: 188 60% 50%;
+  --chart-3: 145 55% 50%;
+  --chart-4: 38 90% 55%;
+  --chart-5: 262 50% 60%;
 
   /* Success/Warning colors */
-  --success: 145 55% 38%;
+  --success: 145 55% 45%;
   --success-foreground: 0 0% 100%;
-  --warning: 38 90% 50%;
+  --warning: 38 88% 55%;
   --warning-foreground: 0 0% 0%;
 
   --font-sans: Inter, system-ui, sans-serif;
@@ -82,14 +83,14 @@
   --font-mono: Menlo, monospace;
   --radius: .5rem;
 
-  --shadow-2xs: 0px 1px 2px 0px hsl(222 47% 11% / 0.04);
-  --shadow-xs: 0px 1px 3px 0px hsl(222 47% 11% / 0.08);
-  --shadow-sm: 0px 1px 2px 0px hsl(222 47% 11% / 0.05), 0px 1px 3px 0px hsl(222 47% 11% / 0.08);
-  --shadow: 0px 2px 4px -1px hsl(222 47% 11% / 0.05), 0px 4px 6px -1px hsl(222 47% 11% / 0.08);
-  --shadow-md: 0px 4px 6px -1px hsl(222 47% 11% / 0.06), 0px 8px 10px -2px hsl(222 47% 11% / 0.08);
-  --shadow-lg: 0px 10px 15px -3px hsl(222 47% 11% / 0.07), 0px 4px 6px -2px hsl(222 47% 11% / 0.04);
-  --shadow-xl: 0px 20px 25px -5px hsl(222 47% 11% / 0.08), 0px 10px 10px -5px hsl(222 47% 11% / 0.03);
-  --shadow-2xl: 0px 25px 50px -12px hsl(222 47% 11% / 0.20);
+  --shadow-2xs: 0px 1px 2px 0px hsl(0 0% 0% / 0.25);
+  --shadow-xs: 0px 1px 3px 0px hsl(0 0% 0% / 0.35);
+  --shadow-sm: 0px 1px 2px 0px hsl(0 0% 0% / 0.25), 0px 1px 3px 0px hsl(0 0% 0% / 0.35);
+  --shadow: 0px 2px 4px -1px hsl(0 0% 0% / 0.25), 0px 4px 6px -1px hsl(0 0% 0% / 0.35);
+  --shadow-md: 0px 4px 6px -1px hsl(0 0% 0% / 0.30), 0px 8px 10px -2px hsl(0 0% 0% / 0.35);
+  --shadow-lg: 0px 10px 15px -3px hsl(0 0% 0% / 0.35), 0px 4px 6px -2px hsl(0 0% 0% / 0.25);
+  --shadow-xl: 0px 20px 25px -5px hsl(0 0% 0% / 0.45), 0px 10px 10px -5px hsl(0 0% 0% / 0.25);
+  --shadow-2xl: 0px 25px 50px -12px hsl(0 0% 0% / 0.55);
 
   --tracking-normal: 0em;
   --spacing: 0.25rem;
@@ -110,92 +111,9 @@
   --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
 }
 
-/* THEME: Light Pro — explicit class. Mirrors :root so the theme switcher
- * remove-then-add cycle re-asserts the light-pro palette cleanly even after
- * a dark theme has been applied. */
-.theme-light-pro {
-  --button-outline: rgba(15,23,42, .12);
-  --badge-outline: rgba(15,23,42, .08);
-  --opaque-button-border-intensity: -8;
-  --elevate-1: rgba(15,23,42, .04);
-  --elevate-2: rgba(15,23,42, .07);
-
-  --background: 210 24% 98%;
-  --foreground: 222 25% 14%;
-  --border: 215 16% 88%;
-
-  --card: 0 0% 100%;
-  --card-foreground: 222 25% 14%;
-  --card-border: 215 16% 88%;
-
-  --sidebar: 215 22% 96%;
-  --sidebar-foreground: 222 25% 14%;
-  --sidebar-border: 215 16% 86%;
-  --sidebar-primary: 210 64% 38%;
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 210 60% 94%;
-  --sidebar-accent-foreground: 210 64% 28%;
-  --sidebar-ring: 210 64% 38%;
-
-  --popover: 0 0% 100%;
-  --popover-foreground: 222 25% 14%;
-  --popover-border: 215 16% 86%;
-
-  --primary: 210 64% 38%;
-  --primary-foreground: 0 0% 100%;
-
-  --secondary: 215 18% 92%;
-  --secondary-foreground: 222 25% 22%;
-
-  --muted: 215 18% 95%;
-  --muted-foreground: 215 16% 36%;
-
-  --accent: 188 50% 92%;
-  --accent-foreground: 188 60% 24%;
-
-  --destructive: 0 72% 46%;
-  --destructive-foreground: 0 0% 100%;
-
-  --input: 215 16% 88%;
-  --ring: 210 64% 38%;
-
-  --chart-1: 210 64% 42%;
-  --chart-2: 188 60% 38%;
-  --chart-3: 145 55% 38%;
-  --chart-4: 38 90% 50%;
-  --chart-5: 262 50% 52%;
-
-  --success: 145 55% 38%;
-  --success-foreground: 0 0% 100%;
-  --warning: 38 90% 50%;
-  --warning-foreground: 0 0% 0%;
-
-  --shadow-2xs: 0px 1px 2px 0px hsl(222 47% 11% / 0.04);
-  --shadow-xs: 0px 1px 3px 0px hsl(222 47% 11% / 0.08);
-  --shadow-sm: 0px 1px 2px 0px hsl(222 47% 11% / 0.05), 0px 1px 3px 0px hsl(222 47% 11% / 0.08);
-  --shadow: 0px 2px 4px -1px hsl(222 47% 11% / 0.05), 0px 4px 6px -1px hsl(222 47% 11% / 0.08);
-  --shadow-md: 0px 4px 6px -1px hsl(222 47% 11% / 0.06), 0px 8px 10px -2px hsl(222 47% 11% / 0.08);
-  --shadow-lg: 0px 10px 15px -3px hsl(222 47% 11% / 0.07), 0px 4px 6px -2px hsl(222 47% 11% / 0.04);
-  --shadow-xl: 0px 20px 25px -5px hsl(222 47% 11% / 0.08), 0px 10px 10px -5px hsl(222 47% 11% / 0.03);
-  --shadow-2xl: 0px 25px 50px -12px hsl(222 47% 11% / 0.20);
-
-  --sidebar-primary-border: hsl(var(--sidebar-primary));
-  --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-  --sidebar-accent-border: hsl(var(--sidebar-accent));
-  --sidebar-accent-border: hsl(from hsl(var(--sidebar-accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-  --primary-border: hsl(var(--primary));
-  --primary-border: hsl(from hsl(var(--primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-  --secondary-border: hsl(var(--secondary));
-  --secondary-border: hsl(from hsl(var(--secondary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-  --muted-border: hsl(var(--muted));
-  --muted-border: hsl(from hsl(var(--muted)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-  --accent-border: hsl(var(--accent));
-  --accent-border: hsl(from hsl(var(--accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-  --destructive-border: hsl(var(--destructive));
-  --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-}
-
-/* THEME: Default Dark - The Bootcamp Brand: Onyx/Carbon surfaces, Crimson primary */
+/* THEME: Default Dark — Dark Pro palette. Mirrors :root so the theme switcher
+ * remove-then-add cycle re-asserts the default-dark palette cleanly after
+ * any other theme has been applied. */
 .theme-default-dark {
   --button-outline: rgba(255,255,255, .12);
   --badge-outline: rgba(255,255,255, .08);
@@ -203,54 +121,54 @@
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .08);
 
-  --background: 220 24% 7%;
-  --foreground: 220 14% 97%;
-  --border: 220 14% 18%;
+  --background: 220 22% 10%;
+  --foreground: 215 18% 90%;
+  --border: 215 16% 20%;
 
-  --card: 220 23% 11%;
-  --card-foreground: 220 14% 97%;
-  --card-border: 220 14% 20%;
+  --card: 220 20% 13%;
+  --card-foreground: 215 18% 90%;
+  --card-border: 215 16% 22%;
 
-  --sidebar: 220 26% 5%;
-  --sidebar-foreground: 220 14% 97%;
-  --sidebar-border: 220 14% 16%;
-  --sidebar-primary: 354 75% 52%;
+  --sidebar: 220 24% 8%;
+  --sidebar-foreground: 215 18% 90%;
+  --sidebar-border: 215 16% 18%;
+  --sidebar-primary: 210 64% 52%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 354 60% 16%;
-  --sidebar-accent-foreground: 354 80% 88%;
-  --sidebar-ring: 354 75% 52%;
+  --sidebar-accent: 210 50% 18%;
+  --sidebar-accent-foreground: 210 60% 85%;
+  --sidebar-ring: 210 64% 52%;
 
-  --popover: 220 23% 11%;
-  --popover-foreground: 220 14% 97%;
-  --popover-border: 220 14% 22%;
+  --popover: 220 20% 13%;
+  --popover-foreground: 215 18% 90%;
+  --popover-border: 215 16% 22%;
 
-  --primary: 354 75% 52%;
+  --primary: 210 64% 52%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 220 14% 16%;
-  --secondary-foreground: 220 14% 92%;
+  --secondary: 215 16% 18%;
+  --secondary-foreground: 215 18% 88%;
 
-  --muted: 220 14% 14%;
-  --muted-foreground: 216 12% 65%;
+  --muted: 215 16% 16%;
+  --muted-foreground: 215 14% 65%;
 
-  --accent: 38 70% 18%;
-  --accent-foreground: 38 92% 80%;
+  --accent: 188 35% 18%;
+  --accent-foreground: 188 55% 80%;
 
-  --destructive: 0 78% 55%;
+  --destructive: 0 65% 50%;
   --destructive-foreground: 0 0% 100%;
 
-  --input: 220 14% 20%;
-  --ring: 354 75% 52%;
+  --input: 215 16% 22%;
+  --ring: 210 64% 52%;
 
-  --chart-1: 354 75% 58%;
-  --chart-2: 215 50% 60%;
-  --chart-3: 142 60% 45%;
-  --chart-4: 38 92% 55%;
-  --chart-5: 262 60% 65%;
+  --chart-1: 210 64% 55%;
+  --chart-2: 188 60% 50%;
+  --chart-3: 145 55% 50%;
+  --chart-4: 38 90% 55%;
+  --chart-5: 262 50% 60%;
 
-  --success: 142 71% 45%;
+  --success: 145 55% 45%;
   --success-foreground: 0 0% 100%;
-  --warning: 43 96% 56%;
+  --warning: 38 88% 55%;
   --warning-foreground: 0 0% 0%;
 
   --shadow-2xs: 0px 1px 2px 0px hsl(0 0% 0% / 0.25);
@@ -575,7 +493,7 @@
   --destructive-border: hsl(var(--destructive));
 }
 
-/* Legacy dark class for backwards compatibility - maps to The Bootcamp default dark */
+/* Legacy dark class for backwards compatibility - maps to Dark Pro default */
 .dark {
   --button-outline: rgba(255,255,255, .12);
   --badge-outline: rgba(255,255,255, .08);
@@ -583,54 +501,54 @@
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .08);
 
-  --background: 220 24% 7%;
-  --foreground: 220 14% 97%;
-  --border: 220 14% 18%;
+  --background: 220 22% 10%;
+  --foreground: 215 18% 90%;
+  --border: 215 16% 20%;
 
-  --card: 220 23% 11%;
-  --card-foreground: 220 14% 97%;
-  --card-border: 220 14% 20%;
+  --card: 220 20% 13%;
+  --card-foreground: 215 18% 90%;
+  --card-border: 215 16% 22%;
 
-  --sidebar: 220 26% 5%;
-  --sidebar-foreground: 220 14% 97%;
-  --sidebar-border: 220 14% 16%;
-  --sidebar-primary: 354 75% 52%;
+  --sidebar: 220 24% 8%;
+  --sidebar-foreground: 215 18% 90%;
+  --sidebar-border: 215 16% 18%;
+  --sidebar-primary: 210 64% 52%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 354 60% 16%;
-  --sidebar-accent-foreground: 354 80% 88%;
-  --sidebar-ring: 354 75% 52%;
+  --sidebar-accent: 210 50% 18%;
+  --sidebar-accent-foreground: 210 60% 85%;
+  --sidebar-ring: 210 64% 52%;
 
-  --popover: 220 23% 11%;
-  --popover-foreground: 220 14% 97%;
-  --popover-border: 220 14% 22%;
+  --popover: 220 20% 13%;
+  --popover-foreground: 215 18% 90%;
+  --popover-border: 215 16% 22%;
 
-  --primary: 354 75% 52%;
+  --primary: 210 64% 52%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 220 14% 16%;
-  --secondary-foreground: 220 14% 92%;
+  --secondary: 215 16% 18%;
+  --secondary-foreground: 215 18% 88%;
 
-  --muted: 220 14% 14%;
-  --muted-foreground: 216 12% 65%;
+  --muted: 215 16% 16%;
+  --muted-foreground: 215 14% 65%;
 
-  --accent: 38 70% 18%;
-  --accent-foreground: 38 92% 80%;
+  --accent: 188 35% 18%;
+  --accent-foreground: 188 55% 80%;
 
-  --destructive: 0 78% 55%;
+  --destructive: 0 65% 50%;
   --destructive-foreground: 0 0% 100%;
 
-  --input: 220 14% 20%;
-  --ring: 354 75% 52%;
+  --input: 215 16% 22%;
+  --ring: 210 64% 52%;
 
-  --chart-1: 354 75% 58%;
-  --chart-2: 215 50% 60%;
-  --chart-3: 142 60% 45%;
-  --chart-4: 38 92% 55%;
-  --chart-5: 262 60% 65%;
+  --chart-1: 210 64% 55%;
+  --chart-2: 188 60% 50%;
+  --chart-3: 145 55% 50%;
+  --chart-4: 38 90% 55%;
+  --chart-5: 262 50% 60%;
 
-  --success: 142 71% 45%;
+  --success: 145 55% 45%;
   --success-foreground: 0 0% 100%;
-  --warning: 43 96% 56%;
+  --warning: 38 88% 55%;
   --warning-foreground: 0 0% 0%;
 
   --shadow-2xs: 0px 1px 2px 0px hsl(0 0% 0% / 0.25);

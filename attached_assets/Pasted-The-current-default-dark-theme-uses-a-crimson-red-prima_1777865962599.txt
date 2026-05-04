@@ -1,0 +1,71 @@
+The current default dark theme uses a crimson/red primary color which looks unprofessional.
+I want to REPLACE it with a clean, formal dark theme that stays dark but looks premium and refined.
+
+DO NOT add a light theme. The default must remain dark.
+
+GOAL
+Replace the default dark theme palette with a new "Dark Pro" or "Midnight" style that is:
+- Dark background (deep navy or dark slate — not pure black, not red/crimson)
+- Clean, muted primary accent (steel blue, cool teal, or slate blue — NOT red, NOT crimson, NOT neon)
+- Professional and formal — like a premium SaaS dark mode (think Linear, Vercel, Supabase dark)
+- Easy on the eyes for long sessions
+- No neon gamer aesthetic
+- No glowing colors
+- No red or crimson anywhere in the default theme
+
+TARGET FEEL
+Deep dark slate/navy backgrounds + cool steel-blue or teal accent + clean white/light-gray text.
+Think: serious esports operations platform, not a flashy gaming website.
+
+REQUIREMENTS
+
+1) Replace the default theme (:root or the current default dark class) with new refined dark palette:
+   Suggested direction:
+   - --background: deep dark navy or slate (e.g. hsl(222 22% 10%) or hsl(220 14% 9%))
+   - --foreground: clean light gray (e.g. hsl(215 20% 88%) or hsl(210 16% 90%))
+   - --card: slightly lighter than background (e.g. hsl(222 20% 13%))
+   - --border: subtle dark border (e.g. hsl(215 16% 20%))
+   - --primary: muted steel blue or cool teal (e.g. hsl(210 64% 52%) or hsl(188 55% 45%))
+   - --primary-foreground: near white
+   - --sidebar: slightly different shade from background for clear separation
+   - --muted-foreground: mid gray with good readability
+   - --destructive: restrained red (darker, less saturated than crimson)
+   - --success / --warning: clear but not over-saturated
+
+2) Remove ALL crimson/red references from the default theme
+   - Scan for hsl(0..10 ..%) or hsl(350..360 ..%) values used as primary/accent in the default theme
+   - Replace with the new cool steel/teal palette
+
+3) This new dark palette becomes the default (no saved preference = user sees this new dark theme)
+
+4) Keep all other selectable themes (Ocean Blue, Ruby Red, Carbon Black, etc.) as they are
+   - Only the default is changing
+   - Do not remove dark mode options from the picker
+
+5) The new default dark theme must work correctly across:
+   - Login page
+   - Dashboard
+   - Sidebar
+   - Header
+   - Events
+   - Statistics
+   - Player Leaderboard
+   - Settings
+   - Admin pages
+   - All tables, cards, forms, modals, toasts, tabs, dropdowns, badges
+
+6) RTL/Arabic support must remain visually correct (no layout changes, color tokens only)
+
+7) Do NOT change:
+   - Any business logic
+   - Any API
+   - Any routing or auth
+   - Any component structure or layout
+   - Any other theme besides the default
+
+8) Report back:
+   - New token values for the default dark theme
+   - Confirmation that crimson/red is removed from default
+   - Which files were changed
+   - Confirmation default is now the new dark theme
+   - Any screens that may need a follow-up polish pass

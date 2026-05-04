@@ -131,7 +131,7 @@ function CustomCalendar({ selectedDate, onSelectDate, eventsByDate, offDaysByDat
                   cursor-pointer hover-elevate active-elevate-2
                   ${!isCurrentMonth ? "bg-muted/30" : ""}
                   ${isSelected ? "bg-primary/10 border-2 border-primary" : ""}
-                  ${isOffDay && dayEvents.length === 0 ? "bg-slate-200/70 dark:bg-slate-800/50" : ""}
+                  ${isOffDay && dayEvents.length === 0 ? "bg-slate-700/30 dark:bg-slate-800/50" : ""}
                 `}
                 data-testid={`calendar-day-${dateStr}`}
               >
@@ -147,7 +147,7 @@ function CustomCalendar({ selectedDate, onSelectDate, eventsByDate, offDaysByDat
                 <div className="flex flex-col gap-1 overflow-y-auto max-h-[140px]">
                   {isOffDay && dayEvents.length === 0 && (
                     <div
-                      className="text-xs px-2 py-1 rounded bg-slate-300/70 dark:bg-slate-700/50 text-slate-700 dark:text-slate-200 text-center"
+                      className="text-xs px-2 py-1 rounded bg-slate-600/50 dark:bg-slate-700/50 text-slate-200 text-center"
                       data-testid={`calendar-offday-${dateStr}`}
                     >
                       OFF DAY

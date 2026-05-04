@@ -304,7 +304,7 @@ function AuthenticatedApp() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider defaultStyle="light-pro">
+      <ThemeProvider defaultStyle="default-dark">
         <TooltipProvider>
           <AuthProvider>
             <Toaster />
