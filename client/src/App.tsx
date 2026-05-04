@@ -17,6 +17,7 @@ import { Moon } from "lucide-react";
 import { LoadingSpinner } from "@/components/PageSkeleton";
 import { SubscriptionBlock } from "@/components/SubscriptionBlock";
 import { SubscriptionCountdownBanner } from "@/components/SubscriptionCountdownBanner";
+import { SubscriptionStatusPill } from "@/components/SubscriptionStatusPill";
 import Login from "@/pages/Login";
 import GamesHome from "@/pages/GamesHome";
 import Home from "@/pages/Home";
@@ -281,6 +282,7 @@ function AuthenticatedApp() {
             <div className="flex flex-col flex-1 min-w-0">
               <header className="flex items-center justify-between gap-1 p-2 border-b sticky top-0 z-50 bg-background">
                 <SidebarTrigger data-testid="button-sidebar-toggle" />
+                <SubscriptionStatusPill />
                 <div className="flex items-center gap-1">
                   <HelpButton />
                   <NotificationBell />

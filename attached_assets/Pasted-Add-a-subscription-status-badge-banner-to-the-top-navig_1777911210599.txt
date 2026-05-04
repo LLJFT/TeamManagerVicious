@@ -1,0 +1,69 @@
+Add a subscription status badge/banner to the top navigation bar (the header/topbar) 
+that is visible to users who have an active subscription.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WHAT TO BUILD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+In the top navigation bar (the bar visible at the top of the page across all pages), 
+add a subscription pill/badge that shows:
+
+1. The subscription TYPE:
+   - "TRIAL" (if type is trial)
+   - "PAID" (if type is paid/pro)
+   Displayed as a colored badge — e.g., yellow/amber for TRIAL, green for PAID
+
+2. A live countdown of time remaining until the subscription ends (endDate):
+   - Format: "Xd Xh Xm" (e.g., "30d 4h 22m")
+   - The countdown must tick live — update every minute (or every second for the 
+     minutes/seconds portion)
+   - When less than 24 hours remain, show hours and minutes only (e.g., "4h 22m")
+   - When less than 1 hour remains, show minutes only in red (e.g., "22m left")
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DATA SOURCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The subscription data already exists in the database (subscriptions table).
+Each subscription has: userId, type ("trial" | "paid"), status ("active" | "expired"), 
+startDate, endDate, notes.
+
+- Fetch the current user's active subscription via a new or existing API endpoint
+- Recommended: GET /api/subscriptions/me — returns the active subscription for 
+  the currently logged-in user (filter by userId = current user, status = "active")
+- If no active subscription → do not show the badge (hide it entirely)
+- If subscription is expired → do not show it
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PLACEMENT & DESIGN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Place the pill in the top bar (the narrow bar visible at top, 
+  the one that currently says "TYPE: TIME LEFT" as a placeholder — image attached)
+- It should be centered or prominently visible in that bar
+- TRIAL badge: amber/yellow background with dark text
+- PAID badge: green background with white text
+- Countdown text: shown next to or below the badge type label
+- Keep the design minimal and clean — matches the existing dark UI theme
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BEHAVIOR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Only show the bar to the user who HAS an active subscription (check via /api/subscriptions/me)
+- Super Admin and users with no active subscription → bar is hidden
+- The countdown must be calculated on the frontend from the endDate returned by the API
+- Use setInterval every 60 seconds to refresh the countdown display 
+  (and immediately on mount)
+- When the subscription expires (countdown hits 0), hide the bar or show 
+  "Subscription expired" in red
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REPORT BACK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Confirm GET /api/subscriptions/me endpoint added and returns correct data
+2. Confirm the badge shows TRIAL (amber) or PAID (green) correctly
+3. Confirm the live countdown works (Xd Xh Xm format)
+4. Confirm the bar is hidden when no active subscription exists
+5. List all files changed
