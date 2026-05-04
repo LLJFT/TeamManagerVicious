@@ -3766,8 +3766,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } as any);
         res.json(scan);
       } catch (error: any) {
-        console.error("Error in POST /api/games/:matchId/ocr-scans:", error);
-        res.status(500).json({ error: error.message || "Internal server error" });
+        console.error("Error in POST /api/games/:matchId/ocr-scans:", error, "cause:", error?.cause);
+        const cause = error?.cause;
+        const causeMsg = cause?.message ? `${cause.message}${cause.code ? ` (pg ${cause.code})` : ""}` : null;
+        res.status(500).json({ error: causeMsg || error.message || "Internal server error" });
       }
     }
   );
@@ -4096,8 +4098,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const participants = await storage.getMatchParticipants(id);
       res.json(participants);
     } catch (error: any) {
-      console.error('Error in GET /api/games/:id/participation:', error);
-      res.status(500).json({ error: error.message || "Internal server error" });
+      console.error('Error in GET /api/games/:id/participation:', error, 'cause:', error?.cause);
+      const cause = error?.cause;
+      const causeMsg = cause?.message ? `${cause.message}${cause.code ? ` (pg ${cause.code})` : ""}` : null;
+      res.status(500).json({ error: causeMsg || error.message || "Internal server error" });
     }
   });
 
@@ -4113,9 +4117,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const saved = await storage.replaceMatchParticipants(id, rows, game.gameId, game.rosterId);
       res.json(saved);
     } catch (error: any) {
-      console.error('Error in PUT /api/games/:id/participation:', error);
+      console.error('Error in PUT /api/games/:id/participation:', error, 'cause:', error?.cause);
       if (error.name === 'ZodError') return res.status(400).json({ error: "Invalid participation data", details: error.errors });
-      res.status(500).json({ error: error.message || "Internal server error" });
+      const cause = error?.cause;
+      const causeMsg = cause?.message ? `${cause.message}${cause.code ? ` (pg ${cause.code})` : ""}` : null;
+      res.status(500).json({ error: causeMsg || error.message || "Internal server error" });
     }
   });
 

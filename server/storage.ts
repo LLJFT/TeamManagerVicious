@@ -1509,9 +1509,19 @@ export class DbStorage implements IStorage {
     return await db.transaction(async (tx) => {
       await tx.delete(matchParticipants).where(and(eq(matchParticipants.matchId, matchId), eq(matchParticipants.teamId, teamId)));
       if (rows.length === 0) return [];
-      const inserted = await tx.insert(matchParticipants).values(
-        rows.map(r => ({ ...r, matchId, teamId, gameId, rosterId }))
-      ).returning();
+      // Coerce empty-string player IDs to null so PostgreSQL doesn't reject
+      // them as invalid uuid values (pg 22P02). The frontend sometimes
+      // sends "" instead of null when a side has no matched player yet.
+      const cleaned = rows.map(r => ({
+        ...r,
+        matchId,
+        teamId,
+        gameId,
+        rosterId,
+        playerId: (r as any).playerId || null,
+        opponentPlayerId: (r as any).opponentPlayerId || null,
+      }));
+      const inserted = await tx.insert(matchParticipants).values(cleaned).returning();
       return inserted;
     });
   }
