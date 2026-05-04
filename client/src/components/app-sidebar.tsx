@@ -199,7 +199,7 @@ export function AppSidebar() {
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                  {hasOrgRole("super_admin" as any, "org_admin" as any, "management" as any) && (
+                  {(hasPermission("view_overview_page" as Permission) || hasOrgRole("super_admin" as any, "org_admin" as any, "management" as any)) && (
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild isActive={location === "/dashboard"}>
                         <Link href="/dashboard">
@@ -258,7 +258,7 @@ export function AppSidebar() {
                         </SidebarMenuButton>
                       </SidebarMenuItem>
                     )}
-                    {hasOrgRole("super_admin" as any) && (
+                    {hasPermission("view_game_templates" as Permission) && (
                       <SidebarMenuItem>
                         <SidebarMenuButton
                           asChild
@@ -272,7 +272,7 @@ export function AppSidebar() {
                         </SidebarMenuButton>
                       </SidebarMenuItem>
                     )}
-                    {hasOrgRole("super_admin" as any) && (
+                    {hasPermission("view_media_library" as Permission) && (
                       <SidebarMenuItem>
                         <SidebarMenuButton
                           asChild
@@ -286,7 +286,7 @@ export function AppSidebar() {
                         </SidebarMenuButton>
                       </SidebarMenuItem>
                     )}
-                    {hasOrgRole("super_admin" as any) && (
+                    {hasPermission("view_subscriptions" as Permission) && (
                       <SidebarMenuItem>
                         <SidebarMenuButton
                           asChild
@@ -305,7 +305,7 @@ export function AppSidebar() {
               </SidebarGroup>
             )}
 
-            {(user?.orgRole === "management" || user?.orgRole === "super_admin") && (
+            {hasPermission("view_management_chat" as Permission) && (
               <SidebarGroup>
                 <SidebarGroupLabel>{t("nav.communication")}</SidebarGroupLabel>
                 <SidebarGroupContent>

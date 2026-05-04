@@ -42,9 +42,11 @@ interface OrgChatMessage {
 }
 
 export default function OrgChat() {
-  const { user, hasOrgRole } = useAuth();
+  const { user, hasOrgRole, hasPermission } = useAuth();
   const { toast } = useToast();
-  const isAdmin = hasOrgRole("org_admin");
+  const canManageChannels = hasPermission("manage_management_channels" as any) || hasPermission("manage_channels" as any) || hasOrgRole("org_admin");
+  const canDeleteAnyMessage = hasPermission("delete_any_message" as any) || hasOrgRole("org_admin");
+  const isAdmin = canManageChannels;
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
   const [newChannelName, setNewChannelName] = useState("");
   const [showNewChannelInput, setShowNewChannelInput] = useState(false);
@@ -415,7 +417,7 @@ export default function OrgChat() {
             ) : (
               messages.map((msg) => {
                 const isOwn = msg.userId === user?.id;
-                const canDelete = isOwn || isAdmin;
+                const canDelete = isOwn || canDeleteAnyMessage;
                 return (
                   <div key={msg.id} className={`group flex flex-col ${isOwn ? "items-end" : "items-start"}`} data-testid={`org-chat-msg-${msg.id}`}>
                     <span className="text-[10px] text-muted-foreground mb-0.5">

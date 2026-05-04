@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,69 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ShieldCheck, Plus, Trash2, Save, Pencil, X } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { type Permission } from "@shared/schema";
+import { permissionCategories, permissionLabels, type Permission } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
-
-const HOME_PERMISSIONS: { label: string; value: string }[] = [
-  { label: "View Dashboard", value: "view_dashboard" },
-  { label: "View Calendar", value: "view_calendar" },
-  { label: "View Upcoming Events", value: "view_upcoming_events" },
-  { label: "View Users Tab", value: "view_users_tab" },
-  { label: "Manage Users", value: "manage_users" },
-  { label: "View Roles Tab", value: "view_roles_tab" },
-  { label: "Manage Roles", value: "manage_roles" },
-  { label: "View Game Access Tab", value: "view_game_access" },
-  { label: "Manage Game Access", value: "manage_game_config" },
-  { label: "View Chat", value: "view_chat" },
-  { label: "Send Messages in Chat", value: "send_messages" },
-  { label: "View Settings", value: "view_settings" },
-  { label: "Manage Settings", value: "manage_settings" },
-  { label: "View Activity Log", value: "view_activity_log" },
-];
-
-const GAME_PERMISSION_GROUPS: Record<string, { label: string; value: string }[]> = {
-  "Schedule": [
-    { label: "View Schedule", value: "view_schedule" },
-    { label: "Edit Own Availability", value: "edit_own_availability" },
-    { label: "Edit All Availability", value: "edit_all_availability" },
-    { label: "Manage Schedule Players", value: "manage_schedule_players" },
-  ],
-  "Events": [
-    { label: "View Events", value: "view_events" },
-    { label: "Create Events", value: "create_events" },
-    { label: "Edit Events", value: "edit_events" },
-    { label: "Delete Events", value: "delete_events" },
-  ],
-  "Results": [
-    { label: "View Results", value: "view_results" },
-    { label: "Add Results", value: "add_results" },
-    { label: "Edit Results", value: "edit_results" },
-    { label: "Delete Results", value: "delete_results" },
-  ],
-  "Players": [
-    { label: "View Players", value: "view_players" },
-    { label: "Manage Players Tab", value: "manage_players_tab" },
-  ],
-  "Statistics": [
-    { label: "View Statistics", value: "view_statistics" },
-    { label: "View Player Stats", value: "view_player_stats" },
-    { label: "View History", value: "view_history" },
-    { label: "View Compare", value: "view_compare" },
-    { label: "View Opponents", value: "view_opponents" },
-  ],
-  "Chat": [
-    { label: "View Chat", value: "view_chat" },
-    { label: "Send Messages", value: "send_messages" },
-    { label: "Delete Own Messages", value: "delete_own_messages" },
-    { label: "Delete Any Message", value: "delete_any_message" },
-    { label: "Manage Channels", value: "manage_channels" },
-  ],
-  "Staff": [
-    { label: "View Staff", value: "view_staff" },
-    { label: "Manage Staff", value: "manage_staff" },
-  ],
-};
 
 interface Role {
   id: string;
@@ -80,6 +20,76 @@ interface Role {
 }
 
 type TabType = "user-roles" | "user-permissions";
+
+// Categories shown in the Home/Platform editor: every category whose scope
+// is "home" or "both". Driven entirely from shared/schema.ts so adding a new
+// permission key only needs a single edit.
+const HOME_CATEGORIES = permissionCategories.filter(
+  (c) => c.scope === "home" || c.scope === "both"
+);
+
+function PermissionGroups({
+  selected,
+  onToggle,
+  onSelectAllInCategory,
+  testIdPrefix,
+}: {
+  selected: string[];
+  onToggle: (perm: string) => void;
+  onSelectAllInCategory: (perms: string[], allOn: boolean) => void;
+  testIdPrefix: string;
+}) {
+  return (
+    <div className="space-y-5">
+      {HOME_CATEGORIES.map((cat) => {
+        const allOn = cat.permissions.every((p) => selected.includes(p));
+        const someOn = cat.permissions.some((p) => selected.includes(p));
+        return (
+          <div key={cat.category} className="space-y-2">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <h4 className="text-sm font-semibold text-foreground">
+                {cat.label}
+              </h4>
+              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+                <Checkbox
+                  checked={allOn ? true : someOn ? "indeterminate" : false}
+                  onCheckedChange={() => onSelectAllInCategory(cat.permissions, allOn)}
+                  data-testid={`${testIdPrefix}-select-all-${cat.category}`}
+                />
+                <span>Select all</span>
+              </label>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {cat.permissions.map((perm) => {
+                const meta = permissionLabels[perm as Permission];
+                return (
+                  <label
+                    key={perm}
+                    className="flex items-start gap-2 text-sm cursor-pointer"
+                  >
+                    <Checkbox
+                      checked={selected.includes(perm)}
+                      onCheckedChange={() => onToggle(perm)}
+                      data-testid={`${testIdPrefix}-perm-${perm}`}
+                    />
+                    <span className="leading-tight">
+                      <span className="text-xs">{meta?.label ?? perm}</span>
+                      {meta?.description && (
+                        <span className="block text-[11px] text-muted-foreground">
+                          {meta.description}
+                        </span>
+                      )}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function RolesPage() {
   const { t } = useTranslation();
@@ -143,12 +153,26 @@ export default function RolesPage() {
     updateRoleMutation.mutate({ id: role.id, permissions: updated });
   };
 
-  const togglePermission = (perms: string[], perm: string, setter: (p: string[]) => void) => {
-    if (perms.includes(perm)) {
-      setter(perms.filter(p => p !== perm));
-    } else {
-      setter([...perms, perm]);
-    }
+  const selectAllInGroupAutoSave = (role: Role, groupPerms: readonly string[], allOn: boolean) => {
+    const current = role.permissions || [];
+    const updated = allOn
+      ? current.filter((p) => !groupPerms.includes(p))
+      : Array.from(new Set([...current, ...groupPerms]));
+    updateRoleMutation.mutate({ id: role.id, permissions: updated });
+  };
+
+  const togglePermissionLocal = (perm: string) => {
+    setNewRolePermissions((prev) =>
+      prev.includes(perm) ? prev.filter((p) => p !== perm) : [...prev, perm]
+    );
+  };
+
+  const selectAllInGroupLocal = (groupPerms: readonly string[], allOn: boolean) => {
+    setNewRolePermissions((prev) =>
+      allOn
+        ? prev.filter((p) => !groupPerms.includes(p))
+        : Array.from(new Set([...prev, ...groupPerms]))
+    );
   };
 
   if (isLoading) {
@@ -227,28 +251,19 @@ export default function RolesPage() {
               <CardHeader className="pb-3 gap-2">
                 <CardTitle className="text-base">{t("admin.roles.createNew")}</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-4">
                 <Input
                   placeholder={t("admin.roles.nameInput")}
                   value={newRoleName}
                   onChange={(e) => setNewRoleName(e.target.value)}
                   data-testid="input-new-role-name"
                 />
-                <div className="space-y-3">
-                  <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">{t("admin.roles.homePermissions")}</p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {HOME_PERMISSIONS.map(perm => (
-                      <label key={perm.value} className="flex items-center gap-2 text-sm cursor-pointer">
-                        <Checkbox
-                          checked={newRolePermissions.includes(perm.value)}
-                          onCheckedChange={() => togglePermission(newRolePermissions, perm.value, setNewRolePermissions)}
-                          data-testid={`new-role-perm-${perm.value}`}
-                        />
-                        <span className="text-xs">{perm.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
+                <PermissionGroups
+                  selected={newRolePermissions}
+                  onToggle={togglePermissionLocal}
+                  onSelectAllInCategory={selectAllInGroupLocal}
+                  testIdPrefix="checkbox-role"
+                />
                 <div className="flex gap-2 pt-2">
                   <Button
                     onClick={() => createRoleMutation.mutate({ name: newRoleName, permissions: newRolePermissions })}
@@ -322,22 +337,13 @@ export default function RolesPage() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-3">
-                    <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">{t("admin.roles.homePermissions")}</p>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {HOME_PERMISSIONS.map(perm => (
-                        <label key={perm.value} className="flex items-center gap-2 text-sm cursor-pointer">
-                          <Checkbox
-                            checked={(role.permissions || []).includes(perm.value)}
-                            onCheckedChange={() => togglePermissionAutoSave(role, perm.value)}
-                            data-testid={`role-${role.id}-perm-${perm.value}`}
-                          />
-                          <span className="text-xs">{perm.label}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
+                <CardContent>
+                  <PermissionGroups
+                    selected={role.permissions || []}
+                    onToggle={(perm) => togglePermissionAutoSave(role, perm)}
+                    onSelectAllInCategory={(perms, allOn) => selectAllInGroupAutoSave(role, perms, allOn)}
+                    testIdPrefix={`role-${role.id}`}
+                  />
                 </CardContent>
               </Card>
             ))}

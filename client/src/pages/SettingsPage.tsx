@@ -205,6 +205,8 @@ function SuperAdminExampleDataCard() {
 export default function SettingsPage() {
   const { t } = useTranslation();
   const { toast } = useToast();
+  const { hasPermission } = useAuth();
+  const canDeleteRoster = hasPermission("delete_roster" as Permission) || hasPermission("manage_game_config" as Permission);
   const [orgName, setOrgName] = useState("");
   const [gameIconUploading, setGameIconUploading] = useState<string | null>(null);
   const [addGameName, setAddGameName] = useState("");
@@ -685,9 +687,11 @@ export default function SettingsPage() {
                               <Pencil className="h-3 w-3" />
                             </Button>
                           )}
-                          <Button size="icon" variant="ghost" onClick={() => { if (confirm(t("settings.manage.confirmDeleteRoster", { name: roster.name }))) deleteRosterMutation.mutate(roster.id); }}>
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
+                          {canDeleteRoster && (
+                            <Button size="icon" variant="ghost" onClick={() => { if (confirm(t("settings.manage.confirmDeleteRoster", { name: roster.name }))) deleteRosterMutation.mutate(roster.id); }} data-testid={`button-delete-roster-${roster.id}`}>
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ))}

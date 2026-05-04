@@ -5,7 +5,7 @@ import { storage } from "./storage";
 import { db } from "./db";
 import { eq, ne, and, ilike, sql, isNull, inArray, or } from "drizzle-orm";
 import bcrypt from "bcryptjs";
-import { requireAuth, requirePermission, requireOrgRole, requireGameAccess, getSubscriptionStatus, subscriptionGate } from "./auth";
+import { requireAuth, requirePermission, requireAnyPermission, requireOrgRole, requireGameAccess, getSubscriptionStatus, subscriptionGate } from "./auth";
 import { startPushScheduler } from "./pushNotifications";
 import { getTeamId } from "./storage";
 import {
@@ -2122,7 +2122,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/activity-logs", requireAuth, requirePermission("view_activity_log"), async (req, res) => {
+  app.delete("/api/activity-logs", requireAuth, requireAnyPermission("clear_activity_log", "view_activity_log"), async (req, res) => {
     try {
       const userId = req.session.userId!;
       const teamId = getTeamId();
@@ -2142,7 +2142,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/activity-logs/:id", requireAuth, requirePermission("view_activity_log"), async (req, res) => {
+  app.delete("/api/activity-logs/:id", requireAuth, requireAnyPermission("clear_activity_log", "view_activity_log"), async (req, res) => {
     try {
       const userId = req.session.userId!;
       const teamId = getTeamId();
@@ -2772,7 +2772,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/games", requireAuth, requirePermission("edit_events"), async (req, res) => {
+  app.post("/api/games", requireAuth, requireAnyPermission("create_games", "edit_events"), async (req, res) => {
     try {
       const validatedData = insertGameSchema.parse(req.body);
       const teamId = getTeamId();
@@ -2841,7 +2841,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/games/:id", requireAuth, requirePermission("edit_events"), async (req, res) => {
+  app.put("/api/games/:id", requireAuth, requireAnyPermission("edit_games", "edit_events"), async (req, res) => {
     try {
       const { id } = req.params;
       const teamId = getTeamId();
@@ -2880,7 +2880,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/games/:id", requireAuth, requirePermission("edit_events"), async (req, res) => {
+  app.delete("/api/games/:id", requireAuth, requireAnyPermission("delete_games", "edit_events"), async (req, res) => {
     try {
       const { id } = req.params;
       const teamId = getTeamId();
@@ -3522,7 +3522,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/opponents", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+  app.post("/api/opponents", requireAuth, requireAnyPermission("manage_opponents", "manage_game_config"), async (req, res) => {
     try {
       const validatedData = insertOpponentSchema.parse(req.body);
       const opp = await storage.addOpponent(validatedData, getGameId(req), getRosterId(req));
@@ -3535,7 +3535,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/opponents/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+  app.put("/api/opponents/:id", requireAuth, requireAnyPermission("manage_opponents", "manage_game_config"), async (req, res) => {
     try {
       const { id } = req.params;
       const existing = await storage.getOpponent(id);
@@ -3553,7 +3553,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/opponents/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+  app.delete("/api/opponents/:id", requireAuth, requireAnyPermission("manage_opponents", "manage_game_config"), async (req, res) => {
     try {
       const { id } = req.params;
       const existing = await storage.getOpponent(id);
@@ -3587,7 +3587,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/opponents/:id/players", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+  app.post("/api/opponents/:id/players", requireAuth, requireAnyPermission("manage_opponents", "manage_game_config"), async (req, res) => {
     try {
       const { id } = req.params;
       const existing = await storage.getOpponent(id);
@@ -3604,7 +3604,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/opponent-players/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+  app.put("/api/opponent-players/:id", requireAuth, requireAnyPermission("manage_opponents", "manage_game_config"), async (req, res) => {
     try {
       const { id } = req.params;
       const existing = await storage.getOpponentPlayer(id);
@@ -3621,7 +3621,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/opponent-players/:id", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
+  app.delete("/api/opponent-players/:id", requireAuth, requireAnyPermission("manage_opponents", "manage_game_config"), async (req, res) => {
     try {
       const { id } = req.params;
       const existing = await storage.getOpponentPlayer(id);
@@ -3652,7 +3652,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/games/:id/heroes", requireAuth, requirePermission("edit_events"), async (req, res) => {
+  app.put("/api/games/:id/heroes", requireAuth, requireAnyPermission("manage_scoreboard", "edit_events"), async (req, res) => {
     try {
       const { id } = req.params;
       const teamId = getTeamId();
@@ -3696,7 +3696,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post(
     "/api/games/:matchId/ocr-scans",
     requireAuth,
-    requirePermission("edit_events"),
+    requireAnyPermission("upload_ocr_scan", "edit_events"),
     ocrUpload.single("file"),
     async (req, res) => {
       try {
@@ -3859,7 +3859,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/ocr-scans/:id", requireAuth, requirePermission("edit_events"), async (req, res) => {
+  app.patch("/api/ocr-scans/:id", requireAuth, requireAnyPermission("upload_ocr_scan", "edit_events"), async (req, res) => {
     try {
       const scan = await storage.getOcrScan(req.params.id);
       if (!scan) return res.status(404).json({ error: "Scan not found" });
@@ -3883,7 +3883,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // coach decides the scan isn't useful. The image stays in object storage
   // for audit; the scan row is marked "discarded" rather than deleted so we
   // never lose the evidence trail.
-  app.delete("/api/ocr-scans/:id", requireAuth, requirePermission("edit_events"), async (req, res) => {
+  app.delete("/api/ocr-scans/:id", requireAuth, requireAnyPermission("delete_ocr_scan", "edit_events"), async (req, res) => {
     try {
       const scan = await storage.getOcrScan(req.params.id);
       if (!scan) return res.status(404).json({ error: "Scan not found" });
@@ -3896,7 +3896,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/ocr-scans/:id/confirm", requireAuth, requirePermission("edit_events"), async (req, res) => {
+  app.post("/api/ocr-scans/:id/confirm", requireAuth, requireAnyPermission("confirm_ocr_import", "edit_events"), async (req, res) => {
     try {
       const scan = await storage.getOcrScan(req.params.id);
       if (!scan) return res.status(404).json({ error: "Scan not found" });
@@ -4172,7 +4172,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/games/:id/participation", requireAuth, requirePermission("edit_events"), async (req, res) => {
+  app.put("/api/games/:id/participation", requireAuth, requireAnyPermission("manage_scoreboard", "edit_events"), async (req, res) => {
     try {
       const { id } = req.params;
       const teamId = getTeamId();
@@ -4208,7 +4208,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/games/:id/opponent-player-stats", requireAuth, requirePermission("edit_events"), async (req, res) => {
+  app.post("/api/games/:id/opponent-player-stats", requireAuth, requireAnyPermission("manage_scoreboard", "edit_events"), async (req, res) => {
     try {
       const { id } = req.params;
       const teamId = getTeamId();
@@ -4416,7 +4416,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/games/:id/hero-ban-actions", requireAuth, requirePermission("edit_events"), async (req, res) => {
+  app.put("/api/games/:id/hero-ban-actions", requireAuth, requireAnyPermission("manage_scoreboard", "edit_events"), async (req, res) => {
     try {
       const { id } = req.params;
       const teamId = getTeamId();
@@ -4466,7 +4466,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/games/:id/map-veto-rows", requireAuth, requirePermission("edit_events"), async (req, res) => {
+  app.put("/api/games/:id/map-veto-rows", requireAuth, requireAnyPermission("manage_scoreboard", "edit_events"), async (req, res) => {
     try {
       const { id } = req.params;
       const teamId = getTeamId();
@@ -4686,7 +4686,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // categories/availability/opponents). Stored as JSONB on `game_templates`.
   // Apply replaces a roster's config in a single transaction. NEVER touches
   // players, games, events, attendance, or history.
-  app.get("/api/game-templates", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+  app.get("/api/game-templates", requireAuth, requirePermission("view_game_templates"), async (req, res) => {
     try {
       const list = await storage.getAllGameTemplates();
       res.json(list);
@@ -4696,7 +4696,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/game-templates/:id", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+  app.get("/api/game-templates/:id", requireAuth, requirePermission("view_game_templates"), async (req, res) => {
     try {
       const tpl = await storage.getGameTemplate(req.params.id);
       if (!tpl) return res.status(404).json({ error: "Template not found" });
@@ -4723,7 +4723,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/game-templates", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+  app.post("/api/game-templates", requireAuth, requireAnyPermission("create_game_templates", "manage_game_config"), async (req, res) => {
     try {
       const body = z.object({
         name: z.string().min(1).max(100),
@@ -4747,7 +4747,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/game-templates/:id", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+  app.put("/api/game-templates/:id", requireAuth, requireAnyPermission("edit_game_templates", "manage_game_config"), async (req, res) => {
     try {
       const body = z.object({
         name: z.string().min(1).max(100).optional(),
@@ -4767,7 +4767,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/game-templates/:id", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+  app.delete("/api/game-templates/:id", requireAuth, requireAnyPermission("delete_game_templates", "manage_game_config"), async (req, res) => {
     try {
       const existing = await storage.getGameTemplate(req.params.id);
       if (!existing) return res.status(404).json({ error: "Template not found" });
@@ -4828,7 +4828,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Aggregates every image URL stored on the platform (map images, hero
   // images, opponent logos, scoreboard uploads) into a structure that the
   // Media Library UI can render. Read-only — never deletes anything.
-  app.get("/api/media-library", requireAuth, requireOrgRole("super_admin"), async (_req, res) => {
+  app.get("/api/media-library", requireAuth, requirePermission("view_media_library"), async (_req, res) => {
     try {
       const teamId = getTeamId();
       const [allGames, mapsRows, heroesRows, oppsRows, scoreboardRows, foldersRows, itemsRows] = await Promise.all([
@@ -4926,7 +4926,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ── Custom Media Folders (super-admin only, team-scoped) ──
-  app.post("/api/media-folders", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+  app.post("/api/media-folders", requireAuth, requireAnyPermission("manage_media", "upload_media"), async (req, res) => {
     try {
       const teamId = getTeamId();
       const data = insertMediaFolderSchema.parse(req.body);
@@ -4951,7 +4951,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/media-folders/:id", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+  app.put("/api/media-folders/:id", requireAuth, requireAnyPermission("manage_media"), async (req, res) => {
     try {
       const teamId = getTeamId();
       const { id } = req.params;
@@ -5008,7 +5008,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/media-folders/:id", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+  app.delete("/api/media-folders/:id", requireAuth, requireAnyPermission("delete_media", "manage_media"), async (req, res) => {
     try {
       const teamId = getTeamId();
       const { id } = req.params;
@@ -5045,7 +5045,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/media-items", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+  app.post("/api/media-items", requireAuth, requireAnyPermission("upload_media", "manage_media"), async (req, res) => {
     try {
       const teamId = getTeamId();
       const data = insertMediaItemSchema.parse(req.body);
@@ -5062,7 +5062,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/media-items/:id", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+  app.put("/api/media-items/:id", requireAuth, requireAnyPermission("manage_media"), async (req, res) => {
     try {
       const teamId = getTeamId();
       const { id } = req.params;
@@ -5078,7 +5078,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/media-items/:id", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+  app.delete("/api/media-items/:id", requireAuth, requireAnyPermission("delete_media", "manage_media"), async (req, res) => {
     try {
       const teamId = getTeamId();
       const { id } = req.params;
@@ -5260,7 +5260,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/games/:matchId/rounds", requireAuth, requirePermission("edit_events"), async (req, res) => {
+  app.put("/api/games/:matchId/rounds", requireAuth, requireAnyPermission("manage_scoreboard", "edit_events"), async (req, res) => {
     try {
       const { matchId } = req.params;
       const teamId = getTeamId();
@@ -5644,7 +5644,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/games/:id/player-stats", requireAuth, requirePermission("edit_events"), async (req, res) => {
+  app.post("/api/games/:id/player-stats", requireAuth, requireAnyPermission("manage_scoreboard", "edit_events"), async (req, res) => {
     try {
       const { id } = req.params;
       const { stats } = req.body;
@@ -6503,7 +6503,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/rosters/:id", requireAuth, requirePermission("manage_users"), async (req, res) => {
+  app.delete("/api/rosters/:id", requireAuth, requireAnyPermission("delete_roster", "manage_game_config", "manage_users"), async (req, res) => {
     try {
       const [deleted] = await db.delete(rosters)
         .where(eq(rosters.id, req.params.id))
@@ -6600,7 +6600,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return channel;
   }
 
-  app.get("/api/org-chat/channels", requireAuth, requirePermission("view_chat"), async (req, res) => {
+  app.get("/api/org-chat/channels", requireAuth, requireAnyPermission("view_management_chat", "view_chat"), async (req, res) => {
     try {
       const teamId = getTeamId();
       await ensureOrgDefaultChannel(teamId);
@@ -6613,15 +6613,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/org-chat/channels", requireAuth, async (req, res) => {
+  app.post("/api/org-chat/channels", requireAuth, requireAnyPermission("manage_management_channels", "manage_channels"), async (req, res) => {
     try {
       const teamId = getTeamId();
-      const userId = req.session.userId!;
-      const [currentUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-      const orgRole = currentUser?.orgRole || "";
-      if (orgRole !== "super_admin" && orgRole !== "org_admin") {
-        return res.status(403).json({ message: "Only Admin or Super Admin can create channels" });
-      }
       const name = (req.body?.name || "").trim();
       if (!name) return res.status(400).json({ message: "Channel name is required" });
       const [channel] = await db.insert(chatChannels).values({ teamId, name, gameId: null, rosterId: null }).returning();
@@ -6631,15 +6625,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/org-chat/channels/:id", requireAuth, async (req, res) => {
+  app.put("/api/org-chat/channels/:id", requireAuth, requireAnyPermission("manage_management_channels", "manage_channels"), async (req, res) => {
     try {
       const teamId = getTeamId();
-      const userId = req.session.userId!;
-      const [currentUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-      const orgRole = currentUser?.orgRole || "";
-      if (orgRole !== "super_admin" && orgRole !== "org_admin") {
-        return res.status(403).json({ message: "Only Admin or Super Admin can rename channels" });
-      }
       const { id } = req.params;
       const name = (req.body?.name || "").trim();
       if (!name) return res.status(400).json({ message: "Channel name is required" });
@@ -6654,15 +6642,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/org-chat/channels/:id", requireAuth, async (req, res) => {
+  app.delete("/api/org-chat/channels/:id", requireAuth, requireAnyPermission("manage_management_channels", "manage_channels"), async (req, res) => {
     try {
       const teamId = getTeamId();
-      const userId = req.session.userId!;
-      const [currentUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-      const orgRole = currentUser?.orgRole || "";
-      if (orgRole !== "super_admin" && orgRole !== "org_admin") {
-        return res.status(403).json({ message: "Only Admin or Super Admin can delete channels" });
-      }
       const { id } = req.params;
       const [existing] = await db.select().from(chatChannels)
         .where(and(eq(chatChannels.id, id), eq(chatChannels.teamId, teamId), isNull(chatChannels.gameId), isNull(chatChannels.rosterId)))
@@ -6678,7 +6660,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/org-chat/messages", requireAuth, requirePermission("view_chat"), async (req, res) => {
+  app.get("/api/org-chat/messages", requireAuth, requireAnyPermission("view_management_chat", "view_chat"), async (req, res) => {
     try {
       const teamId = getTeamId();
       const requestedChannelId = (req.query.channelId as string | undefined) || undefined;
@@ -6706,7 +6688,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/org-chat/messages", requireAuth, requirePermission("send_messages"), uploadChat.single("file"), async (req, res) => {
+  app.post("/api/org-chat/messages", requireAuth, requireAnyPermission("send_management_messages", "send_messages"), uploadChat.single("file"), async (req, res) => {
     try {
       const teamId = getTeamId();
       const content = req.body.content || req.body.message || "";
@@ -6764,8 +6746,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const orgRole = currentUser?.orgRole || "";
       const isAdmin = orgRole === "super_admin" || orgRole === "org_admin";
       const isOwnMessage = msg.userId === userId;
+      // Permission-based fallback for non-admin users.
+      let canDelete = isAdmin;
+      if (!canDelete && currentUser?.roleId) {
+        const [r] = await db.select().from(roles).where(eq(roles.id, currentUser.roleId)).limit(1);
+        const perms = ((r?.permissions as string[]) || []);
+        if (isOwnMessage && (perms.includes("delete_own_management_messages") || perms.includes("delete_own_messages"))) {
+          canDelete = true;
+        }
+        if (perms.includes("delete_any_management_message") || perms.includes("delete_any_message")) {
+          canDelete = true;
+        }
+      } else if (!canDelete && isOwnMessage) {
+        // No role at all but trying to delete own → fall back to historic behavior
+        canDelete = true;
+      }
 
-      if (!isAdmin && !isOwnMessage) {
+      if (!canDelete) {
         return res.status(403).json({ message: "You can only delete your own messages" });
       }
 
@@ -7126,19 +7123,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/rosters/:id", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
-    try {
-      const teamId = getTeamId();
-      const [deleted] = await db.delete(rosters)
-        .where(and(eq(rosters.id, req.params.id), eq(rosters.teamId, teamId)))
-        .returning();
-      if (!deleted) return res.status(404).json({ message: "Roster not found" });
-      res.json({ message: "Roster deleted" });
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
-    }
-  });
-
   // ==================== PLATFORM ROLE MANAGEMENT ====================
   app.get("/api/platform-roles", requireAuth, requirePermission("view_roles_tab"), async (req, res) => {
     try {
@@ -7324,7 +7308,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Super-admin only: full CRUD
-  app.get("/api/subscriptions", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+  app.get("/api/subscriptions", requireAuth, requirePermission("view_subscriptions"), async (req, res) => {
     try {
       const teamId = getTeamId();
       const subs = await db.select().from(subscriptions)
@@ -7343,7 +7327,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/subscriptions", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+  app.post("/api/subscriptions", requireAuth, requireAnyPermission("manage_subscriptions"), async (req, res) => {
     try {
       const data = insertSubscriptionSchema.parse(req.body);
       const teamId = getTeamId();
@@ -7363,7 +7347,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/subscriptions/:id", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+  app.put("/api/subscriptions/:id", requireAuth, requireAnyPermission("manage_subscriptions"), async (req, res) => {
     try {
       const teamId = getTeamId();
       const partial = insertSubscriptionSchema.partial().parse(req.body);
@@ -7382,7 +7366,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/subscriptions/:id", requireAuth, requireOrgRole("super_admin"), async (req, res) => {
+  app.delete("/api/subscriptions/:id", requireAuth, requireAnyPermission("manage_subscriptions"), async (req, res) => {
     try {
       const teamId = getTeamId();
       const [existing] = await db.select().from(subscriptions)

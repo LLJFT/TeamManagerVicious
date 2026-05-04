@@ -15,12 +15,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import {
   ChevronDown, ChevronRight, Copy, Check, Search, ImageIcon,
   FolderPlus, Trash2, Upload, Folder,
 } from "lucide-react";
+import type { Permission } from "@shared/schema";
 
 export type MediaItem = { id: string; name: string; url: string; rosterId?: string | null };
 export type MediaCategoryKey = "maps" | "heroes" | "opponents" | "scoreboards";
@@ -240,6 +242,8 @@ function NewFolderButton({
   testIdSuffix?: string;
 }) {
   const { toast } = useToast();
+  const { hasPermission } = useAuth();
+  const canCreate = hasPermission("manage_media" as Permission) || hasPermission("upload_media" as Permission);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [sortOrder, setSortOrder] = useState("0");
@@ -257,6 +261,8 @@ function NewFolderButton({
     },
     onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
   });
+
+  if (!canCreate) return null;
 
   const trigger = iconOnly ? (
     <Button
@@ -371,6 +377,9 @@ function CustomFolderCard({
   depth: number;
 }) {
   const { toast } = useToast();
+  const { hasPermission } = useAuth();
+  const canUpload = hasPermission("upload_media" as Permission) || hasPermission("manage_media" as Permission);
+  const canDelete = hasPermission("delete_media" as Permission) || hasPermission("manage_media" as Permission);
   const [open, setOpen] = useState(defaultOpen);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const subfolders = folder.subfolders ?? [];
@@ -435,42 +444,46 @@ function CustomFolderCard({
               iconOnly
               testIdSuffix={`sub-${folder.id}`}
             />
-            <ObjectUploader
-              buttonSize="sm"
-              buttonVariant="outline"
-              multiple
-              onUploaded={(r) => {
-                const url = r.url;
-                // Prefer the original filename (minus extension) over the
-                // randomized object-storage path so the gallery thumbnails
-                // are actually identifiable when batch-uploading.
-                const original = r.file?.name?.replace(/\.[^.]+$/, "");
-                const fallback = url.split("/").pop()?.replace(/\.[^.]+$/, "") || "image";
-                // Use a small monotonic increment per batch so files keep
-                // their pick order. NEVER stamp with Date.now() — the
-                // sort_order column is a Postgres int4 and overflows past
-                // 2^31-1 (2147483647), which trips drizzle-zod validation
-                // and rejects the upload as "too_big".
-                addItem.mutate({
-                  folderId: folder.id,
-                  name: original || fallback,
-                  url,
-                  sortOrder: folder.items.length + r.index,
-                });
-              }}
-              onError={(msg) => toast({ title: "Upload failed", description: msg, variant: "destructive" })}
-            >
-              <span className="flex items-center gap-1"><Upload className="h-3.5 w-3.5" /> Upload</span>
-            </ObjectUploader>
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={() => setConfirmDelete(true)}
-              data-testid={`button-delete-folder-${folder.id}`}
-              title="Delete folder"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+            {canUpload && (
+              <ObjectUploader
+                buttonSize="sm"
+                buttonVariant="outline"
+                multiple
+                onUploaded={(r) => {
+                  const url = r.url;
+                  // Prefer the original filename (minus extension) over the
+                  // randomized object-storage path so the gallery thumbnails
+                  // are actually identifiable when batch-uploading.
+                  const original = r.file?.name?.replace(/\.[^.]+$/, "");
+                  const fallback = url.split("/").pop()?.replace(/\.[^.]+$/, "") || "image";
+                  // Use a small monotonic increment per batch so files keep
+                  // their pick order. NEVER stamp with Date.now() — the
+                  // sort_order column is a Postgres int4 and overflows past
+                  // 2^31-1 (2147483647), which trips drizzle-zod validation
+                  // and rejects the upload as "too_big".
+                  addItem.mutate({
+                    folderId: folder.id,
+                    name: original || fallback,
+                    url,
+                    sortOrder: folder.items.length + r.index,
+                  });
+                }}
+                onError={(msg) => toast({ title: "Upload failed", description: msg, variant: "destructive" })}
+              >
+                <span className="flex items-center gap-1"><Upload className="h-3.5 w-3.5" /> Upload</span>
+              </ObjectUploader>
+            )}
+            {canDelete && (
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => setConfirmDelete(true)}
+                data-testid={`button-delete-folder-${folder.id}`}
+                title="Delete folder"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
         <CollapsibleContent>
@@ -548,6 +561,8 @@ function CustomImageTile({
   onDelete: () => void;
   testId: string;
 }) {
+  const { hasPermission } = useAuth();
+  const canDelete = hasPermission("delete_media" as Permission) || hasPermission("manage_media" as Permission);
   const handleClick = () => {
     if (onSelect) onSelect(item.url);
     else onCopy(item.url);
@@ -582,16 +597,18 @@ function CustomImageTile({
         >
           {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
         </Button>
-        <Button
-          size="icon"
-          variant="ghost"
-          className="h-6 w-6 shrink-0"
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          data-testid={`button-delete-${testId}`}
-          title="Remove image"
-        >
-          <Trash2 className="h-3 w-3" />
-        </Button>
+        {canDelete && (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-6 w-6 shrink-0"
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            data-testid={`button-delete-${testId}`}
+            title="Remove image"
+          >
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        )}
       </div>
     </Card>
   );

@@ -1,0 +1,218 @@
+Expand the permissions system to be fully comprehensive — both for Roster Roles 
+and for Home (User Permissions). Read everything before writing code.
+
+This is a large task. Plan it fully before touching any code.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OVERVIEW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+There are two separate permission scopes in the platform:
+
+1. ROSTER PERMISSIONS — control what a role can do INSIDE a specific roster
+   (visible in the roster role editor modal — image 2)
+   Currently has: Schedule, Events, Results, Players, Statistics, Chat, Staff, Dashboard, Home
+   MISSING: many granular permissions for every roster feature
+
+2. HOME PERMISSIONS — control what a role can access at the platform HOME level
+   (visible in User Permissions tab — image 1)
+   Currently has: basic view/manage for Dashboard, Calendar, Users, Roles, Game Access, Chat, Settings
+   MISSING: many granular permissions
+
+Both must be expanded to cover EVERY feature and action available in the platform.
+The goal: Super Admin can control every single permission per role with full granularity.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 1 — ROSTER PERMISSIONS: Full Expansion
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Add the following permission groups and individual permissions to the Roster role editor.
+These map to every section and action inside a roster.
+
+SCHEDULE
+- view schedule
+- edit own availability
+- edit all availability
+- manage schedule players
+
+EVENTS
+- view events
+- create events
+- edit events
+- delete events
+
+RESULTS
+- view results
+- add results
+- edit results
+- delete results
+
+PLAYERS
+- view players
+- manage players tab (add/remove/edit players in roster)
+
+STATISTICS
+- view statistics (overview)
+- view player stats
+- view history
+- view compare
+- view opponents
+- view draft stats
+- view map insights
+- view hero insights
+- view trends
+- view team leaderboard
+- view player leaderboard
+- view team comps
+
+GAMES & SCOREBOARD
+- view games
+- create games
+- edit games
+- delete games
+- view scoreboard
+- manage scoreboard (add/edit rounds and scores)
+- upload OCR scan (import from scoreboard)
+- confirm OCR import
+- delete OCR scan
+
+CHAT
+- view chat
+- send messages
+- delete own messages
+- delete any message
+- manage channels
+
+STAFF
+- view staff
+- manage staff (add/edit/remove)
+
+DASHBOARD (within roster)
+- view dashboard
+- manage users (approve/reject/assign roles within this roster)
+- manage roles (create/edit/delete roster roles)
+- manage game config (maps, modes, heroes, sides, stat fields)
+- manage stat fields
+- view activity log
+- manage opponents (add/edit/delete opponent rosters and players)
+
+SETTINGS (within roster)
+- view settings
+- edit roster name and branding (logo, colors)
+- manage game modes and maps
+- manage seasons
+- manage notification settings
+- delete roster (danger zone)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 2 — HOME PERMISSIONS: Full Expansion
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Add the following permission groups and individual permissions to the Home permission editor.
+These control what the user can access at the platform/home level (outside any specific roster).
+
+NAVIGATION
+- view games list (see all games/rosters they have access to)
+- view overview page
+- view calendar
+
+USERS
+- view users tab
+- manage users (invite, approve, reject, deactivate)
+- assign roles to users
+- view user profiles
+
+ROLES
+- view roles tab
+- manage roles (create/edit/delete home permission roles)
+- assign home roles to users
+
+GAME ACCESS
+- view game access tab
+- manage game access (assign users to rosters)
+
+GAME TEMPLATES
+- view game templates
+- create game templates
+- edit game templates
+- delete game templates
+
+MEDIA LIBRARY
+- view media library
+- upload media
+- delete media
+- manage media (organize, rename)
+
+SUBSCRIPTIONS
+- view subscriptions
+- manage subscriptions (upgrade/downgrade/cancel)
+
+MANAGEMENT CHAT
+- view management chat
+- send messages in management chat
+- delete own messages
+- delete any message
+- manage channels
+
+SETTINGS (home/platform level)
+- view settings
+- manage platform settings (name, branding, language, timezone)
+- manage notification settings
+- manage integrations (Discord, Twitch, etc.)
+
+CALENDAR
+- view calendar
+- view upcoming events
+- manage calendar events (create/edit/delete)
+
+ACTIVITY LOG
+- view activity log
+- clear activity log
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 3 — ENFORCEMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Every new permission must be ENFORCED — not just stored.
+
+For each new permission key:
+A) Add it to the permissions schema/type definitions
+B) Add it to the default role seeds (Super Admin gets all = true, others get sensible defaults)
+C) Enforce it in the relevant API route(s) with a permission check
+D) Enforce it in the UI by hiding/disabling the relevant button, tab, or section
+   when the user lacks the permission
+
+Do NOT just add checkboxes in the UI without wiring them to actual checks.
+
+IMPORTANT:
+- Do NOT break any existing permissions that are already working
+- Do NOT reset existing role configurations
+- New permissions should default to FALSE for existing roles 
+  (except Super Admin which always gets all = true)
+- Add the new permissions as additional fields — do not replace existing ones
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 4 — UI GROUPING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The permission editor UI must display permissions grouped by section.
+Each group has:
+- A section header (e.g. "GAMES & SCOREBOARD")
+- Checkboxes for each permission in that group
+- A "Select all" toggle per group to enable/disable all permissions in that group at once
+
+Currently the UI shows all permissions as a flat grid.
+Reorganize into the grouped sections defined above.
+Keep the existing visual style (checkboxes, dark theme) — just add grouping and "Select all".
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REPORT BACK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. List all new permission keys added (roster + home)
+2. Confirm schema/type definitions updated
+3. Confirm Super Admin gets all new permissions = true by default
+4. Confirm existing roles are NOT reset (new perms default to false for them)
+5. Confirm at least 3 examples of enforcement (API route check + UI hide) for new permissions
+6. Confirm permission groups with "Select all" toggle are shown in the UI
+7. List all files changed

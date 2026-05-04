@@ -5,7 +5,7 @@ import connectPgSimple from "connect-pg-simple";
 import { eq, and, sql, isNull, or } from "drizzle-orm";
 import { db, pool } from "./db";
 import { getTeamId } from "./storage";
-import { roles, users, allPermissions, supportedGames, userGameAssignments, subscriptions, SUPPORTED_GAMES_LIST, type Permission, type SubscriptionStatus } from "@shared/schema";
+import { roles, users, allPermissions, dangerousPermissions, supportedGames, userGameAssignments, subscriptions, SUPPORTED_GAMES_LIST, type Permission, type SubscriptionStatus } from "@shared/schema";
 import { desc } from "drizzle-orm";
 import type { Express, Request, Response, NextFunction } from "express";
 
@@ -190,8 +190,13 @@ export async function bootstrapDefaultAdmin() {
   }
 
   const ownerPermissions = [...allPermissions] as Permission[];
+  // Admin role gets every permission EXCEPT the dangerous/privileged set
+  // (manage_roles, delete_roster, clear_activity_log, manage_subscriptions,
+  //  manage_integrations, manage_platform_branding, delete_game_templates,
+  //  delete_media). Those remain super_admin/org_admin-only.
+  const dangerousSet = new Set<string>(dangerousPermissions);
   const adminPermissions = allPermissions.filter(
-    (p) => p !== "manage_roles"
+    (p) => !dangerousSet.has(p)
   ) as Permission[];
   const memberPermissions: Permission[] = [];
 
@@ -345,6 +350,59 @@ export function requirePermission(permission: string) {
 
     const permissions = role.permissions as string[];
     if (!permissions.includes(permission)) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    next();
+  };
+}
+
+/**
+ * Like `requirePermission`, but passes if the user's role has ANY of the listed
+ * permission keys. Useful for backward-compatible re-gating: when migrating a
+ * route from a coarse permission (e.g. `edit_events`) to a granular one
+ * (e.g. `edit_games`), wrap with `requireAnyPermission("edit_games", "edit_events")`
+ * so existing roles that were granted the coarse key keep working AND new roles
+ * can be granted just the granular key.
+ */
+export function requireAnyPermission(...permissions: string[]) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.session.userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const teamId = getTeamId();
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(and(eq(users.id, req.session.userId), eq(users.teamId, teamId)))
+      .limit(1);
+
+    if (!user) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    if (user.orgRole === "super_admin" || user.orgRole === "org_admin") {
+      return next();
+    }
+
+    if (!user.roleId) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const [role] = await db
+      .select()
+      .from(roles)
+      .where(and(eq(roles.id, user.roleId), eq(roles.teamId, teamId)))
+      .limit(1);
+
+    if (!role) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const userPerms = (role.permissions as string[]) || [];
+    const hasAny = permissions.some((p) => userPerms.includes(p));
+    if (!hasAny) {
       return res.status(403).json({ message: "Forbidden" });
     }
 

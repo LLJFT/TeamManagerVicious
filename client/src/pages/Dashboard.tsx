@@ -29,7 +29,7 @@ import type {
   AvailabilitySlot, RosterRole, Permission, EventCategory, EventSubType,
   Side
 } from "@shared/schema";
-import { allPermissions, permissionCategories } from "@shared/schema";
+import { allPermissions, permissionCategories, permissionLabels } from "@shared/schema";
 import { queryClient, apiRequest, getCurrentGameId, getCurrentRosterId } from "@/lib/queryClient";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -1239,8 +1239,10 @@ export default function Dashboard() {
     if (editingRole) {
       updateRoleMutation.mutate({ id: editingRole.id, role: data });
     } else {
-      const homePerms = new Set(
-        permissionCategories.find(c => c.category === "home")?.permissions ?? []
+      const homePerms = new Set<string>(
+        permissionCategories
+          .filter(c => c.scope === "home")
+          .flatMap(c => c.permissions as readonly string[])
       );
       const sanitized = {
         ...data,
@@ -2315,31 +2317,58 @@ export default function Dashboard() {
                           </CardHeader>
                           {!isOwner && (
                             <CardContent>
-                              <div className="space-y-4">
-                                {permissionCategories.map((cat) => (
-                                  <div key={cat.category}>
-                                    <h4 className="text-sm font-medium text-muted-foreground mb-2 capitalize">{cat.category}</h4>
-                                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                                      {cat.permissions.map((perm) => (
-                                        <div key={perm} className="flex items-center gap-2">
-                                          <Checkbox
-                                            checked={perms.includes(perm)}
-                                            onCheckedChange={(checked) => {
-                                              const newPerms = checked
-                                                ? [...perms, perm]
-                                                : perms.filter(p => p !== perm);
-                                              updateRoleMutation.mutate({ id: role.id, role: { permissions: newPerms } });
-                                            }}
-                                            data-testid={`checkbox-perm-${role.id}-${perm}`}
-                                          />
-                                          <label className="text-sm text-foreground cursor-pointer">
-                                            {perm.replace(/_/g, " ")}
+                              <div className="space-y-5">
+                                {permissionCategories
+                                  .filter((c) => c.scope === "roster" || c.scope === "both")
+                                  .map((cat) => {
+                                    const allOn = cat.permissions.every((p) => perms.includes(p));
+                                    const someOn = cat.permissions.some((p) => perms.includes(p));
+                                    return (
+                                      <div key={cat.category}>
+                                        <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+                                          <h4 className="text-sm font-semibold text-foreground">{cat.label}</h4>
+                                          <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+                                            <Checkbox
+                                              checked={allOn ? true : someOn ? "indeterminate" : false}
+                                              onCheckedChange={() => {
+                                                const newPerms = allOn
+                                                  ? perms.filter((p) => !cat.permissions.includes(p as Permission))
+                                                  : Array.from(new Set([...perms, ...cat.permissions]));
+                                                updateRoleMutation.mutate({ id: role.id, role: { permissions: newPerms } });
+                                              }}
+                                              data-testid={`role-${role.id}-select-all-${cat.category}`}
+                                            />
+                                            <span>Select all</span>
                                           </label>
                                         </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                ))}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                                          {cat.permissions.map((perm) => {
+                                            const meta = permissionLabels[perm as Permission];
+                                            return (
+                                              <label key={perm} className="flex items-start gap-2 text-sm cursor-pointer">
+                                                <Checkbox
+                                                  checked={perms.includes(perm)}
+                                                  onCheckedChange={(checked) => {
+                                                    const newPerms = checked
+                                                      ? [...perms, perm]
+                                                      : perms.filter(p => p !== perm);
+                                                    updateRoleMutation.mutate({ id: role.id, role: { permissions: newPerms } });
+                                                  }}
+                                                  data-testid={`checkbox-perm-${role.id}-${perm}`}
+                                                />
+                                                <span className="leading-tight">
+                                                  <span className="text-xs text-foreground">{meta?.label ?? perm}</span>
+                                                  {meta?.description && (
+                                                    <span className="block text-[11px] text-muted-foreground">{meta.description}</span>
+                                                  )}
+                                                </span>
+                                              </label>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
                               </div>
                             </CardContent>
                           )}
@@ -2925,43 +2954,59 @@ export default function Dashboard() {
                 <FormField control={roleForm.control} name="permissions" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Permissions</FormLabel>
-                    <div className="space-y-4 mt-2">
-                      {permissionCategories.map((cat) => {
-                        const isHome = cat.category === "home";
-                        const isCreatingNew = !editingRole;
-                        const lockedOff = isHome && isCreatingNew;
-                        return (
-                          <div key={cat.category}>
-                            <h4 className="text-sm font-medium text-muted-foreground mb-2 capitalize">
-                              {cat.category}
-                              {lockedOff && (
-                                <span className="ml-2 text-xs font-normal italic">
-                                  (off by default for new roster roles — edit role after creation to grant)
-                                </span>
-                              )}
-                            </h4>
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                              {cat.permissions.map((perm) => (
-                                <div key={perm} className="flex items-center gap-2">
+                    <div className="space-y-5 mt-2 max-h-[60vh] overflow-y-auto pr-2">
+                      {permissionCategories
+                        .filter((c) => c.scope === "roster" || c.scope === "both")
+                        .map((cat) => {
+                          const selected: string[] = field.value || [];
+                          const allOn = cat.permissions.every((p) => selected.includes(p));
+                          const someOn = cat.permissions.some((p) => selected.includes(p));
+                          return (
+                            <div key={cat.category}>
+                              <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+                                <h4 className="text-sm font-semibold text-foreground">{cat.label}</h4>
+                                <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
                                   <Checkbox
-                                    checked={lockedOff ? false : field.value.includes(perm)}
-                                    disabled={lockedOff}
-                                    onCheckedChange={(checked) => {
-                                      if (lockedOff) return;
-                                      const newVal = checked
-                                        ? [...field.value, perm]
-                                        : field.value.filter((p: string) => p !== perm);
+                                    checked={allOn ? true : someOn ? "indeterminate" : false}
+                                    onCheckedChange={() => {
+                                      const newVal = allOn
+                                        ? selected.filter((p) => !cat.permissions.includes(p as Permission))
+                                        : Array.from(new Set([...selected, ...cat.permissions]));
                                       field.onChange(newVal);
                                     }}
-                                    data-testid={`checkbox-role-perm-${perm}`}
+                                    data-testid={`select-all-${cat.category}`}
                                   />
-                                  <label className="text-sm text-foreground cursor-pointer">{perm.replace(/_/g, " ")}</label>
-                                </div>
-                              ))}
+                                  <span>Select all</span>
+                                </label>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {cat.permissions.map((perm) => {
+                                  const meta = permissionLabels[perm as Permission];
+                                  return (
+                                    <label key={perm} className="flex items-start gap-2 text-sm cursor-pointer">
+                                      <Checkbox
+                                        checked={selected.includes(perm)}
+                                        onCheckedChange={(checked) => {
+                                          const newVal = checked
+                                            ? [...selected, perm]
+                                            : selected.filter((p: string) => p !== perm);
+                                          field.onChange(newVal);
+                                        }}
+                                        data-testid={`checkbox-role-perm-${perm}`}
+                                      />
+                                      <span className="leading-tight">
+                                        <span className="text-xs text-foreground">{meta?.label ?? perm}</span>
+                                        {meta?.description && (
+                                          <span className="block text-[11px] text-muted-foreground">{meta.description}</span>
+                                        )}
+                                      </span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
                     </div>
                     <FormMessage />
                   </FormItem>

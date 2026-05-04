@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useState, useEffect, useMemo } from "react";
 import { useGame } from "@/hooks/use-game";
+import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +24,9 @@ export default function OcrScanReview() {
   const { fullSlug } = useGame();
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const { hasPermission } = useAuth();
+  const canConfirm = hasPermission("confirm_ocr_import" as any) || hasPermission("edit_events" as any);
+  const canDiscard = hasPermission("delete_ocr_scan" as any) || hasPermission("edit_events" as any);
 
   const { data: scan, isLoading } = useQuery<ScoreboardOcrScan>({
     queryKey: ["/api/ocr-scans", scanId],
@@ -439,15 +443,17 @@ export default function OcrScanReview() {
             />
             Replace existing
           </label>
-          <Button
-            variant="ghost"
-            onClick={() => discardMutation.mutate()}
-            disabled={discardMutation.isPending || scan.status === "confirmed"}
-            data-testid="button-discard-scan"
-          >
-            <XCircle className="h-4 w-4 mr-1" />
-            {discardMutation.isPending ? "Discarding…" : "Discard scan"}
-          </Button>
+          {canDiscard && (
+            <Button
+              variant="ghost"
+              onClick={() => discardMutation.mutate()}
+              disabled={discardMutation.isPending || scan.status === "confirmed"}
+              data-testid="button-discard-scan"
+            >
+              <XCircle className="h-4 w-4 mr-1" />
+              {discardMutation.isPending ? "Discarding…" : "Discard scan"}
+            </Button>
+          )}
           <Button
             variant="outline"
             onClick={() => draft && saveMutation.mutate(draft)}
@@ -457,6 +463,7 @@ export default function OcrScanReview() {
             <Save className="h-4 w-4 mr-1" />
             {saveMutation.isPending ? "Saving…" : "Save draft"}
           </Button>
+          {canConfirm && (
           <Button
             onClick={async () => {
               if (!draft) return;
@@ -484,6 +491,7 @@ export default function OcrScanReview() {
                   ? "Replace & import"
                   : "Confirm import (merge)"}
           </Button>
+          )}
         </div>
       </div>
 

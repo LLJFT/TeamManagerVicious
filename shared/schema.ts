@@ -25,6 +25,7 @@ export const orgRoleLabels: Record<OrgRole, string> = {
 };
 
 export const allPermissions = [
+  // ============ EXISTING KEYS (preserve order — do not rename) ============
   "view_schedule",
   "edit_own_availability",
   "edit_all_availability",
@@ -64,55 +65,434 @@ export const allPermissions = [
   "view_game_access",
   "view_settings",
   "manage_settings",
+
+  // Legacy keys referenced in server/routes.ts but previously omitted from
+  // the central list — including for completeness so the editor can render them.
+  "add_players",
+  "edit_players",
+  "remove_players",
+
+  // ============ NEW (Roster) — STATISTICS granular ============
+  "view_draft_stats",
+  "view_map_insights",
+  "view_hero_insights",
+  "view_trends",
+  "view_team_leaderboard",
+  "view_player_leaderboard",
+  "view_team_comps",
+
+  // ============ NEW (Roster) — GAMES & SCOREBOARD ============
+  "view_games",
+  "create_games",
+  "edit_games",
+  "delete_games",
+  "view_scoreboard",
+  "manage_scoreboard",
+  "upload_ocr_scan",
+  "confirm_ocr_import",
+  "delete_ocr_scan",
+
+  // ============ NEW (Roster) — DASHBOARD expansion ============
+  "manage_opponents",
+
+  // ============ NEW (Roster) — SETTINGS within roster ============
+  "view_roster_settings",
+  "edit_roster_branding",
+  "manage_modes_and_maps",
+  "manage_seasons",
+  "manage_notification_settings",
+  "delete_roster",
+
+  // ============ NEW (Home) — NAVIGATION ============
+  "view_games_list",
+  "view_overview_page",
+
+  // ============ NEW (Home) — USERS ============
+  "assign_user_roles",
+  "view_user_profiles",
+
+  // ============ NEW (Home) — ROLES ============
+  "assign_home_roles",
+
+  // ============ NEW (Home) — GAME ACCESS ============
+  "manage_game_access",
+
+  // ============ NEW (Home) — GAME TEMPLATES ============
+  "view_game_templates",
+  "create_game_templates",
+  "edit_game_templates",
+  "delete_game_templates",
+
+  // ============ NEW (Home) — MEDIA LIBRARY ============
+  "view_media_library",
+  "upload_media",
+  "delete_media",
+  "manage_media",
+
+  // ============ NEW (Home) — SUBSCRIPTIONS ============
+  "view_subscriptions",
+  "manage_subscriptions",
+
+  // ============ NEW (Home) — MANAGEMENT CHAT ============
+  "view_management_chat",
+  "send_management_messages",
+  "delete_own_management_messages",
+  "delete_any_management_message",
+  "manage_management_channels",
+
+  // ============ NEW (Home) — SETTINGS (platform-level) ============
+  "manage_platform_branding",
+  "manage_platform_notifications",
+  "manage_integrations",
+
+  // ============ NEW (Home) — CALENDAR ============
+  "manage_calendar_events",
+
+  // ============ NEW (Home) — ACTIVITY LOG ============
+  "clear_activity_log",
 ] as const;
 
 export type Permission = typeof allPermissions[number];
 
-export const permissionCategories: { category: string; label: string; permissions: Permission[] }[] = [
+/**
+ * Permissions considered "destructive / privileged" — even when seeding the
+ * default Admin system role with a wide set of permissions, these are excluded.
+ * Only Super Admin / Management get them implicitly via org-role bypass.
+ */
+export const dangerousPermissions: Permission[] = [
+  "manage_roles",
+  "delete_roster",
+  "clear_activity_log",
+  "manage_subscriptions",
+  "manage_integrations",
+  "manage_platform_branding",
+  "delete_game_templates",
+  "delete_media",
+];
+
+/**
+ * Human-readable label (and optional description) for each permission key.
+ * Used by both the Home and Roster permission editors so the UI no longer
+ * relies on `key.replace(/_/g, " ")` heuristics.
+ */
+export const permissionLabels: Record<Permission, { label: string; description?: string }> = {
+  // Schedule
+  view_schedule: { label: "View Schedule" },
+  edit_own_availability: { label: "Edit Own Availability" },
+  edit_all_availability: { label: "Edit All Availability" },
+  manage_schedule_players: { label: "Manage Schedule Players" },
+  // Events
+  view_events: { label: "View Events" },
+  create_events: { label: "Create Events" },
+  edit_events: { label: "Edit Events" },
+  delete_events: { label: "Delete Events" },
+  // Results
+  view_results: { label: "View Results" },
+  add_results: { label: "Add Results" },
+  edit_results: { label: "Edit Results" },
+  delete_results: { label: "Delete Results" },
+  // Players
+  view_players: { label: "View Players" },
+  manage_players_tab: { label: "Manage Players Tab" },
+  add_players: { label: "Add Players" },
+  edit_players: { label: "Edit Players" },
+  remove_players: { label: "Remove Players" },
+  // Statistics
+  view_statistics: { label: "View Statistics (overview)" },
+  view_player_stats: { label: "View Player Stats" },
+  view_history: { label: "View History" },
+  view_compare: { label: "View Compare" },
+  view_opponents: { label: "View Opponents" },
+  view_draft_stats: { label: "View Draft Stats" },
+  view_map_insights: { label: "View Map Insights" },
+  view_hero_insights: { label: "View Hero Insights" },
+  view_trends: { label: "View Trends" },
+  view_team_leaderboard: { label: "View Team Leaderboard" },
+  view_player_leaderboard: { label: "View Player Leaderboard" },
+  view_team_comps: { label: "View Team Comps" },
+  // Games & Scoreboard
+  view_games: { label: "View Games" },
+  create_games: { label: "Create Games" },
+  edit_games: { label: "Edit Games" },
+  delete_games: { label: "Delete Games" },
+  view_scoreboard: { label: "View Scoreboard" },
+  manage_scoreboard: { label: "Manage Scoreboard", description: "Add/edit rounds and scores" },
+  upload_ocr_scan: { label: "Upload OCR Scan", description: "Import from scoreboard image" },
+  confirm_ocr_import: { label: "Confirm OCR Import" },
+  delete_ocr_scan: { label: "Delete OCR Scan" },
+  // Chat (roster)
+  view_chat: { label: "View Chat" },
+  send_messages: { label: "Send Messages" },
+  delete_own_messages: { label: "Delete Own Messages" },
+  delete_any_message: { label: "Delete Any Message" },
+  manage_channels: { label: "Manage Channels" },
+  // Staff
+  view_staff: { label: "View Staff" },
+  manage_staff: { label: "Manage Staff" },
+  // Roster Dashboard
+  view_dashboard: { label: "View Dashboard" },
+  manage_users: { label: "Manage Users" },
+  manage_roles: { label: "Manage Roles" },
+  manage_game_config: { label: "Manage Game Config", description: "Maps, modes, heroes, sides, stat fields" },
+  manage_stat_fields: { label: "Manage Stat Fields" },
+  view_activity_log: { label: "View Activity Log" },
+  manage_opponents: { label: "Manage Opponents", description: "Add/edit/delete opponent rosters and players" },
+  // Roster Settings
+  view_roster_settings: { label: "View Roster Settings" },
+  edit_roster_branding: { label: "Edit Roster Branding", description: "Roster name, logo, colors" },
+  manage_modes_and_maps: { label: "Manage Game Modes & Maps" },
+  manage_seasons: { label: "Manage Seasons" },
+  manage_notification_settings: { label: "Manage Notification Settings" },
+  delete_roster: { label: "Delete Roster", description: "Danger zone" },
+  // Home Navigation
+  view_games_list: { label: "View Games List" },
+  view_overview_page: { label: "View Overview Page" },
+  view_calendar: { label: "View Calendar" },
+  view_upcoming_events: { label: "View Upcoming Events" },
+  // Home Users
+  view_users_tab: { label: "View Users Tab" },
+  assign_user_roles: { label: "Assign Roles to Users" },
+  view_user_profiles: { label: "View User Profiles" },
+  // Home Roles
+  view_roles_tab: { label: "View Roles Tab" },
+  assign_home_roles: { label: "Assign Home Roles" },
+  // Home Game Access
+  view_game_access: { label: "View Game Access Tab" },
+  manage_game_access: { label: "Manage Game Access" },
+  // Game Templates
+  view_game_templates: { label: "View Game Templates" },
+  create_game_templates: { label: "Create Game Templates" },
+  edit_game_templates: { label: "Edit Game Templates" },
+  delete_game_templates: { label: "Delete Game Templates" },
+  // Media Library
+  view_media_library: { label: "View Media Library" },
+  upload_media: { label: "Upload Media" },
+  delete_media: { label: "Delete Media" },
+  manage_media: { label: "Manage Media", description: "Organize and rename" },
+  // Subscriptions
+  view_subscriptions: { label: "View Subscriptions" },
+  manage_subscriptions: { label: "Manage Subscriptions" },
+  // Management Chat
+  view_management_chat: { label: "View Management Chat" },
+  send_management_messages: { label: "Send Messages in Management Chat" },
+  delete_own_management_messages: { label: "Delete Own Messages (Mgmt Chat)" },
+  delete_any_management_message: { label: "Delete Any Message (Mgmt Chat)" },
+  manage_management_channels: { label: "Manage Management Chat Channels" },
+  // Home Settings
+  view_settings: { label: "View Settings" },
+  manage_settings: { label: "Manage Settings" },
+  manage_platform_branding: { label: "Manage Platform Branding", description: "Name, logo, colors, language, timezone" },
+  manage_platform_notifications: { label: "Manage Platform Notification Settings" },
+  manage_integrations: { label: "Manage Integrations", description: "Discord, Twitch, etc." },
+  // Home Calendar
+  manage_calendar_events: { label: "Manage Calendar Events" },
+  // Home Activity Log
+  clear_activity_log: { label: "Clear Activity Log" },
+};
+
+/**
+ * Permission categories with `scope` so the same `allPermissions` source of
+ * truth can drive BOTH editors:
+ *  - `scope: "roster"` → only shown in the roster role editor (Dashboard.tsx)
+ *  - `scope: "home"`   → only shown in the home/platform role editor (RolesPage.tsx)
+ *  - `scope: "both"`   → shown in both editors
+ *
+ * A handful of keys (e.g. `view_activity_log`, `manage_users`, `manage_roles`)
+ * are intentionally rendered in both editors via `scope: "both"` because they
+ * govern the same underlying permission whether the user is editing a roster
+ * role or a home role.
+ */
+export type PermissionScope = "roster" | "home" | "both";
+
+export const permissionCategories: {
+  category: string;
+  label: string;
+  scope: PermissionScope;
+  permissions: Permission[];
+}[] = [
+  // ─────────── ROSTER ───────────
   {
     category: "schedule",
     label: "Schedule",
+    scope: "roster",
     permissions: ["view_schedule", "edit_own_availability", "edit_all_availability", "manage_schedule_players"],
   },
   {
     category: "events",
     label: "Events",
+    scope: "roster",
     permissions: ["view_events", "create_events", "edit_events", "delete_events"],
   },
   {
     category: "results",
     label: "Results",
+    scope: "roster",
     permissions: ["view_results", "add_results", "edit_results", "delete_results"],
   },
   {
     category: "players",
     label: "Players",
-    permissions: ["view_players", "manage_players_tab"],
+    scope: "roster",
+    permissions: ["view_players", "manage_players_tab", "add_players", "edit_players", "remove_players"],
   },
   {
     category: "statistics",
     label: "Statistics",
-    permissions: ["view_statistics", "view_player_stats", "view_history", "view_compare", "view_opponents"],
+    scope: "roster",
+    permissions: [
+      "view_statistics",
+      "view_player_stats",
+      "view_history",
+      "view_compare",
+      "view_opponents",
+      "view_draft_stats",
+      "view_map_insights",
+      "view_hero_insights",
+      "view_trends",
+      "view_team_leaderboard",
+      "view_player_leaderboard",
+      "view_team_comps",
+    ],
+  },
+  {
+    category: "games_scoreboard",
+    label: "Games & Scoreboard",
+    scope: "roster",
+    permissions: [
+      "view_games",
+      "create_games",
+      "edit_games",
+      "delete_games",
+      "view_scoreboard",
+      "manage_scoreboard",
+      "upload_ocr_scan",
+      "confirm_ocr_import",
+      "delete_ocr_scan",
+    ],
   },
   {
     category: "chat",
     label: "Chat",
+    scope: "roster",
     permissions: ["view_chat", "send_messages", "delete_own_messages", "delete_any_message", "manage_channels"],
   },
   {
     category: "staff",
     label: "Staff",
+    scope: "roster",
     permissions: ["view_staff", "manage_staff"],
   },
   {
-    category: "dashboard",
-    label: "Dashboard",
-    permissions: ["view_dashboard", "manage_users", "manage_roles", "manage_game_config", "manage_stat_fields", "view_activity_log"],
+    category: "roster_dashboard",
+    label: "Dashboard (within roster)",
+    scope: "roster",
+    permissions: [
+      "view_dashboard",
+      "manage_game_config",
+      "manage_stat_fields",
+      "manage_opponents",
+    ],
   },
   {
-    category: "home",
-    label: "Home",
-    permissions: ["view_calendar", "view_upcoming_events", "view_users_tab", "view_roles_tab", "view_game_access", "view_settings", "manage_settings"],
+    category: "roster_settings",
+    label: "Settings (within roster)",
+    scope: "roster",
+    permissions: [
+      "view_roster_settings",
+      "edit_roster_branding",
+      "manage_modes_and_maps",
+      "manage_seasons",
+      "manage_notification_settings",
+      "delete_roster",
+    ],
+  },
+
+  // ─────────── BOTH (shown in roster + home editors) ───────────
+  {
+    category: "shared_admin",
+    label: "User & Role Administration",
+    scope: "both",
+    permissions: ["manage_users", "manage_roles", "view_activity_log"],
+  },
+
+  // ─────────── HOME / PLATFORM ───────────
+  {
+    category: "home_navigation",
+    label: "Navigation",
+    scope: "home",
+    permissions: ["view_games_list", "view_overview_page", "view_calendar", "view_upcoming_events"],
+  },
+  {
+    category: "home_users",
+    label: "Users",
+    scope: "home",
+    permissions: ["view_users_tab", "assign_user_roles", "view_user_profiles"],
+  },
+  {
+    category: "home_roles",
+    label: "Roles",
+    scope: "home",
+    permissions: ["view_roles_tab", "assign_home_roles"],
+  },
+  {
+    category: "home_game_access",
+    label: "Game Access",
+    scope: "home",
+    permissions: ["view_game_access", "manage_game_access"],
+  },
+  {
+    category: "home_game_templates",
+    label: "Game Templates",
+    scope: "home",
+    permissions: ["view_game_templates", "create_game_templates", "edit_game_templates", "delete_game_templates"],
+  },
+  {
+    category: "home_media",
+    label: "Media Library",
+    scope: "home",
+    permissions: ["view_media_library", "upload_media", "delete_media", "manage_media"],
+  },
+  {
+    category: "home_subscriptions",
+    label: "Subscriptions",
+    scope: "home",
+    permissions: ["view_subscriptions", "manage_subscriptions"],
+  },
+  {
+    category: "home_management_chat",
+    label: "Management Chat",
+    scope: "home",
+    permissions: [
+      "view_management_chat",
+      "send_management_messages",
+      "delete_own_management_messages",
+      "delete_any_management_message",
+      "manage_management_channels",
+    ],
+  },
+  {
+    category: "home_settings",
+    label: "Settings (platform)",
+    scope: "home",
+    permissions: [
+      "view_settings",
+      "manage_settings",
+      "manage_platform_branding",
+      "manage_platform_notifications",
+      "manage_integrations",
+    ],
+  },
+  {
+    category: "home_calendar_management",
+    label: "Calendar Management",
+    scope: "home",
+    permissions: ["manage_calendar_events"],
+  },
+  {
+    category: "home_activity_log",
+    label: "Activity Log",
+    scope: "home",
+    permissions: ["clear_activity_log"],
   },
 ];
 
