@@ -348,11 +348,14 @@ export function evaluateScoreboardSignal(
   if (!looksLikeScoreboard) {
     return { isScoreboard: false, confidence, reason: "no_scoreboard_signal", partial: false, signals };
   }
+  // Heroes are manual-only post-Vision (Part 5 of the OCR fix), so we no
+  // longer require matched heroes to call a scan "complete". A scoreboard
+  // is partial when overall confidence is low, very few rows were
+  // recovered, or fewer than 2 players matched on either side.
   const partial =
     confidence < 0.55 ||
     rowCount < 2 ||
-    (matchedPlayers + matchedOpponents) < 2 ||
-    matchedHeroes < 2;
+    (matchedPlayers + matchedOpponents) < 2;
   return {
     isScoreboard: true,
     confidence,

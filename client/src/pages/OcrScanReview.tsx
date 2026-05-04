@@ -78,43 +78,41 @@ export default function OcrScanReview() {
 
   const [draft, setDraft] = useState<OcrParsedCandidate | null>(null);
   const [overwriteMode, setOverwriteMode] = useState(false);
+  // Tracks whether the Part 2 pre-populate effect has fired for this
+  // draft. Without this guard a refetch of `game` or `gameRounds` could
+  // re-apply defaults on top of a coach's manual edits.
+  const [prePopulated, setPrePopulated] = useState(false);
   useEffect(() => {
     if (scan && !draft) {
       const c = (scan.editedCandidate || scan.parsedCandidate) as OcrParsedCandidate | null;
       setDraft(c ? structuredClone(c) : { rows: [] });
+      setPrePopulated(false);
     }
   }, [scan, draft]);
 
   // Part 2: pre-populate Map / Side from existing game data when the
   // scan candidate didn't already pin them. game.mapId is the canonical
   // source for the map; the first round's sideId is the canonical source
-  // for "which side were we on this map". Only fires once per draft load
-  // and never overwrites a value the coach already set.
+  // for "which side were we on this map". Functional setDraft + a
+  // one-shot guard guarantee we never clobber a concurrent user edit and
+  // never re-apply on a `game` / `gameRounds` refetch.
   useEffect(() => {
-    if (!draft || !game) return;
-    let nextMapId = draft.matchedMapId ?? null;
-    let nextSideId = draft.matchedSideId ?? null;
-    let changed = false;
-    if (!nextMapId && (game as any)?.mapId) {
-      nextMapId = (game as any).mapId;
-      changed = true;
-    }
-    if (!nextSideId && gameRounds.length > 0) {
-      const firstWithSide = [...gameRounds].sort(
-        (a, b) => (a.roundNumber ?? 0) - (b.roundNumber ?? 0),
-      ).find((r) => !!r.sideId);
-      if (firstWithSide?.sideId) {
-        nextSideId = firstWithSide.sideId;
-        changed = true;
+    if (!draft || !game || prePopulated) return;
+    const gameMapId = (game as any)?.mapId as string | null | undefined;
+    const firstSideId = [...gameRounds]
+      .sort((a, b) => (a.roundNumber ?? 0) - (b.roundNumber ?? 0))
+      .find((r) => !!r.sideId)?.sideId ?? null;
+    setDraft((prev) => {
+      if (!prev) return prev;
+      const nextMapId = prev.matchedMapId ?? (gameMapId || null);
+      const nextSideId = prev.matchedSideId ?? firstSideId;
+      if (nextMapId === prev.matchedMapId && nextSideId === prev.matchedSideId) {
+        return prev;
       }
-    }
-    if (changed) {
-      setDraft({ ...draft, matchedMapId: nextMapId, matchedSideId: nextSideId });
-    }
-    // We intentionally only watch game and gameRounds — once the draft has
-    // been touched the coach's choices are sticky.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game, gameRounds]);
+      return { ...prev, matchedMapId: nextMapId, matchedSideId: nextSideId };
+    });
+    setPrePopulated(true);
+  }, [draft, game, gameRounds, prePopulated]);
 
   const saveMutation = useMutation({
     mutationFn: async (editedCandidate: OcrParsedCandidate) => {

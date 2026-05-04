@@ -3751,6 +3751,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.warn("[ocr] Vision engine failed, falling back to Tesseract:", visionFailed);
           const tesseractResult = await runOcr(req.file.buffer);
           parsed = parseScoreboardText(tesseractResult.text, inputs);
+          // Part 5: heroes are MANUAL-ONLY across both engines. The
+          // Tesseract parser still does fuzzy hero matching for legacy
+          // reasons; strip it here so the fallback path matches the
+          // Vision contract and coaches always pick heroes themselves.
+          for (const r of parsed.rows) {
+            r.rawHero = null;
+            r.matchedHeroId = null;
+          }
           rawForStorage = {
             engine: "tesseract-fallback",
             text: tesseractResult.text,
@@ -4000,6 +4008,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               opponentPlayerId: row.matchedOpponentPlayerId,
               statFieldId,
               value: String(value),
+              importedViaOcrScanId: scan.id,
             });
           }
         }
@@ -4086,7 +4095,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }));
         const keptOppStats = existingOppStats.map((s: any) => ({
           opponentPlayerId: s.opponentPlayerId, statFieldId: s.statFieldId,
-          value: s.value,
+          value: s.value, importedViaOcrScanId: s.importedViaOcrScanId,
         }));
 
         await storage.replaceMatchParticipants(scan.matchId, [...keptParts, ...mergedParts], game.gameId, game.rosterId);

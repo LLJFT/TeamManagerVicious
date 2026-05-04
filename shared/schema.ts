@@ -530,6 +530,7 @@ export const opponentPlayerGameStats = pgTable("opponent_player_game_stats", {
   statFieldId: varchar("stat_field_id").references(() => statFields.id, { onDelete: "set null" }),
   value: text("value").notNull().default("0"),
   createdAt: text("created_at").default(sql`now()`),
+  importedViaOcrScanId: varchar("imported_via_ocr_scan_id"),
 }, (table) => [
   index("opp_player_game_stats_team_id_idx").on(table.teamId),
   index("opp_player_game_stats_match_id_idx").on(table.matchId),
