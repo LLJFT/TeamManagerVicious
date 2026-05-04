@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, CheckCircle2, Save, Trash2, Sparkles, ShieldCheck, ShieldAlert, XCircle, HelpCircle } from "lucide-react";
 import type {
   ScoreboardOcrScan, OcrParsedCandidate, OcrPlayerRow,
-  Player, OpponentPlayer, Hero, StatField, Map as MapType, Side, Game, GameRound,
+  Player, OpponentPlayer, Hero, StatField, Game,
 } from "@shared/schema";
 
 type RowSide = "us" | "opponent" | "unknown";
@@ -20,7 +20,7 @@ type RowSide = "us" | "opponent" | "unknown";
 export default function OcrScanReview() {
   const [, params] = useRoute("/:gameSlug/:rosterCode/ocr-scans/:id");
   const scanId = params?.id;
-  const { fullSlug, gameId, rosterId } = useGame();
+  const { fullSlug } = useGame();
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
@@ -30,15 +30,56 @@ export default function OcrScanReview() {
   });
 
   const matchId = scan?.matchId;
+  // Use an explicit fetch (no default fetcher / no URL-global appender) so the
+  // game lookup is decoupled from whatever roster context is in the URL. The
+  // returned game record is then the single source of truth for gameId /
+  // rosterId / opponentId of every dropdown on this screen.
   const { data: game } = useQuery<Game>({
     queryKey: ["/api/games", matchId],
+    queryFn: async () => {
+      if (!matchId) throw new Error("matchId required");
+      const res = await fetch(`/api/games/${matchId}`, { credentials: "include" });
+      if (!res.ok) throw new Error(`Failed to load game: ${res.status}`);
+      return res.json();
+    },
     enabled: !!matchId,
   });
 
-  const { data: players = [] } = useQuery<Player[]>({ queryKey: ["/api/players"], enabled: !!gameId });
-  const { data: heroes = [] } = useQuery<Hero[]>({ queryKey: ["/api/heroes"], enabled: !!gameId });
-  const { data: maps = [] } = useQuery<MapType[]>({ queryKey: ["/api/maps"], enabled: !!gameId });
-  const { data: sides = [] } = useQuery<Side[]>({ queryKey: ["/api/sides"], enabled: !!gameId });
+  // The scan's match is the source of truth for game/roster scope of every
+  // dropdown on this screen. Using URL-derived gameId/rosterId from
+  // useGame() is unsafe: (a) the rosterId requires /api/rosters to load,
+  // racing the players query, and (b) a coach can land here from a
+  // different roster context than the scan was uploaded under.
+  const scanGameId = (game as any)?.gameId ?? null;
+  const scanRosterId = (game as any)?.rosterId ?? null;
+  const opponentId = (game as any)?.opponentId ?? null;
+
+  const { data: players = [] } = useQuery<Player[]>({
+    queryKey: ["/api/players", { gameId: scanGameId, rosterId: scanRosterId }],
+    queryFn: async () => {
+      if (!scanGameId || !scanRosterId) return [];
+      const res = await fetch(
+        `/api/players?gameId=${scanGameId}&rosterId=${scanRosterId}`,
+        { credentials: "include" },
+      );
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!scanGameId && !!scanRosterId,
+  });
+  const { data: heroes = [] } = useQuery<Hero[]>({
+    queryKey: ["/api/heroes", { gameId: scanGameId, rosterId: scanRosterId }],
+    queryFn: async () => {
+      if (!scanGameId) return [];
+      const url = scanRosterId
+        ? `/api/heroes?gameId=${scanGameId}&rosterId=${scanRosterId}`
+        : `/api/heroes?gameId=${scanGameId}`;
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!scanGameId,
+  });
   const { data: statFields = [] } = useQuery<StatField[]>({
     queryKey: ["/api/stat-fields", game?.gameModeId],
     queryFn: async () => {
@@ -50,69 +91,24 @@ export default function OcrScanReview() {
     enabled: !!game?.gameModeId,
   });
   const { data: opponentPlayers = [] } = useQuery<OpponentPlayer[]>({
-    queryKey: ["/api/opponents", (game as any)?.opponentId, "players"],
+    queryKey: ["/api/opponents", opponentId, "players"],
     queryFn: async () => {
-      const oid = (game as any)?.opponentId;
-      if (!oid) return [];
-      const res = await fetch(`/api/opponents/${oid}/players`, { credentials: "include" });
+      if (!opponentId) return [];
+      const res = await fetch(`/api/opponents/${opponentId}/players`, { credentials: "include" });
       if (!res.ok) return [];
       return res.json();
     },
-    enabled: !!(game as any)?.opponentId,
-  });
-
-  // Used to pre-populate the Side dropdown from the first round's sideId
-  // when the scan candidate didn't already commit one. We never overwrite
-  // a side the model (or a coach) already chose.
-  const { data: gameRounds = [] } = useQuery<GameRound[]>({
-    queryKey: ["/api/game-rounds", { matchId, gameId, rosterId }],
-    queryFn: async () => {
-      if (!matchId) return [];
-      const res = await fetch(`/api/game-rounds`, { credentials: "include" });
-      if (!res.ok) return [];
-      const all = (await res.json()) as GameRound[];
-      return all.filter((r) => r.matchId === matchId);
-    },
-    enabled: !!matchId && !!gameId && !!rosterId,
+    enabled: !!opponentId,
   });
 
   const [draft, setDraft] = useState<OcrParsedCandidate | null>(null);
   const [overwriteMode, setOverwriteMode] = useState(false);
-  // Tracks whether the Part 2 pre-populate effect has fired for this
-  // draft. Without this guard a refetch of `game` or `gameRounds` could
-  // re-apply defaults on top of a coach's manual edits.
-  const [prePopulated, setPrePopulated] = useState(false);
   useEffect(() => {
     if (scan && !draft) {
       const c = (scan.editedCandidate || scan.parsedCandidate) as OcrParsedCandidate | null;
       setDraft(c ? structuredClone(c) : { rows: [] });
-      setPrePopulated(false);
     }
   }, [scan, draft]);
-
-  // Part 2: pre-populate Map / Side from existing game data when the
-  // scan candidate didn't already pin them. game.mapId is the canonical
-  // source for the map; the first round's sideId is the canonical source
-  // for "which side were we on this map". Functional setDraft + a
-  // one-shot guard guarantee we never clobber a concurrent user edit and
-  // never re-apply on a `game` / `gameRounds` refetch.
-  useEffect(() => {
-    if (!draft || !game || prePopulated) return;
-    const gameMapId = (game as any)?.mapId as string | null | undefined;
-    const firstSideId = [...gameRounds]
-      .sort((a, b) => (a.roundNumber ?? 0) - (b.roundNumber ?? 0))
-      .find((r) => !!r.sideId)?.sideId ?? null;
-    setDraft((prev) => {
-      if (!prev) return prev;
-      const nextMapId = prev.matchedMapId ?? (gameMapId || null);
-      const nextSideId = prev.matchedSideId ?? firstSideId;
-      if (nextMapId === prev.matchedMapId && nextSideId === prev.matchedSideId) {
-        return prev;
-      }
-      return { ...prev, matchedMapId: nextMapId, matchedSideId: nextSideId };
-    });
-    setPrePopulated(true);
-  }, [draft, game, gameRounds, prePopulated]);
 
   const saveMutation = useMutation({
     mutationFn: async (editedCandidate: OcrParsedCandidate) => {
@@ -311,10 +307,24 @@ export default function OcrScanReview() {
               <Select
                 value={row.matchedOpponentPlayerId || ""}
                 onValueChange={(v) => updateRow(idx, { matchedOpponentPlayerId: v || null, matchedPlayerId: null })}
+                disabled={!opponentId}
               >
-                <SelectTrigger className="min-w-[200px]" data-testid={`select-opp-player-${idx}`}><SelectValue placeholder="Pick opponent player" /></SelectTrigger>
+                <SelectTrigger
+                  className="min-w-[200px]"
+                  data-testid={`select-opp-player-${idx}`}
+                >
+                  <SelectValue
+                    placeholder={
+                      !opponentId
+                        ? "No opponent linked"
+                        : opponentPlayers.length === 0
+                          ? "No opponent players yet"
+                          : "Pick opponent player"
+                    }
+                  />
+                </SelectTrigger>
                 <SelectContent>
-                  {/* Part 4: opponent dropdown is scoped to this game's opponent only. */}
+                  {/* Scoped to this match's opponent only via /api/opponents/:id/players. */}
                   {opponentPlayers.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -328,11 +338,32 @@ export default function OcrScanReview() {
             </p>
           )}
         </div>
-        <div className="min-w-[180px]">
+        <div className="min-w-[200px]">
           <Select value={row.matchedHeroId || ""} onValueChange={(v) => updateRow(idx, { matchedHeroId: v || null })}>
-            <SelectTrigger data-testid={`select-hero-${idx}`}><SelectValue placeholder="Pick hero" /></SelectTrigger>
+            <SelectTrigger data-testid={`select-hero-${idx}`}>
+              <SelectValue
+                placeholder={heroes.length === 0 ? "No heroes configured" : "Pick hero"}
+              />
+            </SelectTrigger>
             <SelectContent>
-              {heroes.map(h => <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>)}
+              {/* Scoped to this match's game (and roster when present) so heroes
+                  reflect the roster's configured pool, not the global list. */}
+              {heroes.map(h => (
+                <SelectItem key={h.id} value={h.id}>
+                  <span className="flex items-center gap-2">
+                    {h.imageUrl ? (
+                      <img
+                        src={h.imageUrl}
+                        alt=""
+                        className="h-5 w-5 rounded object-cover shrink-0"
+                      />
+                    ) : (
+                      <span className="h-5 w-5 rounded bg-muted shrink-0" />
+                    )}
+                    <span>{h.name}</span>
+                  </span>
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -510,74 +541,47 @@ export default function OcrScanReview() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader><CardTitle className="text-sm">Source image</CardTitle></CardHeader>
-          <CardContent>
-            <img
-              src={scan.imageObjectPath}
-              alt="Scoreboard source"
-              className="w-full rounded-md border"
-              data-testid="img-source"
-            />
-            {scan.errorMessage && (
-              <p className="text-xs text-destructive mt-2" data-testid="text-ocr-error">{scan.errorMessage}</p>
-            )}
-            <details className="mt-3 text-xs">
-              <summary className="cursor-pointer text-muted-foreground">Raw OCR text</summary>
-              <pre className="whitespace-pre-wrap p-2 bg-muted rounded mt-1" data-testid="text-raw-ocr">
-                {(scan.rawOcr as any)?.text || ""}
-              </pre>
-            </details>
-          </CardContent>
-        </Card>
+      {/* Match Summary (Score / Map / Side) intentionally removed from this
+          screen — those values are owned by Games & Scoreboard / Rounds and
+          must NOT be overwritten by the OCR import. The confirm route also
+          skips writing them. */}
+      <Card>
+        <CardHeader><CardTitle className="text-sm">Source image</CardTitle></CardHeader>
+        <CardContent>
+          <img
+            src={scan.imageObjectPath}
+            alt="Scoreboard source"
+            className="w-full rounded-md border max-h-[500px] object-contain"
+            data-testid="img-source"
+          />
+          {scan.errorMessage && (
+            <p className="text-xs text-destructive mt-2" data-testid="text-ocr-error">{scan.errorMessage}</p>
+          )}
+          <details className="mt-3 text-xs">
+            <summary className="cursor-pointer text-muted-foreground">Raw OCR text</summary>
+            <pre className="whitespace-pre-wrap p-2 bg-muted rounded mt-1" data-testid="text-raw-ocr">
+              {(scan.rawOcr as any)?.text || ""}
+            </pre>
+          </details>
+        </CardContent>
+      </Card>
 
-        <Card>
-          <CardHeader><CardTitle className="text-sm">Match summary</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Score:</span>
-              <Input
-                className="w-20"
-                value={draft.ourScore ?? ""}
-                onChange={(e) => setDraft({ ...draft, ourScore: e.target.value === "" ? null : parseInt(e.target.value, 10) || 0 })}
-                data-testid="input-our-score"
-              />
-              <span>-</span>
-              <Input
-                className="w-20"
-                value={draft.opponentScore ?? ""}
-                onChange={(e) => setDraft({ ...draft, opponentScore: e.target.value === "" ? null : parseInt(e.target.value, 10) || 0 })}
-                data-testid="input-opp-score"
-              />
+      {!opponentId && oppRows.length > 0 && (
+        <div
+          className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm"
+          data-testid="banner-no-opponent-linked"
+        >
+          <ShieldAlert className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+          <div>
+            <div className="font-semibold">No opponent linked to this match.</div>
+            <div className="text-xs text-muted-foreground">
+              Opponent player rows can&rsquo;t be assigned until you link an opponent.
+              Open Game Settings for this match and pick the opponent you played against,
+              then come back here to assign them.
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground w-12">Map:</span>
-              <Select
-                value={draft.matchedMapId || ""}
-                onValueChange={(v) => setDraft({ ...draft, matchedMapId: v || null })}
-              >
-                <SelectTrigger data-testid="select-map"><SelectValue placeholder="Pick map" /></SelectTrigger>
-                <SelectContent>
-                  {maps.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground w-12">Side:</span>
-              <Select
-                value={draft.matchedSideId || ""}
-                onValueChange={(v) => setDraft({ ...draft, matchedSideId: v || null })}
-              >
-                <SelectTrigger data-testid="select-map-side"><SelectValue placeholder="Pick side" /></SelectTrigger>
-                <SelectContent>
-                  {sides.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </div>
+      )}
 
       {unknownRows.length > 0 && (
         <Card className="border-destructive/40">

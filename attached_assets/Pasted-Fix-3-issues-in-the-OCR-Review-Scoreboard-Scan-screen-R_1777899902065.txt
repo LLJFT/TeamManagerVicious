@@ -1,0 +1,199 @@
+Fix 3 issues in the OCR Review Scoreboard Scan screen. Read everything before writing code. 
+
+  
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+
+ISSUE 1 — "Pick player" dropdown shows ALL players from ALL rosters 
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+
+  
+
+PROBLEM: 
+
+The dropdown shows players from all rosters mixed together (WZ_T4, CDM_T1, MR_T2, etc.) 
+
+It must show ONLY the players belonging to the current roster. 
+
+  
+
+FIX: 
+
+- "Pick player" dropdown (side = "us") → filter by the current rosterId 
+
+- The rosterId is already available in the review screen context (from the match) 
+
+- Find the API call that populates this dropdown and add the rosterId filter 
+
+- Do not change the API endpoint if it already supports rosterId param — just pass it 
+
+  
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+
+ISSUE 2 — "Pick opponent player" shows nothing / wrong scope 
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+
+  
+
+PROBLEM: 
+
+The opponent player dropdown is empty or not scoped. 
+
+It should show the players from the opponent's roster that is linked to this match. 
+
+  
+
+WHERE THE OPPONENT ROSTER COMES FROM: 
+
+The opponent and their roster are configured at: 
+
+Dashboard → Opponents → Opponents Configuration → [select the opponent we are playing against] → their roster 
+
+  
+
+That roster contains the opponent's players (example “100T”: DELENAA, SELF, VINNIE, TTK, MALENIA, WYNI). 
+
+This is the ONLY source for the opponent player dropdown. 
+
+  
+
+FIX: 
+
+1. From the current match/event, find the linked opponentId 
+
+   (check the games, matches, or events table — the opponent is already recorded  
+
+   when the game was created under this event) 
+
+2. Using that opponentId, fetch the opponent's roster players from: 
+
+   Dashboard → Opponents → Opponents Configuration → that opponent → their player roster 
+
+3. Show ONLY those players in the "Pick opponent player" dropdown 
+
+4. If no opponent is linked to this match → show dropdown with message: 
+
+   "No opponent linked — go to Game Settings to link an opponent" 
+
+5. Never show our team's players in the opponent dropdown 
+
+  
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+
+ISSUE 3 — Remove the entire "Match Summary" section from the review screen 
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+
+  
+
+PROBLEM: 
+
+The Match Summary section (Score, Map, Side) is shown in the OCR review screen, 
+
+but all of this information is ALREADY set before the scan ever happens: 
+
+- Score → set in Games & Scoreboard 
+
+- Map → set in Games & Scoreboard   
+
+- Side → set in Rounds 
+
+  
+
+Asking the user to fill these in again during OCR review is redundant and confusing. 
+
+  
+
+FIX: 
+
+- Completely remove the Match Summary section (Score, Map, Side)  
+
+  from the OcrScanReview component 
+
+- Do not move it — delete it entirely from this screen 
+
+- These fields are managed elsewhere and the OCR import must not touch them 
+
+- The confirm import action must NOT overwrite Score, Map, or Side  
+
+  from the OCR data — skip those fields entirely during import 
+
+  
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+
+ISSUE 4 — "Pick hero" dropdown shows nothing 
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+
+  
+
+PROBLEM: 
+
+Clicking "Pick hero" shows an empty dropdown. 
+
+It should show the heroes configured for this roster's game. 
+
+  
+
+FIX: 
+
+- Hero options must come from the roster's configured game heroes 
+
+  (same heroes available in Dashboard → Game Config → Heroes for this roster) 
+
+- Show hero name AND icon/logo if available 
+
+- Applies to both "our team" rows AND "opponent" rows 
+
+- Hero selection is optional — import works without heroes selected 
+
+  
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+
+IMPLEMENTATION NOTES 
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+
+  
+
+- rosterId, matchId, and gameId are already in the review screen context 
+
+- opponentId should be on the match/game/event record — check all three if needed 
+
+- For all dropdowns: filter using existing endpoints with correct params 
+
+  before creating new endpoints 
+
+- Confirm import must only write player stats and hero assignments — 
+
+  never overwrite score, map, or side 
+
+  
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+
+REPORT BACK 
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+
+  
+
+1. Confirm "Pick player" shows only current roster players (scoped by rosterId) 
+
+2. Confirm "Pick opponent player" shows only the linked opponent's roster players 
+
+   (sourced from Dashboard → Opponents → Opponents Configuration → their roster) 
+
+3. Confirm Match Summary section (Score, Map, Side) is fully removed from review screen 
+
+4. Confirm "Pick hero" shows roster-configured heroes with icons 
+
+5. Confirm Confirm Import does NOT overwrite score, map, or side 
+
+6. List all files changed 

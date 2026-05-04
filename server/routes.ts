@@ -2821,6 +2821,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Single-game lookup. Required by screens (e.g. OCR Review) that need the
+  // game's authoritative gameId / rosterId / opponentId to scope downstream
+  // dropdowns. Note: the historical /api/games (list) endpoint did NOT have a
+  // /:id sibling, which silently broke any caller using
+  // useQuery(["/api/games", id]) — those calls were 404-ing and falling back
+  // to undefined. This route fixes that.
+  app.get("/api/games/:id", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = getTeamId();
+      const [game] = await db.select().from(games).where(and(eq(games.id, id), eq(games.teamId, teamId))).limit(1);
+      if (!game) return res.status(404).json({ error: "Game not found" });
+      if (!await verifyObjectScope(req, res, game.gameId, game.rosterId)) return;
+      res.json(game);
+    } catch (error: any) {
+      console.error('Error in GET /api/games/:id:', error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
   app.put("/api/games/:id", requireAuth, requirePermission("edit_events"), async (req, res) => {
     try {
       const { id } = req.params;
@@ -4109,19 +4129,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         oppStatRows = mergedOppStats;
       }
 
-      // Update score on the game itself if provided AND not already set
-      // (or the caller asked to overwrite).
-      if (typeof candidate.ourScore === "number" || typeof candidate.opponentScore === "number") {
-        const curOur = (game as any).ourScore;
-        const curOpp = (game as any).opponentScore;
-        const shouldWriteScores = overwrite || (curOur == null && curOpp == null);
-        if (shouldWriteScores) {
-          await db.update(games).set({
-            ourScore: typeof candidate.ourScore === "number" ? candidate.ourScore : curOur,
-            opponentScore: typeof candidate.opponentScore === "number" ? candidate.opponentScore : curOpp,
-          } as any).where(and(eq(games.id, scan.matchId), eq(games.teamId, teamId)));
-        }
-      }
+      // Score / Map / Side are intentionally NOT written here. Those fields
+      // are owned by the Games / Scoreboard / Rounds editors. The OCR
+      // confirm flow only writes participants, heroes, and per-player stats
+      // for this scan's match. Even when `overwrite=true`, score/map/side on
+      // the game record are left alone so an OCR import can never clobber
+      // values a coach set manually.
 
       const updated = await storage.updateOcrScan(scan.id, { status: "confirmed" } as any);
       res.json({ ok: true, mode: overwrite ? "overwrite" : "merge", scan: updated, counts: {
