@@ -22,7 +22,7 @@ import { GameHeroBanPanel, type HeroBanDraftRow } from "@/components/GameHeroBan
 import { Hint } from "@/components/Hint";
 import { GameMapVetoPanel, type MapVetoDraftRow } from "@/components/GameMapVetoPanel";
 import { ShareButton } from "@/components/ShareButton";
-import { useState, useEffect, Fragment } from "react";
+import { useState, useEffect, useRef, Fragment } from "react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { ObjectUploader } from "@/components/ObjectUploader";
@@ -72,6 +72,8 @@ export default function EventDetails() {
   const [newGameResult, setNewGameResult] = useState<"win" | "loss" | "draw" | "">("");
   const [newGameLink, setNewGameLink] = useState("");
   const [uploadingImageForNewGame, setUploadingImageForNewGame] = useState(false);
+  const newGameImportInputRef = useRef<HTMLInputElement>(null);
+  const [importingNewGameScan, setImportingNewGameScan] = useState(false);
 
   type RoundDraft = { sideId: string | null; teamScore: number; opponentScore: number };
   const [newGameRounds, setNewGameRounds] = useState<RoundDraft[]>([
@@ -510,6 +512,73 @@ export default function EventDetails() {
     // override; matching values are no-ops handled server-side.
     payload.result = eventResult || "pending";
     updateEventMutation.mutate(payload);
+  };
+
+  const handleNewGameScanFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.target;
+    const file = input.files?.[0];
+    if (input) input.value = "";
+    if (!file) return;
+
+    setImportingNewGameScan(true);
+    let createdGameId: string | null = null;
+    try {
+      const code = newGameCode.trim() || `G${(games?.length || 0) + 1}`;
+      const score = newGameScore.trim() || "0-0";
+      const fallbackModeId = !singleMode && !newGameModeId
+        ? (gameModes[0]?.id || undefined)
+        : (singleMode ? undefined : (newGameModeId || undefined));
+      const createRes = await apiRequest("POST", "/api/games", {
+        eventId: eventId,
+        gameCode: code,
+        score,
+        gameModeId: fallbackModeId,
+        mapId: newGameMapId || undefined,
+        result: newGameResult || undefined,
+        link: newGameLink.trim() || undefined,
+      });
+      const newGame: Game = await createRes.json();
+      createdGameId = newGame.id;
+
+      const formData = new FormData();
+      formData.append("file", file);
+      const uploadRes = await fetch(`/api/games/${newGame.id}/ocr-scans`, {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json().catch(() => ({}));
+        throw new Error(err.message || err.error || "Upload failed");
+      }
+      const scan = await uploadRes.json();
+
+      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "games"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/games"] });
+      resetNewGameForm();
+      createdGameId = null;
+
+      if (scan?.id) {
+        window.location.href = `/${fullSlug}/ocr-scans/${scan.id}`;
+      }
+    } catch (err: any) {
+      console.error("New-game scoreboard import failed:", err);
+      if (createdGameId) {
+        try {
+          await apiRequest("DELETE", `/api/games/${createdGameId}`);
+          queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "games"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/games"] });
+        } catch (cleanupErr) {
+          console.error("Failed to clean up draft game after scan failure:", cleanupErr);
+        }
+      }
+      setToastMessage(`Scan failed: ${err?.message || "Upload failed"}`);
+      setToastType("error");
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+    } finally {
+      setImportingNewGameScan(false);
+    }
   };
 
   const handleAddGame = () => {
@@ -1180,9 +1249,9 @@ export default function EventDetails() {
                 </Button>
               </div>
 
-              {(singleMode || newGameModeId) && (
-                <div className="mt-2 border-t border-border pt-3" data-testid="section-match-stats-new-game">
-                  <div className="flex items-center gap-2 mb-2">
+              <div className="mt-2 border-t border-border pt-3" data-testid="section-match-stats-new-game">
+                <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                  <div className="flex items-center gap-2">
                     <BarChart3 className="h-4 w-4 text-primary" />
                     <h3 className="text-sm font-semibold">
                       Match Stats — New Game
@@ -1191,24 +1260,51 @@ export default function EventDetails() {
                       )}
                     </h3>
                   </div>
-                  <p className="text-xs text-muted-foreground mb-2">
-                    Fill in match stats now — they'll be saved together when you click Add Game.
-                  </p>
-                  <MatchSidesEditor
-                    game={null}
-                    opponentId={draftOpponentId}
-                    ourPlayers={allPlayers}
-                    statFields={getStatFieldsByMode(newGameModeId)}
-                    heroes={allHeroes}
-                    isSaving={addGameMutation.isPending}
-                    draft={newGameMatchStats}
-                    onDraftChange={setNewGameMatchStats}
-                    hideHeader
-                    hideSaveButton
-                    testIdSuffix="new-game"
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => newGameImportInputRef.current?.click()}
+                    disabled={importingNewGameScan}
+                    data-testid="button-import-scoreboard-new-game"
+                  >
+                    <ScanLine className="h-4 w-4 mr-1" />
+                    {importingNewGameScan ? "Importing…" : "Import from scoreboard"}
+                  </Button>
+                  <input
+                    ref={newGameImportInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleNewGameScanFile}
+                    data-testid="input-import-scoreboard-new-game"
                   />
                 </div>
-              )}
+                {(singleMode || newGameModeId) ? (
+                  <>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Fill in match stats now — they'll be saved together when you click Add Game.
+                    </p>
+                    <MatchSidesEditor
+                      game={null}
+                      opponentId={draftOpponentId}
+                      ourPlayers={allPlayers}
+                      statFields={getStatFieldsByMode(newGameModeId)}
+                      heroes={allHeroes}
+                      isSaving={addGameMutation.isPending}
+                      draft={newGameMatchStats}
+                      onDraftChange={setNewGameMatchStats}
+                      hideHeader
+                      hideSaveButton
+                      testIdSuffix="new-game"
+                    />
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Click Import from scoreboard to auto-fill from a screenshot, or pick a Game Mode above to fill stats manually.
+                  </p>
+                )}
+              </div>
 
               {/* Hero Ban — New Game (pre-submit draft) */}
               <div className="mt-2 border-t border-border pt-3" data-testid="section-hero-ban-new-game">

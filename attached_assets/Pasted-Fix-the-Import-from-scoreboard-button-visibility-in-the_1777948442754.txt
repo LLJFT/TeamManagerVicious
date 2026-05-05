@@ -1,0 +1,60 @@
+Fix the "Import from scoreboard" button visibility in the Games & Scoreboard section.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROBLEM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+As seen in the screenshot:
+- The "Import from scoreboard" button only appears AFTER the user has 
+  already filled in the game details (game mode, map, scores, etc.) 
+  AND clicked "Add Game"
+- This is backwards — the OCR import should help the user FILL IN 
+  the game details, so it must appear BEFORE they do anything
+
+CURRENT (wrong) behavior:
+  User opens event → sees "Add New Game" form → fills everything manually
+  → clicks Add Game → THEN sees "Import from scoreboard"
+
+REQUIRED behavior:
+  User opens event → sees "Add New Game" form → 
+  "Import from scoreboard" button is IMMEDIATELY visible at the top of 
+  the Match Stats section, even before any game mode is selected
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EXACT FIX REQUIRED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Find the condition that controls when "Import from scoreboard" is shown.
+It is currently gated behind something like:
+  - a state check (e.g., `selectedGameMode !== null`)
+  - or only rendered after a game is added
+  - or only rendered when the Match Stats section is "active"
+
+Remove or relax that condition so the button shows:
+  1. As soon as the "Add New Game" section is visible
+  2. BEFORE the user selects a game mode or fills in any field
+  3. BEFORE the user clicks "Add Game"
+  4. It should remain visible throughout — before AND after adding a game
+
+The button must appear in the top-right area of the "Match Stats — New Game" 
+section (the area is already reserved for it as shown by the red-outlined 
+placeholder in the screenshot).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DO NOT CHANGE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Do NOT change the button's functionality or what happens when clicked
+- Do NOT move the button to a different location
+- Do NOT change any other part of the Games & Scoreboard UI
+- Only change the visibility/render condition for this button
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REPORT BACK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Show the exact condition that was gating the button (old code)
+2. Show what you changed it to (new code)
+3. Confirm the button now appears immediately when the Add New Game 
+   section is visible — before any game mode is selected
+4. File changed
