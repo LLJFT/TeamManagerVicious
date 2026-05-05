@@ -1,0 +1,80 @@
+Fix the "Failed to remove player" error when deleting a player who has existing data.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROBLEM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+When trying to delete a player from the "Manage Players" modal, the following 
+error appears:
+
+  500: {"error":"Failed query: delete from \"players\" where 
+  (\"players\".\"id\" = $1 and \"players\".\"team_id\" = $2) returning 
+  \"id\", \"team_id\", \"game_id\", \"roster_id\", \"name\", \"role\", 
+  \"full_name\", \"phone\", \"snapchat\"\n params: [uuid, uuid]"}
+
+This happens because the player has related data in other tables 
+(stats, game participations, schedule entries, etc.) and the database 
+throws a foreign key constraint violation.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REQUIRED FIX
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Implement CASCADE DELETE — when a player is deleted, ALL their related 
+data must be deleted first (or simultaneously), then the player row itself.
+
+The DELETE operation should remove (in the correct dependency order):
+
+1. Player stats (any stats table rows referencing this player)
+2. Game participations / round participations referencing this player
+3. Hero selections / hero bans referencing this player
+4. Schedule availability entries for this player
+5. Any other tables with a foreign key pointing to players.id or players(id, team_id)
+6. Finally: the player row itself
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IMPLEMENTATION APPROACH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Choose ONE of the following approaches (pick the safest for the existing schema):
+
+OPTION A — Application-level cascade (preferred if FK constraints can't be changed):
+  - In the DELETE /api/players/:id route handler, before deleting the player:
+    1. Find all tables that reference this player's id
+    2. Delete from each table in the correct order (children before parent)
+    3. Then delete the player row
+  - Wrap everything in a database transaction so if any step fails, 
+    nothing is deleted (atomic operation)
+
+OPTION B — Database-level cascade (if schema migrations are safe):
+  - Add ON DELETE CASCADE to the foreign key constraints on all child tables
+    that reference the players table
+  - This makes the DB handle cleanup automatically
+
+USE OPTION A unless OPTION B is clearly safer given the existing migration setup.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IMPORTANT NOTES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Show a confirmation dialog before deleting:
+  "Are you sure you want to delete [PlayerName]? 
+   This will permanently delete the player and ALL their stats and data. 
+   This cannot be undone."
+  With two buttons: "Cancel" and "Delete Player" (red/destructive button)
+
+- After successful deletion, refresh the players list in the modal
+
+- Log what was deleted (for debugging): console.log or server log showing 
+  how many rows were deleted from each related table
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REPORT BACK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. List all tables that were identified as having FK references to players
+2. Confirm the deletion order used (which table was deleted first, last)
+3. Confirm a database transaction wraps the entire operation
+4. Confirm the confirmation dialog is shown before deletion
+5. Test: delete a player who HAS stats and confirm it succeeds
+6. List all files changed

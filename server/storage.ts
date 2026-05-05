@@ -266,8 +266,48 @@ export class DbStorage implements IStorage {
 
   async removePlayer(id: string): Promise<boolean> {
     const teamId = getTeamId();
-    const deleted = await db.delete(players).where(and(eq(players.id, id), eq(players.teamId, teamId))).returning();
-    return deleted.length > 0;
+    return await db.transaction(async (tx) => {
+      const [existing] = await tx.select().from(players)
+        .where(and(eq(players.id, id), eq(players.teamId, teamId)))
+        .limit(1);
+      if (!existing) return false;
+
+      const unlinkedUsers = await tx.update(users)
+        .set({ playerId: null })
+        .where(eq(users.playerId, id))
+        .returning({ id: users.id });
+
+      const deletedAvailability = await tx.delete(playerAvailability)
+        .where(eq(playerAvailability.playerId, id))
+        .returning({ id: playerAvailability.id });
+
+      const nulledAttendance = await tx.update(attendance)
+        .set({ playerId: null })
+        .where(eq(attendance.playerId, id))
+        .returning({ id: attendance.id });
+
+      const nulledStats = await tx.update(playerGameStats)
+        .set({ playerId: null })
+        .where(eq(playerGameStats.playerId, id))
+        .returning({ id: playerGameStats.id });
+
+      const nulledHeroes = await tx.update(gameHeroes)
+        .set({ playerId: null })
+        .where(eq(gameHeroes.playerId, id))
+        .returning({ id: gameHeroes.id });
+
+      const nulledParticipants = await tx.update(matchParticipants)
+        .set({ playerId: null })
+        .where(eq(matchParticipants.playerId, id))
+        .returning({ id: matchParticipants.id });
+
+      const deleted = await tx.delete(players)
+        .where(and(eq(players.id, id), eq(players.teamId, teamId)))
+        .returning({ id: players.id });
+
+      console.log(`[removePlayer] id=${id} unlinked_users=${unlinkedUsers.length} availability_deleted=${deletedAvailability.length} attendance_nulled=${nulledAttendance.length} stats_nulled=${nulledStats.length} hero_picks_nulled=${nulledHeroes.length} participants_nulled=${nulledParticipants.length} player_deleted=${deleted.length}`);
+      return deleted.length > 0;
+    });
   }
 
   async getSetting(key: string, gameId?: string | null, rosterId?: string | null): Promise<string | null> {

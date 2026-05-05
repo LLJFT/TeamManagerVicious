@@ -1159,7 +1159,7 @@ export default function Players() {
             <div className="py-4">
               <p className="text-muted-foreground">
                 Are you sure you want to delete <span className="font-semibold text-foreground">{playerToDelete?.name}</span>?
-                This will also delete all attendance records for this player. This action cannot be undone.
+                This will permanently delete the player and ALL their stats and data. This cannot be undone.
               </p>
             </div>
             <DialogFooter>
