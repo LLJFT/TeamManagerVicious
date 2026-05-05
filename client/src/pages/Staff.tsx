@@ -66,8 +66,8 @@ export default function StaffPage() {
   });
 
   const { data: allUsers = [] } = useQuery<any[]>({
-    queryKey: ["/api/users"],
-    enabled: canManage,
+    queryKey: ["/api/users", { gameId, rosterId }],
+    enabled: canManage && !!gameId && !!rosterId,
   });
 
   const createMutation = useMutation({

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -16,13 +16,16 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
+  Popover, PopoverContent, PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Pencil, Trash2, ShieldCheck, Search } from "lucide-react";
+import { Plus, Pencil, Trash2, ShieldCheck, Search, X, Loader2, ChevronsUpDown } from "lucide-react";
 import type { Subscription } from "@shared/schema";
 import { useTranslation } from "react-i18next";
 
@@ -70,6 +73,7 @@ function computeDaysRemaining(endDate: string | null | undefined): number | null
 
 interface FormState {
   userId: string;
+  selectedUser: UserOption | null;
   type: "trial" | "paid";
   startDate: string;
   endDate: string;
@@ -79,12 +83,172 @@ interface FormState {
 
 const blankForm: FormState = {
   userId: "",
+  selectedUser: null,
   type: "trial",
   startDate: todayIso(),
   endDate: plusDaysIso(30),
   manualOverride: "auto",
   notes: "",
 };
+
+/**
+ * Server-side searchable user picker. Replaces the previous plain dropdown
+ * that loaded all 1400+ users on mount. Uses a 300ms debounce, only queries
+ * after 2+ chars typed, never preloads the full list.
+ */
+function UserSearchPicker({
+  value,
+  selected,
+  onSelect,
+  disabled,
+}: {
+  value: string;
+  selected: UserOption | null;
+  onSelect: (u: UserOption | null) => void;
+  disabled?: boolean;
+}) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const [input, setInput] = useState("");
+  const [debounced, setDebounced] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // 300ms debounce
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(input.trim()), 300);
+    return () => clearTimeout(id);
+  }, [input]);
+
+  // Server-side search — only when 2+ characters typed AND popover open.
+  const { data: results = [], isFetching } = useQuery<UserOption[]>({
+    queryKey: ["/api/users/search", { q: debounced, limit: 20 }],
+    queryFn: async () => {
+      const url = `/api/users/search?q=${encodeURIComponent(debounced)}&limit=20`;
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error(`Search failed (${res.status})`);
+      return res.json();
+    },
+    enabled: open && debounced.length >= 2,
+    staleTime: 30_000,
+  });
+
+  // Focus the input when the popover opens.
+  useEffect(() => {
+    if (open) {
+      // Defer to next tick so the popover content has mounted.
+      setTimeout(() => inputRef.current?.focus(), 0);
+    } else {
+      setInput("");
+      setDebounced("");
+    }
+  }, [open]);
+
+  const display = selected
+    ? `${selected.username}${selected.orgRole ? ` — ${selected.orgRole.replace(/_/g, " ")}` : ""}`
+    : value
+      ? value.slice(0, 8)
+      : t("subs.selectUser");
+
+  return (
+    <div className="relative">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            disabled={disabled}
+            className="w-full justify-between font-normal"
+            data-testid="select-sub-user"
+          >
+            <span className={selected || value ? "" : "text-muted-foreground"}>
+              {display}
+            </span>
+            <span className="flex items-center gap-1">
+              {selected && !disabled && (
+                <span
+                  role="button"
+                  tabIndex={0}
+                  className="opacity-60 hover:opacity-100"
+                  onClick={(e) => { e.stopPropagation(); onSelect(null); }}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); onSelect(null); } }}
+                  data-testid="button-clear-sub-user"
+                  aria-label="Clear selection"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </span>
+              )}
+              <ChevronsUpDown className="h-4 w-4 opacity-50" />
+            </span>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent
+          className="p-0 w-[--radix-popover-trigger-width] min-w-[16rem]"
+          align="start"
+        >
+          <div className="p-2 border-b border-border">
+            <div className="relative">
+              <Search className="h-3.5 w-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                ref={inputRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Search users..."
+                className="pl-7 h-8"
+                data-testid="input-sub-user-search"
+              />
+            </div>
+          </div>
+          <div className="max-h-72 overflow-y-auto py-1" data-testid="list-sub-user-results">
+            {debounced.length < 2 ? (
+              <p className="px-3 py-4 text-xs text-muted-foreground text-center" data-testid="text-sub-user-hint">
+                Type at least 2 characters to search.
+              </p>
+            ) : isFetching ? (
+              <div className="px-3 py-4 flex items-center justify-center gap-2 text-xs text-muted-foreground" data-testid="status-sub-user-loading">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Searching...
+              </div>
+            ) : results.length === 0 ? (
+              <p className="px-3 py-4 text-xs text-muted-foreground text-center" data-testid="text-sub-user-empty">
+                No users found
+              </p>
+            ) : (
+              results.slice(0, 8).map((u) => {
+                const isSel = selected?.id === u.id;
+                return (
+                  <button
+                    key={u.id}
+                    type="button"
+                    onClick={() => { onSelect(u); setOpen(false); }}
+                    className={`w-full text-left px-3 py-1.5 text-sm flex items-center justify-between gap-2 hover-elevate ${isSel ? "bg-accent" : ""}`}
+                    data-testid={`option-sub-user-${u.id}`}
+                  >
+                    <span className="flex flex-col items-start min-w-0">
+                      <span className="font-medium truncate">{u.username}</span>
+                      {u.orgRole && (
+                        <span className="text-xs text-muted-foreground capitalize truncate">
+                          {u.orgRole.replace(/_/g, " ")}
+                        </span>
+                      )}
+                    </span>
+                    {isSel && <span className="text-xs text-muted-foreground">✓</span>}
+                  </button>
+                );
+              })
+            )}
+            {results.length > 8 && (
+              <p className="px-3 py-2 text-[11px] text-muted-foreground border-t border-border">
+                Showing 8 of {results.length} results — refine your search.
+              </p>
+            )}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
 
 export default function SubscriptionsPage() {
   const { t } = useTranslation();
@@ -99,11 +263,6 @@ export default function SubscriptionsPage() {
 
   const { data: subs = [], isLoading } = useQuery<SubRow[]>({
     queryKey: ["/api/subscriptions"],
-    enabled: user?.orgRole === "super_admin",
-  });
-
-  const { data: allUsers = [] } = useQuery<UserOption[]>({
-    queryKey: ["/api/users"],
     enabled: user?.orgRole === "super_admin",
   });
 
@@ -161,6 +320,12 @@ export default function SubscriptionsPage() {
     setEditingId(row.id);
     setForm({
       userId: row.userId,
+      selectedUser: {
+        id: row.userId,
+        username: row.username || row.userId.slice(0, 8),
+        displayName: row.displayName ?? null,
+        orgRole: row.orgRole ?? null,
+      },
       type: (row.type as "trial" | "paid") || "trial",
       startDate: row.startDate,
       endDate: row.endDate,
@@ -219,11 +384,6 @@ export default function SubscriptionsPage() {
       );
     });
   }, [subs, search, statusFilter]);
-
-  const sortedUsers = useMemo(
-    () => [...allUsers].sort((a, b) => (a.username || "").localeCompare(b.username || "")),
-    [allUsers],
-  );
 
   if (user?.orgRole !== "super_admin") {
     return (
@@ -373,20 +533,12 @@ export default function SubscriptionsPage() {
           <div className="space-y-3 py-2">
             <div>
               <Label>{t("subs.user")}</Label>
-              <Select
+              <UserSearchPicker
                 value={form.userId}
-                onValueChange={(v) => setForm({ ...form, userId: v })}
+                selected={form.selectedUser}
                 disabled={!!editingId}
-              >
-                <SelectTrigger data-testid="select-sub-user"><SelectValue placeholder={t("subs.selectUser")} /></SelectTrigger>
-                <SelectContent className="max-h-72">
-                  {sortedUsers.map(u => (
-                    <SelectItem key={u.id} value={u.id}>
-                      {u.username}{u.orgRole ? ` — ${u.orgRole.replace(/_/g, " ")}` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onSelect={(u) => setForm({ ...form, userId: u?.id || "", selectedUser: u })}
+              />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>

@@ -582,9 +582,17 @@ export class DbStorage implements IStorage {
     return count;
   }
 
-  async getAllGameModes(gameId?: string | null, _rosterId?: string | null): Promise<GameMode[]> {
+  async getAllGameModes(gameId?: string | null, rosterId?: string | null): Promise<GameMode[]> {
     const teamId = getTeamId();
-    return await db.select().from(gameModes).where(buildWhere(teamId, gameModes, gameId, null));
+    const conditions: any[] = [eq(gameModes.teamId, teamId)];
+    if (gameId) conditions.push(eq(gameModes.gameId, gameId));
+    if (rosterId) {
+      // Roster-scoped read: include this roster's modes AND legacy "global"
+      // modes (rosterId IS NULL) so manually-added modes stay visible — but
+      // never leak modes belonging to OTHER rosters of the same team+game.
+      conditions.push(or(eq(gameModes.rosterId, rosterId), isNull(gameModes.rosterId))!);
+    }
+    return await db.select().from(gameModes).where(and(...conditions));
   }
 
   async addGameMode(insertGameMode: InsertGameMode, gameId?: string | null, _rosterId?: string | null): Promise<GameMode> {
@@ -882,9 +890,16 @@ export class DbStorage implements IStorage {
     });
   }
 
-  async getAllMaps(gameId?: string | null, _rosterId?: string | null): Promise<Map[]> {
+  async getAllMaps(gameId?: string | null, rosterId?: string | null): Promise<Map[]> {
     const teamId = getTeamId();
-    return await db.select().from(maps).where(buildWhere(teamId, maps, gameId, null));
+    const conditions: any[] = [eq(maps.teamId, teamId)];
+    if (gameId) conditions.push(eq(maps.gameId, gameId));
+    if (rosterId) {
+      // Same roster-isolation rule as getAllGameModes: this roster's maps
+      // PLUS legacy global maps, but never another roster's maps.
+      conditions.push(or(eq(maps.rosterId, rosterId), isNull(maps.rosterId))!);
+    }
+    return await db.select().from(maps).where(and(...conditions));
   }
 
   async getMapsByGameModeId(gameModeId: string): Promise<Map[]> {

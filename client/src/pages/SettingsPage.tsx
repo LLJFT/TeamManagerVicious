@@ -207,6 +207,13 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const { hasPermission } = useAuth();
   const canDeleteRoster = hasPermission("delete_roster" as Permission) || hasPermission("manage_game_config" as Permission);
+  // Org branding (name, logo, theme colors) — granular key OR coarse legacy
+  // key. super_admin / org_admin still bypass via hasPermission's org-role
+  // short-circuit, so the platform owner is never locked out of branding.
+  const canEditBranding =
+    hasPermission("edit_roster_branding" as Permission) ||
+    hasPermission("manage_platform_branding" as Permission) ||
+    hasPermission("manage_settings" as Permission);
   const [orgName, setOrgName] = useState("");
   const [gameIconUploading, setGameIconUploading] = useState<string | null>(null);
   const [addGameName, setAddGameName] = useState("");
@@ -439,9 +446,14 @@ export default function SettingsPage() {
               value={orgName || currentOrgName || ""}
               onChange={(e) => setOrgName(e.target.value)}
               placeholder={t("settings.enterOrgName")}
+              disabled={!canEditBranding}
               data-testid="input-org-name"
             />
-            <Button onClick={() => saveOrgNameMutation.mutate()} disabled={saveOrgNameMutation.isPending} data-testid="button-save-org-name">
+            <Button
+              onClick={() => saveOrgNameMutation.mutate()}
+              disabled={saveOrgNameMutation.isPending || !canEditBranding}
+              data-testid="button-save-org-name"
+            >
               Save
             </Button>
           </div>
@@ -465,19 +477,26 @@ export default function SettingsPage() {
               </div>
             )}
             <div className="space-y-2">
-              <ObjectUploader
-                uploadUrl="/api/upload/logo"
-                accept="image/*"
-                onUploaded={(result) => {
-                  saveLogoMutation.mutate(result.url || result.path);
-                }}
-                onError={(msg) => toast({ title: t("settings.toasts.uploadFailed"), description: msg, variant: "destructive" })}
-                buttonVariant="outline"
-                buttonSize="sm"
-              >
-                <Upload className="h-4 w-4 mr-2" />
-                Upload Logo
-              </ObjectUploader>
+              {canEditBranding ? (
+                <ObjectUploader
+                  uploadUrl="/api/upload/logo"
+                  accept="image/*"
+                  onUploaded={(result) => {
+                    saveLogoMutation.mutate(result.url || result.path);
+                  }}
+                  onError={(msg) => toast({ title: t("settings.toasts.uploadFailed"), description: msg, variant: "destructive" })}
+                  buttonVariant="outline"
+                  buttonSize="sm"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload Logo
+                </ObjectUploader>
+              ) : (
+                <Button variant="outline" size="sm" disabled data-testid="button-upload-logo-disabled">
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload Logo
+                </Button>
+              )}
               <p className="text-xs text-muted-foreground">Replaces the shield icon in the sidebar</p>
             </div>
           </div>
@@ -493,7 +512,12 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-2">
           <p className="text-sm text-muted-foreground">Extract colors from your logo and apply them as the platform theme.</p>
-          <Button variant="outline" onClick={extractColorsFromLogo} disabled={saveThemeMutation.isPending} data-testid="button-generate-theme">
+          <Button
+            variant="outline"
+            onClick={extractColorsFromLogo}
+            disabled={saveThemeMutation.isPending || !canEditBranding}
+            data-testid="button-generate-theme"
+          >
             <Palette className="h-4 w-4 mr-2" />
             Generate Theme from Logo
           </Button>

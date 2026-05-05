@@ -962,28 +962,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teamId = getTeamId();
       const gameId = getGameId(req);
       const rosterId = getRosterId(req);
-      let allUsers = await db.select().from(users).where(eq(users.teamId, teamId));
 
-      if (gameId) {
-        const conditions = [
-          eq(userGameAssignments.teamId, teamId),
-          eq(userGameAssignments.gameId, gameId),
-          eq(userGameAssignments.status, "approved"),
-        ];
-        if (rosterId) conditions.push(eq(userGameAssignments.rosterId, rosterId));
-        const gameAssigns = await db.select().from(userGameAssignments)
-          .where(and(...conditions));
-        const gameUserIds = new Set(gameAssigns.map(a => a.userId));
-        allUsers = allUsers.filter(u => gameUserIds.has(u.id) && u.orgRole !== "org_admin" && u.orgRole !== "super_admin");
+      // Roster-scoped view (Dashboard → Users tab) MUST be filtered down to
+      // members of THIS roster only — never the whole team's 1000+ users from
+      // unrelated rosters/games. We require BOTH gameId and rosterId for that
+      // filter; if neither is present, return an empty list so this endpoint
+      // can never accidentally leak the full team roster. The platform-wide
+      // user list lives at GET /api/all-users.
+      if (!gameId || !rosterId) {
+        return res.json([]);
       }
 
+      const teamUsers = await db.select().from(users).where(eq(users.teamId, teamId));
+
+      const gameAssigns = await db.select().from(userGameAssignments).where(and(
+        eq(userGameAssignments.teamId, teamId),
+        eq(userGameAssignments.gameId, gameId),
+        eq(userGameAssignments.rosterId, rosterId),
+        eq(userGameAssignments.status, "approved"),
+      ));
+      const gameUserIds = new Set(gameAssigns.map(a => a.userId));
+      const filtered = teamUsers.filter(u =>
+        gameUserIds.has(u.id) && u.orgRole !== "org_admin" && u.orgRole !== "super_admin"
+      );
+
       const allRoles = await db.select().from(roles).where(eq(roles.teamId, teamId));
-      const result: UserWithRole[] = allUsers.map(u => {
+      const result: UserWithRole[] = filtered.map(u => {
         const { passwordHash, ...safeUser } = u;
         const role = allRoles.find(r => r.id === u.roleId) || null;
         return { ...safeUser, role };
       });
       res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Org-wide searchable user picker — used by surfaces like the New
+  // Subscription modal that operate at the team/org level (not roster-scoped).
+  // Restricted to users with org_admin / super_admin since these surfaces are
+  // platform admin tools. Server-side substring match on username/displayName,
+  // capped at `limit` (default 20, max 50). Ignores any gameId/rosterId query
+  // params that may have been auto-appended by the client scope helper.
+  app.get("/api/users/search", requireAuth, requireOrgRole("org_admin"), async (req, res) => {
+    try {
+      const teamId = getTeamId();
+      const q = String(req.query.q ?? "").trim();
+      const limitRaw = parseInt(String(req.query.limit ?? "20"), 10);
+      const limit = Math.max(1, Math.min(50, isNaN(limitRaw) ? 20 : limitRaw));
+
+      if (q.length < 2) {
+        return res.json([]);
+      }
+
+      const pattern = `%${q.replace(/[%_]/g, m => `\\${m}`)}%`;
+      const rows = await db.select({
+        id: users.id,
+        username: users.username,
+        displayName: users.displayName,
+        orgRole: users.orgRole,
+      })
+        .from(users)
+        .where(and(
+          eq(users.teamId, teamId),
+          or(ilike(users.username, pattern), ilike(users.displayName, pattern))!,
+        ))
+        .orderBy(users.username)
+        .limit(limit);
+      res.json(rows);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -4686,7 +4732,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // categories/availability/opponents). Stored as JSONB on `game_templates`.
   // Apply replaces a roster's config in a single transaction. NEVER touches
   // players, games, events, attendance, or history.
-  app.get("/api/game-templates", requireAuth, requirePermission("view_game_templates"), async (req, res) => {
+  app.get("/api/game-templates", requireAuth, requireAnyPermission("view_game_templates", "manage_game_config"), async (req, res) => {
     try {
       const list = await storage.getAllGameTemplates();
       res.json(list);
@@ -4696,7 +4742,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/game-templates/:id", requireAuth, requirePermission("view_game_templates"), async (req, res) => {
+  app.get("/api/game-templates/:id", requireAuth, requireAnyPermission("view_game_templates", "manage_game_config"), async (req, res) => {
     try {
       const tpl = await storage.getGameTemplate(req.params.id);
       if (!tpl) return res.status(404).json({ error: "Template not found" });
@@ -4828,7 +4874,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Aggregates every image URL stored on the platform (map images, hero
   // images, opponent logos, scoreboard uploads) into a structure that the
   // Media Library UI can render. Read-only — never deletes anything.
-  app.get("/api/media-library", requireAuth, requirePermission("view_media_library"), async (_req, res) => {
+  app.get("/api/media-library", requireAuth, requireAnyPermission("view_media_library", "manage_media", "manage_game_config"), async (_req, res) => {
     try {
       const teamId = getTeamId();
       const [allGames, mapsRows, heroesRows, oppsRows, scoreboardRows, foldersRows, itemsRows] = await Promise.all([

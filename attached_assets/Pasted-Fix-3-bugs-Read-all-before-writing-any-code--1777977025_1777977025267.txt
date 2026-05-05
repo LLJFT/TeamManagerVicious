@@ -1,0 +1,95 @@
+Fix 3 bugs. Read all before writing any code.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BUG 1 — Ghost game modes in Stat Fields (image 1)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PROBLEM:
+In Dashboard → Stat Fields tab for Marvel Rivals roster, the "Select Game Mode" 
+list shows ghost entries: "Game Mode 1", "Game Mode 2", "Game Mode 3" (don't 
+exist in the game template) and "Convergence" appears TWICE (duplicate).
+Same issue affects OW Team 4.
+
+FIX:
+A) Find the API endpoint that returns game modes for the Stat Fields tab
+B) Add strict filter: only return game modes that exist in THIS roster's 
+   current game template (join against the game template's modes, filter by 
+   rosterId + gameTemplateId)
+C) Delete orphan stat field game mode records that no longer exist in 
+   the template — run a cleanup query to remove them from the DB
+D) Add a guard: when loading stat fields, validate each game mode against 
+   the roster's current game template; exclude any mode not in the template
+E) Prevent recurrence: when a roster's game template changes, 
+   automatically delete stat field records for modes not in the new template
+F) Apply fix to ALL affected rosters (Marvel Rivals, OW Team 4, any others)
+
+REPORT:
+1. Which endpoint/query was missing the filter?
+2. How many orphan game mode records were deleted and from which rosters?
+3. Confirm ghost modes no longer appear for Marvel Rivals and OW Team 4
+4. Confirm template-change guard is in place
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BUG 2 — User Management shows ALL 1416 users instead of roster-only (image 2)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PROBLEM:
+Dashboard → Users tab for "Overwatch Team 4" shows 1416 users total — 
+including cod-mobile users and users from completely unrelated rosters.
+A roster manager should ONLY see users from their own roster.
+
+FIX:
+A) Find the API endpoint that powers the User Management list in the 
+   roster Dashboard
+B) Add strict filter: only return users who belong to THIS roster 
+   (filter by rosterId / teamId)
+C) The count must reflect only this roster's users (not 1416)
+D) Super Admin viewing a roster Dashboard also sees only that roster's 
+   users in this view — platform-wide user list belongs in Home admin panel only
+E) Test: OW Team 4 dashboard → Users tab → shows ONLY OW Team 4 members
+
+REPORT:
+1. Which endpoint was missing the rosterId filter?
+2. What is the correct user count for OW Team 4 after the fix?
+3. Confirm cod-mobile users no longer appear in OW Team 4's User Management
+4. Files changed
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BUG 3 — New Subscription user picker has no search (image 3)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PROBLEM:
+The "New Subscription" modal has a plain dropdown listing all 1400+ users 
+with no search. Impossible to find the right user by scrolling.
+
+FIX:
+Replace the plain dropdown with a searchable user picker:
+
+1. SEARCH INPUT — text input at the top of the dropdown when opened
+   - Placeholder: "Search users..."
+   - Case-insensitive substring match
+   - Debounced 300ms
+
+2. SERVER-SIDE SEARCH — do NOT load all users on mount
+   - New endpoint: GET /api/users/search?q=...&limit=20
+   - Only trigger after 2+ characters typed
+   - Show loading indicator while fetching
+   - Show "No users found" when no results
+
+3. LIST — max 8 visible items (scrollable), each shows: "username — role"
+
+4. SELECTION — clicking selects the user and closes dropdown; 
+   selected username shown in field; clearable
+
+REPORT:
+1. Confirm GET /api/users/search?q=...&limit=20 endpoint added
+2. Confirm debounce 300ms implemented
+3. Confirm server-side search (not client-side filtering)
+4. Confirm "No users found" state
+5. Files changed
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FINAL REPORT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+List all files changed across all 3 fixes.

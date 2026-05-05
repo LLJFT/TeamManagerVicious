@@ -472,8 +472,8 @@ export default function Dashboard() {
   });
 
   const { data: gameModes = [], isLoading: modesLoading } = useQuery<GameMode[]>({
-    queryKey: ["/api/game-modes", { gameId }],
-    enabled: !!gameId,
+    queryKey: ["/api/game-modes", { gameId, rosterId }],
+    enabled: !!gameId && !!rosterId,
   });
 
   // Single-mode game flag — when true, the Game Modes dimension is hidden in the
@@ -510,8 +510,8 @@ export default function Dashboard() {
   });
 
   const { data: maps = [], isLoading: mapsLoading } = useQuery<MapType[]>({
-    queryKey: ["/api/maps", { gameId }],
-    enabled: !!gameId,
+    queryKey: ["/api/maps", { gameId, rosterId }],
+    enabled: !!gameId && !!rosterId,
   });
 
   const { data: seasons = [], isLoading: seasonsLoading } = useQuery<Season[]>({
@@ -535,8 +535,8 @@ export default function Dashboard() {
   });
 
   const { data: allUsers = [] } = useQuery<UserWithRole[]>({
-    queryKey: ["/api/users"],
-    enabled: hasPermission("manage_users"),
+    queryKey: ["/api/users", { gameId, rosterId }],
+    enabled: hasPermission("manage_users") && !!gameId && !!rosterId,
   });
 
   const { data: allRoles = [] } = useQuery<Role[]>({
@@ -1266,10 +1266,13 @@ export default function Dashboard() {
   const canManageGameConfig = hasPermission("manage_game_config");
   const canManageStatFields = hasPermission("manage_stat_fields");
   const canViewActivityLog = hasPermission("view_activity_log");
+  // Manage Opponents — granular key OR legacy coarse key, matches the
+  // server-side requireAnyPermission("manage_opponents","manage_game_config").
+  const canManageOpponents = hasPermission("manage_opponents") || canManageGameConfig;
 
   const availableTabs: { value: string; label: string; icon: any; show: boolean }[] = [
     { value: "game-config", label: t("pages.dashboard.tabs.gameConfig"), icon: Gamepad2, show: canManageGameConfig },
-    { value: "opponents", label: t("pages.dashboard.tabs.opponents"), icon: Users, show: canManageGameConfig },
+    { value: "opponents", label: t("pages.dashboard.tabs.opponents"), icon: Users, show: canManageOpponents },
     { value: "hero-ban", label: t("pages.dashboard.tabs.heroBan"), icon: Ban, show: canManageGameConfig },
     { value: "map-veto", label: t("pages.dashboard.tabs.mapVeto"), icon: MapIcon, show: canManageGameConfig },
     { value: "team", label: t("pages.dashboard.tabs.team"), icon: UserCog, show: canViewDashboard },
@@ -1937,7 +1940,7 @@ export default function Dashboard() {
 
           {/* Tab: Opponents */}
           <TabsContent value="opponents" className="space-y-6">
-            <OpponentsConfiguration canEdit={canManageGameConfig} />
+            <OpponentsConfiguration canEdit={canManageOpponents} />
           </TabsContent>
 
           {/* Tab: Hero Ban */}
