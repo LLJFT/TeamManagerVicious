@@ -3142,7 +3142,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/game-modes", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const validatedData = insertGameModeSchema.parse(req.body);
-      const gameMode = await storage.addGameMode(validatedData, getGameId(req), getRosterId(req));
+      const rosterId = getRosterId(req);
+      if (!rosterId) {
+        return res.status(400).json({ error: "rosterId query param is required (game modes are roster-scoped)" });
+      }
+      const gameMode = await storage.addGameMode(validatedData, getGameId(req), rosterId);
       logActivity(req.session.userId!, "add_game_mode", `Added game mode "${gameMode.name}"`, "team", undefined, gameMode.gameId, gameMode.rosterId);
       res.json(gameMode);
     } catch (error: any) {
@@ -5152,7 +5156,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/maps", requireAuth, requirePermission("manage_game_config"), async (req, res) => {
     try {
       const validatedData = insertMapSchema.parse(req.body);
-      const map = await storage.addMap(validatedData, getGameId(req), getRosterId(req));
+      const rosterId = getRosterId(req);
+      if (!rosterId) {
+        return res.status(400).json({ error: "rosterId query param is required (maps are roster-scoped)" });
+      }
+      const map = await storage.addMap(validatedData, getGameId(req), rosterId);
       logActivity(req.session.userId!, "add_map", `Added map "${map.name}"`, "team", undefined, map.gameId, map.rosterId);
       res.json(map);
     } catch (error: any) {

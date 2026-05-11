@@ -6,7 +6,7 @@ import { seedComprehensiveTestData } from "./seed-comprehensive";
 import { fixupTestData } from "./seed-fixup";
 import { ensureBossSuperAdmin } from "./ensure-boss-admin";
 import { ensureHeroRoleConfigs } from "./ensure-hero-role-configs";
-import { dedupeGameScopedEntities } from "./migrations/dedupe-game-scoped";
+import { cleanupGhostConfigRows } from "./migrations/cleanup-ghost-config-rows";
 import { migrateBase64Images } from "./migrations/migrate-base64-images";
 import { ensureOverwatchHeroes } from "./ensure-overwatch-heroes";
 import { ensureOpponents } from "./ensure-opponents";
@@ -112,12 +112,14 @@ app.use((req, res, next) => {
         .then(() => ensureOpponents())
         .then(() => runHealthCheck())
         .then(() => {
-          // Dedupe runs LAST (off the critical boot path). If it hangs or
-          // takes a long time on a large prod DB, the rest of the app is
-          // already fully serving traffic. Storage layer ignores rosterId
-          // for these entities, so duplicates are cosmetic until cleaned.
-          dedupeGameScopedEntities().catch(err => {
-            console.error("[boot-bg] dedupe-game-scoped error:", err?.message || err);
+          // Roster-scoped cleanup: reassigns legacy null-rostered game
+          // modes / maps / stat fields to the rosters that actually
+          // reference them, dedupes within (team, game, roster, name), and
+          // installs unique partial indexes to prevent future duplicates.
+          // Replaces the older dedupeGameScopedEntities migration which
+          // used the opposite (and now-incorrect) "share rows null" model.
+          cleanupGhostConfigRows().catch(err => {
+            console.error("[boot-bg] cleanup-ghost-config-rows error:", err?.message || err);
           });
           // Round 3 fix: migrate any legacy base64 image columns to
           // object-storage URLs. Idempotent — safe to run on every boot;

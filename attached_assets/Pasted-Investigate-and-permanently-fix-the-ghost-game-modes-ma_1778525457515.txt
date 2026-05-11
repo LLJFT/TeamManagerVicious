@@ -1,0 +1,138 @@
+Investigate and permanently fix the ghost game modes / maps / stat fields bug.
+Read all files listed below before writing a single line of code.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WHAT WAS OBSERVED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Ghost game modes / maps / stat fields are appearing in MULTIPLE places 
+across the app — not just the Dashboard Stat Fields tab. Every surface 
+that reads game modes, maps, or stat fields from the DB is affected:
+
+CONFIRMED AFFECTED AREAS:
+1. Dashboard → Stat Fields tab
+   - "Game Mode 1/2/3" appear for Marvel Rivals (don't exist in template)
+   - "Convergence" appears TWICE (duplicate)
+   - Same for Overwatch Team 4
+
+2. Statistics pages (any stats view that filters by game mode or map)
+   - Ghost modes may appear in dropdowns/filters
+   - Stats calculated on ghost modes are meaningless
+
+3. Any dropdown / selector that lists:
+   - Game modes for a roster
+   - Maps for a roster
+   - Stat fields for a game mode
+
+ALL of these must be fixed — not just the Dashboard view.
+
+The ghost entries were not there on first test — they appeared later.
+This means orphan records are accumulating over time, not a one-time issue.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+INVESTIGATION REQUIRED — read these files first
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Read and analyze:
+1. shared/schema.ts
+   → Find ALL tables related to: game modes, maps, game templates, stat fields
+   → Understand how a roster links to a game template
+   → Understand how stat fields link to game modes and maps
+
+2. server/storage.ts (or wherever DB queries live)
+   → Find EVERY query that fetches game modes, maps, or stat fields
+   → Check each one: does it filter by rosterId AND gameTemplateId?
+   → Find queries that CREATE stat field / game mode / map records
+   → Find queries triggered when a game template changes on a roster
+
+3. server/routes.ts
+   → Find ALL endpoints that return game modes, maps, or stat fields
+   → Find the endpoint that handles game template changes on a roster
+   → Find any endpoint that initializes/seeds stat fields for a roster
+
+4. client-side — find every page/component that shows:
+   → Game mode dropdowns/selectors (Dashboard, Stats, History, Compare, etc.)
+   → Map selectors
+   → Stat field lists
+   These are the surfaces that need to show clean data after the fix.
+
+5. Run DB diagnostic queries:
+   → Find all stat field / game mode / map records where the entry does NOT 
+     exist in the roster's current game template
+   → Count orphan records per roster
+   → Show which rosters are affected and how many orphans each has
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ROOT CAUSE — figure out which of these it is
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Hypothesis A — Missing filter:
+Queries fetching game modes/maps for a roster do not join against 
+the current game template → return ALL modes ever associated with 
+the roster regardless of current template.
+
+Hypothesis B — Template change not cleaning up:
+When a roster's game template is changed, old game mode / map / stat field 
+records from the previous template are never deleted → they accumulate.
+
+Hypothesis C — Duplicate creation:
+Something creates duplicate game mode/map entries (e.g., an init or 
+seed function running more than once on the same roster).
+
+Hypothesis D — Cross-roster leakage:
+A query is missing a rosterId filter entirely → pulling modes/maps 
+from other rosters into this one's view.
+
+Identify WHICH hypothesis is correct (may be more than one).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX REQUIRED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Fix must cover EVERY affected surface — not just the Dashboard tab.
+
+A) Fix ALL queries — strict filtering everywhere:
+   Every query that returns game modes, maps, or stat fields must filter 
+   by rosterId AND validate against the roster's current gameTemplateId.
+   This applies to:
+   - Dashboard Stat Fields tab
+   - Statistics page game mode / map filters/dropdowns
+   - History / Compare / any other page using game modes or maps
+   - Any API endpoint returning these values
+
+B) Clean up all orphan records (one-time):
+   Write and run a cleanup query to DELETE all records 
+   (game modes, maps, stat fields) that don't match the roster's 
+   current game template.
+   → Log count of deleted records per roster and per table
+
+C) Guard on template change (prevent future orphans):
+   When a roster's game template is updated, automatically delete 
+   all game mode / map / stat field records that don't exist in 
+   the new template.
+   → Must happen atomically in the same transaction as the template change.
+
+D) Guard on read (defensive layer):
+   When any endpoint returns game modes / maps / stat fields, 
+   validate each entry against the current template and exclude 
+   any orphan from the response — even if orphans somehow exist in DB.
+
+E) Prevent duplicates:
+   Add a unique constraint or upsert logic to prevent the same 
+   game mode or map from being inserted twice for the same roster.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REPORT BACK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Which hypothesis was correct? Explain the root cause clearly
+2. List every query/endpoint that was missing the filter — what was wrong 
+   and what was added
+3. How many orphan records deleted? Per roster, per table
+4. List all files changed
+5. Confirm all affected surfaces are fixed:
+   - Dashboard Stat Fields → only template modes appear
+   - Stats page dropdowns → only valid modes/maps appear
+   - All other dropdowns/selectors → clean
+6. Confirm: changing game template now cleans up old records automatically
+7. Confirm: duplicates are no longer possible

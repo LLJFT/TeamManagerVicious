@@ -586,18 +586,24 @@ export class DbStorage implements IStorage {
     const teamId = getTeamId();
     const conditions: any[] = [eq(gameModes.teamId, teamId)];
     if (gameId) conditions.push(eq(gameModes.gameId, gameId));
-    if (rosterId) {
-      // Roster-scoped read: include this roster's modes AND legacy "global"
-      // modes (rosterId IS NULL) so manually-added modes stay visible — but
-      // never leak modes belonging to OTHER rosters of the same team+game.
-      conditions.push(or(eq(gameModes.rosterId, rosterId), isNull(gameModes.rosterId))!);
-    }
+    // Strict roster scoping. Legacy null-rostered "shared" rows are migrated
+    // into per-roster rows by cleanup-ghost-config-rows at boot, so we no
+    // longer need to OR in `rosterId IS NULL` here. Including null rows was
+    // the source of cross-roster ghosts (e.g. duplicate "Convergence",
+    // phantom "Game Mode 1/2/3").
+    if (rosterId) conditions.push(eq(gameModes.rosterId, rosterId));
     return await db.select().from(gameModes).where(and(...conditions));
   }
 
-  async addGameMode(insertGameMode: InsertGameMode, gameId?: string | null, _rosterId?: string | null): Promise<GameMode> {
+  async addGameMode(insertGameMode: InsertGameMode, gameId?: string | null, rosterId?: string | null): Promise<GameMode> {
     const teamId = getTeamId();
-    const inserted = await db.insert(gameModes).values({ ...insertGameMode, teamId, gameId, rosterId: null }).returning();
+    // Game modes are strictly roster-scoped. Reject null rosterId to prevent
+    // re-introducing the cross-roster ghost rows that the cleanup migration
+    // exists to fix.
+    if (!rosterId) {
+      throw new Error("addGameMode: rosterId is required (game modes are roster-scoped)");
+    }
+    const inserted = await db.insert(gameModes).values({ ...insertGameMode, teamId, gameId, rosterId }).returning();
     return inserted[0];
   }
 
@@ -894,11 +900,8 @@ export class DbStorage implements IStorage {
     const teamId = getTeamId();
     const conditions: any[] = [eq(maps.teamId, teamId)];
     if (gameId) conditions.push(eq(maps.gameId, gameId));
-    if (rosterId) {
-      // Same roster-isolation rule as getAllGameModes: this roster's maps
-      // PLUS legacy global maps, but never another roster's maps.
-      conditions.push(or(eq(maps.rosterId, rosterId), isNull(maps.rosterId))!);
-    }
+    // Strict roster scoping (see getAllGameModes for rationale).
+    if (rosterId) conditions.push(eq(maps.rosterId, rosterId));
     return await db.select().from(maps).where(and(...conditions));
   }
 
@@ -907,9 +910,13 @@ export class DbStorage implements IStorage {
     return await db.select().from(maps).where(and(eq(maps.gameModeId, gameModeId), eq(maps.teamId, teamId)));
   }
 
-  async addMap(insertMap: InsertMap, gameId?: string | null, _rosterId?: string | null): Promise<Map> {
+  async addMap(insertMap: InsertMap, gameId?: string | null, rosterId?: string | null): Promise<Map> {
     const teamId = getTeamId();
-    const inserted = await db.insert(maps).values({ ...insertMap, teamId, gameId, rosterId: null }).returning();
+    // Maps are strictly roster-scoped — see addGameMode for rationale.
+    if (!rosterId) {
+      throw new Error("addMap: rosterId is required (maps are roster-scoped)");
+    }
+    const inserted = await db.insert(maps).values({ ...insertMap, teamId, gameId, rosterId }).returning();
     return inserted[0];
   }
 
